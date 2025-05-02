@@ -1,0 +1,11 @@
+{
+    "name": "vendor/acss",
+    "autoload": {
+        "psr-4": {
+            "Vendor\\Acss\\": "src/"
+        }
+    },
+    "require": {
+        "vlucas/phpdotenv": "^5.6"
+    }
+}

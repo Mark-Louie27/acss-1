@@ -1,0 +1,22 @@
+{
+  "name": "acss-1",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+  "dev": "tailwindcss -i ./src/input.css -o ./public/css/output.css --watch --content ./src/**/*.{html,js,php} --content ./public/**/*.{html,js,php}",
+  "build": "tailwindcss -i ./src/input.css -o ./public/css/output.css --minify"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.5"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.4",
+    "@tailwindcss/vite": "^4.1.4"
+  },
+  "description": ""
+}
