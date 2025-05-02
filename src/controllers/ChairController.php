@@ -417,7 +417,7 @@ class ChairController
 
                 // Define time slots (Monday to Saturday, 8:00 AM to 5:00 PM, 2-hour blocks)
                 $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                $timeSlots = ['08:00', '10:00', '13:00', '15:00'];
+                $timeSlots = ['07:30', '10:00', '13:00', '15:00'];
 
                 $schedules = [];
                 foreach ($sections as $section) {
@@ -502,7 +502,38 @@ class ChairController
     {
         error_log("classroom: Starting classroom method");
         try {
+            $chairId = $_SESSION['user_id'];
+            $departmentId = $this->getChairDepartment($chairId);
+
             $classrooms = $this->db->query("SELECT * FROM classrooms ORDER BY room_name")->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!$departmentId) {
+                error_log("classroom: No department found for chairId: $chairId");
+                $error = "No department assigned to this chair.";
+                require_once __DIR__ . '/../views/chair/classroom.php';
+                return;
+            }
+
+            $searchTerm = $_GET['search'] ?? '';
+            $searchTerm = "%$searchTerm%"; // Add wildcards once
+
+            $query = "SELECT c.*, d.department_name, cl.college_name 
+            FROM classrooms c
+            JOIN departments d ON c.department_id = d.department_id
+            JOIN colleges cl ON d.college_id = cl.college_id
+            WHERE c.department_id = :department_id 
+            AND (c.room_name LIKE :search 
+                 OR d.department_name LIKE :search 
+                 OR cl.college_name LIKE :search)
+            ORDER BY c.room_name";
+
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':search' => $searchTerm // Pass once (works in PDO)
+            ]);
+            $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             require_once __DIR__ . '/../views/chair/classroom.php';
         } catch (PDOException $e) {
             error_log("classroom: Error - " . $e->getMessage());

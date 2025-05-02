@@ -30,14 +30,14 @@ ob_start();
         <?php endif; ?>
 
         <!-- Button to Open Add Course Modal -->
-        <div class="mb-6">
+        <div class="mb-6 flex justify-end">
             <button onclick="openModal('addCourseModal')" class="px-6 py-2 bg-gold-500 text-white font-medium rounded-md hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-offset-2">
                 Add New Course
             </button>
         </div>
 
         <!-- Add Course Modal -->
-        <div id="addCourseModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+        <div id="addCourseModal" class="fixed inset-0 bg-opacity-100 flex items-center justify-center hidden">
             <div class="bg-white rounded-lg shadow-md w-full max-w-2xl">
                 <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
                     <h5 class="text-xl font-semibold">Add New Course</h5>
@@ -220,8 +220,8 @@ ob_start();
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Code</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Code</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lecture</th>
@@ -238,8 +238,8 @@ ob_start();
                             <?php else: ?>
                                 <?php foreach ($courses as $course): ?>
                                     <tr class="hover:bg-gray-50">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($course['course_code']) ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($course['course_name']) ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($course['course_code']) ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($course['program_name'] ?? 'N/A') ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($course['units']) ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
