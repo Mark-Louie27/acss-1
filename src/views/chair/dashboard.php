@@ -72,27 +72,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Pending Applicants Card -->
-        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Pending Approvals</h3>
-                <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </div>
-            </div>
-            <div class="flex justify-between items-end">
-                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($pendingApplicantsCount ?? 7); ?></p>
-                <a href="/chair/approvals" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
-                    Review
-                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                </a>
-            </div>
-        </div>
-
         <!-- Schedule Status Card -->
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">

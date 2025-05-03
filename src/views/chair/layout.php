@@ -336,11 +336,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
             <!-- Right: User Profile and Notifications -->
             <div class="flex items-center space-x-4">
-                <!-- Notifications -->
-                <button class="relative text-gray-600 hover:text-gold-500 focus:outline-none">
-                    <i class="fas fa-bell text-xl"></i>
-                    <span class="notification-badge">3</span>
-                </button>
 
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">

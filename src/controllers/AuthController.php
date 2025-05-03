@@ -133,7 +133,7 @@ class AuthController
     public function logout()
     {
         $this->authService->logout();
-        header('Location: /login');
+        header('Location: /home');
         exit;
     }
 
