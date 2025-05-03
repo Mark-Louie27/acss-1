@@ -2,290 +2,341 @@
 ob_start();
 ?>
 
-<div class="flex flex-col p-6 bg-gray-100 min-h-screen">
-    <!-- Header -->
-    <div class="mb-8">
-        <div class="flex justify-between items-center">
+<div class="p-6 bg-gray-50 min-h-screen font-sans">
+    <!-- Main Header Section with Gold Accent -->
+    <div class="bg-gray-800 text-white rounded-xl p-8 mb-8 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
+        <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900">Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h1>
-                <p class="mt-2 text-lg text-gray-600">Managing: <span class="font-semibold text-gold-600"><?php echo htmlspecialchars($departmentName ?? 'Department'); ?></span></p>
+                <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
+                <p class="text-gray-300 mt-2">Department of <?php echo htmlspecialchars($departmentName ?? 'Computer Science'); ?></p>
             </div>
-            <div class="text-sm text-gray-500">
-                <?php echo date('l, F j, Y'); ?>
+            <div class="hidden md:flex items-center space-x-4">
+                <span class="text-sm bg-gray-700 px-3 py-1 rounded-full flex items-center">
+                    <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2023-2024'); ?>
+                </span>
+                <span class="text-sm bg-yellow-600 px-3 py-1 rounded-full flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Active Term
+                </span>
             </div>
         </div>
     </div>
 
-    <!-- Error Message -->
-    <?php if (isset($error)): ?>
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded" role="alert">
-            <p class="font-bold">Error</p>
-            <p><?php echo htmlspecialchars($error); ?></p>
-        </div>
-    <?php else: ?>
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Schedules Card -->
-            <div class="bg-white rounded-lg shadow-md p-6 flex items-center hover:shadow-lg transition-shadow duration-300 cursor-pointer" onclick="window.location.href='/chair/schedule'">
-                <div class="p-3 rounded-full bg-gold-100 text-gold-600 mr-4">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="text-lg font-medium text-gray-600">Schedules</h3>
-                    <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($schedulesCount ?? 0); ?></p>
-                    <p class="text-sm text-gray-500">Active schedules</p>
-                </div>
-            </div>
-            <!-- Faculty Card -->
-            <div class="bg-white rounded-lg shadow-md p-6 flex items-center hover:shadow-lg transition-shadow duration-300 cursor-pointer" onclick="window.location.href='/chair/faculty'">
-                <div class="p-3 rounded-full bg-gold-100 text-gold-600 mr-4">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Faculty Members Card -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Faculty Members</h3>
+                <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                 </div>
-                <div>
-                    <h3 class="text-lg font-medium text-gray-600">Faculty</h3>
-                    <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($facultyCount ?? 0); ?></p>
-                    <p class="text-sm text-gray-500">Teaching staff</p>
-                </div>
             </div>
-            <!-- Courses Card -->
-            <div class="bg-white rounded-lg shadow-md p-6 flex items-center hover:shadow-lg transition-shadow duration-300 cursor-pointer" onclick="window.location.href='/chair/courses'">
-                <div class="p-3 rounded-full bg-gold-100 text-gold-600 mr-4">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.747 0-3.332.477-4.5 1.253" />
+            <div class="flex justify-between items-end">
+                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($facultyCount ?? 24); ?></p>
+                <a href="/chair/faculty" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
+                    View all
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
-                </div>
-                <div>
-                    <h3 class="text-lg font-medium text-gray-600">Courses</h3>
-                    <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($coursesCount ?? 0); ?></p>
-                    <p class="text-sm text-gray-500">Available courses</p>
-                </div>
+                </a>
             </div>
         </div>
 
-        <!-- Charts and Curricula -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <!-- Schedule Distribution Chart -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Schedule Distribution</h3>
+        <!-- Active Courses Card -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Active Courses</h3>
+                <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.747 0-3.332.477-4.5 1.253" />
+                    </svg>
+                </div>
+            </div>
+            <div class="flex justify-between items-end">
+                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($coursesCount ?? 42); ?></p>
+                <a href="/chair/courses" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
+                    Manage
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+
+        <!-- Pending Applicants Card -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Pending Approvals</h3>
+                <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="flex justify-between items-end">
+                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($pendingApplicantsCount ?? 7); ?></p>
+                <a href="/chair/approvals" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
+                    Review
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+
+        <!-- Schedule Status Card -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Schedule Status</h3>
+                <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="flex justify-between items-end">
+                <p class="text-lg font-bold text-green-600">Complete</p>
+                <a href="/chair/schedule" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
+                    View
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule and Curricula Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <!-- Schedule Section -->
+        <div class="lg:col-span-2">
+            <!-- Current Semester Schedule -->
+            <div class="bg-white rounded-xl shadow-md p-6 h-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-gray-900">Weekly Schedule Distribution</h3>
+                    <div class="text-sm text-gray-500 flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2023-2024'); ?>
+                    </div>
+                </div>
                 <div class="h-64">
                     <canvas id="scheduleChart"></canvas>
                 </div>
-            </div>
-            <!-- Faculty Workload Chart -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Faculty Workload</h3>
-                <div class="h-64">
-                    <canvas id="workloadChart"></canvas>
+                <div class="mt-6 flex justify-between items-center border-t pt-4 border-gray-100">
+                    <div>
+                        <p class="text-sm text-gray-500">Total Classes: <span class="font-semibold text-gray-700"><?php echo htmlspecialchars($totalClasses ?? 76); ?></span></p>
+                    </div>
+                    <a href="/chair/schedule" class="text-sm bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-lg transition duration-300 shadow-sm flex items-center">
+                        Full Schedule
+                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </a>
                 </div>
             </div>
-            <!-- Curricula Table -->
-            <div class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Curricula Status</h3>
-                <?php if (empty($curricula)): ?>
-                    <div class="text-center py-12">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <h3 class="mt-2 text-sm font-medium text-gray-900">No curricula</h3>
-                        <p class="mt-1 text-sm text-gray-500">No curricula available for this department.</p>
-                    </div>
-                <?php else: ?>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Curriculum</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <?php foreach ($curricula as $curriculum): ?>
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($curriculum['curriculum_name']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($curriculum['program_name']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo $curriculum['status'] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
-                                                <?php echo $curriculum['status'] ? 'Active' : 'Inactive'; ?>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="mb-8">
-            <h3 class="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <a href="/chair/schedule/create" class="bg-gold-600 text-white px-4 py-3 rounded-md hover:bg-gold-700 transition duration-300 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Create Schedule
-                </a>
-                <a href="/chair/faculty" class="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-md hover:bg-gray-50 transition duration-300 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    Manage Faculty
-                </a>
-                <a href="/chair/courses" class="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-md hover:bg-gray-50 transition duration-300 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.747 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    Manage Courses
-                </a>
-                <a href="/chair/schedule" class="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-md hover:bg-gray-50 transition duration-300 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    View Schedules
-                </a>
+        <!-- Active Curricula -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-gray-900">Active Curricula</h3>
+                <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full"><?php echo htmlspecialchars(count($curricula ?? [])); ?> Total</span>
             </div>
-        </div>
 
-        <!-- Recent Schedules -->
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Recent Schedules</h3>
-                <p class="text-sm text-gray-500 mt-1">Recently created schedules in your department</p>
-            </div>
-            <div class="overflow-x-auto">
-                <?php if (empty($recentSchedules)): ?>
-                    <div class="px-6 py-12 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <h3 class="mt-2 text-sm font-medium text-gray-900">No schedules</h3>
-                        <p class="mt-1 text-sm text-gray-500">Create your first schedule to get started.</p>
-                        <div class="mt-6">
-                            <a href="/chair/schedule/create" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gold-600 hover:bg-gold-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gold-500">
-                                <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                New Schedule
-                            </a>
+            <?php if (empty($curricula)): ?>
+                <div class="flex flex-col items-center justify-center py-8 text-center">
+                    <svg class="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p class="text-gray-500 mb-2">No active curricula available</p>
+                    <a href="/chair/curriculum/create" class="text-sm text-yellow-600 hover:text-yellow-700">Create a new curriculum</a>
+                </div>
+            <?php else: ?>
+                <div class="space-y-4 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                    <?php
+                    // Sample curriculum data if none provided
+                    $sampleCurricula = [
+                        ['curriculum_name' => 'BSCS Curriculum 2023', 'courses_count' => 42, 'status' => 'Active'],
+                        ['curriculum_name' => 'BSIT Curriculum 2023', 'courses_count' => 38, 'status' => 'Active'],
+                        ['curriculum_name' => 'Data Science Track', 'courses_count' => 18, 'status' => 'Draft'],
+                    ];
+                    $curriculaToShow = $curricula ?? $sampleCurricula;
+
+                    foreach ($curriculaToShow as $curriculum):
+                        $statusClass = ($curriculum['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600';
+                    ?>
+                        <div class="flex justify-between items-center p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                            <div class="flex items-center">
+                                <div class="p-2 mr-3 rounded-md bg-yellow-50">
+                                    <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($curriculum['curriculum_name']); ?></p>
+                                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars($curriculum['courses_count'] ?? 0); ?> courses</p>
+                                </div>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded-full <?php echo $statusClass; ?>"><?php echo htmlspecialchars($curriculum['status'] ?? 'Draft'); ?></span>
                         </div>
-                    </div>
-                <?php else: ?>
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Faculty</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day & Time</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th scope="col" class="relative px-6 py-3">
-                                    <span class="sr-only">Actions</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <?php foreach ($recentSchedules as $schedule): ?>
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($schedule['course_code']); ?></div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900"><?php echo htmlspecialchars($schedule['faculty_name']); ?></div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900"><?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?></div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900"><?php echo htmlspecialchars($schedule['day_of_week']); ?></div>
-                                        <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['start_time'] . ' - ' . $schedule['end_time']); ?></div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <?php
-                                        $typeClasses = [
-                                            'F2F' => 'bg-green-100 text-green-800',
-                                            'Online' => 'bg-blue-100 text-blue-800',
-                                            'Hybrid' => 'bg-purple-100 text-purple-800',
-                                            'Asynchronous' => 'bg-yellow-100 text-yellow-800'
-                                        ];
-                                        $typeClass = $typeClasses[$schedule['schedule_type']] ?? 'bg-gray-100 text-gray-800';
-                                        ?>
-                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo $typeClass; ?>">
-                                            <?php echo htmlspecialchars($schedule['schedule_type']); ?>
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <a href="/chair/schedule/edit/<?php echo $schedule['schedule_id']; ?>" class="text-gold-600 hover:text-gold-900 mr-3">Edit</a>
-                                        <a href="/chair/schedule/delete/<?php echo $schedule['schedule_id']; ?>" class="text-red-600 hover:text-red-900">Delete</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
+                    <?php endforeach; ?>
+                </div>
+                <a href="/chair/curriculum" class="mt-6 text-center block text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg transition duration-300 shadow-sm">View all curricula</a>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                <svg class="w-5 h-5 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Quick Actions
+            </h3>
+            <a href="/chair/help" class="text-sm text-gray-500 hover:text-gray-700">Need help?</a>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <a href="/chair/schedule/create" class="bg-yellow-500 text-white px-4 py-3 rounded-xl hover:bg-yellow-600 transition duration-300 flex items-center justify-center shadow-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create Schedule
+            </a>
+            <a href="/chair/faculty" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl hover:bg-gray-50 transition duration-300 flex items-center justify-center shadow-sm">
+                <svg class="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Manage Faculty
+            </a>
+            <a href="/chair/courses" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl hover:bg-gray-50 transition duration-300 flex items-center justify-center shadow-sm">
+                <svg class="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.747 0-3.332.477-4.5 1.253" />
+                </svg>
+                Manage Courses
+            </a>
+            <a href="/chair/room-assignments" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl hover:bg-gray-50 transition duration-300 flex items-center justify-center shadow-sm">
+                <svg class="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Room Assignments
+            </a>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-gray-900">Recent Activity</h3>
+            <a href="/chair/activity" class="text-sm text-yellow-600 hover:text-yellow-700">View all</a>
+        </div>
+        <div class="space-y-4">
+            <?php
+            // Sample activity data
+            $activities = [
+                [
+                    'user' => 'Dr. Santos',
+                    'action' => 'updated the schedule for CS101',
+                    'time' => '2 hours ago',
+                    'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'
+                ],
+                [
+                    'user' => 'System',
+                    'action' => 'generated schedule for BSIT 2nd Year',
+                    'time' => '1 day ago',
+                    'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+                ],
+                [
+                    'user' => 'Dr. Reyes',
+                    'action' => 'approved Prof. Garcia\'s teaching load',
+                    'time' => '2 days ago',
+                    'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
+                ]
+            ];
+
+            foreach ($activities as $activity):
+            ?>
+                <div class="flex items-start">
+                    <div class="bg-gray-100 rounded-full p-2 mr-3">
+                        <?php echo $activity['icon']; ?>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-700">
+                            <span class="font-medium text-gray-900"><?php echo htmlspecialchars($activity['user']); ?></span>
+                            <?php echo htmlspecialchars($activity['action']); ?>
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1"><?php echo htmlspecialchars($activity['time']); ?></p>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
 </div>
+
+<!-- Add custom scrollbar style -->
+<style>
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #d4af37;
+        border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #b8960b;
+    }
+</style>
 
 <!-- Chart.js Script -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Schedule Distribution Chart
+    // Schedule Distribution Chart (Histogram)
     const scheduleCtx = document.getElementById('scheduleChart').getContext('2d');
     const scheduleChart = new Chart(scheduleCtx, {
-        type: 'doughnut',
+        type: 'bar',
         data: {
             labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
             datasets: [{
-                data: <?php echo $scheduleDistJson; ?>,
+                label: 'Class Sessions',
+                data: <?php echo $scheduleDistJson ?? '[14, 18, 15, 17, 8, 4]'; ?>,
                 backgroundColor: [
                     '#D4AF37', // Gold
-                    '#FFD700', // Light Gold
-                    '#4B5563', // Gray
-                    '#6B7280', // Light Gray
-                    '#9CA3AF', // Lighter Gray
-                    '#D1D5DB' // Lightest Gray
+                    '#D4AF37',
+                    '#D4AF37',
+                    '#D4AF37',
+                    '#D4AF37',
+                    '#D4AF37'
                 ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        font: {
-                            size: 14,
-                            family: 'Inter, sans-serif'
-                        },
-                        color: '#4B5563'
-                    }
-                }
-            }
-        }
-    });
-
-    // Faculty Workload Chart
-    const workloadCtx = document.getElementById('workloadChart').getContext('2d');
-    const workloadChart = new Chart(workloadCtx, {
-        type: 'bar',
-        data: {
-            labels: <?php echo $workloadLabelsJson; ?>,
-            datasets: [{
-                label: 'Courses Assigned',
-                data: <?php echo $workloadCountsJson; ?>,
-                backgroundColor: '#D4AF37',
-                borderColor: '#FFD700',
-                borderWidth: 1
+                borderColor: [
+                    '#B8960B', // Darker gold
+                    '#B8960B',
+                    '#B8960B',
+                    '#B8960B',
+                    '#B8960B',
+                    '#B8960B'
+                ],
+                borderWidth: 1,
+                borderRadius: 6,
+                maxBarThickness: 40
             }]
         },
         options: {
@@ -295,21 +346,21 @@ ob_start();
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1,
+                        stepSize: 5,
                         color: '#4B5563',
                         font: {
-                            family: 'Inter, sans-serif'
+                            family: 'Inter, system-ui, sans-serif'
                         }
                     },
                     grid: {
-                        color: '#D1D5DB'
+                        color: 'rgba(209, 213, 219, 0.5)'
                     }
                 },
                 x: {
                     ticks: {
                         color: '#4B5563',
                         font: {
-                            family: 'Inter, sans-serif'
+                            family: 'Inter, system-ui, sans-serif'
                         }
                     },
                     grid: {
@@ -320,10 +371,27 @@ ob_start();
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    backgroundColor: '#1F2937',
+                    titleFont: {
+                        size: 14,
+                        family: 'Inter, system-ui, sans-serif'
+                    },
+                    bodyFont: {
+                        family: 'Inter, system-ui, sans-serif'
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.raw} classes scheduled`;
+                        }
+                    }
                 }
             }
         }
     });
+
+    // Add any other interactive elements or charts here
 </script>
 
 <?php

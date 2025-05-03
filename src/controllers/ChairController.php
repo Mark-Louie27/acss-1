@@ -504,35 +504,83 @@ class ChairController
         try {
             $chairId = $_SESSION['user_id'];
             $departmentId = $this->getChairDepartment($chairId);
+            $classrooms = [];
+            $error = null;
 
-            $classrooms = $this->db->query("SELECT * FROM classrooms ORDER BY room_name")->fetchAll(PDO::FETCH_ASSOC);
+            $departmentInfo = null;
 
-            if (!$departmentId) {
-                error_log("classroom: No department found for chairId: $chairId");
-                $error = "No department assigned to this chair.";
-                require_once __DIR__ . '/../views/chair/classroom.php';
-                return;
+            // Get department and college info
+            if ($departmentId) {
+                $stmt = $this->db->prepare("
+                SELECT d.*, cl.college_name 
+                FROM departments d
+                JOIN colleges cl ON d.college_id = cl.college_id
+                WHERE d.department_id = ?
+            ");
+                $stmt->execute([$departmentId]);
+                $departmentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
             }
 
-            $searchTerm = $_GET['search'] ?? '';
-            $searchTerm = "%$searchTerm%"; // Add wildcards once
-
+            // Base query to fetch department classrooms
             $query = "SELECT c.*, d.department_name, cl.college_name 
-            FROM classrooms c
-            JOIN departments d ON c.department_id = d.department_id
-            JOIN colleges cl ON d.college_id = cl.college_id
-            WHERE c.department_id = :department_id 
-            AND (c.room_name LIKE :search 
-                 OR d.department_name LIKE :search 
-                 OR cl.college_name LIKE :search)
-            ORDER BY c.room_name";
+                FROM classrooms c
+                JOIN departments d ON c.department_id = d.department_id
+                JOIN colleges cl ON d.college_id = cl.college_id
+                WHERE c.department_id = :department_id";
 
+            $params = [':department_id' => $departmentId];
+            $conditions = [];
+
+            // Check if searching via POST
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_classrooms'])) {
+                $building = $_POST['building'] ?? '';
+                $minCapacity = (int)($_POST['min_capacity'] ?? 0);
+                $roomType = $_POST['room_type'] ?? '';
+                $availability = $_POST['availability'] ?? 'available';
+
+                // Add filters
+                $conditions[] = "c.availability = :availability";
+                $params[':availability'] = $availability;
+
+                $conditions[] = "c.capacity >= :min_capacity";
+                $params[':min_capacity'] = $minCapacity;
+                
+
+                if (!empty($building)) {
+                    $conditions[] = "c.building LIKE :building";
+                    $params[':building'] = "%$building%";
+                }
+
+                if (!empty($roomType)) {
+                    $conditions[] = "c.room_type = :room_type";
+                    $params[':room_type'] = $roomType;
+                }
+
+                // Restrict to shared or department classrooms if department exists
+                if ($departmentId) {
+                    $conditions[] = "(c.shared = 1 OR c.department_id = :department_id)";
+                    $params[':department_id'] = $departmentId;
+                }
+            }
+
+            // Add conditions to query
+            if (!empty($conditions)) {
+                $query .= " WHERE " . implode(" AND ", $conditions);
+            }
+
+            $query .= " ORDER BY c.room_name";
+
+            // Execute the query
             $stmt = $this->db->prepare($query);
-            $stmt->execute([
-                ':department_id' => $departmentId,
-                ':search' => $searchTerm // Pass once (works in PDO)
-            ]);
+            $stmt->execute($params);
             $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Handle missing department
+            if (!$departmentId) {
+                error_log("classroom: No department found for chairId: $chairId");
+                $classrooms = []; // Clear classrooms if no department
+                $error = "No department assigned to this chair.";
+            }
 
             require_once __DIR__ . '/../views/chair/classroom.php';
         } catch (PDOException $e) {
@@ -1004,8 +1052,14 @@ public function search()
     public function profile()
     {
         error_log("profile: Starting profile method");
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
+                $uploadDir = __DIR__ . '/../public/uploads/profiles/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
                 $data = [
                     'user_id' => $_SESSION['user_id'],
                     'email' => trim($_POST['email'] ?? ''),
@@ -1016,18 +1070,61 @@ public function search()
                     'suffix' => trim($_POST['suffix'] ?? '')
                 ];
 
-                error_log("profile: Updating profile with data - " . json_encode($data));
-
                 $errors = [];
-                if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
-                if (empty($data['first_name'])) $errors[] = "First name is required.";
-                if (empty($data['last_name'])) $errors[] = "Last name is required.";
+                if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = "Valid email is required.";
+                }
+                if (empty($data['first_name'])) {
+                    $errors[] = "First name is required.";
+                }
+                if (empty($data['last_name'])) {
+                    $errors[] = "Last name is required.";
+                }
+
+                // Handle file upload
+                if (!empty($_FILES['profile_picture']['name'])) {
+                    $file = $_FILES['profile_picture'];
+                    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+                    $maxSize = 2 * 1024 * 1024; // 2MB
+
+                    if (!in_array($file['type'], $allowedTypes)) {
+                        $errors[] = "Only JPG, PNG, and GIF files are allowed.";
+                    } elseif ($file['size'] > $maxSize) {
+                        $errors[] = "File size must be less than 2MB.";
+                    } else {
+                        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                        $filename = 'profile_' . $data['user_id'] . '_' . time() . '.' . $extension;
+                        $targetPath = $uploadDir . $filename;
+
+                        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                            $data['profile_picture'] = '/uploads/profiles/' . $filename;
+                        } else {
+                            $errors[] = "Failed to upload profile picture.";
+                        }
+                    }
+                }
 
                 if (empty($errors)) {
-                    $stmt = $this->db->prepare("UPDATE users SET email = :email, phone = :phone, first_name = :first_name, 
-                                                middle_name = :middle_name, last_name = :last_name, suffix = :suffix 
-                                                WHERE user_id = :user_id");
-                    $stmt->execute($data);
+                    $setClause = [];
+                    $params = [];
+
+                    foreach (['email', 'phone', 'first_name', 'middle_name', 'last_name', 'suffix'] as $field) {
+                        $setClause[] = "$field = :$field";
+                        $params[":$field"] = $data[$field];
+                    }
+
+                    if (isset($data['profile_picture'])) {
+                        $setClause[] = "profile_picture = :profile_picture";
+                        $params[':profile_picture'] = $data['profile_picture'];
+                    }
+
+                    $query = "UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id";
+                    $params[':user_id'] = $data['user_id'];
+
+                    $stmt = $this->db->prepare($query);
+                    $stmt->execute($params);
+
+                    $_SESSION['first_name'] = $data['first_name'];
                     $success = "Profile updated successfully.";
                 } else {
                     error_log("profile: Validation errors - " . implode(", ", $errors));
@@ -1040,16 +1137,48 @@ public function search()
         }
 
         try {
+            // Fetch user data
             $stmt = $this->db->prepare("SELECT u.*, d.department_name 
-                                        FROM users u 
-                                        JOIN program_chairs pc ON u.user_id = pc.user_id 
-                                        JOIN programs p ON pc.program_id = p.program_id 
-                                        JOIN departments d ON p.department_id = d.department_id 
-                                        WHERE u.user_id = :user_id AND pc.is_current = 1");
+                                    FROM users u 
+                                    JOIN program_chairs pc ON u.user_id = pc.user_id 
+                                    JOIN programs p ON pc.program_id = p.program_id 
+                                    JOIN departments d ON p.department_id = d.department_id 
+                                    WHERE u.user_id = :user_id AND pc.is_current = 1");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            error_log("profile: Fetched user data, loading view");
+            // Fetch faculty count for the department
+            $stmt = $this->db->prepare("SELECT COUNT(*) as facultyCount 
+                                    FROM faculty f 
+                                    JOIN department_instructors di ON f.user_id = di.user_id 
+                                    WHERE di.department_id = :department_id AND di.is_current = 1");
+            $stmt->execute([':department_id' => $user['department_id']]);
+            $facultyCount = $stmt->fetch(PDO::FETCH_ASSOC)['facultyCount'];
+
+            // Fetch courses count for the department
+            $stmt = $this->db->prepare("SELECT COUNT(*) as coursesCount 
+                                    FROM courses c 
+                                    WHERE c.department_id = :department_id AND c.is_active = 1");
+            $stmt->execute([':department_id' => $user['department_id']]);
+            $coursesCount = $stmt->fetch(PDO::FETCH_ASSOC)['coursesCount'];
+
+            // Fetch pending applicants count from faculty_requests
+            $stmt = $this->db->prepare("SELECT COUNT(*) as pendingApplicantsCount 
+                                    FROM faculty_requests fr 
+                                    WHERE fr.department_id = :department_id AND fr.status = 'pending'");
+            $stmt->execute([':department_id' => $user['department_id']]);
+            $pendingApplicantsCount = $stmt->fetch(PDO::FETCH_ASSOC)['pendingApplicantsCount'];
+
+            // Fetch current semester
+            $stmt = $this->db->prepare("SELECT semester_name FROM semesters WHERE is_current = 1");
+            $stmt->execute();
+            $currentSemester = $stmt->fetch(PDO::FETCH_ASSOC)['semester_name'] ?? '2nd';
+
+            // Fetch last login from auth_logs
+            $stmt = $this->db->prepare("SELECT created_at FROM auth_logs WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 1");
+            $stmt->execute([':user_id' => $_SESSION['user_id']]);
+            $lastLogin = $stmt->fetch(PDO::FETCH_ASSOC) ? $stmt->fetch(PDO::FETCH_ASSOC)['created_at'] : 'January 1, 1970, 1:00 am';
+
             require_once __DIR__ . '/../views/chair/profile.php';
         } catch (PDOException $e) {
             error_log("profile: Error - " . $e->getMessage());

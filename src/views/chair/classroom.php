@@ -10,34 +10,53 @@ $searchTerm = $_GET['search'] ?? '';
 $error = $error ?? null; // From controller
 $availableClassrooms = $availableClassrooms ?? null;
 
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $room_name = $_POST['room_name'] ?? '';
+    $building = $_POST['building'] ?? '';
     $capacity = $_POST['capacity'] ?? 0;
     $department_id = $departmentId;
     $availability = isset($_POST['availability']) ? 1 : 0;
 
     if ($action === 'add') {
-        $stmt = $this->db->prepare("INSERT INTO classrooms (room_name, capacity, department_id, availability, created_at, updated_at) 
-                                    VALUES (:room_name, :capacity, :department_id, :availability, NOW(), NOW()) 
-                                    ON DUPLICATE KEY UPDATE capacity = VALUES(capacity), availability = VALUES(availability), updated_at = NOW()");
+        $room_name = $_POST['room_name'] ?? '';
+        $building = $_POST['building'] ?? ''; // Get building from form
+        $capacity = $_POST['capacity'] ?? 0;
+        $availability = isset($_POST['availability']) ? 1 : 0;
+
+        $stmt = $this->db->prepare("
+        INSERT INTO classrooms 
+        (room_name, building, capacity, department_id, availability, created_at, updated_at) 
+        VALUES (:room_name, :building, :capacity, :department_id, :availability, NOW(), NOW())
+    ");
+
         $stmt->execute([
             ':room_name' => $room_name,
+            ':building' => $building, // Add building to execute params
             ':capacity' => $capacity,
-            ':department_id' => $department_id,
+            ':department_id' => $departmentId,
             ':availability' => $availability
         ]);
     } elseif ($action === 'edit') {
         $room_id = $_POST['room_id'];
-        $stmt = $this->db->prepare("UPDATE classrooms SET room_name = :room_name, capacity = :capacity, availability = :availability, updated_at = NOW() 
-                                    WHERE room_id = :room_id AND department_id = :department_id");
+        $stmt = $this->db->prepare("
+    UPDATE classrooms SET 
+    room_name = :room_name,
+    building = :building,
+    capacity = :capacity,
+    availability = :availability,
+    updated_at = NOW() 
+    WHERE room_id = :room_id
+    ");
+
         $stmt->execute([
             ':room_id' => $room_id,
             ':room_name' => $room_name,
+            ':building' => $_POST['building'], // Add building
             ':capacity' => $capacity,
-            ':availability' => $availability,
-            ':department_id' => $department_id
+            ':availability' => $availability
         ]);
     } elseif ($action === 'search') {
         $search_date = $_POST['search_date'] ?? date('Y-m-d');
@@ -121,26 +140,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="p-6">
                     <form method="POST">
                         <input type="hidden" name="action" value="add">
+                        <!-- Display auto-assigned department/college -->
+                        <?php if ($departmentInfo): ?>
+                            <div class="mb-4 bg-gray-50 p-4 rounded-lg">
+                                <p class="text-sm text-gray-600">
+                                    This classroom will be assigned to:
+                                    <span class="font-medium">
+                                        <?= htmlspecialchars($departmentInfo['department_name']) ?>
+                                        (<?= htmlspecialchars($departmentInfo['college_name']) ?>)
+                                    </span>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- In your addClassroomModal form -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="mb-4">
-                                <label for="room_name" class="block text-gray-700 font-medium mb-2">Room Name</label>
-                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="room_name" name="room_name" required>
+                                <label for="room_name" class="block text-gray-700 font-medium mb-2">
+                                    Room Name
+                                </label>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md"
+                                    id="room_name" name="room_name" required>
                             </div>
                             <div class="mb-4">
-                                <label for="capacity" class="block text-gray-700 font-medium mb-2">Capacity</label>
-                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="capacity" name="capacity" min="1" required>
+                                <label for="building" class="block text-gray-700 font-medium mb-2">
+                                    Building
+                                </label>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md"
+                                    id="building" name="building" required>
                             </div>
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-gray-700 font-medium mb-2">Availability</label>
-                            <label class="inline-flex items-center mr-4">
-                                <input type="radio" name="availability" value="1" checked class="form-radio text-gold-500">
-                                <span class="ml-2 text-gray-700">Available</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="availability" value="0" class="form-radio text-gold-500">
-                                <span class="ml-2 text-gray-700">Unavailable</span>
-                            </label>
+                            <div class="mb-4">
+                                <label for="capacity" class="block text-gray-700 font-medium mb-2">
+                                    Capacity
+                                </label>
+                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md"
+                                    id="capacity" name="capacity" min="1" required>
+                            </div>
                         </div>
                         <div class="mt-8 flex space-x-4">
                             <button type="submit" class="px-6 py-2 bg-gold-500 text-white font-medium rounded-md hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-offset-2">
@@ -175,6 +210,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label for="edit_capacity" class="block text-gray-700 font-medium mb-2">Capacity</label>
                                 <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="edit_capacity" name="capacity" min="1" required>
                             </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="edit_building" class="block text-gray-700 font-medium mb-2">
+                                Building
+                            </label>
+                            <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md"
+                                id="edit_building" name="building" required>
                         </div>
                         <div class="mb-4">
                             <label class="block text-gray-700 font-medium mb-2">Availability</label>
@@ -288,6 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Room Name</th>
+                                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Building</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Capacity</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Department</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">College</th>
@@ -295,11 +338,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
                                 </tr>
                             </thead>
+
                             <tbody class="divide-y divide-gray-200">
                                 <?php foreach ($classrooms as $classroom): ?>
                                     <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-4 py-3 text-sm text-gray-900 font-medium"><?= htmlspecialchars($classroom['room_name']) ?></td>
-                                        <td class="px-4 py-3 text-sm text-gray-600"><?= htmlspecialchars($classroom['capacity']) ?></td>
+                                        <td class="px-4 py-3 text-sm text-gray-900 font-medium">
+                                            <?= htmlspecialchars($classroom['room_name']) ?>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                            <?= htmlspecialchars($classroom['building']) ?>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                            <?= htmlspecialchars($classroom['capacity']) ?>
+                                        </td>
+                                        <!-- Safely access department/college names -->
                                         <td class="px-4 py-3 text-sm text-gray-600"><?= htmlspecialchars($classroom['department_name'] ?? 'N/A') ?></td>
                                         <td class="px-4 py-3 text-sm text-gray-600"><?= htmlspecialchars($classroom['college_name'] ?? 'N/A') ?></td>
                                         <td class="px-4 py-3">
