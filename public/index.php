@@ -42,10 +42,64 @@ function handleDiRoutes($path)
 
 function handleDeanRoutes($path)
 {
+    error_log("Entering handleDeanRoutes with path: $path");
     AuthMiddleware::handle('dean'); // Require dean role
-    http_response_code(404);
-    echo "Dean routes not implemented";
-    exit;
+
+    require_once __DIR__ . '/../src/controllers/DeanController.php';
+    $controller = new DeanController();
+
+    // Normalize path for comparison
+    $normalizedPath = '/' . trim($path, '/');
+    error_log("Normalized path: $normalizedPath");
+
+    switch ($normalizedPath) {
+        case '/dean/dashboard':
+            $controller->dashboard();
+            break;
+
+        case '/dean/schedule':
+            $controller->mySchedule();
+            break;
+
+        case '/dean/classroom':
+            $controller->classroom();
+            break;
+
+        case '/dean/faculty':
+            $controller->faculty();
+            break;
+
+        case '/dean/search':
+            $controller->search();
+            break;
+
+        case '/dean/courses':
+            $controller->courses();
+            break;
+
+        case '/dean/curriculum':
+            $controller->curriculum();
+            break;
+
+        case '/dean/profile':
+            $controller->profile();
+            break;
+
+        case '/dean/settings':
+            $controller->settings();
+            break;
+
+        case '/dean/logout':
+            error_log("Routing to AuthController::logout");
+            require_once __DIR__ . '/../src/controllers/AuthController.php';
+            (new AuthController())->logout();
+            exit;
+
+        default:
+            http_response_code(404);
+            echo "Page not found";
+            exit;
+    }
 }
 
 function handleChairRoutes($path)
