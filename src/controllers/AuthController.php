@@ -65,7 +65,6 @@ class AuthController
                 'role_id' => intval($_POST['role_id']),
                 'college_id' => intval($_POST['college_id']),
                 'department_id' => intval($_POST['department_id']),
-                'program_id' => isset($_POST['program_id']) ? intval($_POST['program_id']) : null,
                 'academic_rank' => $_POST['academic_rank'] ?? 'Instructor',
                 'employment_type' => $_POST['employment_type'] ?? 'Regular'
             ];
@@ -86,11 +85,16 @@ class AuthController
             }
 
             if (empty($errors)) {
-                if ($this->authService->register($data)) {
-                    header('Location: /login?success=Registration successful. Please login.');
-                    exit;
-                } else {
-                    $error = "Registration failed. Employee ID, username, or email may already be in use.";
+                try {
+                    if ($this->authService->register($data)) {
+                        header('Location: /login?success=Registration successful. Please login.');
+                        exit;
+                    } else {
+                        $error = "Registration failed. Employee ID or username may already be in use.";
+                        require_once __DIR__ . '/../views/auth/register.php';
+                    }
+                } catch (Exception $e) {
+                    $error = $e->getMessage();
                     require_once __DIR__ . '/../views/auth/register.php';
                 }
             } else {

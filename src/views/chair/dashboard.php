@@ -4,7 +4,7 @@ ob_start();
 
 <div class="p-6 bg-gray-50 min-h-screen font-sans">
     <!-- Main Header Section with Gold Accent -->
-    <div class="bg-gray-800 text-white rounded-xl p-8 mb-8 shadow-lg relative overflow-hidden">
+    <div class="bg-gray-800 text-white rounded-xl p-6 mb-8 shadow-lg relative overflow-hidden">
         <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
         <div class="flex items-center justify-between">
             <div>
@@ -16,7 +16,7 @@ ob_start();
                     <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2023-2024'); ?>
+                    <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2024-2025'); ?>
                 </span>
                 <span class="text-sm bg-yellow-600 px-3 py-1 rounded-full flex items-center">
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,8 +29,7 @@ ob_start();
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Faculty Members Card -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Faculty Members</h3>
@@ -50,8 +49,6 @@ ob_start();
                 </a>
             </div>
         </div>
-
-        <!-- Active Courses Card -->
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Active Courses</h3>
@@ -71,8 +68,6 @@ ob_start();
                 </a>
             </div>
         </div>
-
-        <!-- Schedule Status Card -->
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Schedule Status</h3>
@@ -96,27 +91,68 @@ ob_start();
 
     <!-- Schedule and Curricula Section -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <!-- Schedule Section -->
+        <!-- My Schedule Section -->
         <div class="lg:col-span-2">
-            <!-- Current Semester Schedule -->
             <div class="bg-white rounded-xl shadow-md p-6 h-full">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-bold text-gray-900">Weekly Schedule Distribution</h3>
+                    <h3 class="text-lg font-bold text-gray-900">My Schedule</h3>
                     <div class="text-sm text-gray-500 flex items-center">
                         <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2023-2024'); ?>
+                        <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2024-2025'); ?>
                     </div>
                 </div>
-                <div class="h-64">
-                    <canvas id="scheduleChart"></canvas>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-yellow-600 text-white">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Course Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Course Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Section</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Room</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Day</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <?php if (isset($schedules) && !empty($schedules)): ?>
+                                <?php foreach ($schedules as $schedule): ?>
+                                    <tr class="hover:bg-yellow-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['course_name'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($schedule['course_code'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full"><?php echo htmlspecialchars($schedule['section_name'] ?? 'N/A'); ?></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['room_name'] ?? 'TBD'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($schedule['day_of_week'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['start_time'] . ' - ' . $schedule['end_time'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['schedule_type'] ?? 'N/A'); ?></div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">No schedules found for this term.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="mt-6 flex justify-between items-center border-t pt-4 border-gray-100">
-                    <div>
-                        <p class="text-sm text-gray-500">Total Classes: <span class="font-semibold text-gray-700"><?php echo htmlspecialchars($totalClasses ?? 76); ?></span></p>
-                    </div>
-                    <a href="/chair/schedule" class="text-sm bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-lg transition duration-300 shadow-sm flex items-center">
+                <div class="mt-6 flex justify-end">
+                    <a href="/chair/my_schedule" class="text-sm bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-lg transition duration-300 shadow-sm flex items-center">
                         Full Schedule
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -132,27 +168,18 @@ ob_start();
                 <h3 class="text-lg font-bold text-gray-900">Active Curricula</h3>
                 <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full"><?php echo htmlspecialchars(count($curricula ?? [])); ?> Total</span>
             </div>
-
             <?php if (empty($curricula)): ?>
                 <div class="flex flex-col items-center justify-center py-8 text-center">
                     <svg class="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <p class="text-gray-500 mb-2">No active curricula available</p>
-                    <a href="/chair/curriculum/create" class="text-sm text-yellow-600 hover:text-yellow-700">Create a new curriculum</a>
+                    <a href="/chair/curriculum" class="text-sm text-yellow-600 hover:text-yellow-700">Create a new curriculum</a>
                 </div>
             <?php else: ?>
                 <div class="space-y-4 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                     <?php
-                    // Sample curriculum data if none provided
-                    $sampleCurricula = [
-                        ['curriculum_name' => 'BSCS Curriculum 2023', 'courses_count' => 42, 'status' => 'Active'],
-                        ['curriculum_name' => 'BSIT Curriculum 2023', 'courses_count' => 38, 'status' => 'Active'],
-                        ['curriculum_name' => 'Data Science Track', 'courses_count' => 18, 'status' => 'Draft'],
-                    ];
-                    $curriculaToShow = $curricula ?? $sampleCurricula;
-
-                    foreach ($curriculaToShow as $curriculum):
+                    foreach ($curricula as $curriculum):
                         $statusClass = ($curriculum['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600';
                     ?>
                         <div class="flex justify-between items-center p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
@@ -223,26 +250,10 @@ ob_start();
         </div>
         <div class="space-y-4">
             <?php
-            // Sample activity data
             $activities = [
-                [
-                    'user' => 'Dr. Santos',
-                    'action' => 'updated the schedule for CS101',
-                    'time' => '2 hours ago',
-                    'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'
-                ],
-                [
-                    'user' => 'System',
-                    'action' => 'generated schedule for BSIT 2nd Year',
-                    'time' => '1 day ago',
-                    'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
-                ],
-                [
-                    'user' => 'Dr. Reyes',
-                    'action' => 'approved Prof. Garcia\'s teaching load',
-                    'time' => '2 days ago',
-                    'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'
-                ]
+                ['user' => 'Dr. Santos', 'action' => 'updated the schedule for CS101', 'time' => '2 hours ago', 'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'],
+                ['user' => 'System', 'action' => 'generated schedule for BSIT 2nd Year', 'time' => '1 day ago', 'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>'],
+                ['user' => 'Dr. Reyes', 'action' => 'approved Prof. Garcia\'s teaching load', 'time' => '2 days ago', 'icon' => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>']
             ];
 
             foreach ($activities as $activity):
@@ -264,7 +275,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Add custom scrollbar style -->
 <style>
     .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
@@ -284,94 +294,6 @@ ob_start();
         background: #b8960b;
     }
 </style>
-
-<!-- Chart.js Script -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    // Schedule Distribution Chart (Histogram)
-    const scheduleCtx = document.getElementById('scheduleChart').getContext('2d');
-    const scheduleChart = new Chart(scheduleCtx, {
-        type: 'bar',
-        data: {
-            labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-            datasets: [{
-                label: 'Class Sessions',
-                data: <?php echo $scheduleDistJson ?? '[14, 18, 15, 17, 8, 4]'; ?>,
-                backgroundColor: [
-                    '#D4AF37', // Gold
-                    '#D4AF37',
-                    '#D4AF37',
-                    '#D4AF37',
-                    '#D4AF37',
-                    '#D4AF37'
-                ],
-                borderColor: [
-                    '#B8960B', // Darker gold
-                    '#B8960B',
-                    '#B8960B',
-                    '#B8960B',
-                    '#B8960B',
-                    '#B8960B'
-                ],
-                borderWidth: 1,
-                borderRadius: 6,
-                maxBarThickness: 40
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 5,
-                        color: '#4B5563',
-                        font: {
-                            family: 'Inter, system-ui, sans-serif'
-                        }
-                    },
-                    grid: {
-                        color: 'rgba(209, 213, 219, 0.5)'
-                    }
-                },
-                x: {
-                    ticks: {
-                        color: '#4B5563',
-                        font: {
-                            family: 'Inter, system-ui, sans-serif'
-                        }
-                    },
-                    grid: {
-                        display: false
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    backgroundColor: '#1F2937',
-                    titleFont: {
-                        size: 14,
-                        family: 'Inter, system-ui, sans-serif'
-                    },
-                    bodyFont: {
-                        family: 'Inter, system-ui, sans-serif'
-                    },
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.raw} classes scheduled`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    // Add any other interactive elements or charts here
-</script>
 
 <?php
 $content = ob_get_clean();

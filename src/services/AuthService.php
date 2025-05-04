@@ -60,6 +60,11 @@ class AuthService
     public function register($data)
     {
         try {
+            // Check if email already exists
+            if ($this->userModel->emailExists($data['email'])) {
+                throw new Exception("Email already exists. Please use a different email.");
+            }
+
             $data['password_hash'] = password_hash($data['password'], PASSWORD_BCRYPT);
             $data['is_active'] = 1; // Default to active
 
@@ -67,38 +72,73 @@ class AuthService
             $userId = $this->userModel->createUser($data);
 
             if ($userId) {
+                // Fetch a program_id if needed (for Program Chair and Faculty roles)
+                $program_id = null;
+                if (in_array($data['role_id'], [5, 6])) { // Program Chair or Faculty
+                    $programs = $this->userModel->getProgramsByDepartment($data['department_id']);
+                    if (!empty($programs)) {
+                        $program_id = $programs[0]['program_id']; // Take the first program as default
+                    } else {
+                        throw new Exception("No programs found for the selected department.");
+                    }
+                }
+
                 // Handle role-specific data
                 switch ($data['role_id']) {
+                    case 1: // Admin
+                        // Assuming no specific table for Admin, just log the success
+                        break;
+                    case 2: // VPAA
+                        // Assuming no specific table for VPAA, just log the success
+                        break;
                     case 3: // Department Instructor (D.I)
-                        $this->userModel->createDepartmentInstructor([
+                        $success = $this->userModel->createDepartmentInstructor([
                             'user_id' => $userId,
                             'department_id' => $data['department_id'],
                             'start_date' => date('Y-m-d')
                         ]);
+                        if (!$success) {
+                            throw new Exception("Failed to create Department Instructor record.");
+                        }
                         break;
                     case 4: // Dean
-                        $this->userModel->createDean([
+                        $success = $this->userModel->createDean([
                             'user_id' => $userId,
                             'college_id' => $data['college_id'],
                             'start_date' => date('Y-m-d')
                         ]);
+                        if (!$success) {
+                            throw new Exception("Failed to create Dean record.");
+                        }
                         break;
-                    case 5: // Chair
-                        $this->userModel->createProgramChair([
+                    case 5: // Program Chair
+                        if (!$program_id) {
+                            throw new Exception("Program ID is required for Program Chair role.");
+                        }
+                        $success = $this->userModel->createProgramChair([
                             'user_id' => $userId,
-                            'program_id' => $data['program_id'] ?? 1, // Default to BSIT
+                            'program_id' => $program_id,
                             'start_date' => date('Y-m-d')
                         ]);
+                        if (!$success) {
+                            throw new Exception("Failed to create Program Chair record.");
+                        }
                         break;
                     case 6: // Faculty
-                        $this->userModel->createFaculty([
+                        if (!$program_id) {
+                            throw new Exception("Program ID is required for Faculty role.");
+                        }
+                        $success = $this->userModel->createFaculty([
                             'user_id' => $userId,
                             'employee_id' => $data['employee_id'],
                             'academic_rank' => $data['academic_rank'] ?? 'Instructor',
                             'employment_type' => $data['employment_type'] ?? 'Regular',
                             'department_id' => $data['department_id'],
-                            'primary_program_id' => $data['program_id'] ?? null
+                            'primary_program_id' => $program_id
                         ]);
+                        if (!$success) {
+                            throw new Exception("Failed to create Faculty record.");
+                        }
                         break;
                 }
 
@@ -106,13 +146,12 @@ class AuthService
                 $this->db->commit();
                 return true;
             } else {
-                $this->db->rollBack();
-                return false;
+                throw new Exception("Failed to create user.");
             }
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             $this->db->rollBack();
             error_log("Error during registration: " . $e->getMessage());
-            return false;
+            throw $e; // Re-throw to let the controller handle the error
         }
     }
 

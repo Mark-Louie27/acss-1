@@ -66,7 +66,7 @@ function handleChairRoutes($path)
             $controller->dashboard();
             exit;
         case '/chair/my_schedule':
-            error_log("Routing to ChairController::mySchedule");
+            error_log("Routing to ChairController::my_schedule");
             $controller->mySchedule();
             exit;
         case '/chair/schedule':
@@ -171,7 +171,7 @@ if (in_array($path, $publicRoutes)) {
                 echo "Method Not Allowed";
             }
             break;
-        case 'api/sections':
+        case 'api/departments':
             if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 $controller->getDepartments();
             } else {

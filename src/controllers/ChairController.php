@@ -226,6 +226,9 @@ class ChairController
         error_log("mySchedule: Starting mySchedule method");
         try {
             $chairId = $_SESSION['user_id'];
+            error_log("my schedule: Starting my Schedule method for user_id: $chairId");
+
+            // Get department for the Chair
             $departmentId = $this->getChairDepartment($chairId);
             if (!$departmentId) {
                 error_log("mySchedule: No department found for chairId: $chairId");
