@@ -686,9 +686,10 @@ class ChairController
                 return;
             }
 
-            $error = null;
-            $success = null;
-            
+            // Pagination settings
+            $perPage = 10; // Number of courses per page
+            $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+            $offset = ($page - 1) * $perPage;
 
             // Handle form submissions for adding/editing courses
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -723,28 +724,28 @@ class ChairController
                         if ($courseId > 0) {
                             // Update existing course
                             $stmt = $this->db->prepare("UPDATE courses SET 
-                            course_code = :course_code, 
-                            course_name = :course_name, 
-                            department_id = :department_id, 
-                            program_id = :program_id, 
-                            units = :units, 
-                            lecture_units = :lecture_units,
-                            lab_units = :lab_units,
-                            lecture_hours = :lecture_hours, 
-                            lab_hours = :lab_hours, 
-                            is_active = :is_active 
-                            WHERE course_id = :course_id");
+                                course_code = :course_code, 
+                                course_name = :course_name, 
+                                department_id = :department_id, 
+                                program_id = :program_id, 
+                                units = :units, 
+                                lecture_units = :lecture_units,
+                                lab_units = :lab_units,
+                                lecture_hours = :lecture_hours, 
+                                lab_hours = :lab_hours, 
+                                is_active = :is_active 
+                                WHERE course_id = :course_id");
                             $data['course_id'] = $courseId;
                             $stmt->execute($data);
                             $success = "Course updated successfully.";
                         } else {
                             // Add new course
                             $stmt = $this->db->prepare("INSERT INTO courses 
-                            (course_code, course_name, department_id, program_id, units, 
-                            lecture_units, lab_units, lecture_hours, lab_hours, is_active) 
-                            VALUES 
-                            (:course_code, :course_name, :department_id, :program_id, :units, 
-                            :lecture_units, :lab_units, :lecture_hours, :lab_hours, :is_active)");
+                                (course_code, course_name, department_id, program_id, units, 
+                                lecture_units, lab_units, lecture_hours, lab_hours, is_active) 
+                                VALUES 
+                                (:course_code, :course_name, :department_id, :program_id, :units, 
+                                :lecture_units, :lab_units, :lecture_hours, :lab_hours, :is_active)");
                             $stmt->execute($data);
                             $success = "Course added successfully.";
                         }
@@ -774,13 +775,23 @@ class ChairController
                 }
             }
 
-            // Fetch courses
+            // Fetch total number of courses for pagination
+            $totalStmt = $this->db->prepare("SELECT COUNT(*) FROM courses WHERE department_id = :department_id");
+            $totalStmt->execute([':department_id' => $departmentId]);
+            $totalCourses = $totalStmt->fetchColumn();
+            $totalPages = ceil($totalCourses / $perPage);
+
+            // Fetch courses with pagination
             $coursesStmt = $this->db->prepare("SELECT c.*, p.program_name 
-            FROM courses c 
-            LEFT JOIN programs p ON c.program_id = p.program_id 
-            WHERE c.department_id = :department_id
-            ORDER BY c.course_code");
-            if ($coursesStmt->execute([':department_id' => $departmentId])) {
+                FROM courses c 
+                LEFT JOIN programs p ON c.program_id = p.program_id 
+                WHERE c.department_id = :department_id
+                ORDER BY c.course_code
+                LIMIT :offset, :perPage");
+            $coursesStmt->bindValue(':department_id', $departmentId, PDO::PARAM_INT);
+            $coursesStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $coursesStmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+            if ($coursesStmt->execute()) {
                 $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
             } else {
                 throw new PDOException("Courses query failed: " . implode(', ', $coursesStmt->errorInfo()));
@@ -788,7 +799,7 @@ class ChairController
 
             // Fetch programs
             $programsStmt = $this->db->prepare("SELECT program_id, program_name 
-            FROM programs WHERE department_id = :department_id");
+                FROM programs WHERE department_id = :department_id");
             if ($programsStmt->execute([':department_id' => $departmentId])) {
                 $programs = $programsStmt->fetchAll(PDO::FETCH_ASSOC);
             } else {
@@ -811,7 +822,6 @@ class ChairController
                     $error = "Failed to load course for editing: " . $e->getMessage();
                 }
             }
-           
         } catch (PDOException $e) {
             error_log("courses: Error - " . $e->getMessage());
             $error = "Failed to load courses.";

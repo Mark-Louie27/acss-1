@@ -6,6 +6,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ob_start();
 
+
 ?>
 
 <!DOCTYPE html>
@@ -37,11 +38,11 @@ ob_start();
         </div>
 
         <!-- Add Course Modal -->
-        <div id="addCourseModal" class="fixed inset-0 bg-opacity-100 flex items-center justify-center hidden">
+        <div id="addCourseModal" class="fixed inset-0 bg-opacity-100 flex items-center justify-center hidden -my-48">
             <div class="bg-white rounded-lg shadow-md w-full max-w-2xl">
                 <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
                     <h5 class="text-xl font-semibold">Add New Course</h5>
-                    <button onclick="closeModal('addCourseModal')" class="text-white hover:text-gray-300 focus:outline-none">&times;</button>
+                    <button onclick="closeModal('addCourseModal')" class="text-white hover:text-gray-300 focus:outline-none">×</button>
                 </div>
                 <div class="p-6">
                     <form method="POST">
@@ -123,7 +124,7 @@ ob_start();
                 <div class="bg-white rounded-lg shadow-md w-full max-w-2xl">
                     <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
                         <h5 class="text-xl font-semibold">Edit Course</h5>
-                        <button onclick="closeModal('editCourseModal')" class="text-white hover:text-gray-300 focus:outline-none">&times;</button>
+                        <button onclick="closeModal('editCourseModal')" class="text-white hover:text-gray-300 focus:outline-none">×</button>
                     </div>
                     <div class="p-6">
                         <form method="POST">
@@ -211,7 +212,7 @@ ob_start();
         <?php endif; ?>
 
         <!-- Courses Table -->
-        <div class="bg-white rounded-lg shadow-md">
+        <div class="bg-white rounded-lg shadow-md w-full">
             <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg">
                 <h5 class="text-xl font-semibold">Courses List</h5>
             </div>
@@ -256,8 +257,8 @@ ob_start();
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <a href="courses?edit=<?= htmlspecialchars($course['course_id']) ?>" class="text-gold-600 hover:text-gold-900 mr-3">Edit</a>
-                                            <a href="courses?toggle_status=<?= htmlspecialchars($course['course_id']) ?>" class="text-blue-600 hover:text-blue-900"
+                                            <a href="courses?edit=<?= htmlspecialchars($course['course_id']) ?>&page=<?= $page ?>" class="text-gold-600 hover:text-gold-900 mr-3">Edit</a>
+                                            <a href="courses?toggle_status=<?= htmlspecialchars($course['course_id']) ?>&page=<?= $page ?>" class="text-blue-600 hover:text-blue-900"
                                                 onclick="return confirm('Are you sure you want to toggle the status?');">
                                                 <?= $course['is_active'] ? 'Deactivate' : 'Activate' ?>
                                             </a>
@@ -267,6 +268,40 @@ ob_start();
                             <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination Controls -->
+                <div class="mt-6 flex justify-between items-center">
+                    <div class="text-sm text-gray-700">
+                        Showing <?php echo ($offset + 1); ?> to <?php echo min($offset + $perPage, $totalCourses); ?> of <?php echo $totalCourses; ?> courses
+                    </div>
+                    <div class="flex space-x-2">
+                        <?php if ($page > 1): ?>
+                            <a href="courses?page=<?= $page - 1 ?>" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">
+                                Previous
+                            </a>
+                        <?php else: ?>
+                            <span class="px-4 py-2 bg-gray-100 text-gray-400 rounded-md cursor-not-allowed">
+                                Previous
+                            </span>
+                        <?php endif; ?>
+
+                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                            <a href="courses?page=<?= $i ?>" class="px-4 py-2 rounded-md <?= $i === $page ? 'bg-gold-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300' ?>">
+                                <?= $i ?>
+                            </a>
+                        <?php endfor; ?>
+
+                        <?php if ($page < $totalPages): ?>
+                            <a href="courses?page=<?= $page + 1 ?>" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">
+                                Next
+                            </a>
+                        <?php else: ?>
+                            <span class="px-4 py-2 bg-gray-100 text-gray-400 rounded-md cursor-not-allowed">
+                                Next
+                            </span>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>

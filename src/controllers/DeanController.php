@@ -152,6 +152,56 @@ class DeanController
         // Add this line before requiring the view
         $controller = $this;
 
+        if (isset($_POST['toggle_availability'])) {
+            $roomId = $_POST['room_id'];
+            $currentAvailability = $_POST['current_availability'];
+            $nextAvailability = [
+                'available' => 'unavailable',
+                'unavailable' => 'under_maintenance',
+                'under_maintenance' => 'available'
+            ][$currentAvailability];
+            $query = "UPDATE classrooms SET availability = :availability, updated_at = NOW() WHERE room_id = :room_id";
+            $stmt = $this->db->prepare($query);
+            try {
+                $stmt->execute([':availability' => $nextAvailability, ':room_id' => $roomId]);
+                header("Location: /dean/classroom?success=Availability updated successfully");
+            } catch (PDOException $e) {
+                error_log("Error updating availability: " . $e->getMessage());
+                header("Location: /dean/classroom?error=Failed to update availability");
+            }
+            exit;
+        }
+
+        if (isset($_POST['update_classroom'])) {
+            $roomId = $_POST['room_id'];
+            $roomName = $_POST['room_name'];
+            $building = $_POST['building'];
+            $departmentId = $_POST['department_id'];
+            $capacity = $_POST['capacity'];
+            $roomType = $_POST['room_type'];
+            $shared = isset($_POST['shared']) ? 1 : 0;
+            $availability = $_POST['availability'];
+            $query = "UPDATE classrooms SET room_name = :room_name, building = :building, department_id = :department_id, capacity = :capacity, room_type = :room_type, shared = :shared, availability = :availability, updated_at = NOW() WHERE room_id = :room_id";
+            $stmt = $this->db->prepare($query);
+            try {
+                $stmt->execute([
+                    ':room_name' => $roomName,
+                    ':building' => $building,
+                    ':department_id' => $departmentId,
+                    ':capacity' => $capacity,
+                    ':room_type' => $roomType,
+                    ':shared' => $shared,
+                    ':availability' => $availability,
+                    ':room_id' => $roomId
+                ]);
+                header("Location: /dean/classroom?success=Classroom updated successfully");
+            } catch (PDOException $e) {
+                error_log("Error updating classroom: " . $e->getMessage());
+                header("Location: /dean/classroom?error=Failed to update classroom");
+            }
+            exit;
+        }
+
         if (!$collegeId) {
             error_log("No college found for dean user_id: $userId");
             return ['error' => 'No college assigned to this dean'];
@@ -198,17 +248,33 @@ class DeanController
                 exit;
             }
 
-            $query = "
-                INSERT INTO classrooms (room_name, building, department_id, capacity, created_at, updated_at)
-                VALUES (:room_name, :building, :department_id, :capacity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([
-                ':room_name' => $data['room_name'],
-                ':building' => $data['building'],
-                ':department_id' => $data['department_id'],
-                ':capacity' => $data['capacity']
-            ]);
-            header('Location: /dean/classroom?success=Classroom added successfully');
+            if (isset($_POST['add_classroom'])) {
+                $roomName = $_POST['room_name'];
+                $building = $_POST['building'];
+                $departmentId = $_POST['department_id'];
+                $capacity = $_POST['capacity'];
+                $roomType = $_POST['room_type'];
+                $shared = isset($_POST['shared']) ? 1 : 0;
+                $availability = $_POST['availability'];
+                $query = "INSERT INTO classrooms (room_name, building, department_id, capacity, room_type, shared, availability, created_at, updated_at) VALUES (:room_name, :building, :department_id, :capacity, :room_type, :shared, :availability, NOW(), NOW())";
+                $stmt = $this->db->prepare($query);
+                try {
+                    $stmt->execute([
+                        ':room_name' => $roomName,
+                        ':building' => $building,
+                        ':department_id' => $departmentId,
+                        ':capacity' => $capacity,
+                        ':room_type' => $roomType,
+                        ':shared' => $shared,
+                        ':availability' => $availability
+                    ]);
+                    header("Location: /dean/classroom?success=Classroom added successfully");
+                } catch (PDOException $e) {
+                    error_log("Error adding classroom: " . $e->getMessage());
+                    header("Location: /dean/classroom?error=Failed to add classroom");
+                }
+                exit;
+            }
         } catch (PDOException $e) {
             error_log("Error adding classroom: " . $e->getMessage());
             header('Location: /dean/classroom?error=Failed to add classroom');
@@ -239,8 +305,6 @@ class DeanController
     {
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
-
-        // Add this line before requiring the view
         $controller = $this;
 
         if (!$collegeId) {
@@ -248,76 +312,187 @@ class DeanController
             return ['error' => 'No college assigned to this dean'];
         }
 
-        // Fetch faculty
-        $query = "
-            SELECT u.*, f.academic_rank, f.employment_type, d.department_name
+        // Fetch Program Chairs
+        $queryChairs = "
+            SELECT u.*, pc.program_id, p.program_name, d.department_name, d.department_id
+            FROM users u
+            JOIN program_chairs pc ON u.user_id = pc.user_id
+            JOIN programs p ON pc.program_id = p.program_id
+            JOIN departments d ON p.department_id = d.department_id
+            WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.is_active = 1
+            ORDER BY u.last_name, u.first_name";
+        $stmtChairs = $this->db->prepare($queryChairs);
+        $stmtChairs->execute([':college_id' => $collegeId]);
+        $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch Faculty (including those with schedules in the college)
+        $queryFaculty = "
+            SELECT DISTINCT u.*, f.academic_rank, f.employment_type, d.department_name, d.department_id
             FROM users u
             JOIN faculty f ON u.user_id = f.user_id
             JOIN departments d ON f.department_id = d.department_id
-            WHERE d.college_id = :college_id AND u.is_active = 1
+            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            WHERE (d.college_id = :college_id1 OR c.department_id IN (
+                SELECT department_id FROM departments WHERE college_id = :college_id2
+            )) AND u.is_active = 1
             ORDER BY u.last_name, u.first_name";
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([':college_id' => $collegeId]);
-        $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmtFaculty = $this->db->prepare($queryFaculty);
+        $stmtFaculty->execute([':college_id1' => $collegeId, ':college_id2' => $collegeId]);
+        $faculty = $stmtFaculty->fetchAll(PDO::FETCH_ASSOC);
 
-        // Handle faculty requests
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_id'])) {
-            $this->handleFacultyRequest($_POST);
+        // Fetch pending faculty requests
+        $queryRequests = "
+            SELECT fr.*, d.department_name
+            FROM faculty_requests fr
+            JOIN departments d ON fr.department_id = d.department_id
+            WHERE fr.college_id = :college_id AND fr.status = 'pending'
+            ORDER BY fr.created_at";
+        $stmtRequests = $this->db->prepare($queryRequests);
+        $stmtRequests->execute([':college_id' => $collegeId]);
+        $requests = $stmtRequests->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch departments for filter
+        $queryDepartments = "
+            SELECT department_id, department_name
+            FROM departments
+            WHERE college_id = :college_id
+            ORDER BY department_name";
+        $stmtDepartments = $this->db->prepare($queryDepartments);
+        $stmtDepartments->execute([':college_id' => $collegeId]);
+        $departments = $stmtDepartments->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch current semester
+        $querySemester = "
+            SELECT semester_name, academic_year
+            FROM semesters
+            WHERE is_current = 1
+            LIMIT 1";
+        $stmtSemester = $this->db->prepare($querySemester);
+        $stmtSemester->execute();
+        $currentSemester = $stmtSemester->fetch(PDO::FETCH_ASSOC);
+
+        // Handle POST actions (accept, reject, deactivate)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (isset($_POST['action']) && isset($_POST['user_id'])) {
+                $this->handleUserAction($_POST);
+            } elseif (isset($_POST['request_id'])) {
+                $this->handleFacultyRequest($_POST);
+            }
         }
 
         // Load faculty management view
         require_once __DIR__ . '/../views/dean/faculty.php';
     }
 
-    private function handleFacultyRequest($data)
+    private function handleUserAction($data)
     {
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        $action = $data['action'];
+        $collegeId = $this->getDeanCollegeId($_SESSION['user_id']);
+
+        if (!$userId || !$collegeId) {
+            $_SESSION['error'] = 'Invalid user or college.';
+            return;
+        }
+
         try {
-            if ($data['status'] === 'approved') {
-                $requestQuery = "SELECT * FROM faculty_requests WHERE request_id = :request_id";
-                $stmt = $this->db->prepare($requestQuery);
-                $stmt->execute([':request_id' => $data['request_id']]);
-                $request = $stmt->fetch(PDO::FETCH_ASSOC);
+            $this->db->beginTransaction();
 
-                // Create user
-                $userData = [
-                    'employee_id' => $request['employee_id'],
-                    'username' => $request['username'],
-                    'password_hash' => $request['password_hash'],
-                    'email' => $request['email'],
-                    'first_name' => $request['first_name'],
-                    'middle_name' => $request['middle_name'],
-                    'last_name' => $request['last_name'],
-                    'suffix' => $request['suffix'],
-                    'role_id' => 6, // Faculty role
-                    'department_id' => $request['department_id'],
-                    'college_id' => $request['college_id'],
-                    'is_active' => 1
-                ];
-                $userId = $this->userModel->createUser($userData);
-
-                // Create faculty
-                $facultyData = [
-                    'user_id' => $userId,
-                    'employee_id' => $request['employee_id'],
-                    'academic_rank' => $request['academic_rank'],
-                    'employment_type' => $request['employment_type'],
-                    'department_id' => $request['department_id'],
-                    'primary_program_id' => null
-                ];
-                $this->userModel->createFaculty($facultyData);
+            if ($action === 'deactivate') {
+                $query = "UPDATE users SET is_active = 0 WHERE user_id = :user_id AND college_id = :college_id";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
+                $_SESSION['success'] = 'User account deactivated successfully.';
+            } elseif ($action === 'activate') {
+                $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id AND college_id = :college_id";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
+                $_SESSION['success'] = 'User account activated successfully.';
             }
 
-            // Update request status
-            $query = "UPDATE faculty_requests SET status = :status WHERE request_id = :request_id";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([
-                ':status' => $data['status'],
-                ':request_id' => $data['request_id']
-            ]);
-            header('Location: /dean/faculty?success=Faculty request processed');
-        } catch (PDOException $e) {
-            error_log("Error processing faculty request: " . $e->getMessage());
-            header('Location: /dean/faculty?error=Failed to process faculty request');
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Error handling user action: " . $e->getMessage());
+            $_SESSION['error'] = 'An error occurred while processing the action.';
+        }
+    }
+
+    private function handleFacultyRequest($data)
+    {
+        $requestId = filter_var($data['request_id'], FILTER_VALIDATE_INT);
+        $action = $data['action'] ?? '';
+        $collegeId = $this->getDeanCollegeId($_SESSION['user_id']);
+
+        if (!$requestId || !$collegeId) {
+            $_SESSION['error'] = 'Invalid request or college.';
+            return;
+        }
+
+        try {
+            $this->db->beginTransaction();
+
+            if ($action === 'accept') {
+                // Fetch request details
+                $query = "SELECT * FROM faculty_requests WHERE request_id = :request_id AND college_id = :college_id";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':request_id' => $requestId, ':college_id' => $collegeId]);
+                $request = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($request) {
+                    // Insert into users table
+                    $query = "
+                        INSERT INTO users (employee_id, username, password_hash, email, first_name, middle_name, last_name, suffix, role_id, department_id, college_id)
+                        VALUES (:employee_id, :username, :password_hash, :email, :first_name, :middle_name, :last_name, :suffix, :role_id, :department_id, :college_id)";
+                    $stmt = $this->db->prepare($query);
+                    $stmt->execute([
+                        ':employee_id' => $request['employee_id'],
+                        ':username' => $request['username'],
+                        ':password_hash' => $request['password_hash'],
+                        ':email' => $request['email'],
+                        ':first_name' => $request['first_name'],
+                        ':middle_name' => $request['middle_name'],
+                        ':last_name' => $request['last_name'],
+                        ':suffix' => $request['suffix'],
+                        ':role_id' => 6, // Faculty role
+                        ':department_id' => $request['department_id'],
+                        ':college_id' => $request['college_id']
+                    ]);
+                    $userId = $this->db->lastInsertId();
+
+                    // Insert into faculty table
+                    $query = "
+                        INSERT INTO faculty (user_id, employee_id, academic_rank, employment_type, department_id)
+                        VALUES (:user_id, :employee_id, :academic_rank, :employment_type, :department_id)";
+                    $stmt = $this->db->prepare($query);
+                    $stmt->execute([
+                        ':user_id' => $userId,
+                        ':employee_id' => $request['employee_id'],
+                        ':academic_rank' => $request['academic_rank'],
+                        ':employment_type' => $request['employment_type'],
+                        ':department_id' => $request['department_id']
+                    ]);
+
+                    // Update request status
+                    $query = "UPDATE faculty_requests SET status = 'approved' WHERE request_id = :request_id";
+                    $stmt = $this->db->prepare($query);
+                    $stmt->execute([':request_id' => $requestId]);
+
+                    $_SESSION['success'] = 'Faculty request approved successfully.';
+                }
+            } elseif ($action === 'reject') {
+                $query = "UPDATE faculty_requests SET status = 'rejected' WHERE request_id = :request_id AND college_id = :college_id";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':request_id' => $requestId, ':college_id' => $collegeId]);
+                $_SESSION['success'] = 'Faculty request rejected successfully.';
+            }
+
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Error handling faculty request: " . $e->getMessage());
+            $_SESSION['error'] = 'An error occurred while processing the request.';
         }
     }
 

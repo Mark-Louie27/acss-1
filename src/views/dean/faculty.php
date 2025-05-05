@@ -1,120 +1,219 @@
 <?php
 ob_start();
-$collegeId = $controller->getDeanCollegeId($_SESSION['user_id']);
-$stmt = $controller->db->prepare($query); // Changed to $controller->db
-
-
-$query = "
-        SELECT fr.request_id, fr.first_name, fr.last_name, fr.email, fr.academic_rank, fr.employment_type, d.department_name
-        FROM faculty_requests fr
-        JOIN departments d ON fr.department_id = d.department_id
-        WHERE d.college_id = :college_id AND fr.status = 'pending'
-        ORDER BY fr.created_at";
-$stmt = $controller->db->prepare($query);
-$stmt->execute([':college_id' => $collegeId]);
-$requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
-// Check for success/error messages from DeanController
-$success = isset($_GET['success']) ? htmlspecialchars($_GET['success']) : null;
-$error = isset($_GET['error']) ? htmlspecialchars($_GET['error']) : null;
 ?>
 
-<?php if ($success): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toast = document.createElement('div');
-            toast.className = 'toast bg-green-500 text-white px-4 py-2 rounded-lg';
-            toast.textContent = '<?php echo $success; ?>';
-            document.getElementById('toast-container').appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
-        });
-    </script>
-<?php endif; ?>
-<?php if ($error): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toast = document.createElement('div');
-            toast.className = 'toast bg-red-500 text-white px-4 py-2 rounded-lg';
-            toast.textContent = '<?php echo $error; ?>';
-            document.getElementById('toast-container').appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
-        });
-    </script>
-<?php endif; ?>
+<!DOCTYPE html>
+<html lang="en">
 
-<h2 class="text-3xl font-bold text-gray-600 mb-6 slide-in-left">Faculty Management</h2>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
 
-<!-- Faculty List -->
-<div class="bg-white p-6 rounded-lg shadow-md card overflow-x-auto">
-    <h3 class="text-xl font-semibold text-gray-600 mb-4">Faculty</h3>
-    <?php if (empty($faculty)): ?>
-        <p class="text-gray-600 text-lg">No faculty found in your college.</p>
-    <?php else: ?>
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Rank</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment Type</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                <?php foreach ($faculty as $f): ?>
-                    <tr class="hover:bg-gray-50 transition-all duration-200 slide-in-right">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            <?php echo htmlspecialchars($f['first_name'] . ' ' . ($f['middle_name'] ? $f['middle_name'][0] . '. ' : '') . $f['last_name'] . ($f['suffix'] ? ' ' . $f['suffix'] : '')); ?>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($f['department_name']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($f['academic_rank']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($f['employment_type']); ?></td>
-                    </tr>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-6">
+        <!-- Header with Semester -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Faculty Management</h1>
+            <div class="text-gray-600">
+                Current Semester:
+                <?php echo $currentSemester ? htmlspecialchars($currentSemester['semester_name'] . ' ' . $currentSemester['academic_year']) : 'Not Set'; ?>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="bg-green-100 text-green-700 p-4 rounded mb-6">
+                <?php echo htmlspecialchars($_SESSION['success']);
+                unset($_SESSION['success']); ?>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="bg-red-100 text-red-700 p-4 rounded mb-6">
+                <?php echo htmlspecialchars($_SESSION['error']);
+                unset($_SESSION['error']); ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- Department Filter -->
+        <div class="mb-6">
+            <label for="departmentFilter" class="block text-gray-700 font-semibold mb-2">Filter by Department:</label>
+            <select id="departmentFilter" class="w-full max-w-xs p-2 border rounded bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                <option value="all">All Departments</option>
+                <?php foreach ($departments as $dept): ?>
+                    <option value="<?php echo $dept['department_id']; ?>">
+                        <?php echo htmlspecialchars($dept['department_name']); ?>
+                    </option>
                 <?php endforeach; ?>
-            </tbody>
-        </table>
-    <?php endif; ?>
-</div>
+            </select>
+        </div>
 
-<!-- Pending Faculty Requests -->
-<div class="bg-white p-6 rounded-lg shadow-md card mt-8 overflow-x-auto">
-    <h3 class="text-xl font-semibold text-gray-600 mb-4">Pending Faculty Requests</h3>
-    <?php if (empty($requests)): ?>
-        <p class="text-gray-600 text-lg">No pending faculty requests.</p>
-    <?php else: ?>
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Rank</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                <?php foreach ($requests as $request): ?>
-                    <tr class="hover:bg-gray-50 transition-all duration-200 slide-in-right">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($request['first_name'] . ' ' . $request['last_name']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($request['email']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($request['department_name']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($request['academic_rank']); ?></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <form action="/dean/faculty" method="POST" class="inline">
-                                <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
-                                <input type="hidden" name="status" value="approved">
-                                <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 btn">Approve</button>
-                            </form>
-                            <form action="/dean/faculty" method="POST" class="inline ml-2">
-                                <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
-                                <input type="hidden" name="status" value="rejected">
-                                <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 btn">Reject</button>
-                            </form>
-                        </td>
+        <!-- Program Chairs Section -->
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">Program Chairs</h2>
+        <div class="bg-white shadow-md rounded-lg overflow-hidden mb-8">
+            <table class="min-w-full" id="programChairsTable">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="py-3 px-4 text-left">Name</th>
+                        <th class="py-3 px-4 text-left">Program</th>
+                        <th class="py-3 px-4 text-left">Department</th>
+                        <th class="py-3 px-4 text-left">Status</th>
+                        <th class="py-3 px-4 text-left">Actions</th>
                     </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    <?php endif; ?>
-</div>
+                </thead>
+                <tbody>
+                    <?php if (empty($programChairs)): ?>
+                        <tr class="no-results">
+                            <td colspan="5" class="py-4 px-4 text-center text-gray-500">No program chairs found.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($programChairs as $chair): ?>
+                            <tr class="border-b hover:bg-gray-50" data-department="<?php echo $chair['department_id']; ?>">
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($chair['last_name'] . ', ' . $chair['first_name']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($chair['program_name']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($chair['department_name']); ?></td>
+                                <td class="py-3 px-4">
+                                    <?php echo $chair['is_active'] ? '<span class="text-green-600">Active</span>' : '<span class="text-red-600">Inactive</span>'; ?>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="user_id" value="<?php echo $chair['user_id']; ?>">
+                                        <input type="hidden" name="action" value="<?php echo $chair['is_active'] ? 'deactivate' : 'activate'; ?>">
+                                        <button type="submit" class="px-3 py-1 rounded text-white <?php echo $chair['is_active'] ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'; ?>">
+                                            <?php echo $chair['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Faculty Section -->
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">Faculty</h2>
+        <div class="bg-white shadow-md rounded-lg overflow-hidden mb-8">
+            <table class="min-w-full" id="facultyTable">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="py-3 px-4 text-left">Name</th>
+                        <th class="py-3 px-4 text-left">Academic Rank</th>
+                        <th class="py-3 px-4 text-left">Employment Type</th>
+                        <th class="py-3 px-4 text-left">Department</th>
+                        <th class="py-3 px-4 text-left">Status</th>
+                        <th class="py-3 px-4 text-left">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($faculty)): ?>
+                        <tr class="no-results">
+                            <td colspan="6" class="py-4 px-4 text-center text-gray-500">No faculty found.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($faculty as $member): ?>
+                            <tr class="border-b hover:bg-gray-50" data-department="<?php echo $member['department_id']; ?>">
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($member['last_name'] . ', ' . $member['first_name']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($member['academic_rank']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($member['employment_type']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($member['department_name']); ?></td>
+                                <td class="py-3 px-4">
+                                    <?php echo $member['is_active'] ? '<span class="text-green-600">Active</span>' : '<span class="text-red-600">Inactive</span>'; ?>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="user_id" value="<?php echo $member['user_id']; ?>">
+                                        <input type="hidden" name="action" value="<?php echo $member['is_active'] ? 'deactivate' : 'activate'; ?>">
+                                        <button type="submit" class="px-3 py-1 rounded text-white <?php echo $member['is_active'] ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'; ?>">
+                                            <?php echo $member['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pending Requests Section -->
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">Pending Faculty Requests</h2>
+        <div class="bg-white shadow-md rounded-lg overflow-hidden">
+            <table class="min-w-full">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="py-3 px-4 text-left">Name</th>
+                        <th class="py-3 px-4 text-left">Academic Rank</th>
+                        <th class="py-3 px-4 text-left">Employment Type</th>
+                        <th class="py-3 px-4 text-left">Department</th>
+                        <th class="py-3 px-4 text-left">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($requests)): ?>
+                        <tr>
+                            <td colspan="5" class="py-4 px-4 text-center text-gray-500">No pending requests.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($requests as $request): ?>
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($request['last_name'] . ', ' . $request['first_name']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($request['academic_rank']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($request['employment_type']); ?></td>
+                                <td class="py-3 px-4"><?php echo htmlspecialchars($request['department_name']); ?></td>
+                                <td class="py-3 px-4 flex space-x-2">
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
+                                        <input type="hidden" name="action" value="accept">
+                                        <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">Accept</button>
+                                    </form>
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
+                                        <input type="hidden" name="action" value="reject">
+                                        <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Reject</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('departmentFilter').addEventListener('change', function() {
+            const selectedDept = this.value;
+            filterTable('programChairsTable', selectedDept);
+            filterTable('facultyTable', selectedDept);
+        });
+
+        function filterTable(tableId, departmentId) {
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr:not(.no-results)');
+            const noResultsRow = table.querySelector('tbody tr.no-results');
+            let visibleRows = 0;
+
+            rows.forEach(row => {
+                const rowDept = row.getAttribute('data-department');
+                if (departmentId === 'all' || rowDept === departmentId) {
+                    row.style.display = '';
+                    visibleRows++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (noResultsRow) {
+                noResultsRow.style.display = visibleRows === 0 ? '' : 'none';
+            }
+        }
+    </script>
+</body>
+
+</html>
 
 <?php
 $content = ob_get_clean();
