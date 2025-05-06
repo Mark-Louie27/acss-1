@@ -410,13 +410,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
             <!-- Faculty Link -->
             <a href="/dean/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
                 <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
-                <span>Faculty</span>
-            </a>
-
-            <!-- Search Link -->
-            <a href="/dean/search" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/search') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-search w-5 mr-3 <?= strpos($currentUri, '/dean/search') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
-                <span>Search</span>
+                <span>Manage Faculty</span>
             </a>
 
             <!-- Courses Link -->
@@ -446,6 +440,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
         <!-- Sidebar Footer -->
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700 hidden md:block">
+            
             <div class="flex items-center justify-between text-xs text-gray-400">
                 <div>
                     <p>Dean System</p>

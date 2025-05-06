@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../../vendor/autoload.php'; // Make sure to install PhpSpreadsheet via Composer
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class ChairController
 {
@@ -127,7 +131,7 @@ class ChairController
 
             // Get curricula with active status
             $curriculaStmt = $this->db->prepare("
-                SELECT c.curriculum_id, c.curriculum_name, c.status, p.program_name 
+                SELECT c.curriculum_id, c.curriculum_name, c.total_units, c.status, p.program_name 
                 FROM curricula c 
                 JOIN programs p ON c.department_id = p.department_id 
                 WHERE c.department_id = :department_id
@@ -274,227 +278,370 @@ class ChairController
         }
     }
 
-    /**
-     * Create a new schedule manually
-     */
-    public function createSchedule()
+    private function getCurrentSemester()
     {
-        error_log("createSchedule: Starting createSchedule method");
+        // First, try to find the semester marked as current
+        $stmt = $this->db->prepare("SELECT semester_id, CONCAT(semester_name, ' ', academic_year) AS semester_name 
+                                   FROM semesters 
+                                   WHERE is_current = 1");
+        $stmt->execute();
+        $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // If no semester is marked as current, fall back to date range
+        if (!$semester) {
+            $stmt = $this->db->prepare("SELECT semester_id, CONCAT(semester_name, ' ', academic_year) AS semester_name 
+                                       FROM semesters 
+                                       WHERE CURRENT_DATE BETWEEN start_date AND end_date");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        return $semester;
+    }
+
+    private function exportTimetableToExcel($schedules, $filename, $roomName, $semesterName)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set title and headers
+        $sheet->mergeCells('A1:E1');
+        $sheet->setCellValue('A1', 'Republic of the Philippines');
+        $sheet->mergeCells('A2:E2');
+        $sheet->setCellValue('A2', 'PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY');
+        $sheet->mergeCells('A3:E3');
+        $sheet->setCellValue('A3', '(Formerly Ramon Magsaysay Technological University)');
+        $sheet->mergeCells('A4:E4');
+        $sheet->setCellValue('A4', 'COMPUTER LABORATORY SCHEDULE');
+        $sheet->mergeCells('A5:E5');
+        $sheet->setCellValue('A5', $semesterName);
+        $sheet->mergeCells('A6:E6');
+        $sheet->setCellValue('A6', strtoupper($roomName));
+
+        // Faculty in-charge (placeholder)
+        $sheet->setCellValue('A7', 'Faculty-in-charge:');
+        $sheet->mergeCells('B7:E7');
+
+        // Time slots and days
+        $days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+        $times = [
+            '7:30 - 8:00',
+            '8:00 - 9:00',
+            '9:00 - 10:00',
+            '10:00 - 11:00',
+            '11:00 - 12:00',
+            '12:00 - 1:00',
+            '1:00 - 2:00',
+            '2:00 - 3:00',
+            '3:00 - 4:00',
+            '4:00 - 5:00'
+        ];
+
+        $sheet->setCellValue('A9', 'TIME');
+        for ($i = 0; $i < count($days); $i++) {
+            $cell = chr(66 + $i) . '9'; // Convert column index to letter (B, C, D, etc.)
+            $sheet->setCellValue($cell, $days[$i]);
+        }
+
+        $row = 10;
+        foreach ($times as $time) {
+            $sheet->setCellValue('A' . $row, $time);
+            $row++;
+        }
+
+        // Populate schedule data
+        $row = 10;
+        foreach ($times as $time) {
+            foreach ($days as $index => $day) {
+                $cell = chr(66 + $index) . $row; // B, C, D, E columns
+                foreach ($schedules as $schedule) {
+                    if ($schedule['start_time'] === substr($time, 0, 5) && $schedule['day_of_week'] === $day) {
+                        $sheet->setCellValue($cell, $schedule['course_code'] . ' - ' . $schedule['faculty_name']);
+                    }
+                }
+                $sheet->getStyle($cell)->getAlignment()->setWrapText(true);
+            }
+            $row++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', 'E') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Style headers
+        $sheet->getStyle('A1:E6')->getFont()->setBold(true);
+        $sheet->getStyle('A9:E9')->getFont()->setBold(true);
+        $sheet->getStyle('A1:E6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        // Write to file
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '.xlsx"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        exit;
+    }
+
+    private function exportPlainExcel($courses, $faculty, $rooms, $sections, $filename)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Headers
+        $sheet->setCellValue('A1', 'Course Code');
+        $sheet->setCellValue('B1', 'Course Name');
+        $sheet->setCellValue('C1', 'Faculty Name');
+        $sheet->setCellValue('D1', 'Room Name');
+        $sheet->setCellValue('E1', 'Section Name');
+        $sheet->setCellValue('F1', 'Day of Week');
+        $sheet->setCellValue('G1', 'Start Time');
+        $sheet->setCellValue('H1', 'End Time');
+
+        // Populate with available resources
+        $row = 2;
+        foreach ($courses as $course) {
+            $sheet->setCellValue('A' . $row, $course['course_code']);
+            $sheet->setCellValue('B' . $row, $course['course_name']);
+            $row++;
+        }
+        $row = 2;
+        foreach ($faculty as $fac) {
+            $sheet->setCellValue('C' . $row, $fac['name']);
+            $row++;
+        }
+        $row = 2;
+        foreach ($rooms as $room) {
+            $sheet->setCellValue('D' . $row, $room['room_name']);
+            $row++;
+        }
+        $row = 2;
+        foreach ($sections as $section) {
+            $sheet->setCellValue('E' . $row, $section['section_name']);
+            $row++;
+        }
+
+        // Add days and times as dropdown options
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        $times = ['07:30', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+        $sheet->setCellValue('F2', implode(', ', $days));
+        $sheet->setCellValue('G2', implode(', ', $times));
+        $sheet->setCellValue('H2', implode(', ', $times));
+
+        foreach (range('A', 'H') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '.xlsx"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        exit;
+    }
+
+
+    public function manageSchedule()
+    {
+        error_log("manageSchedule: Starting manageSchedule method");
         $chairId = $_SESSION['user_id'];
         $departmentId = $this->getChairDepartment($chairId);
 
         if (!$departmentId) {
-            error_log("createSchedule: No department found for chairId: $chairId");
+            error_log("manageSchedule: No department found for chairId: $chairId");
             $error = "No department assigned to this chair.";
-            require_once __DIR__ . '/../views/chair/create_schedule.php';
+            require_once __DIR__ . '/../views/chair/schedule_management.php';
             return;
         }
 
+        $currentSemester = $this->getCurrentSemester();
+        if (!$currentSemester) {
+            $error = "No active semester found.";
+            require_once __DIR__ . '/../views/chair/schedule_management.php';
+            return;
+        }
+
+        $activeTab = $_GET['tab'] ?? 'manual';
+        $schedules = [];
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
-                $data = [
-                    'course_id' => intval($_POST['course_id'] ?? 0),
-                    'faculty_id' => intval($_POST['faculty_id'] ?? 0),
-                    'room_id' => intval($_POST['room_id'] ?? 0),
-                    'section_id' => intval($_POST['section_id'] ?? 0),
-                    'schedule_type' => $_POST['schedule_type'] ?? 'F2F',
-                    'day_of_week' => $_POST['day_of_week'] ?? '',
-                    'start_time' => $_POST['start_time'] ?? '',
-                    'end_time' => $_POST['end_time'] ?? '',
-                    'semester_id' => intval($_POST['semester_id'] ?? 0)
-                ];
+                if ($activeTab === 'manual') {
+                    $data = [
+                        'course_id' => intval($_POST['course_id'] ?? 0),
+                        'faculty_id' => intval($_POST['faculty_id'] ?? 0),
+                        'room_id' => intval($_POST['room_id'] ?? 0),
+                        'section_id' => intval($_POST['section_id'] ?? 0),
+                        'schedule_type' => $_POST['schedule_type'] ?? 'F2F',
+                        'day_of_week' => $_POST['day_of_week'] ?? '',
+                        'start_time' => $_POST['start_time'] ?? '',
+                        'end_time' => $_POST['end_time'] ?? '',
+                        'semester_id' => $currentSemester['semester_id']
+                    ];
 
-                error_log("createSchedule: POST data - " . json_encode($data));
+                    error_log("manageSchedule: Manual POST data - " . json_encode($data));
+                    $errors = [];
+                    $courseStmt = $this->db->prepare("SELECT course_id, course_code, course_name FROM courses WHERE course_id = :course_id AND department_id = :department_id");
+                    $courseStmt->execute([':course_id' => $data['course_id'], ':department_id' => $departmentId]);
+                    $course = $courseStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$course) $errors[] = "Invalid course selected or not in your department.";
 
-                $errors = [];
-                // Validate course belongs to department
-                $courseStmt = $this->db->prepare("SELECT course_id FROM courses WHERE course_id = :course_id AND department_id = :department_id");
-                $courseStmt->execute([':course_id' => $data['course_id'], ':department_id' => $departmentId]);
-                if (!$courseStmt->fetchColumn()) {
-                    $errors[] = "Invalid course selected or not in your department.";
-                }
-                // Validate faculty belongs to department
-                $facultyStmt = $this->db->prepare("SELECT f.faculty_id FROM faculty f JOIN users u ON f.user_id = u.user_id 
-                                                  WHERE f.faculty_id = :faculty_id AND u.department_id = :department_id");
-                $facultyStmt->execute([':faculty_id' => $data['faculty_id'], ':department_id' => $departmentId]);
-                if (!$facultyStmt->fetchColumn()) {
-                    $errors[] = "Invalid faculty selected or not in your department.";
-                }
-                // Validate section belongs to department
-                $sectionStmt = $this->db->prepare("SELECT section_id FROM sections WHERE section_id = :section_id AND department_id = :department_id");
-                $sectionStmt->execute([':section_id' => $data['section_id'], ':department_id' => $departmentId]);
-                if (!$courseStmt->fetchColumn()) {
-                    $errors[] = "Invalid section selected or not in your department.";
-                }
-                if (!in_array($data['day_of_week'], ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])) {
-                    $errors[] = "Invalid day of week.";
-                }
-                if (!preg_match('/^\d{2}:\d{2}$/', $data['start_time']) || !preg_match('/^\d{2}:\d{2}$/', $data['end_time'])) {
-                    $errors[] = "Invalid time format.";
-                }
-                if ($data['semester_id'] < 1) {
-                    $errors[] = "Invalid semester selected.";
-                }
-                if (!in_array($data['schedule_type'], ['F2F', 'Online', 'Hybrid', 'Asynchronous'])) {
-                    $errors[] = "Invalid schedule type.";
-                }
-                if ($data['schedule_type'] !== 'Asynchronous' && $data['room_id'] < 1) {
-                    $errors[] = "Room is required for non-asynchronous schedules.";
-                }
+                    $facultyStmt = $this->db->prepare("SELECT f.faculty_id, CONCAT(u.first_name, ' ', u.last_name) AS name FROM faculty f JOIN users u ON f.user_id = u.user_id WHERE f.faculty_id = :faculty_id AND u.department_id = :department_id");
+                    $facultyStmt->execute([':faculty_id' => $data['faculty_id'], ':department_id' => $departmentId]);
+                    $fac = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$fac) $errors[] = "Invalid faculty selected or not in your department.";
 
-                if (empty($errors)) {
-                    error_log("createSchedule: Validated data, calling SchedulingService");
-                    // Call SchedulingService to create schedule
-                    $response = $this->callSchedulingService('POST', 'create-schedule', $data);
+                    $sectionStmt = $this->db->prepare("SELECT section_id, section_name FROM sections WHERE section_id = :section_id AND department_id = :department_id");
+                    $sectionStmt->execute([':section_id' => $data['section_id'], ':department_id' => $departmentId]);
+                    $section = $sectionStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$section) $errors[] = "Invalid section selected or not in your department.";
 
-                    if ($response['code'] !== 200 || !isset($response['data']['success'])) {
-                        error_log("createSchedule: Failed to create schedule - " . ($response['data']['error'] ?? 'Unknown error'));
-                        throw new Exception($response['data']['error'] ?? "Failed to create schedule.");
+                    $roomStmt = $this->db->prepare("SELECT room_id, room_name FROM classrooms WHERE room_id = :room_id");
+                    $roomStmt->execute([':room_id' => $data['room_id']]);
+                    $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$room && $data['schedule_type'] !== 'Asynchronous') $errors[] = "Invalid room selected.";
+
+                    if (!in_array($data['day_of_week'], ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])) {
+                        $errors[] = "Invalid day of week.";
+                    }
+                    if (!preg_match('/^\d{2}:\d{2}$/', $data['start_time']) || !preg_match('/^\d{2}:\d{2}$/', $data['end_time'])) {
+                        $errors[] = "Invalid time format.";
+                    }
+                    if (!in_array($data['schedule_type'], ['F2F', 'Online', 'Hybrid', 'Asynchronous'])) {
+                        $errors[] = "Invalid schedule type.";
+                    }
+                    if ($data['schedule_type'] !== 'Asynchronous' && $data['room_id'] < 1) {
+                        $errors[] = "Room is required for non-asynchronous schedules.";
                     }
 
-                    error_log("createSchedule: Schedule created successfully");
-                    header('Location: /chair/schedule?success=Schedule created successfully');
-                    exit;
-                } else {
-                    error_log("createSchedule: Validation errors - " . implode(", ", $errors));
-                    $error = implode("<br>", $errors);
+                    if (empty($errors)) {
+                        $response = $this->callSchedulingService('POST', 'create-schedule', $data);
+                        if ($response['code'] === 200 && isset($response['data']['success'])) {
+                            $schedules[] = [
+                                'course_code' => $course['course_code'],
+                                'faculty_name' => $fac['name'],
+                                'room_name' => $room['room_name'] ?? 'N/A',
+                                'section_name' => $section['section_name'],
+                                'schedule_type' => $data['schedule_type'],
+                                'day_of_week' => $data['day_of_week'],
+                                'start_time' => $data['start_time'],
+                                'end_time' => $data['end_time'],
+                                'semester_name' => $currentSemester['semester_name']
+                            ];
+                            $this->exportTimetableToExcel($schedules, 'manual_schedule_' . date('Ymd'), $room['room_name'], $currentSemester['semester_name']);
+                        } else {
+                            throw new Exception($response['data']['error'] ?? "Failed to create schedule.");
+                        }
+                    } else {
+                        $error = implode("<br>", $errors);
+                    }
+                } elseif ($activeTab === 'generate') {
+                    $semesterId = $currentSemester['semester_id']; // Automatically use current semester
+                    error_log("manageSchedule: Generating schedule for department_id: $departmentId, semester_id: $semesterId");
+                    $coursesStmt = $this->db->query("SELECT course_id, course_code, course_name FROM courses WHERE department_id = " . (int)$departmentId);
+                    $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $facultyStmt = $this->db->query("SELECT f.faculty_id, CONCAT(u.first_name, ' ', u.last_name) AS name FROM faculty f JOIN users u ON f.user_id = u.user_id WHERE u.department_id = " . (int)$departmentId);
+                    $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $classroomsStmt = $this->db->query("SELECT room_id, room_name FROM classrooms");
+                    $classrooms = $classroomsStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $sectionsStmt = $this->db->query("SELECT section_id, section_name FROM sections WHERE department_id = " . (int)$departmentId);
+                    $sections = $sectionsStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $semesterStmt = $this->db->prepare("SELECT semester_id, CONCAT(semester_name, ' ', academic_year) AS semester_name FROM semesters WHERE semester_id = :semester_id");
+                    $semesterStmt->execute([':semester_id' => $semesterId]);
+                    $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+
+                    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                    $timeSlots = ['07:30', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+                    $schedules = [];
+
+                    foreach ($sections as $section) {
+                        foreach ($courses as $course) {
+                            $facultyId = $faculty[array_rand($faculty)]['faculty_id'];
+                            $roomId = $classrooms[array_rand($classrooms)]['room_id'];
+                            $day = $days[array_rand($days)];
+                            $startTimeIndex = array_rand($timeSlots);
+                            $startTime = $timeSlots[$startTimeIndex];
+                            $endTime = $timeSlots[min($startTimeIndex + 1, count($timeSlots) - 1)];
+
+                            $conflictStmt = $this->db->prepare("
+                                SELECT COUNT(*) FROM schedules 
+                                WHERE semester_id = :semester_id 
+                                AND (faculty_id = :faculty_id OR room_id = :room_id)
+                                AND day_of_week = :day_of_week
+                                AND (
+                                    (start_time <= :start_time AND end_time > :start_time) OR
+                                    (start_time < :end_time AND end_time >= :end_time) OR
+                                    (start_time >= :start_time AND end_time <= :end_time)
+                                )
+                            ");
+                            $conflictStmt->execute([
+                                ':semester_id' => $semesterId,
+                                ':faculty_id' => $facultyId,
+                                ':room_id' => $roomId,
+                                ':day_of_week' => $day,
+                                ':start_time' => $startTime,
+                                ':end_time' => $endTime
+                            ]);
+                            if ($conflictStmt->fetchColumn() > 0) {
+                                error_log("manageSchedule: Conflict detected for course_id: {$course['course_id']}, section_id: {$section['section_id']}");
+                                continue;
+                            }
+
+                            $data = [
+                                'course_id' => $course['course_id'],
+                                'faculty_id' => $facultyId,
+                                'room_id' => $roomId,
+                                'section_id' => $section['section_id'],
+                                'schedule_type' => 'F2F',
+                                'day_of_week' => $day,
+                                'start_time' => $startTime,
+                                'end_time' => $endTime,
+                                'semester_id' => $semesterId
+                            ];
+                            $response = $this->callSchedulingService('POST', 'create-schedule', $data);
+                            if ($response['code'] === 200 && isset($response['data']['success'])) {
+                                $schedules[] = [
+                                    'course_code' => $course['course_code'],
+                                    'faculty_name' => $faculty[array_search($facultyId, array_column($faculty, 'faculty_id'))]['name'],
+                                    'room_name' => $classrooms[array_search($roomId, array_column($classrooms, 'room_id'))]['room_name'],
+                                    'section_name' => $section['section_name'],
+                                    'schedule_type' => 'F2F',
+                                    'day_of_week' => $day,
+                                    'start_time' => $startTime,
+                                    'end_time' => $endTime,
+                                    'semester_name' => $semester['semester_name']
+                                ];
+                            } else {
+                                error_log("manageSchedule: Failed to create schedule for course_id: {$course['course_id']} - " . ($response['data']['error'] ?? 'Unknown error'));
+                            }
+                        }
+                    }
+
+                    if (!empty($schedules)) {
+                        $roomName = $classrooms[array_rand($classrooms)]['room_name']; // Pick a random room for the timetable
+                        $this->exportTimetableToExcel($schedules, 'generated_schedule_' . date('Ymd'), $roomName, $semester['semester_name']);
+                    } else {
+                        $error = "No schedules generated due to conflicts or errors.";
+                    }
                 }
             } catch (Exception $e) {
-                error_log("createSchedule: Error - " . $e->getMessage());
+                error_log("manageSchedule: Error - " . $e->getMessage());
                 $error = $e->getMessage();
             }
         }
 
         try {
-            error_log("createSchedule: Fetching form data for chairId: $chairId, departmentId: $departmentId");
-
             $courses = $this->db->query("SELECT course_id, course_code, course_name FROM courses WHERE department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
-            $faculty = $this->db->query("SELECT f.faculty_id, CONCAT(u.first_name, ' ', u.last_name) AS name 
-                                         FROM faculty f JOIN users u ON f.user_id = u.user_id 
-                                         WHERE u.department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
+            $faculty = $this->db->query("SELECT f.faculty_id, CONCAT(u.first_name, ' ', u.last_name) AS name FROM faculty f JOIN users u ON f.user_id = u.user_id WHERE u.department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
             $classrooms = $this->db->query("SELECT room_id, room_name FROM classrooms")->fetchAll(PDO::FETCH_ASSOC);
             $sections = $this->db->query("SELECT section_id, section_name FROM sections WHERE department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
             $semesters = $this->db->query("SELECT semester_id, CONCAT(semester_name, ' ', academic_year) AS semester_name FROM semesters")->fetchAll(PDO::FETCH_ASSOC);
-
-            error_log("createSchedule: Form data fetched, loading view");
-            require_once __DIR__ . '/../views/chair/create_schedule.php';
+            require_once __DIR__ . '/../views/chair/schedule_management.php';
         } catch (PDOException $e) {
-            error_log("createSchedule: Error loading form data - " . $e->getMessage());
+            error_log("manageSchedule: Error loading form data - " . $e->getMessage());
             $error = "Failed to load form data.";
-            require_once __DIR__ . '/../views/chair/create_schedule.php';
-        }
-    }
-
-    /**
-     * Generate schedules automatically
-     */
-    public function generateSchedule()
-    {
-        error_log("generateSchedule: Starting generateSchedule method");
-        $chairId = $_SESSION['user_id'];
-        $departmentId = $this->getChairDepartment($chairId);
-
-        if (!$departmentId) {
-            error_log("generateSchedule: No department found for chairId: $chairId");
-            $error = "No department assigned to this chair.";
-            require_once __DIR__ . '/../views/chair/generate_schedule.php';
-            return;
-        }
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            try {
-                $semesterId = intval($_POST['semester_id'] ?? 0);
-                if ($semesterId < 1) {
-                    throw new Exception("Invalid semester selected.");
-                }
-
-                error_log("generateSchedule: Generating schedule for department_id: $departmentId, semester_id: $semesterId");
-
-                // Fetch data for scheduling
-                $courses = $this->db->query("SELECT course_id, course_code, course_name FROM courses WHERE department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
-                $faculty = $this->db->query("SELECT f.faculty_id, CONCAT(u.first_name, ' ', u.last_name) AS name 
-                                             FROM faculty f JOIN users u ON f.user_id = u.user_id 
-                                             WHERE u.department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
-                $classrooms = $this->db->query("SELECT room_id, room_name FROM classrooms")->fetchAll(PDO::FETCH_ASSOC);
-                $sections = $this->db->query("SELECT section_id, section_name FROM sections WHERE department_id = " . (int)$departmentId)->fetchAll(PDO::FETCH_ASSOC);
-
-                // Define time slots (Monday to Saturday, 8:00 AM to 5:00 PM, 2-hour blocks)
-                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                $timeSlots = ['07:30', '10:00', '13:00', '15:00'];
-
-                $schedules = [];
-                foreach ($sections as $section) {
-                    foreach ($courses as $course) {
-                        // Randomly assign faculty, room, day, and time
-                        $facultyId = $faculty[array_rand($faculty)]['faculty_id'];
-                        $roomId = $classrooms[array_rand($classrooms)]['room_id'];
-                        $day = $days[array_rand($days)];
-                        $startTime = $timeSlots[array_rand($timeSlots)];
-                        $endTime = date('H:i', strtotime($startTime . ' +2 hours'));
-
-                        // Check for conflicts
-                        $conflictStmt = $this->db->prepare("
-                            SELECT COUNT(*) FROM schedules 
-                            WHERE semester_id = :semester_id 
-                            AND (faculty_id = :faculty_id OR room_id = :room_id)
-                            AND day_of_week = :day_of_week
-                            AND (
-                                (start_time <= :start_time AND end_time > :start_time) OR
-                                (start_time < :end_time AND end_time >= :end_time) OR
-                                (start_time >= :start_time AND end_time <= :end_time)
-                            )
-                        ");
-                        $conflictStmt->execute([
-                            ':semester_id' => $semesterId,
-                            ':faculty_id' => $facultyId,
-                            ':room_id' => $roomId,
-                            ':day_of_week' => $day,
-                            ':start_time' => $startTime,
-                            ':end_time' => $endTime
-                        ]);
-                        if ($conflictStmt->fetchColumn() > 0) {
-                            error_log("generateSchedule: Conflict detected for course_id: {$course['course_id']}, section_id: {$section['section_id']}");
-                            continue; // Skip if conflict exists
-                        }
-
-                        // Add schedule
-                        $data = [
-                            'course_id' => $course['course_id'],
-                            'faculty_id' => $facultyId,
-                            'room_id' => $roomId,
-                            'section_id' => $section['section_id'],
-                            'schedule_type' => 'F2F',
-                            'day_of_week' => $day,
-                            'start_time' => $startTime,
-                            'end_time' => $endTime,
-                            'semester_id' => $semesterId
-                        ];
-                        $response = $this->callSchedulingService('POST', 'create-schedule', $data);
-                        if ($response['code'] === 200 && isset($response['data']['success'])) {
-                            $schedules[] = $data;
-                        } else {
-                            error_log("generateSchedule: Failed to create schedule for course_id: {$course['course_id']} - " . ($response['data']['error'] ?? 'Unknown error'));
-                        }
-                    }
-                }
-
-                error_log("generateSchedule: Generated " . count($schedules) . " schedules");
-                header('Location: /chair/schedule?success=Automatically generated ' . count($schedules) . ' schedules');
-                exit;
-            } catch (Exception $e) {
-                error_log("generateSchedule: Error - " . $e->getMessage());
-                $error = $e->getMessage();
-            }
-        }
-
-        try {
-            $semesters = $this->db->query("SELECT semester_id, CONCAT(semester_name, ' ', academic_year) AS semester_name FROM semesters")->fetchAll(PDO::FETCH_ASSOC);
-            error_log("generateSchedule: Form data fetched, loading view");
-            require_once __DIR__ . '/../views/chair/generate_schedule.php';
-        } catch (PDOException $e) {
-            error_log("generateSchedule: Error loading form data - " . $e->getMessage());
-            $error = "Failed to load form data.";
-            require_once __DIR__ . '/../views/chair/generate_schedule.php';
+            require_once __DIR__ . '/../views/chair/schedule_management.php';
         }
     }
 
@@ -687,7 +834,7 @@ class ChairController
             }
 
             // Pagination settings
-            $perPage = 10; // Number of courses per page
+            $perPage = 15; // Number of courses per page
             $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
             $offset = ($page - 1) * $perPage;
 

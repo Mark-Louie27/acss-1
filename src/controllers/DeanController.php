@@ -35,8 +35,12 @@ class DeanController
         $userId = $_SESSION['user_id'];
         $user = $this->userModel->getUserById($userId);
 
-        // Get college ID for the dean
-        $query = "SELECT college_id FROM deans WHERE user_id = :user_id AND is_current = 1";
+        // Get college details for the dean
+        $query = "
+            SELECT d.college_id, c.college_name 
+            FROM deans d
+            JOIN colleges c ON d.college_id = c.college_id
+            WHERE d.user_id = :user_id AND d.is_current = 1";
         $stmt = $this->db->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         $college = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -46,15 +50,45 @@ class DeanController
             return ['error' => 'No college assigned to this dean'];
         }
 
+        // Fetch current semester
+        $semesterQuery = "SELECT semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1";
+        $semesterStmt = $this->db->prepare($semesterQuery);
+        $semesterStmt->execute();
+        $currentSemester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+        $currentSemesterDisplay = $currentSemester ?
+            "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : 'Not Set';
+
+        // Fetch dean's schedule
+        $schedules = [];
+        $query = "SELECT faculty_id FROM faculty WHERE user_id = :user_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':user_id' => $userId]);
+        $faculty = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($faculty) {
+            $scheduleQuery = "
+                SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year
+                FROM schedules s
+                JOIN courses c ON s.course_id = c.course_id
+                LEFT JOIN classrooms r ON s.room_id = r.room_id
+                JOIN semesters se ON s.semester_id = se.semester_id
+                WHERE s.faculty_id = :faculty_id AND se.is_current = 1
+                ORDER BY s.day_of_week, s.start_time";
+            $scheduleStmt = $this->db->prepare($scheduleQuery);
+            $scheduleStmt->execute([':faculty_id' => $faculty['faculty_id']]);
+            $schedules = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
         // Fetch dashboard statistics
         $stats = [
             'total_faculty' => $this->getCollegeStats($college['college_id'], 'faculty'),
             'total_classrooms' => $this->getCollegeStats($college['college_id'], 'classrooms'),
-            'total_schedules' => $this->getCollegeStats($college['college_id'], 'schedules'),
+            'total_departments' => $this->getCollegeStats($college['college_id'], 'departments'),
             'pending_approvals' => $this->getPendingApprovals($college['college_id'])
         ];
 
-        // Load dashboard view
+        // Pass semester and schedules to the view
+        $currentSemester = $currentSemesterDisplay;
         require_once __DIR__ . '/../views/dean/dashboard.php';
     }
 
@@ -77,15 +111,11 @@ class DeanController
                         JOIN departments d ON c.department_id = d.department_id 
                         WHERE d.college_id = :college_id";
                     break;
-                case 'schedules':
+                case 'departments':
                     $query = "
                         SELECT COUNT(*) 
-                        FROM schedules s 
-                        JOIN courses c ON s.course_id = c.course_id 
-                        JOIN departments d ON c.department_id = d.department_id 
-                        WHERE d.college_id = :college_id AND s.semester_id = (
-                            SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1
-                        )";
+                        FROM departments d 
+                        WHERE d.college_id = :college_id";
                     break;
             }
             $stmt = $this->db->prepare($query);

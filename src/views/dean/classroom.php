@@ -419,38 +419,53 @@ if (!is_array($reservations)) {
             </div>
         </div>
 
+        <!-- Search and Filter Section - Redesigned -->
+        <div class="bg-gray-25 rounded-xl shadow-sm mb-6 slide-in-right">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <!-- Search Input -->
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-gray-700 pl-1">Search Classrooms</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400 text-sm"></i>
+                        </div>
+                        <input type="text" id="searchClassrooms"
+                            class="w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-200 bg-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-300 transition-all text-sm hover:border-gray-300"
+                            placeholder="Room name, building, department, or capacity...">
+                        <button id="clearSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 opacity-0 transition-opacity">
+                            <i class="fas fa-times-circle text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Department Filter -->
+                <div class="space-y-1 justify-end">
+                    <label class="text-sm font-medium text-gray-700 pl-1">Filter by Department</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-sitemap text-gray-400 text-sm"></i>
+                        </div>
+                        <select id="departmentFilter" class="w-full pl-10 pr-8 py-2.5 rounded-lg border border-gray-200 bg-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-300 transition-all text-sm appearance-none hover:border-gray-300">
+                            <option value="">All Departments</option>
+                            <?php foreach ($departments as $dept): ?>
+                                <option value="<?= $dept['department_id'] ?>"><?= htmlspecialchars($dept['department_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="fas fa-chevron-down text-gray-400 text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Classrooms List -->
         <div class="bg-white p-6 rounded-lg shadow-md card overflow-hidden slide-in-right">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-gray-700">Classrooms</h3>
                 <span class="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full" id="classroomCount"><?php echo count($classrooms); ?> Classrooms</span>
             </div>
-            <!-- Search and Filter Section -->
-            <div class="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-6 slide-in-right">
-                <div class="relative w-full sm:w-48">
-                    <select id="departmentFilter" class="appearance-none block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 pl-10 pr-10 py-2.5 text-sm">
-                        <option value="">All Departments</option>
-                        <?php foreach ($departments as $dept): ?>
-                            <option value="<?php echo $dept['department_id']; ?>"><?php echo htmlspecialchars($dept['department_name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-filter text-gray-400"></i>
-                    </div>
-                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <i class="fas fa-chevron-down text-gray-400"></i>
-                    </div>
-                </div>
-                <div class="relative flex-1 max-w-md">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-gray-400"></i>
-                    </div>
-                    <input type="text" id="searchClassrooms" class="block w-full pl-10 pr-10 py-2.5 rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-sm" placeholder="Search by room, building, department, or capacity...">
-                    <button id="clearSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 hidden">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
+
             <div id="noResults" class="text-gray-600 text-lg hidden py-8 text-center">
                 <i class="fas fa-search text-gray-400 text-2xl mb-2"></i>
                 <p>No classrooms found.</p>
@@ -591,213 +606,213 @@ if (!is_array($reservations)) {
                 </div>
             <?php endif; ?>
         </div>
-    </div>                          
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                // Add Classroom Modal
-                const addModal = document.getElementById('addClassroomModal');
-                const openModalBtn = document.getElementById('openModalBtn');
-                const closeModalBtn = document.getElementById('closeModalBtn');
-                const cancelModalBtn = document.getElementById('cancelModalBtn');
-                const addModalContent = addModal.querySelector('.modal-content');
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add Classroom Modal
+            const addModal = document.getElementById('addClassroomModal');
+            const openModalBtn = document.getElementById('openModalBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const cancelModalBtn = document.getElementById('cancelModalBtn');
+            const addModalContent = addModal.querySelector('.modal-content');
 
-                // Edit Classroom Modal
-                const editModal = document.getElementById('editClassroomModal');
-                const closeEditModalBtn = document.getElementById('closeEditModalBtn');
-                const cancelEditModalBtn = document.getElementById('cancelEditModalBtn');
-                const editModalContent = editModal.querySelector('.modal-content');
-                const editClassroomButtons = document.querySelectorAll('.editClassroomBtn');
+            // Edit Classroom Modal
+            const editModal = document.getElementById('editClassroomModal');
+            const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+            const cancelEditModalBtn = document.getElementById('cancelEditModalBtn');
+            const editModalContent = editModal.querySelector('.modal-content');
+            const editClassroomButtons = document.querySelectorAll('.editClassroomBtn');
 
-                // Open Add Modal
-                openModalBtn.addEventListener('click', () => {
-                    addModal.classList.remove('hidden');
-                    addModalContent.classList.remove('scale-95');
-                    addModalContent.classList.add('scale-100');
+            // Open Add Modal
+            openModalBtn.addEventListener('click', () => {
+                addModal.classList.remove('hidden');
+                addModalContent.classList.remove('scale-95');
+                addModalContent.classList.add('scale-100');
+                document.body.style.overflow = 'hidden';
+            });
+
+            // Close Add Modal
+            const closeAddModal = () => {
+                addModalContent.classList.remove('scale-100');
+                addModalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    addModal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                    document.getElementById('addClassroomForm').reset();
+                    document.querySelectorAll('#addClassroomForm .error-message').forEach(msg => msg.classList.add('hidden'));
+                    document.querySelectorAll('#addClassroomForm input, #addClassroomForm select').forEach(input => input.classList.remove('border-red-500'));
+                }, 200);
+            };
+
+            closeModalBtn.addEventListener('click', closeAddModal);
+            cancelModalBtn.addEventListener('click', closeAddModal);
+
+            // Open Edit Modal
+            editClassroomButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const roomId = button.dataset.roomId;
+                    const roomName = button.dataset.roomName;
+                    const building = button.dataset.building;
+                    const departmentId = button.dataset.departmentId;
+                    const capacity = button.dataset.capacity;
+                    const roomType = button.dataset.roomType;
+                    const shared = button.dataset.shared === '1';
+                    const availability = button.dataset.availability;
+
+                    document.getElementById('edit_room_id').value = roomId;
+                    document.getElementById('edit_room_name').value = roomName;
+                    document.getElementById('edit_building').value = building;
+                    document.getElementById('edit_department_id').value = departmentId;
+                    document.getElementById('edit_capacity').value = capacity;
+                    document.getElementById('edit_room_type').value = roomType;
+                    document.getElementById('edit_shared').checked = shared;
+                    document.getElementById('edit_availability').value = availability;
+
+                    editModal.classList.remove('hidden');
+                    editModalContent.classList.remove('scale-95');
+                    editModalContent.classList.add('scale-100');
                     document.body.style.overflow = 'hidden';
                 });
+            });
 
-                // Close Add Modal
-                const closeAddModal = () => {
-                    addModalContent.classList.remove('scale-100');
-                    addModalContent.classList.add('scale-95');
-                    setTimeout(() => {
-                        addModal.classList.add('hidden');
-                        document.body.style.overflow = 'auto';
-                        document.getElementById('addClassroomForm').reset();
-                        document.querySelectorAll('#addClassroomForm .error-message').forEach(msg => msg.classList.add('hidden'));
-                        document.querySelectorAll('#addClassroomForm input, #addClassroomForm select').forEach(input => input.classList.remove('border-red-500'));
-                    }, 200);
-                };
+            // Close Edit Modal
+            const closeEditModal = () => {
+                editModalContent.classList.remove('scale-100');
+                editModalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    editModal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                    document.getElementById('editClassroomForm').reset();
+                    document.querySelectorAll('#editClassroomForm .error-message').forEach(msg => msg.classList.add('hidden'));
+                    document.querySelectorAll('#editClassroomForm input, #editClassroomForm select').forEach(input => input.classList.remove('border-red-500'));
+                }, 200);
+            };
 
-                closeModalBtn.addEventListener('click', closeAddModal);
-                cancelModalBtn.addEventListener('click', closeAddModal);
+            closeEditModalBtn.addEventListener('click', closeEditModal);
+            cancelEditModalBtn.addEventListener('click', closeEditModal);
 
-                // Open Edit Modal
-                editClassroomButtons.forEach(button => {
-                    button.addEventListener('click', () => {
-                        const roomId = button.dataset.roomId;
-                        const roomName = button.dataset.roomName;
-                        const building = button.dataset.building;
-                        const departmentId = button.dataset.departmentId;
-                        const capacity = button.dataset.capacity;
-                        const roomType = button.dataset.roomType;
-                        const shared = button.dataset.shared === '1';
-                        const availability = button.dataset.availability;
+            // Close modals on backdrop click
+            addModal.addEventListener('click', (e) => {
+                if (e.target === addModal) closeAddModal();
+            });
+            editModal.addEventListener('click', (e) => {
+                if (e.target === editModal) closeEditModal();
+            });
 
-                        document.getElementById('edit_room_id').value = roomId;
-                        document.getElementById('edit_room_name').value = roomName;
-                        document.getElementById('edit_building').value = building;
-                        document.getElementById('edit_department_id').value = departmentId;
-                        document.getElementById('edit_capacity').value = capacity;
-                        document.getElementById('edit_room_type').value = roomType;
-                        document.getElementById('edit_shared').checked = shared;
-                        document.getElementById('edit_availability').value = availability;
+            // Close modals on ESC key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (!addModal.classList.contains('hidden')) closeAddModal();
+                    if (!editModal.classList.contains('hidden')) closeEditModal();
+                }
+            });
 
-                        editModal.classList.remove('hidden');
-                        editModalContent.classList.remove('scale-95');
-                        editModalContent.classList.add('scale-100');
-                        document.body.style.overflow = 'hidden';
-                    });
-                });
-
-                // Close Edit Modal
-                const closeEditModal = () => {
-                    editModalContent.classList.remove('scale-100');
-                    editModalContent.classList.add('scale-95');
-                    setTimeout(() => {
-                        editModal.classList.add('hidden');
-                        document.body.style.overflow = 'auto';
-                        document.getElementById('editClassroomForm').reset();
-                        document.querySelectorAll('#editClassroomForm .error-message').forEach(msg => msg.classList.add('hidden'));
-                        document.querySelectorAll('#editClassroomForm input, #editClassroomForm select').forEach(input => input.classList.remove('border-red-500'));
-                    }, 200);
-                };
-
-                closeEditModalBtn.addEventListener('click', closeEditModal);
-                cancelEditModalBtn.addEventListener('click', closeEditModal);
-
-                // Close modals on backdrop click
-                addModal.addEventListener('click', (e) => {
-                    if (e.target === addModal) closeAddModal();
-                });
-                editModal.addEventListener('click', (e) => {
-                    if (e.target === editModal) closeEditModal();
-                });
-
-                // Close modals on ESC key
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') {
-                        if (!addModal.classList.contains('hidden')) closeAddModal();
-                        if (!editModal.classList.contains('hidden')) closeEditModal();
-                    }
-                });
-
-                // Form validation for both modals
-                ['addClassroomForm', 'editClassroomForm'].forEach(formId => {
-                    const form = document.getElementById(formId);
-                    form.addEventListener('submit', (e) => {
-                        let isValid = true;
-                        form.querySelectorAll('input[required], select[required]').forEach(input => {
-                            const errorMessage = input.nextElementSibling;
-                            if (!input.value.trim()) {
-                                input.classList.add('border-red-500');
-                                errorMessage.classList.remove('hidden');
-                                isValid = false;
-                            } else {
-                                input.classList.remove('border-red-500');
-                                errorMessage.classList.add('hidden');
-                            }
-                        });
-
-                        const capacityInput = form.querySelector('[name="capacity"]');
-                        const capacityError = capacityInput.nextElementSibling;
-                        if (capacityInput.value < 1) {
-                            capacityInput.classList.add('border-red-500');
-                            capacityError.classList.remove('hidden');
+            // Form validation for both modals
+            ['addClassroomForm', 'editClassroomForm'].forEach(formId => {
+                const form = document.getElementById(formId);
+                form.addEventListener('submit', (e) => {
+                    let isValid = true;
+                    form.querySelectorAll('input[required], select[required]').forEach(input => {
+                        const errorMessage = input.nextElementSibling;
+                        if (!input.value.trim()) {
+                            input.classList.add('border-red-500');
+                            errorMessage.classList.remove('hidden');
                             isValid = false;
                         } else {
-                            capacityInput.classList.remove('border-red-500');
-                            capacityError.classList.add('hidden');
+                            input.classList.remove('border-red-500');
+                            errorMessage.classList.add('hidden');
                         }
-
-                        if (!isValid) e.preventDefault();
                     });
 
-                    form.querySelectorAll('input[required], select[required]').forEach(input => {
-                        input.addEventListener('input', () => {
-                            const errorMessage = input.nextElementSibling;
-                            if (input.value.trim()) {
-                                input.classList.remove('border-red-500');
-                                errorMessage.classList.add('hidden');
-                            }
-                        });
-                    });
+                    const capacityInput = form.querySelector('[name="capacity"]');
+                    const capacityError = capacityInput.nextElementSibling;
+                    if (capacityInput.value < 1) {
+                        capacityInput.classList.add('border-red-500');
+                        capacityError.classList.remove('hidden');
+                        isValid = false;
+                    } else {
+                        capacityInput.classList.remove('border-red-500');
+                        capacityError.classList.add('hidden');
+                    }
 
-                    form.querySelector('[name="capacity"]').addEventListener('input', function() {
-                        const errorMessage = this.nextElementSibling;
-                        if (this.value >= 1) {
-                            this.classList.remove('border-red-500');
+                    if (!isValid) e.preventDefault();
+                });
+
+                form.querySelectorAll('input[required], select[required]').forEach(input => {
+                    input.addEventListener('input', () => {
+                        const errorMessage = input.nextElementSibling;
+                        if (input.value.trim()) {
+                            input.classList.remove('border-red-500');
                             errorMessage.classList.add('hidden');
                         }
                     });
                 });
 
-                // Search and filter functionality
-                const searchInput = document.getElementById('searchClassrooms');
-                const clearSearchBtn = document.getElementById('clearSearch');
-                const departmentFilter = document.getElementById('departmentFilter');
-                const classroomsTable = document.getElementById('classroomsTable');
-                const noResults = document.getElementById('noResults');
-                const classroomCount = document.getElementById('classroomCount');
-                const rows = classroomsTable ? classroomsTable.querySelectorAll('tbody tr') : [];
+                form.querySelector('[name="capacity"]').addEventListener('input', function() {
+                    const errorMessage = this.nextElementSibling;
+                    if (this.value >= 1) {
+                        this.classList.remove('border-red-500');
+                        errorMessage.classList.add('hidden');
+                    }
+                });
+            });
 
-                const updateTable = () => {
-                    const query = searchInput.value.trim().toLowerCase();
-                    const selectedDepartment = departmentFilter.value;
-                    let visibleRows = 0;
+            // Search and filter functionality
+            const searchInput = document.getElementById('searchClassrooms');
+            const clearSearchBtn = document.getElementById('clearSearch');
+            const departmentFilter = document.getElementById('departmentFilter');
+            const classroomsTable = document.getElementById('classroomsTable');
+            const noResults = document.getElementById('noResults');
+            const classroomCount = document.getElementById('classroomCount');
+            const rows = classroomsTable ? classroomsTable.querySelectorAll('tbody tr') : [];
 
-                    rows.forEach(row => {
-                        const roomName = row.dataset.roomName;
-                        const building = row.dataset.building;
-                        const department = row.dataset.department;
-                        const capacity = row.dataset.capacity;
-                        const departmentId = row.dataset.departmentId;
+            const updateTable = () => {
+                const query = searchInput.value.trim().toLowerCase();
+                const selectedDepartment = departmentFilter.value;
+                let visibleRows = 0;
 
-                        const matchesSearch = query === '' ||
-                            roomName.includes(query) ||
-                            building.includes(query) ||
-                            department.includes(query) ||
-                            capacity.includes(query);
+                rows.forEach(row => {
+                    const roomName = row.dataset.roomName;
+                    const building = row.dataset.building;
+                    const department = row.dataset.department;
+                    const capacity = row.dataset.capacity;
+                    const departmentId = row.dataset.departmentId;
 
-                        const matchesDepartment = selectedDepartment === '' || departmentId === selectedDepartment;
+                    const matchesSearch = query === '' ||
+                        roomName.includes(query) ||
+                        building.includes(query) ||
+                        department.includes(query) ||
+                        capacity.includes(query);
 
-                        const matches = matchesSearch && matchesDepartment;
+                    const matchesDepartment = selectedDepartment === '' || departmentId === selectedDepartment;
 
-                        row.style.display = matches ? '' : 'none';
-                        if (matches) visibleRows++;
-                    });
+                    const matches = matchesSearch && matchesDepartment;
 
-                    clearSearchBtn.classList.toggle('hidden', query === '');
-                    noResults.classList.toggle('hidden', visibleRows > 0);
-                    classroomCount.textContent = `${visibleRows} Classrooms`;
-                };
-
-                searchInput.addEventListener('input', updateTable);
-                departmentFilter.addEventListener('change', updateTable);
-
-                clearSearchBtn.addEventListener('click', () => {
-                    searchInput.value = '';
-                    departmentFilter.value = '';
-                    rows.forEach(row => row.style.display = '');
-                    clearSearchBtn.classList.add('hidden');
-                    noResults.classList.add('hidden');
-                    classroomCount.textContent = `${rows.length} Classrooms`;
+                    row.style.display = matches ? '' : 'none';
+                    if (matches) visibleRows++;
                 });
 
-                // Trigger initial table update
-                updateTable();
+                clearSearchBtn.classList.toggle('hidden', query === '');
+                noResults.classList.toggle('hidden', visibleRows > 0);
+                classroomCount.textContent = `${visibleRows} Classrooms`;
+            };
+
+            searchInput.addEventListener('input', updateTable);
+            departmentFilter.addEventListener('change', updateTable);
+
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                departmentFilter.value = '';
+                rows.forEach(row => row.style.display = '');
+                clearSearchBtn.classList.add('hidden');
+                noResults.classList.add('hidden');
+                classroomCount.textContent = `${rows.length} Classrooms`;
             });
-        </script>
+
+            // Trigger initial table update
+            updateTable();
+        });
+    </script>
 
 </body>
 

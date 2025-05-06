@@ -191,7 +191,7 @@ ob_start();
                                 </div>
                                 <div>
                                     <p class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($curriculum['curriculum_name']); ?></p>
-                                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars($curriculum['courses_count'] ?? 0); ?> courses</p>
+                                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars($curriculum['total_units'] ?? 0); ?> units</p>
                                 </div>
                             </div>
                             <span class="text-xs px-2 py-1 rounded-full <?php echo $statusClass; ?>"><?php echo htmlspecialchars($curriculum['status'] ?? 'Draft'); ?></span>
