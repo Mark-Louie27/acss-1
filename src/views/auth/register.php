@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_active' => 1
         ];
 
-        // Add academic rank and employment type if Faculty role (role_id = 6)
+        // Add academic rank, employment type, and classification if Faculty role (role_id = 6)
         if ($userData['role_id'] == 6) {
             $requiredFields[] = 'academic_rank';
             $requiredFields[] = 'employment_type';
@@ -78,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $userData['academic_rank'] = trim($_POST['academic_rank']);
             $userData['employment_type'] = trim($_POST['employment_type']);
+            $userData['classification'] = trim($_POST['classification'] ?? null); // Optional, defaults to NULL
         }
 
         if ($authService->register($userData)) {
@@ -113,7 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 100%;
             height: 100%;
             background-image: url('/assets/logo/main_logo/campus.jpg');
-            /* Replace with actual campus image path */
             background-size: cover;
             background-position: center;
             z-index: 1;
@@ -126,7 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
-            /* Dark overlay for better text readability */
             z-index: 2;
         }
     </style>
@@ -136,17 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="min-h-screen flex flex-col md:flex-row">
         <!-- Left Section (Background with University Image, Logo and Text) -->
         <div class="w-full md:w-1/2 text-white flex items-center justify-center p-6 md:p-12 relative overflow-hidden">
-            <!-- Background campus image with overlay -->
             <div class="bg-image"></div>
             <div class="bg-overlay"></div>
 
-            <!-- Content -->
             <div class="text-center z-10 flex flex-col items-center">
-                <!-- University Logo -->
                 <div class="mb-6">
                     <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-24 h-24 md:w-32 md:h-32 mx-auto">
                 </div>
-
                 <h1 class="text-3xl md:text-4xl font-bold mb-4">President Ramon Magsaysay State University</h1>
                 <h2 class="text-xl md:text-2xl font-semibold mb-4">Scheduling System</h2>
                 <p class="text-base md:text-lg mb-6">Streamlining class scheduling for better academic planning and resource management.</p>
@@ -163,7 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p class="text-sm md:text-base text-gray-600">Register to access the scheduling system</p>
                 </div>
 
-                <!-- Alert Messages -->
                 <?php if (!empty($error)): ?>
                     <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded">
                         <div class="flex">
@@ -195,11 +189,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
 
                 <form method="POST" class="space-y-6">
-                    <!-- Part 1: Personal Information -->
                     <div class="border-b border-gray-200 pb-4">
                         <h3 class="text-lg font-semibold text-gray-700 mb-4">Personal Information</h3>
                         <div class="space-y-4">
-                            <!-- Personal Details -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="first_name" class="block text-xs md:text-sm font-medium text-gray-700">First Name <span class="text-red-500">*</span></label>
@@ -247,7 +239,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
 
-                            <!-- Contact Details -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="email" class="block text-xs md:text-sm font-medium text-gray-700">Email <span class="text-red-500">*</span></label>
@@ -273,7 +264,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
 
-                            <!-- Account Details -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="employee_id" class="block text-xs md:text-sm font-medium text-gray-700">Employee ID <span class="text-red-500">*</span></label>
@@ -324,11 +314,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <!-- Part 2: Academic Information -->
                     <div class="border-b border-gray-200 pb-4">
                         <h3 class="text-lg font-semibold text-gray-700 mb-4">Academic Information</h3>
                         <div class="space-y-4">
-                            <!-- Academic Details -->
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label for="role_id" class="block text-xs md:text-sm font-medium text-gray-700">Role <span class="text-red-500">*</span></label>
@@ -407,7 +395,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
 
-                            <!-- Faculty-specific fields (hidden by default, shown when role is Faculty) -->
                             <div id="faculty-fields" class="space-y-4 hidden">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -453,12 +440,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             </div>
                                         </div>
                                     </div>
+                                    <div>
+                                        <label for="classification" class="block text-xs md:text-sm font-medium text-gray-700">Classification</label>
+                                        <div class="mt-1 relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <svg class="h-4 md:h-5 w-4 md:w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                                </svg>
+                                            </div>
+                                            <select id="classification" name="classification" class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
+                                                <option value="">Select Classification</option>
+                                                <option value="TL" <?= (isset($_POST['classification']) && $_POST['classification'] == 'TL') ? 'selected' : '' ?>>TL</option>
+                                                <option value="VSL" <?= (isset($_POST['classification']) && $_POST['classification'] == 'VSL') ? 'selected' : '' ?>>VSL</option>
+                                            </select>
+                                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                                <svg class="h-4 md:h-5 w-4 md:w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Buttons -->
                     <div class="flex flex-row md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4 mt-6">
                         <button type="submit" class="bg-yellow-600 w-full text-white py-2 px-6 rounded-md hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-150 ease-in-out text-sm md:text-base">
                             Register
@@ -491,7 +497,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             const deptSelect = $('#department_id');
                             deptSelect.empty();
                             deptSelect.append('<option value="">Select Department</option>');
-
                             data.departments.forEach(function(dept) {
                                 deptSelect.append(`<option value="${dept.department_id}">${dept.department_name}</option>`);
                             });
@@ -510,7 +515,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const password = $('#password').val();
                 const confirmPassword = $('#confirm_password').val();
                 const errorElement = $('#password-error');
-
                 if (confirmPassword && password !== confirmPassword) {
                     $('#confirm_password')[0].setCustomValidity("Passwords do not match");
                     errorElement.removeClass('hidden');
@@ -524,7 +528,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             function toggleFacultyFields() {
                 const roleId = $('#role_id').val();
                 const facultyFields = $('#faculty-fields');
-                if (roleId == 6) { // Faculty role
+                if (roleId == 6) {
                     facultyFields.removeClass('hidden');
                 } else {
                     facultyFields.addClass('hidden');

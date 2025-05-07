@@ -198,20 +198,21 @@ class UserModel
     {
         try {
             $query = "
-            INSERT INTO faculty (
-                user_id, employee_id, academic_rank, employment_type, department_id, primary_program_id
-            ) VALUES (
-                :user_id, :employee_id, :academic_rank, :employment_type, :department_id, :primary_program_id
-            )
-        ";
+                INSERT INTO faculty (
+                    user_id, employee_id, academic_rank, employment_type, classification, department_id, primary_program_id
+                ) VALUES (
+                    :user_id, :employee_id, :academic_rank, :employment_type, :classification, :department_id, :primary_program_id
+                )
+            ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':user_id' => $data['user_id'],
                 ':employee_id' => $data['employee_id'],
                 ':academic_rank' => $data['academic_rank'],
                 ':employment_type' => $data['employment_type'],
+                ':classification' => $data['classification'] ?? null,
                 ':department_id' => $data['department_id'],
-                ':primary_program_id' => $data['primary_program_id']
+                ':primary_program_id' => $data['primary_program_id'] ?? null
             ]);
             return true;
         } catch (PDOException $e) {

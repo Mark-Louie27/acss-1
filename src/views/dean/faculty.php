@@ -41,7 +41,7 @@ ob_start();
 </head>
 
 <body class="bg-gray-50 font-sans text-gray-800">
-    <div class="p-8 my-8 min-h-screen flex flex-col">
+    <div class="p-6 my-8 min-h-screen flex flex-col">
         <!-- Header -->
         <header class="bg-gray-800 text-white shadow-md">
             <div class="container mx-auto px-4 py-4 flex justify-between items-center">

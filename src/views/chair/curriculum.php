@@ -14,6 +14,30 @@ if (!isset($courses)) {
     $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+// Handle AJAX request for course code validation
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'check_course_code') {
+    header('Content-Type: application/json');
+    $course_code = trim($_POST['course_code'] ?? '');
+    $response = ['exists' => false, 'message' => ''];
+
+    if (!empty($course_code)) {
+        try {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM courses WHERE course_code = :code AND department_id = :dept");
+            $stmt->execute([':code' => $course_code, ':dept' => $departmentId]);
+            $count = $stmt->fetchColumn();
+            if ($count > 0) {
+                $response['exists'] = true;
+                $response['message'] = 'This course code already exists.';
+            }
+        } catch (PDOException $e) {
+            $response['message'] = 'Error checking course code: ' . htmlspecialchars($e->getMessage());
+        }
+    }
+
+    echo json_encode($response);
+    exit;
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
@@ -157,13 +181,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($course_code)) $errors[] = "Course code is required.";
                 if (empty($course_name)) $errors[] = "Course name is required.";
                 if ($units < 1 || $units > 10) $errors[] = "Units must be between 1 and 10.";
+                // Check if course code already exists
+                $stmt = $db->prepare("SELECT COUNT(*) FROM courses WHERE course_code = :code AND department_id = :dept");
+                $stmt->execute([':code' => $course_code, ':dept' => $departmentId]);
+                if ($stmt->fetchColumn() > 0) {
+                    $errors[] = "Course code already exists.";
+                }
 
                 if (empty($errors)) {
-                    $stmt = $db->prepare("INSERT INTO courses (course_code, course_name, description, units, department_id) VALUES (:code, :name, :desc, :units, :dept)");
+                    $stmt = $db->prepare("INSERT INTO courses (course_code, course_name, units, department_id) VALUES (:code, :name, :units, :dept)");
                     $stmt->execute([
                         ':code' => $course_code,
                         ':name' => $course_name,
-                        ':desc' => $description,
                         ':units' => $units,
                         ':dept' => $departmentId
                     ]);
@@ -209,11 +238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         --prmsu-gold-light: #F9F3E5;
         --prmsu-white: #ffffff;
         --solid-green: #D1E7DD;
-        /* Equivalent to bg-green-50 but solid */
         --solid-red: #F8D7DA;
-        /* Equivalent to bg-red-50 but solid */
         --solid-black: #000000;
-        /* Solid black for modal overlay */
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -229,18 +255,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         font-weight: 600;
     }
 
-    /* Smooth transitions */
     .transition-all {
         transition: all 0.3s ease-in-out;
     }
 
-    /* Focus styles */
     .focus-gold:focus {
         outline: none;
         border-color: var(--prmsu-gold);
     }
 
-    /* Button styles */
     .btn-gold {
         background-color: var(--prmsu-gold);
         color: var(--prmsu-gray-dark);
@@ -255,13 +278,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background-color: #E5B00E;
         transform: translateY(-2px);
         box-shadow: 0 6px 12px #0000001A;
-        /* Solid shadow */
     }
 
     .btn-gold:active {
         transform: translateY(0);
         box-shadow: 0 2px 4px #0000001A;
-        /* Solid shadow */
     }
 
     .btn-outline {
@@ -280,21 +301,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         color: var(--prmsu-gray-dark);
     }
 
-    /* Card styles */
     .card {
         background-color: var(--prmsu-white);
         border-radius: 12px;
         box-shadow: 0 4px 12px #0000000D;
-        /* Solid shadow */
         transition: box-shadow 0.3s ease;
     }
 
     .card:hover {
         box-shadow: 0 6px 16px #0000001A;
-        /* Solid shadow */
     }
 
-    /* Table styles */
     .table-header {
         background-color: var(--prmsu-gray-dark);
         color: var(--prmsu-white);
@@ -311,9 +328,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background-color: var(--prmsu-gray-light);
     }
 
-    /* Modal styles */
     .modal-overlay {
-        background-color: bg-white;
+        background-color: rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(4px);
         transition: opacity 0.3s ease, transform 0.3s ease;
         transform: scale(0.95);
@@ -328,8 +344,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         transform: translateY(0);
     }
 
-
-    /* Input styles */
     input,
     select,
     textarea {
@@ -352,7 +366,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         resize: vertical;
     }
 
-    /* Custom scrollbar */
     ::-webkit-scrollbar {
         width: 6px;
     }
@@ -370,7 +383,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background: var(--prmsu-gray-dark);
     }
 
-    /* Tab styles for merged modal */
     .tab-button {
         padding: 10px 20px;
         border-bottom: 2px solid transparent;
@@ -393,6 +405,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .tab-content.active {
         display: block;
+    }
+
+    .error-text {
+        color: #B91C1C;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+        display: none;
     }
 </style>
 
@@ -645,12 +664,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <!-- Course Form -->
                 <div id="courseForm" class="tab-content hidden">
-                    <form method="POST" class="space-y-5">
+                    <form method="POST" class="space-y-5" id="courseFormElement">
                         <input type="hidden" name="action" value="create_course">
                         <div class="form-group">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Course Code</label>
-                            <input type="text" name="course_code" placeholder="e.g. CS101"
+                            <input type="text" name="course_code" id="courseCodeInput" placeholder="e.g. CS101"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
+                            <p id="courseCodeError" class="error-text"></p>
                         </div>
                         <div class="form-group">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Course Name</label>
@@ -662,17 +682,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="number" name="units" value="3" min="1" max="10"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                         </div>
-                        <div class="form-group">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea name="description" rows="3" placeholder="Brief description of the course..."
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"></textarea>
-                        </div>
                         <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
                             <button type="button" onclick="closeModal('addCurriculumCourseModal')"
                                 class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                                 Cancel
                             </button>
-                            <button type="submit"
+                            <button type="submit" id="createCourseButton"
                                 class="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
                                 Create Course
                             </button>
@@ -909,7 +924,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }, 300);
     }
 
-    // Tab functionality - IMPROVED VERSION
+    // Tab functionality
     function showTab(tabContentId, tabButtonId) {
         console.log('Switching to tab:', tabContentId);
 
@@ -945,6 +960,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             modalTitle.textContent = tabContentId === 'curriculumForm' ?
                 'Add New Curriculum' :
                 'Add New Course';
+        }
+
+        // Reset course code error when switching tabs
+        if (tabContentId === 'courseForm') {
+            document.getElementById('courseCodeError').style.display = 'none';
+            document.getElementById('courseCodeError').textContent = '';
+            document.getElementById('createCourseButton').disabled = false;
         }
     }
 
@@ -994,8 +1016,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         openModal('viewCoursesModal');
     }
 
-    // Initialize on DOM load
+    // Real-time course code validation
     document.addEventListener('DOMContentLoaded', function() {
+        const courseCodeInput = document.getElementById('courseCodeInput');
+        const courseCodeError = document.getElementById('courseCodeError');
+        const createCourseButton = document.getElementById('createCourseButton');
+        let debounceTimeout;
+
+        if (courseCodeInput) {
+            courseCodeInput.addEventListener('input', function() {
+                clearTimeout(debounceTimeout);
+                debounceTimeout = setTimeout(() => {
+                    const courseCode = courseCodeInput.value.trim();
+                    if (courseCode === '') {
+                        courseCodeError.textContent = '';
+                        courseCodeError.style.display = 'none';
+                        createCourseButton.disabled = false;
+                        return;
+                    }
+
+                    fetch(window.location.href, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: `action=check_course_code&course_code=${encodeURIComponent(courseCode)}`
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.exists) {
+                                courseCodeError.textContent = data.message;
+                                courseCodeError.style.display = 'block';
+                                createCourseButton.disabled = true;
+                            } else {
+                                courseCodeError.textContent = '';
+                                courseCodeError.style.display = 'none';
+                                createCourseButton.disabled = false;
+                            }
+                        })
+                        .catch(error => {
+                            courseCodeError.textContent = 'Error checking course code.';
+                            courseCodeError.style.display = 'block';
+                            createCourseButton.disabled = true;
+                            console.error('Error:', error);
+                        });
+                }, 500); // Debounce delay
+            });
+        }
+
         // Set initial tab when the page loads
         showTab('curriculumForm', 'curriculumTab');
 

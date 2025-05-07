@@ -56,45 +56,35 @@ function handleDeanRoutes($path)
         case '/dean/dashboard':
             $controller->dashboard();
             break;
-
         case '/dean/schedule':
             $controller->mySchedule();
             break;
-
         case '/dean/classroom':
             $controller->classroom();
             break;
-
         case '/dean/faculty':
             $controller->faculty();
             break;
-
         case '/dean/search':
             $controller->search();
             break;
-
         case '/dean/courses':
             $controller->courses();
             break;
-
         case '/dean/curriculum':
             $controller->curriculum();
             break;
-
         case '/dean/profile':
             $controller->profile();
             break;
-
         case '/dean/settings':
             $controller->settings();
             break;
-
         case '/dean/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';
             (new AuthController())->logout();
             exit;
-
         default:
             http_response_code(404);
             echo "Page not found";
@@ -170,10 +160,58 @@ function handleChairRoutes($path)
 
 function handleFacultyRoutes($path)
 {
+    error_log("Entering handleFacultyRoutes with path: $path");
     AuthMiddleware::handle('faculty'); // Require faculty role
-    http_response_code(404);
-    echo "Faculty routes not implemented";
-    exit;
+
+    require_once __DIR__ . '/../src/controllers/FacultyController.php';
+    $controller = new FacultyController();
+
+    // Normalize path for comparison
+    $normalizedPath = '/' . trim($path, '/');
+    error_log("Normalized path: $normalizedPath");
+
+    switch ($normalizedPath) {
+        case '/faculty/dashboard':
+            error_log("Routing to FacultyController::dashboard");
+            $controller->dashboard();
+            exit;
+        case '/faculty/schedule':
+            error_log("Routing to FacultyController::mySchedule");
+            $controller->mySchedule();
+            exit;
+        case '/faculty/schedule/request':
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                error_log("Routing to FacultyController::submitScheduleRequest (GET)");
+                $controller->submitScheduleRequest();
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                error_log("Routing to FacultyController::submitScheduleRequest (POST)");
+                $controller->submitScheduleRequest();
+            }
+            exit;
+        case '/faculty/schedule/requests':
+            error_log("Routing to FacultyController::getScheduleRequests");
+            $controller->getScheduleRequests();
+            exit;
+        case '/faculty/profile':
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                error_log("Routing to FacultyController::profile (GET)");
+                $controller->profile();
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                error_log("Routing to FacultyController::profile (POST)");
+                $controller->profile();
+            }
+            exit;
+        case '/faculty/logout':
+            error_log("Routing to AuthController::logout");
+            require_once __DIR__ . '/../src/controllers/AuthController.php';
+            (new AuthController())->logout();
+            exit;
+        default:
+            error_log("No matching faculty route for: $normalizedPath");
+            http_response_code(404);
+            echo "404 Not Found: $normalizedPath";
+            exit;
+    }
 }
 
 // Simple router
@@ -243,7 +281,17 @@ if (in_array($path, $publicRoutes)) {
 
 // Protected routes - require authentication
 if (!isset($_SESSION['user_id'])) {
+    error_log("User not authenticated, redirecting to /login");
     header('Location: /login');
+    exit;
+}
+
+// Handle API routes before role-specific routes
+if ($path === 'api/load_data') {
+    error_log("Routing to ApiController::loadData for path: $path");
+    require_once __DIR__ . '/../src/controllers/ApiController.php';
+    $controller = new ApiController();
+    $controller->loadData();
     exit;
 }
 
@@ -271,6 +319,7 @@ switch ($roleId) {
         handleFacultyRoutes($path);
         break;
     default:
+        error_log("Unauthorized role: $roleId");
         http_response_code(403);
         echo "Unauthorized role";
         exit;

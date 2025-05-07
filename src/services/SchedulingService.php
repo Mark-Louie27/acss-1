@@ -882,6 +882,7 @@ class SchedulingService
         if (is_double($value)) return 'd';
         return 's';
     }
+    
 }
 
 // Initialize and run the service
@@ -894,3 +895,4 @@ $schedulingService = new SchedulingService($conn);
 $schedulingService->handleRequest();
 
 $conn->close();
+
