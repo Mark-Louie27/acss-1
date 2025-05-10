@@ -79,9 +79,6 @@ class SchedulingService
         $data = json_decode(file_get_contents('php://input'), true);
 
         switch ($endpoint) {
-            case 'create-schedule':
-                $this->createSchedule($data);
-                break;
             case 'assign-faculty':
                 $this->assignFaculty($data);
                 break;
@@ -374,122 +371,207 @@ class SchedulingService
     /**
      * Create a new schedule
      */
-    private function createSchedule($data)
+    public function createSchedule($data, $departmentId)
     {
-        $requiredFields = [
-            'course_id',
-            'section_id',
-            'semester_id',
-            'faculty_id',
-            'schedule_type',
-            'day_of_week',
-            'start_time',
-            'end_time'
-        ];
-
-        foreach ($requiredFields as $field) {
-            if (!isset($data[$field])) {
-                throw new Exception("Missing required field: $field", 400);
+        try {
+            // Validate input data
+            $requiredFields = ['course_id', 'faculty_id', 'room_id', 'section_id', 'curriculum_id', 'schedule_type', 'day_of_week', 'start_time', 'end_time', 'semester_id'];
+            foreach ($requiredFields as $field) {
+                if (empty($data[$field]) && !($field === 'room_id' && $data['schedule_type'] === 'Asynchronous')) {
+                    return [
+                        'code' => 400,
+                        'data' => ['error' => "Missing required field: $field"]
+                    ];
+                }
             }
-        }
 
-        // Check for faculty time conflict
-        $conflictCheck = "SELECT 1 FROM schedules 
-                         WHERE faculty_id = ? 
-                         AND day_of_week = ? 
-                         AND semester_id = ?
-                         AND ((start_time <= ? AND end_time > ?)
-                         OR (start_time < ? AND end_time >= ?)
-                         OR (start_time >= ? AND end_time <= ?))";
-
-        $stmt = $this->conn->prepare($conflictCheck);
-        $stmt->bind_param(
-            'isissssss',
-            $data['faculty_id'],
-            $data['day_of_week'],
-            $data['semester_id'],
-            $data['start_time'],
-            $data['start_time'],
-            $data['end_time'],
-            $data['end_time'],
-            $data['start_time'],
-            $data['end_time']
-        );
-        $stmt->execute();
-
-        if ($stmt->get_result()->num_rows > 0) {
-            throw new Exception("Faculty has a scheduling conflict at this time", 409);
-        }
-
-        // If room is specified, check for room conflict
-        if (isset($data['room_id']) && $data['room_id']) {
-            $roomConflictCheck = "SELECT 1 FROM schedules 
-                                WHERE room_id = ? 
-                                AND day_of_week = ? 
-                                AND semester_id = ?
-                                AND ((start_time <= ? AND end_time > ?)
-                                OR (start_time < ? AND end_time >= ?)
-                                OR (start_time >= ? AND end_time <= ?))";
-
-            $stmt = $this->conn->prepare($roomConflictCheck);
-            $stmt->bind_param(
-                'isissssss',
-                $data['room_id'],
-                $data['day_of_week'],
-                $data['semester_id'],
-                $data['start_time'],
-                $data['start_time'],
-                $data['end_time'],
-                $data['end_time'],
-                $data['start_time'],
-                $data['end_time']
-            );
-            $stmt->execute();
-
-            if ($stmt->get_result()->num_rows > 0) {
-                throw new Exception("Room is already booked at this time", 409);
+            // Validate Curriculum
+            $curriculumStmt = $this->db->prepare("SELECT curriculum_id, curriculum_name FROM curricula WHERE curriculum_id = :curriculum_id AND department_id = :department_id");
+            $curriculumStmt->execute([':curriculum_id' => $data['curriculum_id'], ':department_id' => $departmentId]);
+            $curriculum = $curriculumStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$curriculum) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "Invalid curriculum selected or not in your department."]
+                ];
             }
+
+            // Validate Course (must be part of the curriculum)
+            $courseStmt = $this->db->prepare("
+                SELECT c.course_id, c.course_code, c.course_name 
+                FROM courses c 
+                JOIN curriculum_courses cc ON c.course_id = cc.course_id 
+                WHERE c.course_id = :course_id 
+                AND cc.curriculum_id = :curriculum_id 
+                AND c.department_id = :department_id
+            ");
+            $courseStmt->execute([
+                ':course_id' => $data['course_id'],
+                ':curriculum_id' => $data['curriculum_id'],
+                ':department_id' => $departmentId
+            ]);
+            $course = $courseStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$course) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "Invalid course selected or not part of the curriculum."]
+                ];
+            }
+
+            // Validate Faculty
+            $facultyStmt = $this->db->prepare("
+                SELECT f.faculty_id, CONCAT(u.first_name, ' ', u.last_name) AS name 
+                FROM faculty f 
+                JOIN users u ON f.user_id = u.user_id 
+                WHERE f.faculty_id = :faculty_id 
+                AND u.department_id = :department_id
+            ");
+            $facultyStmt->execute([':faculty_id' => $data['faculty_id'], ':department_id' => $departmentId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$faculty) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "Invalid faculty selected or not in your department."]
+                ];
+            }
+
+            // Validate Section
+            $sectionStmt = $this->db->prepare("
+                SELECT s.section_id, s.section_name 
+                FROM sections s 
+                WHERE s.section_id = :section_id 
+                AND s.department_id = :department_id 
+                AND s.curriculum_id = :curriculum_id
+            ");
+            $sectionStmt->execute([
+                ':section_id' => $data['section_id'],
+                ':department_id' => $departmentId,
+                ':curriculum_id' => $data['curriculum_id']
+            ]);
+            $section = $sectionStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$section) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "Invalid section selected or not in your department/curriculum."]
+                ];
+            }
+
+            // Validate Room (if not Asynchronous)
+            if ($data['schedule_type'] !== 'Asynchronous') {
+                $roomStmt = $this->db->prepare("
+                    SELECT room_id, room_name 
+                    FROM classrooms 
+                    WHERE room_id = :room_id 
+                    AND (department_id = :department_id OR (shared = 1 AND availability = 'available'))
+                ");
+                $roomStmt->execute([':room_id' => $data['room_id'], ':department_id' => $departmentId]);
+                $room = $roomStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$room) {
+                    return [
+                        'code' => 400,
+                        'data' => ['error' => "Invalid room selected or not available."]
+                    ];
+                }
+            } else {
+                $data['room_id'] = null; // No room for asynchronous schedules
+            }
+
+            // Validate Day and Time
+            $validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            if (!in_array($data['day_of_week'], $validDays)) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "Invalid day of week."]
+                ];
+            }
+            if (!preg_match('/^\d{2}:\d{2}$/', $data['start_time']) || !preg_match('/^\d{2}:\d{2}$/', $data['end_time'])) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "Invalid time format."]
+                ];
+            }
+            if (strtotime($data['start_time']) >= strtotime($data['end_time'])) {
+                return [
+                    'code' => 400,
+                    'data' => ['error' => "End time must be after start time."]
+                ];
+            }
+
+            // Check for conflicts
+            $conflictStmt = $this->db->prepare("
+                SELECT COUNT(*) 
+                FROM schedules 
+                WHERE semester_id = :semester_id 
+                AND (faculty_id = :faculty_id OR room_id = :room_id)
+                AND day_of_week = :day_of_week
+                AND (
+                    (start_time <= :start_time AND end_time > :start_time) OR
+                    (start_time < :end_time AND end_time >= :end_time) OR
+                    (start_time >= :start_time AND end_time <= :end_time)
+                )
+            ");
+            $conflictStmt->execute([
+                ':semester_id' => $data['semester_id'],
+                ':faculty_id' => $data['faculty_id'],
+                ':room_id' => $data['room_id'] ?? null,
+                ':day_of_week' => $data['day_of_week'],
+                ':start_time' => $data['start_time'],
+                ':end_time' => $data['end_time']
+            ]);
+            if ($conflictStmt->fetchColumn() > 0) {
+                return [
+                    'code' => 409,
+                    'data' => ['error' => "Schedule conflict detected for faculty or room."]
+                ];
+            }
+
+            // Insert schedule
+            $insertStmt = $this->db->prepare("
+                INSERT INTO schedules (
+                    course_id, faculty_id, room_id, section_id, curriculum_id, 
+                    schedule_type, day_of_week, start_time, end_time, semester_id
+                ) VALUES (
+                    :course_id, :faculty_id, :room_id, :section_id, :curriculum_id, 
+                    :schedule_type, :day_of_week, :start_time, :end_time, :semester_id
+                )
+            ");
+            $insertStmt->execute([
+                ':course_id' => $data['course_id'],
+                ':faculty_id' => $data['faculty_id'],
+                ':room_id' => $data['room_id'],
+                ':section_id' => $data['section_id'],
+                ':curriculum_id' => $data['curriculum_id'],
+                ':schedule_type' => $data['schedule_type'],
+                ':day_of_week' => $data['day_of_week'],
+                ':start_time' => $data['start_time'],
+                ':end_time' => $data['end_time'],
+                ':semester_id' => $data['semester_id']
+            ]);
+
+            return [
+                'code' => 200,
+                'data' => [
+                    'success' => true,
+                    'schedule' => [
+                        'course_code' => $course['course_code'],
+                        'faculty_name' => $faculty['name'],
+                        'room_name' => $room['room_name'] ?? 'N/A',
+                        'section_name' => $section['section_name'],
+                        'curriculum_name' => $curriculum['curriculum_name'],
+                        'schedule_type' => $data['schedule_type'],
+                        'day_of_week' => $data['day_of_week'],
+                        'start_time' => $data['start_time'],
+                        'end_time' => $data['end_time']
+                    ]
+                ]
+            ];
+        } catch (PDOException $e) {
+            error_log("SchedulingService: Error creating schedule - " . $e->getMessage());
+            return [
+                'code' => 500,
+                'data' => ['error' => "Failed to create schedule: " . $e->getMessage()]
+            ];
         }
-
-        // Insert the new schedule
-        $insertQuery = "INSERT INTO schedules 
-                       (course_id, section_id, room_id, semester_id, faculty_id, 
-                       schedule_type, day_of_week, start_time, end_time, status, is_public) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', 0)";
-
-        $stmt = $this->conn->prepare($insertQuery);
-        $stmt->bind_param(
-            'iiiiissss',
-            $data['course_id'],
-            $data['section_id'],
-            $data['room_id'] ?? null,
-            $data['semester_id'],
-            $data['faculty_id'],
-            $data['schedule_type'],
-            $data['day_of_week'],
-            $data['start_time'],
-            $data['end_time']
-        );
-
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to create schedule: " . $stmt->error, 500);
-        }
-
-        $scheduleId = $stmt->insert_id;
-
-        // Log the activity
-        $this->logActivity(
-            $_SESSION['user_id'] ?? null,
-            'create_schedule',
-            "Created new schedule ID $scheduleId",
-            'schedules',
-            $scheduleId
-        );
-
-        echo json_encode([
-            'success' => true,
-            'schedule_id' => $scheduleId
-        ]);
     }
 
     /**
@@ -885,14 +967,6 @@ class SchedulingService
     
 }
 
-// Initialize and run the service
-$conn = new mysqli("localhost", "username", "password", "acss");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
 
-$schedulingService = new SchedulingService($conn);
-$schedulingService->handleRequest();
 
-$conn->close();
 

@@ -1,4 +1,8 @@
-<?php ob_start(); ?>
+<?php
+ob_start();
+
+?>
+
 <div class="p-6 bg-gray-50 min-h-screen font-sans">
     <h2 class="text-2xl font-bold text-gray-800 mb-6">Schedule Management</h2>
 
@@ -16,7 +20,7 @@
 
     <!-- Display Current Semester -->
     <div class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg shadow-sm flex items-center mb-6">
-        <i class="far fa-calendar-alt mr-2 text-gold-500"></i>
+        <i class="far fa-calendar-alt mr-2 text-yellow-500"></i>
         <span>Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></span>
     </div>
 
@@ -24,11 +28,14 @@
     <div class="mb-6">
         <div class="border-b border-gray-200">
             <nav class="-mb-px flex space-x-6">
-                <a href="?tab=manual" class="tab-button <?php echo ($activeTab === 'manual' ? 'border-gold-500 text-gold-600' : 'border-transparent text-gray-500 hover:text-gray-700'); ?> py-3 px-1 border-b-2 font-medium text-sm">
+                <a href="?tab=manual" class="tab-button <?php echo ($activeTab === 'manual' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700'); ?> py-3 px-1 border-b-2 font-medium text-sm">
                     <i class="fas fa-calendar-plus mr-2"></i>Manual Creation
                 </a>
-                <a href="?tab=generate" class="tab-button <?php echo ($activeTab === 'generate' ? 'border-gold-500 text-gold-600' : 'border-transparent text-gray-500 hover:text-gray-700'); ?> py-3 px-1 border-b-2 font-medium text-sm">
+                <a href="?tab=generate" class="tab-button <?php echo ($activeTab === 'generate' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700'); ?> py-3 px-1 border-b-2 font-medium text-sm">
                     <i class="fas fa-magic mr-2"></i>Generate Schedules
+                </a>
+                <a href="?tab=export" class="tab-button <?php echo ($activeTab === 'export' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700'); ?> py-3 px-1 border-b-2 font-medium text-sm">
+                    <i class="fas fa-file-export mr-2"></i>Export Template
                 </a>
             </nav>
         </div>
@@ -41,24 +48,41 @@
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Faculty Scheduling Planner</h3>
 
-                <!-- Selectors for Faculty and Subject -->
+                <!-- Selectors for Curriculum, Faculty, Course, Room, and Section -->
                 <div class="flex flex-col md:flex-row gap-4 mb-4">
-                    <div class="w-full md:w-1/3">
-                        <label for="faculty" class="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
-                        <select id="faculty" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500">
-                            <option value="">-- Select Faculty --</option>
+                    <div class="w-full md:w-1/4">
+                        <label for="curriculum_id" class="block text-sm font-medium text-gray-700 mb-1">Curriculum</label>
+                        <select id="curriculum_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" onchange="updateCoursesAndSections()">
+                            <option value="">Select Curriculum</option>
+                            <?php foreach ($curricula as $curriculum): ?>
+                                <option value="<?php echo htmlspecialchars($curriculum['curriculum_id']); ?>"
+                                    <?php echo $curriculum['curriculum_id'] == ($selectedCurriculumId ?? '') ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($curriculum['curriculum_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="w-full md:w-1/3">
-                        <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">Course</label>
-                        <select id="subject" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500">
-                            <option value="">-- Select Course --</option>
+                    <div class="w-full md:w-1/4">
+                        <label for="faculty_id" class="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
+                        <select id="faculty_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="">Select Faculty</option>
+                            <?php foreach ($faculty as $fac): ?>
+                                <option value="<?php echo htmlspecialchars($fac['faculty_id']); ?>">
+                                    <?php echo htmlspecialchars($fac['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="w-full md:w-1/3">
+                    <div class="w-full md:w-1/4">
+                        <label for="course_id" class="block text-sm font-medium text-gray-700 mb-1">Course</label>
+                        <select id="course_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="">Select Course</option>
+                        </select>
+                    </div>
+                    <div class="w-full md:w-1/4">
                         <label for="room_id" class="block text-sm font-medium text-gray-700 mb-1">Room</label>
-                        <select id="room_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" required>
-                            <option value="">Select a Room</option>
+                        <select id="room_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="">Select Room</option>
                             <?php foreach ($classrooms as $room): ?>
                                 <option value="<?php echo htmlspecialchars($room['room_id']); ?>">
                                     <?php echo htmlspecialchars($room['room_name']); ?>
@@ -66,22 +90,17 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="w-full md:w-1/3">
+                    <div class="w-full md:w-1/4">
                         <label for="section_id" class="block text-sm font-medium text-gray-700 mb-1">Section</label>
-                        <select id="section_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" required>
-                            <option value="">Select a Section</option>
-                            <?php foreach ($sections as $section): ?>
-                                <option value="<?php echo htmlspecialchars($section['section_id']); ?>">
-                                    <?php echo htmlspecialchars($section['section_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
+                        <select id="section_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                            <option value="">Select Section</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- Box to display selected Faculty and Subject for drag-and-drop -->
-                <div id="draggableBox" class="draggable-box bg-gray-100 border border-gray-200 rounded-md p-4 text-center mb-4" draggable="true">
-                    <p>Drag me to the schedule!</p>
+                <!-- Draggable Box -->
+                <div id="draggableBox" class="draggable-box bg-gray-100 border border-gray-200 rounded-md p-4 text-center mb-4" draggable="false">
+                    <p>Select curriculum, faculty, course, room, and section to drag</p>
                 </div>
 
                 <!-- Schedule Table -->
@@ -90,12 +109,9 @@
                         <thead>
                             <tr>
                                 <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Time</th>
-                                <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Monday</th>
-                                <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Tuesday</th>
-                                <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Wednesday</th>
-                                <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Thursday</th>
-                                <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Friday</th>
-                                <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700">Saturday</th>
+                                <?php foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $day): ?>
+                                    <th class="border border-gray-200 p-2 bg-gray-100 text-sm font-medium text-gray-700"><?php echo $day; ?></th>
+                                <?php endforeach; ?>
                             </tr>
                         </thead>
                         <tbody id="scheduleBody"></tbody>
@@ -104,8 +120,9 @@
 
                 <!-- Hidden Form for Submission -->
                 <form method="POST" id="scheduleForm" class="mt-6">
+                    <input type="hidden" name="tab" value="manual">
                     <input type="hidden" name="schedules" id="schedulesInput">
-                    <button type="submit" class="bg-gold-500 text-white px-4 py-2 rounded-md hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-500">Save Schedule</button>
+                    <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500">Save Schedule</button>
                     <button type="button" class="print-btn print-hide bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 ml-2" onclick="window.print()">Print Schedule</button>
                     <p class="text-sm text-gray-600 mt-2">A plain Excel file with resources will also be exported for drag-and-drop editing.</p>
                 </form>
@@ -115,94 +132,117 @@
         <!-- Generate Schedules Tab -->
         <div class="<?php echo ($activeTab === 'generate' ? '' : 'hidden'); ?>">
             <form method="POST" class="bg-white p-6 rounded-lg shadow-md">
+                <input type="hidden" name="tab" value="generate">
                 <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label for="generate_curriculum_id" class="block text-sm font-medium text-gray-700 mb-1">Curriculum</label>
+                        <select name="curriculum_id" id="generate_curriculum_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" required onchange="updateGenerateSections()">
+                            <option value="">Select Curriculum</option>
+                            <?php foreach ($curricula as $curriculum): ?>
+                                <option value="<?php echo htmlspecialchars($curriculum['curriculum_id']); ?>">
+                                    <?php echo htmlspecialchars($curriculum['curriculum_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></label>
                         <input type="hidden" name="semester_id" value="<?php echo htmlspecialchars($currentSemester['semester_id'] ?? ''); ?>">
                     </div>
                     <div>
                         <label for="year_levels" class="block text-sm font-medium text-gray-700 mb-1">Year Levels</label>
-                        <select name="year_levels[]" id="year_levels" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" multiple>
-                            <option value="1">Year 1</option>
-                            <option value="2">Year 2</option>
-                            <option value="3">Year 3</option>
-                            <option value="4">Year 4</option>
+                        <select name="year_levels[]" id="year_levels" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" multiple>
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
+                            <option value="4th Year">4th Year</option>
                         </select>
                     </div>
                     <div>
                         <label for="sections" class="block text-sm font-medium text-gray-700 mb-1">Sections</label>
-                        <select name="sections[]" id="sections" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" multiple>
-                            <?php foreach ($sections as $section): ?>
-                                <option value="<?php echo htmlspecialchars($section['section_id']); ?>">
-                                    <?php echo htmlspecialchars($section['section_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
+                        <select name="sections[]" id="sections" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" multiple>
+                            <option value="">Select Curriculum First</option>
                         </select>
                     </div>
                 </div>
                 <div class="mt-6">
-                    <button type="submit" class="bg-gold-500 text-white px-4 py-2 rounded-md hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-500">Generate Schedules</button>
+                    <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500">Generate Schedules</button>
                 </div>
+            </form>
+        </div>
+
+        <!-- Export Template Tab -->
+        <div class="<?php echo ($activeTab === 'export' ? '' : 'hidden'); ?>">
+            <form method="POST" class="bg-white p-6 rounded-lg shadow-md">
+                <input type="hidden" name="tab" value="export">
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600">Export a plain Excel file containing all available resources (curricula, courses, faculty, rooms, sections) for manual editing.</p>
+                </div>
+                <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500">Export Template</button>
             </form>
         </div>
     </div>
 </div>
 
 <script>
-    // Data for time slots and days
+    // Pass departmentId from PHP to JavaScript
+    const departmentId = <?php echo json_encode($departmentId); ?>;
+    console.log('Department ID:', departmentId);
+
+    // Time slots
     const times = [{
-            start: '7:30 AM',
-            end: '8:30 AM'
+            start: '07:30',
+            end: '08:30'
         },
         {
-            start: '8:30 AM',
-            end: '9:30 AM'
+            start: '08:30',
+            end: '09:30'
         },
         {
-            start: '9:30 AM',
-            end: '10:30 AM'
+            start: '09:30',
+            end: '10:30'
         },
         {
-            start: '10:30 AM',
-            end: '11:30 AM'
+            start: '10:30',
+            end: '11:30'
         },
         {
-            start: '11:30 AM',
-            end: '12:30 PM'
+            start: '11:30',
+            end: '12:30'
         },
         {
-            start: '12:30 PM',
-            end: '1:30 PM'
+            start: '12:30',
+            end: '13:30'
         },
         {
-            start: '1:30 PM',
-            end: '2:30 PM'
+            start: '13:30',
+            end: '14:30'
         },
         {
-            start: '2:30 PM',
-            end: '3:30 PM'
+            start: '14:30',
+            end: '15:30'
         },
         {
-            start: '3:30 PM',
-            end: '4:30 PM'
+            start: '15:30',
+            end: '16:30'
         },
         {
-            start: '4:30 PM',
-            end: '5:30 PM'
+            start: '16:30',
+            end: '17:30'
         },
         {
-            start: '5:30 PM',
-            end: '6:00 PM'
+            start: '17:30',
+            end: '18:00'
         }
     ];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    // Populate schedule grid dynamically
+    // Populate schedule grid
     const tbody = document.getElementById('scheduleBody');
     times.forEach(time => {
         const row = document.createElement('tr');
         const timeCell = document.createElement('td');
-        timeCell.textContent = `${time.start} to ${time.end}`;
+        timeCell.textContent = `${time.start} - ${time.end}`;
         timeCell.classList.add('border', 'border-gray-200', 'p-2', 'text-sm', 'text-gray-700');
         row.appendChild(timeCell);
         days.forEach(day => {
@@ -210,124 +250,347 @@
             cell.dataset.time = time.start;
             cell.dataset.endTime = time.end;
             cell.dataset.day = day;
-            cell.classList.add('droppable', 'border', 'border-gray-200', 'p-2', 'text-sm', 'text-gray-700');
+            cell.classList.add('droppable', 'border', 'border-gray-200', 'p-2', 'text-sm', 'text-gray-700', 'min-h-[60px]');
             row.appendChild(cell);
         });
         tbody.appendChild(row);
     });
 
-    // Fetch Faculty and Course Data
-    fetch('/api/load_data?type=faculty')
-        .then(response => response.json())
-        .then(data => {
-            const facultySelect = document.getElementById('faculty');
-            data.forEach(faculty => {
-                let option = document.createElement('option');
-                option.value = faculty.id;
-                option.textContent = faculty.name;
-                facultySelect.appendChild(option);
-            });
-        });
+    // Update courses and sections based on curriculum
+    function updateCoursesAndSections() {
+        const curriculumId = document.getElementById('curriculum_id').value;
+        const courseSelect = document.getElementById('course_id');
+        const sectionSelect = document.getElementById('section_id');
 
-    fetch('/api/load_data?type=course')
-        .then(response => response.json())
-        .then(data => {
-            const subjectSelect = document.getElementById('subject');
-            data.forEach(course => {
-                let option = document.createElement('option');
-                option.value = course.id;
-                option.textContent = `${course.code} - ${course.name}`;
-                subjectSelect.appendChild(option);
-            });
-        });
+        // Reset dropdowns
+        courseSelect.innerHTML = '<option value="">Select Course</option>';
+        sectionSelect.innerHTML = '<option value="">Select Section</option>';
 
-    // Update the draggable box text based on selection
-    const facultySelect = document.getElementById('faculty');
-    const subjectSelect = document.getElementById('subject');
+        if (!curriculumId) {
+            updateDraggableBox();
+            return;
+        }
+
+        // Log fetch attempt
+        console.log('Fetching courses for curriculum_id:', curriculumId);
+
+        // Fetch courses
+        fetch(`/api/load_data?type=courses&curriculum_id=${curriculumId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+                }
+                return response.text().then(text => ({
+                    text,
+                    response
+                }));
+            })
+            .then(({
+                text,
+                response
+            }) => {
+                console.log('Courses raw response:', text);
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Courses parsed data:', data);
+
+                    // Clear existing options first
+                    courseSelect.innerHTML = '';
+
+                    if (data.success && Array.isArray(data.data)) {
+                        if (data.data.length === 0) {
+                            courseSelect.innerHTML = '<option value="">No courses available for this curriculum</option>';
+                            alert('No courses found for the selected curriculum.');
+                        } else {
+                            data.data.forEach(course => {
+                                const option = new Option(
+                                    `${course.course_code} - ${course.course_name}`,
+                                    course.course_id
+                                );
+                                option.dataset.curriculumId = curriculumId;
+                                option.dataset.yearLevel = course.year_level;
+                                option.dataset.semester = course.semester;
+                                courseSelect.appendChild(option);
+                            });
+                        }
+                    } else {
+                        console.error('Courses response error:', data.message || 'Invalid response structure');
+                        courseSelect.innerHTML = '<option value="">Error: Failed to load courses</option>';
+                        alert('Failed to load courses: ' + (data.message || 'Invalid response from server'));
+                    }
+                } catch (e) {
+                    console.error('Courses JSON parse error:', e.message, 'Raw response:', text);
+                    courseSelect.innerHTML = '<option value="">Error: Invalid server response</option>';
+                    alert('Error parsing courses response: ' + e.message);
+                }
+            })
+            .catch(error => {
+                console.error('Courses fetch error:', error.message);
+                courseSelect.innerHTML = '<option value="">Error: Unable to fetch courses</option>';
+                alert('Error fetching courses: ' + error.message);
+            });
+
+        // Log fetch attempt
+        console.log('Fetching sections for curriculum_id:', curriculumId, 'department_id:', departmentId);
+
+        // Fetch sections
+        fetch(`/api/load_data?type=sections&curriculum_id=${curriculumId}&department_id=${departmentId}`)
+            .then(response => {
+                console.log('Sections fetch status:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+                }
+                return response.text().then(text => ({
+                    text,
+                    response
+                }));
+            })
+            .then(({
+                text,
+                response
+            }) => {
+                console.log('Sections raw response:', text);
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Sections parsed data:', data);
+                    if (data.success && Array.isArray(data.data)) {
+                        if (data.data.length === 0) {
+                            sectionSelect.innerHTML = '<option value="">No sections available</option>';
+                            console.warn('No sections returned for curriculum_id:', curriculumId, 'department_id:', departmentId);
+                        } else {
+                            data.data.forEach(section => {
+                                const option = new Option(
+                                    `${section.section_name} (${section.year_level})`,
+                                    section.section_id
+                                );
+                                option.dataset.curriculumId = section.curriculum_id || curriculumId;
+                                option.dataset.yearLevel = section.year_level;
+                                sectionSelect.appendChild(option);
+                            });
+                        }
+                    } else {
+                        console.error('Sections response error:', data.message || 'Invalid response structure');
+                        sectionSelect.innerHTML = '<option value="">No sections available</option>';
+                        alert('Failed to load sections: ' + (data.message || 'Invalid response structure'));
+                    }
+                } catch (e) {
+                    console.error('Sections JSON parse error:', e.message, 'Raw response:', text);
+                    sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                    alert('Error parsing sections response: ' + e.message);
+                }
+            })
+            .catch(error => {
+                console.error('Sections fetch error:', error.message);
+                sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                alert('Error fetching sections: ' + error.message);
+            });
+
+        updateDraggableBox();
+    }
+
+    // Update sections in the Generate tab
+    function updateGenerateSections() {
+        const curriculumId = document.getElementById('generate_curriculum_id').value;
+        const sectionSelect = document.getElementById('sections');
+
+        // Reset dropdown
+        sectionSelect.innerHTML = '<option value="">Select Section</option>';
+
+        if (!curriculumId) {
+            return;
+        }
+
+        // Log fetch attempt
+        console.log('Fetching generate sections for curriculum_id:', curriculumId, 'department_id:', departmentId);
+
+        // Fetch sections
+        fetch(`/api/load_data?type=sections&curriculum_id=${curriculumId}&department_id=${departmentId}`)
+            .then(response => {
+                console.log('Generate Sections fetch status:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+                }
+                return response.text().then(text => ({
+                    text,
+                    response
+                }));
+            })
+            .then(({
+                text,
+                response
+            }) => {
+                console.log('Generate Sections raw response:', text);
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Generate Sections parsed data:', data);
+                    if (data.success && Array.isArray(data.data)) {
+                        if (data.data.length === 0) {
+                            sectionSelect.innerHTML = '<option value="">No sections available</option>';
+                            console.warn('No sections returned for curriculum_id:', curriculumId, 'department_id:', departmentId);
+                        } else {
+                            data.data.forEach(section => {
+                                const option = new Option(
+                                    `${section.section_name} (${section.year_level})`,
+                                    section.section_id
+                                );
+                                option.dataset.curriculumId = section.curriculum_id || curriculumId;
+                                option.dataset.yearLevel = section.year_level;
+                                sectionSelect.appendChild(option);
+                            });
+                        }
+                    } else {
+                        console.error('Generate Sections response error:', data.message || 'Invalid response structure');
+                        sectionSelect.innerHTML = '<option value="">No sections available</option>';
+                        alert('Failed to load sections: ' + (data.message || 'Invalid response structure'));
+                    }
+                } catch (e) {
+                    console.error('Generate Sections JSON parse error:', e.message, 'Raw response:', text);
+                    sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                    alert('Error parsing sections response: ' + e.message);
+                }
+            })
+            .catch(error => {
+                console.error('Generate Sections fetch error:', error.message);
+                sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                alert('Error fetching sections: ' + error.message);
+            });
+    }
+
+    // Update draggable box text
+    const curriculumSelect = document.getElementById('curriculum_id');
+    const facultySelect = document.getElementById('faculty_id');
+    const courseSelect = document.getElementById('course_id');
+    const roomSelect = document.getElementById('room_id');
+    const sectionSelect = document.getElementById('section_id');
     const draggableBox = document.getElementById('draggableBox');
 
     function updateDraggableBox() {
+        const curriculum = curriculumSelect.options[curriculumSelect.selectedIndex]?.text;
         const faculty = facultySelect.options[facultySelect.selectedIndex]?.text;
-        const subject = subjectSelect.options[subjectSelect.selectedIndex]?.text;
+        const course = courseSelect.options[courseSelect.selectedIndex]?.text;
+        const room = roomSelect.options[roomSelect.selectedIndex]?.text;
+        const section = sectionSelect.options[sectionSelect.selectedIndex]?.text;
 
-        if (faculty && subject) {
-            draggableBox.innerHTML = `<p><strong>${subject}</strong><br>Faculty: ${faculty}</p>`;
+        if (curriculum && faculty && course && room && section && course !== 'Select Course' && section !== 'Select Section') {
+            draggableBox.innerHTML = `<p><strong>${course}</strong><br>Faculty: ${faculty}<br>Room: ${room}<br>Section: ${section}</p>`;
+            draggableBox.setAttribute('draggable', 'true');
+        } else {
+            draggableBox.innerHTML = `<p>Select curriculum, faculty, course, room, and section to drag</p>`;
+            draggableBox.setAttribute('draggable', 'false');
         }
     }
 
+    curriculumSelect.addEventListener('change', updateCoursesAndSections);
     facultySelect.addEventListener('change', updateDraggableBox);
-    subjectSelect.addEventListener('change', updateDraggableBox);
+    courseSelect.addEventListener('change', updateDraggableBox);
+    roomSelect.addEventListener('change', updateDraggableBox);
+    sectionSelect.addEventListener('change', updateDraggableBox);
 
-    // Drag-and-Drop Logic for the Schedule
+    // Drag-and-drop logic
     const scheduleData = [];
     document.querySelectorAll('.droppable').forEach(cell => {
-        cell.addEventListener('dragover', function(e) {
-            e.preventDefault(); // Allow drop
-            cell.classList.add('over');
-        });
-
-        cell.addEventListener('dragleave', function() {
-            cell.classList.remove('over');
-        });
-
-        cell.addEventListener('drop', function(e) {
+        cell.addEventListener('dragover', e => {
             e.preventDefault();
-            const facultyId = facultySelect.value;
-            const courseId = subjectSelect.value;
-            const roomId = document.getElementById('room_id').value;
-            const sectionId = document.getElementById('section_id').value;
+            cell.classList.add('bg-gray-100');
+        });
 
-            if (facultyId && courseId && roomId && sectionId) {
-                const courseName = subjectSelect.options[subjectSelect.selectedIndex].text;
+        cell.addEventListener('dragleave', () => {
+            cell.classList.remove('bg-gray-100');
+        });
+
+        cell.addEventListener('drop', e => {
+            e.preventDefault();
+            cell.classList.remove('bg-gray-100');
+
+            const curriculumId = curriculumSelect.value;
+            const facultyId = facultySelect.value;
+            const courseId = courseSelect.value;
+            const roomId = roomSelect.value;
+            const sectionId = sectionSelect.value;
+
+            if (curriculumId && facultyId && courseId && roomId && sectionId) {
+                const courseOption = courseSelect.options[courseSelect.selectedIndex];
+                const sectionOption = sectionSelect.options[sectionSelect.selectedIndex];
                 const facultyName = facultySelect.options[facultySelect.selectedIndex].text;
+                const roomName = roomSelect.options[roomSelect.selectedIndex].text;
+                const sectionName = sectionOption.text;
                 const day = cell.dataset.day;
                 const startTime = cell.dataset.time;
                 const endTime = cell.dataset.endTime;
 
-                // Display in the table
-                cell.innerHTML = `<strong>${courseName}</strong><br>${facultyName}`;
-                cell.classList.remove('over');
+                // Validate curriculum match
+                if (courseOption.dataset.curriculumId !== curriculumId || sectionOption.dataset.curriculumId !== curriculumId) {
+                    alert('Course and section must belong to the selected curriculum.');
+                    return;
+                }
 
-                // Store the schedule data
+                // Display in table
+                cell.innerHTML = `<div class="schedule-item"><strong>${courseOption.text}</strong><br>${facultyName}<br>${roomName}<br>${sectionName}<button class="text-red-500 text-xs mt-1" onclick="this.parentElement.remove(); updateSchedules()">Remove</button></div>`;
+
+                // Store schedule data
                 scheduleData.push({
+                    curriculum_id: curriculumId,
                     course_id: courseId,
                     faculty_id: facultyId,
                     room_id: roomId,
                     section_id: sectionId,
                     day_of_week: day,
-                    start_time: startTime.replace(' AM', '').replace(' PM', ''),
-                    end_time: endTime.replace(' AM', '').replace(' PM', '')
+                    start_time: startTime,
+                    end_time: endTime
                 });
 
-                // Update the hidden input with the schedule data
+                // Update hidden input
                 document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
             } else {
-                alert('Please select faculty, course, room, and section');
+                alert('Please select curriculum, faculty, course, room, and section.');
             }
         });
     });
 
-    // Draggable text functionality
-    draggableBox.addEventListener('dragstart', function(e) {
-        const faculty = facultySelect.value;
-        const subject = subjectSelect.value;
-
-        if (faculty && subject) {
-            const subjectName = subjectSelect.options[subjectSelect.selectedIndex].text;
-            const facultyName = facultySelect.options[facultySelect.selectedIndex].text;
-            e.dataTransfer.setData('text', `${subjectName} with ${facultyName}`);
+    // Draggable box drag events
+    draggableBox.addEventListener('dragstart', e => {
+        if (curriculumSelect.value && facultySelect.value && courseSelect.value && roomSelect.value && sectionSelect.value) {
+            e.dataTransfer.setData('text', draggableBox.innerHTML);
+        } else {
+            e.preventDefault();
         }
     });
 
-    draggableBox.addEventListener('dragend', function() {
-        draggableBox.style.opacity = 1; // Reset opacity after dragging
+    draggableBox.addEventListener('dragend', () => {
+        draggableBox.style.opacity = 1;
     });
+
+    // Update schedules when removing items
+    function updateSchedules() {
+        scheduleData.length = 0;
+        document.querySelectorAll('.schedule-item').forEach(item => {
+            const cell = item.parentElement;
+            const curriculumId = curriculumSelect.value;
+            const courseId = courseSelect.value;
+            const facultyId = facultySelect.value;
+            const roomId = roomSelect.value;
+            const sectionId = sectionSelect.value;
+            if (curriculumId && courseId && facultyId && roomId && sectionId) {
+                scheduleData.push({
+                    curriculum_id: curriculumId,
+                    course_id: courseId,
+                    faculty_id: facultyId,
+                    room_id: roomId,
+                    section_id: sectionId,
+                    day_of_week: cell.dataset.day,
+                    start_time: cell.dataset.time,
+                    end_time: cell.dataset.endTime
+                });
+            }
+        });
+        document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
+    }
 </script>
 
 <style>
     .draggable-box {
-        width: 200px;
-        height: 100px;
+        width: 250px;
+        min-height: 100px;
         border: 1px solid #ccc;
         padding: 10px;
         background-color: #f9f9f9;
@@ -335,18 +598,17 @@
         text-align: center;
     }
 
-    .over {
-        background-color: #f0f0f0;
-    }
-
     .droppable {
-        width: 120px;
-        height: 60px;
-        overflow: hidden;
+        min-width: 120px;
+        min-height: 60px;
+        overflow: auto;
         font-size: 12px;
     }
 
-    /* Styles for Print */
+    .schedule-item {
+        position: relative;
+    }
+
     @media print {
         @page {
             size: A4 landscape;
@@ -368,7 +630,6 @@
 
         .schedule-table {
             width: 100%;
-            height: 100%;
             table-layout: fixed;
             border-collapse: collapse;
         }
@@ -377,20 +638,23 @@
         .schedule-table td {
             font-size: 10px;
             padding: 5px;
-            width: auto;
-            height: auto;
         }
 
         .droppable {
-            font-size: 16px;
+            font-size: 10px;
         }
 
         .print-hide {
             display: none;
         }
+
+        .schedule-item button {
+            display: none;
+        }
     }
 </style>
 
-<?php $content = ob_get_clean();
-require_once __DIR__ . '/layout.php'; 
+<?php
+$content = ob_get_clean();
+require_once __DIR__ . '/layout.php';
 ?>

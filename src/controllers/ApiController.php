@@ -28,62 +28,157 @@ class ApiController
         return $result['department_id'] ?? null;
     }
 
+    private function getChairDepartment($userId)
+    {
+        $stmt = $this->db->prepare("
+            SELECT d.department_id
+            FROM departments d
+            JOIN users u ON u.department_id = d.department_id
+            JOIN program_chairs pc ON pc.user_id = u.user_id
+            WHERE u.user_id = :user_id
+            LIMIT 1
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetchColumn() ?: 0;
+    }
+
+    private function getCurrentSemester()
+    {
+        $stmt = $this->db->prepare("
+            SELECT semester_id, semester_name
+            FROM semesters
+            WHERE is_current = 1
+            LIMIT 1
+        ");
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function loadData()
     {
         header('Content-Type: application/json');
-        header('Access-Control-Allow-Origin: *'); // Adjust for security
-
-        // Check if user is authenticated and has correct role
-        if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || !in_array($_SESSION['role_id'], [4, 5, 6])) {
-            http_response_code(401);
-            echo json_encode(['error' => 'Unauthorized access']);
-            exit;
-        }
-
-        $type = isset($_GET['type']) ? trim($_GET['type']) : '';
-        if (empty($type) || !in_array($type, ['faculty', 'course'])) {
-            error_log("ApiController::loadData: Invalid or missing type parameter: $type");
-            echo json_encode(['error' => 'Invalid request type']);
-            exit;
-        }
 
         try {
-            $departmentId = $this->getDepartmentId($_SESSION['user_id']);
-            if (!$departmentId) {
-                error_log("ApiController::loadData: No department found for user_id: " . $_SESSION['user_id']);
-                echo json_encode(['error' => 'No department assigned']);
-                exit;
+            $type = $_GET['type'] ?? null;
+            $curriculumId = (int)($_GET['curriculum_id'] ?? 0);
+            $departmentId = $this->getChairDepartment($_SESSION['user_id'] ?? 0);
+            $currentSemester = $this->getCurrentSemester();
+
+            if (!$departmentId || !$currentSemester) {
+                throw new Exception('Invalid department or semester');
             }
 
-            $data = [];
-            if ($type === 'faculty') {
-                $stmt = $this->db->prepare("SELECT f.faculty_id AS id, CONCAT(u.first_name, ' ', u.last_name) AS name 
-                                            FROM faculty f 
-                                            JOIN users u ON f.user_id = u.user_id 
-                                            WHERE u.department_id = :department_id");
-                $stmt->execute([':department_id' => $departmentId]);
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            } elseif ($type === 'course') {
-                $stmt = $this->db->prepare("SELECT course_id AS id, course_code AS code, course_name AS name 
-                                            FROM courses 
-                                            WHERE department_id = :department_id");
-                $stmt->execute([':department_id' => $departmentId]);
-                $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Debugging logs
+            error_log("API loadData: type=$type, curriculum_id=$curriculumId, department_id=$departmentId, semester={$currentSemester['semester_name']}");
+
+            $response = ['success' => false, 'data' => [], 'message' => ''];
+
+            switch ($type) {
+                case 'sections':
+                    $query = "
+                        SELECT 
+                            s.section_id,
+                            s.section_name,
+                            s.year_level,
+                            s.semester,
+                            s.curriculum_id,
+                            c.curriculum_name
+                        FROM sections s
+                        LEFT JOIN curricula c ON s.curriculum_id = c.curriculum_id
+                        WHERE s.department_id = :department_id
+                        AND s.semester = :semester
+                        AND s.is_active = 1
+                    ";
+                    $params = [
+                        ':department_id' => $departmentId,
+                        ':semester' => $currentSemester['semester_name']
+                    ];                 
+
+                    $query .= " ORDER BY FIELD(s.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), s.section_name";
+
+                    $stmt = $this->db->prepare($query);
+                    $stmt->execute($params);
+                    $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    $response['success'] = true;
+                    $response['data'] = $sections;
+                    break;
+
+                case 'courses':
+                    if (!$curriculumId) {
+                        throw new Exception('Curriculum ID is required');
+                    }
+                    $query = "
+                        SELECT 
+                            c.course_id,
+                            c.course_code,
+                            c.course_name,
+                            cc.year_level,
+                            cc.semester
+                        FROM curriculum_courses cc
+                        JOIN courses c ON cc.course_id = c.course_id
+                        WHERE cc.curriculum_id = :curriculum_id
+                        ORDER BY 
+                            FIELD(cc.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'),
+                            FIELD(cc.semester, '1st', '2nd', 'Summer'),
+                            c.course_code
+                    ";
+                    $params = [':curriculum_id' => $curriculumId];
+
+                    $stmt = $this->db->prepare($query);
+                    $stmt->execute($params);
+                    $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    $response['success'] = true;
+                    $response['data'] = $courses;
+                    break;
+
+                case 'faculty':
+                    $stmt = $this->db->prepare("
+                        SELECT 
+                            f.faculty_id,
+                            CONCAT(u.first_name, ' ', u.last_name) AS name
+                        FROM faculty f
+                        JOIN users u ON f.user_id = u.user_id
+                        WHERE u.department_id = :department_id
+                        ORDER BY u.last_name, u.first_name
+                    ");
+                    $stmt->execute([':department_id' => $departmentId]);
+                    $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    $response['success'] = true;
+                    $response['data'] = $faculty;
+                    break;
+
+                case 'classrooms':
+                    $stmt = $this->db->prepare("
+                        SELECT 
+                            room_id,
+                            room_name
+                        FROM classrooms
+                        WHERE (department_id = :department_id OR shared = 1)
+                        AND availability = 'available'
+                        ORDER BY room_name
+                    ");
+                    $stmt->execute([':department_id' => $departmentId]);
+                    $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    $response['success'] = true;
+                    $response['data'] = $classrooms;
+                    break;
+
+                default:
+                    throw new Exception('Invalid data type requested');
             }
 
-            if (empty($data)) {
-                error_log("ApiController::loadData: No data found for type: $type");
-                echo json_encode([]);
-            } else {
-                echo json_encode($data);
-            }
-        } catch (PDOException $e) {
-            error_log("ApiController::loadData: Database error - " . $e->getMessage());
-            echo json_encode(['error' => 'Failed to load data']);
+            echo json_encode($response);
         } catch (Exception $e) {
-            error_log("ApiController::loadData: General error - " . $e->getMessage());
-            echo json_encode(['error' => 'An unexpected error occurred']);
+            error_log("API loadData error: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'data' => [],
+                'message' => 'Error: ' . $e->getMessage()
+            ]);
         }
-        exit;
     }
 }
