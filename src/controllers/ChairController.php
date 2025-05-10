@@ -1084,230 +1084,250 @@ class ChairController
     /**
  * Manage faculty
  */
-public function faculty()
-{
-    $chairId = $_SESSION['user_id'];
-    $departmentId = $this->getChairDepartment($chairId);
+    public function faculty()
+    {
+        $chairId = $_SESSION['user_id'];
+        $departmentId = $this->getChairDepartment($chairId);
 
-    $error = null;
-    $success = null;
-    $faculty = [];
-    $colleges = [];
-    $departments = [];
-    $searchResults = [];
+        $error = null;
+        $success = null;
+        $faculty = [];
+        $colleges = [];
+        $departments = [];
+        $searchResults = [];
 
-    // Handle AJAX search request for name suggestions
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
-        try {
-            $name = trim($_POST['name']);
-            $collegeId = isset($_POST['college_id']) ? intval($_POST['college_id']) : 0;
-            $departmentIdSearch = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
+        // Handle AJAX search request for name suggestions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
+            try {
+                $name = trim($_POST['name']);
+                $collegeId = isset($_POST['college_id']) ? intval($_POST['college_id']) : 0;
+                $departmentIdSearch = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
 
-            $query = "
-                SELECT u.user_id, u.employee_id, u.first_name, u.last_name
-                FROM faculty f 
-                JOIN users u ON f.user_id = u.user_id 
-                WHERE (u.first_name LIKE :name OR u.last_name LIKE :name)
-            ";
-            $params = [':name' => "%$name%"];
+                $query = "
+                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name
+                    FROM faculty f 
+                    JOIN users u ON f.user_id = u.user_id 
+                    WHERE (u.first_name LIKE :name OR u.last_name LIKE :name)
+                ";
+                $params = [':name' => "%$name%"];
 
-            if ($collegeId > 0) {
-                $query .= " AND u.college_id = :college_id";
-                $params[':college_id'] = $collegeId;
-            }
-            if ($departmentIdSearch > 0) {
-                $query .= " AND u.department_id = :department_id";
-                $params[':department_id'] = $departmentIdSearch;
-            }
-            if ($departmentId) {
-                $query .= " AND u.department_id != :chair_department_id";
-                $params[':chair_department_id'] = $departmentId;
-            }
-
-            $query .= " ORDER BY u.last_name, u.first_name LIMIT 10";
-
-            $stmt = $this->db->prepare($query);
-            $stmt->execute($params);
-            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            header('Content-Type: application/json');
-            echo json_encode($results);
-            exit;
-        } catch (PDOException $e) {
-            header('Content-Type: application/json');
-            echo json_encode([]);
-            exit;
-        }
-    }
-
-    // Fetch current faculty members in the chair's department
-    if (!$departmentId) {
-        $error = "No department assigned to this chair.";
-    } else {
-        try {
-            $facultyStmt = $this->db->prepare("
-                SELECT u.user_id, u.employee_id, u.first_name, u.last_name, f.academic_rank, f.employment_type, d.department_name, c.college_name
-                FROM faculty f 
-                JOIN users u ON f.user_id = u.user_id 
-                JOIN departments d ON u.department_id = d.department_id
-                JOIN colleges c ON u.college_id = c.college_id
-                WHERE u.department_id = :department_id
-                ORDER BY u.last_name, u.first_name
-            ");
-            $facultyStmt->execute([':department_id' => $departmentId]);
-            $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            $error = "Failed to load faculty: " . htmlspecialchars($e->getMessage());
-        }
-    }
-
-    // Fetch all colleges and departments for search filters
-    try {
-        $collegesStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
-        $colleges = $collegesStmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $departmentsStmt = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
-        $departments = $departmentsStmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        $error = "Failed to load colleges and departments: " . htmlspecialchars($e->getMessage());
-    }
-
-    // Handle search functionality
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search'])) {
-        try {
-            $collegeId = isset($_POST['college_id']) ? intval($_POST['college_id']) : 0;
-            $departmentIdSearch = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
-            $name = isset($_POST['name']) ? trim($_POST['name']) : '';
-
-            $query = "
-                SELECT u.user_id, u.employee_id, u.first_name, u.last_name, f.academic_rank, f.employment_type, d.department_name, c.college_name
-                FROM faculty f 
-                JOIN users u ON f.user_id = u.user_id 
-                JOIN departments d ON u.department_id = d.department_id
-                JOIN colleges c ON u.college_id = c.college_id
-                WHERE 1=1
-            ";
-            $params = [];
-
-            if ($collegeId > 0) {
-                $query .= " AND u.college_id = :college_id";
-                $params[':college_id'] = $collegeId;
-            }
-            if ($departmentIdSearch > 0) {
-                $query .= " AND u.department_id = :department_id";
-                $params[':department_id'] = $departmentIdSearch;
-            }
-            if (!empty($name)) {
-                $query .= " AND (u.first_name LIKE :name OR u.last_name LIKE :name)";
-                $params[':name'] = "%$name%";
-            }
-
-            // Exclude faculty already in the chair's department
-            if ($departmentId) {
-                $query .= " AND u.department_id != :chair_department_id";
-                $params[':chair_department_id'] = $departmentId;
-            }
-
-            $query .= " ORDER BY u.last_name, u.first_name";
-
-            $searchStmt = $this->db->prepare($query);
-            $searchStmt->execute($params);
-            $searchResults = $searchStmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            $error = "Failed to search faculty: " . htmlspecialchars($e->getMessage());
-        }
-    }
-
-    // Handle adding faculty to the chair's department
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_faculty'])) {
-        try {
-            $userId = intval($_POST['user_id']);
-            if ($departmentId) {
-                // First check if the user is already in the department
-                $checkStmt = $this->db->prepare("SELECT user_id FROM users WHERE user_id = :user_id AND department_id = :department_id");
-                $checkStmt->execute([':user_id' => $userId, ':department_id' => $departmentId]);
-                
-                if ($checkStmt->fetchColumn()) {
-                    $error = "This faculty member is already in your department.";
-                } else {
-                    // Update the user's department in the users table
-                    $updateStmt = $this->db->prepare("UPDATE users SET department_id = :department_id WHERE user_id = :user_id");
-                    $updateStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
-
-                    // Update the faculty's department in the faculty table
-                    $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = :department_id WHERE user_id = :user_id");
-                    $updateFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
-
-                    $success = "Faculty member added to your department successfully.";
-
-                    // Refresh the faculty list
-                    $facultyStmt->execute([':department_id' => $departmentId]);
-                    $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+                if ($collegeId > 0) {
+                    $query .= " AND u.college_id = :college_id";
+                    $params[':college_id'] = $collegeId;
                 }
-            } else {
-                $error = "Cannot add faculty: No department assigned to this chair.";
+                if ($departmentIdSearch > 0) {
+                    $query .= " AND u.department_id = :department_id";
+                    $params[':department_id'] = $departmentIdSearch;
+                }
+                if ($departmentId) {
+                    $query .= " AND u.department_id != :chair_department_id";
+                    $params[':chair_department_id'] = $departmentId;
+                }
+
+                $query .= " ORDER BY u.last_name, u.first_name LIMIT 10";
+
+                $stmt = $this->db->prepare($query);
+                $stmt->execute($params);
+                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                header('Content-Type: application/json');
+                echo json_encode($results);
+                exit;
+            } catch (PDOException $e) {
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                exit;
             }
-        } catch (PDOException $e) {
-            $error = "Failed to add faculty: " . htmlspecialchars($e->getMessage());
         }
-    }
 
-    // Pass data to the view
-    require_once __DIR__ . '/../views/chair/faculty.php';
-}
+        // Fetch current faculty members in the chair's department
+        if (!$departmentId) {
+            $error = "No department assigned to this chair.";
+        } else {
+            try {
+                $facultyStmt = $this->db->prepare("
+                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name, f.academic_rank, f.employment_type, d.department_name, c.college_name
+                    FROM faculty f 
+                    JOIN users u ON f.user_id = u.user_id 
+                    JOIN departments d ON u.department_id = d.department_id
+                    JOIN colleges c ON u.college_id = c.college_id
+                    WHERE u.department_id = :department_id
+                    ORDER BY u.last_name, u.first_name
+                ");
+                $facultyStmt->execute([':department_id' => $departmentId]);
+                $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                $error = "Failed to load faculty: " . htmlspecialchars($e->getMessage());
+            }
+        }
 
-/**
- * AJAX endpoint for faculty search suggestions
- */
-public function search()
-{
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
+        // Fetch all colleges and departments for search filters
         try {
-            $name = trim($_POST['name']);
-            $collegeId = isset($_POST['college_id']) ? intval($_POST['college_id']) : 0;
-            $departmentId = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
-            $chairDepartmentId = $this->getChairDepartment($_SESSION['user_id']);
+            $collegesStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
+            $colleges = $collegesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $query = "
-                SELECT u.user_id, u.employee_id, u.first_name, u.last_name
-                FROM faculty f 
-                JOIN users u ON f.user_id = u.user_id 
-                WHERE (u.first_name LIKE :name OR u.last_name LIKE :name)
-            ";
-            $params = [':name' => "%$name%"];
-
-            if ($collegeId > 0) {
-                $query .= " AND u.college_id = :college_id";
-                $params[':college_id'] = $collegeId;
-            }
-            if ($departmentId > 0) {
-                $query .= " AND u.department_id = :department_id";
-                $params[':department_id'] = $departmentId;
-            }
-            if ($chairDepartmentId) {
-                $query .= " AND u.department_id != :chair_department_id";
-                $params[':chair_department_id'] = $chairDepartmentId;
-            }
-
-            $query .= " ORDER BY u.last_name, u.first_name LIMIT 10";
-
-            $stmt = $this->db->prepare($query);
-            $stmt->execute($params);
-            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            header('Content-Type: application/json');
-            echo json_encode($results);
-            exit;
+            $departmentsStmt = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
+            $departments = $departmentsStmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            header('Content-Type: application/json');
-            echo json_encode([]);
-            exit;
+            $error = "Failed to load colleges and departments: " . htmlspecialchars($e->getMessage());
         }
+
+        // Handle search functionality
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search'])) {
+            try {
+                $collegeId = isset($_POST['college_id']) ? intval($_POST['college_id']) : 0;
+                $departmentIdSearch = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
+                $name = isset($_POST['name']) ? trim($_POST['name']) : '';
+
+                $query = "
+                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name, f.academic_rank, f.employment_type, d.department_name, c.college_name
+                    FROM faculty f 
+                    JOIN users u ON f.user_id = u.user_id 
+                    JOIN departments d ON u.department_id = d.department_id
+                    JOIN colleges c ON u.college_id = c.college_id
+                    WHERE 1=1
+                ";
+                $params = [];
+
+                if ($collegeId > 0) {
+                    $query .= " AND u.college_id = :college_id";
+                    $params[':college_id'] = $collegeId;
+                }
+                if ($departmentIdSearch > 0) {
+                    $query .= " AND u.department_id = :department_id";
+                    $params[':department_id'] = $departmentIdSearch;
+                }
+                if (!empty($name)) {
+                    $query .= " AND (u.first_name LIKE :name OR u.last_name LIKE :name)";
+                    $params[':name'] = "%$name%";
+                }
+
+                if ($departmentId) {
+                    $query .= " AND u.department_id != :chair_department_id";
+                    $params[':chair_department_id'] = $departmentId;
+                }
+
+                $query .= " ORDER BY u.last_name, u.first_name";
+
+                $searchStmt = $this->db->prepare($query);
+                $searchStmt->execute($params);
+                $searchResults = $searchStmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                $error = "Failed to search faculty: " . htmlspecialchars($e->getMessage());
+            }
+        }
+
+        // Handle adding faculty to the chair's department
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_faculty'])) {
+            try {
+                $userId = intval($_POST['user_id']);
+                if ($departmentId) {
+                    $checkStmt = $this->db->prepare("SELECT user_id FROM users WHERE user_id = :user_id AND department_id = :department_id");
+                    $checkStmt->execute([':user_id' => $userId, ':department_id' => $departmentId]);
+
+                    if ($checkStmt->fetchColumn()) {
+                        $error = "This faculty member is already in your department.";
+                    } else {
+                        $updateStmt = $this->db->prepare("UPDATE users SET department_id = :department_id WHERE user_id = :user_id");
+                        $updateStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
+
+                        $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = :department_id WHERE user_id = :user_id");
+                        $updateFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
+
+                        $success = "Faculty member added to your department successfully.";
+
+                        $facultyStmt->execute([':department_id' => $departmentId]);
+                        $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+                    }
+                } else {
+                    $error = "Cannot add faculty: No department assigned to this chair.";
+                }
+            } catch (PDOException $e) {
+                $error = "Failed to add faculty: " . htmlspecialchars($e->getMessage());
+            }
+        }
+
+        // Handle removing faculty from the chair's department
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_faculty'])) {
+            try {
+                $userId = intval($_POST['user_id']);
+                if ($departmentId) {
+                    $checkStmt = $this->db->prepare("SELECT user_id FROM users WHERE user_id = :user_id AND department_id = :department_id");
+                    $checkStmt->execute([':user_id' => $userId, ':department_id' => $departmentId]);
+
+                    if (!$checkStmt->fetchColumn()) {
+                        $error = "This faculty member is not in your department.";
+                    } else {
+                        $updateStmt = $this->db->prepare("UPDATE users SET department_id = NULL WHERE user_id = :user_id");
+                        $updateStmt->execute([':user_id' => $userId]);
+
+                        $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = NULL WHERE user_id = :user_id");
+                        $updateFacultyStmt->execute([':user_id' => $userId]);
+
+                        $success = "Faculty member removed from your department successfully.";
+
+                        $facultyStmt->execute([':department_id' => $departmentId]);
+                        $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+                    }
+                } else {
+                    $error = "Cannot remove faculty: No department assigned to this chair.";
+                }
+            } catch (PDOException $e) {
+                $error = "Failed to remove faculty: " . htmlspecialchars($e->getMessage());
+            }
+        }
+
+        require_once __DIR__ . '/../views/chair/faculty.php';
     }
 
-        // Pass data to the view
+    public function search()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
+            try {
+                $name = trim($_POST['name']);
+                $collegeId = isset($_POST['college_id']) ? intval($_POST['college_id']) : 0;
+                $departmentId = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
+                $chairDepartmentId = $this->getChairDepartment($_SESSION['user_id']);
+
+                $query = "
+                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name
+                    FROM faculty f 
+                    JOIN users u ON f.user_id = u.user_id 
+                    WHERE (u.first_name LIKE :name OR u.last_name LIKE :name)
+                ";
+                $params = [':name' => "%$name%"];
+
+                if ($collegeId > 0) {
+                    $query .= " AND u.college_id = :college_id";
+                    $params[':college_id'] = $collegeId;
+                }
+                if ($departmentId > 0) {
+                    $query .= " AND u.department_id = :department_id";
+                    $params[':department_id'] = $departmentId;
+                }
+                if ($chairDepartmentId) {
+                    $query .= " AND u.department_id != :chair_department_id";
+                    $params[':chair_department_id'] = $chairDepartmentId;
+                }
+
+                $query .= " ORDER BY u.last_name, u.first_name LIMIT 10";
+
+                $stmt = $this->db->prepare($query);
+                $stmt->execute($params);
+                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                header('Content-Type: application/json');
+                echo json_encode($results);
+                exit;
+            } catch (PDOException $e) {
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                exit;
+            }
+        }
+
         require_once __DIR__ . '/../views/chair/faculty.php';
-}
+    }
 
     /**
      * View/edit profile
@@ -1330,7 +1350,8 @@ public function search()
                     'first_name' => trim($_POST['first_name'] ?? ''),
                     'middle_name' => trim($_POST['middle_name'] ?? ''),
                     'last_name' => trim($_POST['last_name'] ?? ''),
-                    'suffix' => trim($_POST['suffix'] ?? '')
+                    'suffix' => trim($_POST['suffix'] ?? ''),
+                    'college_id' => $_SESSION['college_id'] ?? null
                 ];
 
                 $errors = [];
@@ -1342,6 +1363,9 @@ public function search()
                 }
                 if (empty($data['last_name'])) {
                     $errors[] = "Last name is required.";
+                }
+                if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
+                    $errors[] = "Phone number must be 10-12 digits.";
                 }
 
                 // Handle file upload
@@ -1387,7 +1411,9 @@ public function search()
                     $stmt = $this->db->prepare($query);
                     $stmt->execute($params);
 
+                    // Update session variables
                     $_SESSION['first_name'] = $data['first_name'];
+                    $_SESSION['email'] = $data['email'];
                     $success = "Profile updated successfully.";
                 } else {
                     error_log("profile: Validation errors - " . implode(", ", $errors));
@@ -1401,34 +1427,47 @@ public function search()
 
         try {
             // Fetch user data
-            $stmt = $this->db->prepare("SELECT u.*, d.department_name 
-                                    FROM users u 
-                                    JOIN program_chairs pc ON u.user_id = pc.user_id 
-                                    JOIN programs p ON pc.program_id = p.program_id 
-                                    JOIN departments d ON p.department_id = d.department_id 
-                                    WHERE u.user_id = :user_id AND pc.is_current = 1");
+            $stmt = $this->db->prepare("
+                SELECT u.*, d.department_name, c.college_name, r.role_name
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                LEFT JOIN colleges c ON u.college_id = c.college_id
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN program_chairs pc ON u.user_id = pc.user_id
+                WHERE u.user_id = :user_id AND (pc.is_current = 1 OR pc.is_current IS NULL)
+            ");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
+            if (!$user) {
+                throw new Exception("User not found");
+            }
+
             // Fetch faculty count for the department
-            $stmt = $this->db->prepare("SELECT COUNT(*) as facultyCount 
-                                    FROM faculty f 
-                                    JOIN department_instructors di ON f.user_id = di.user_id 
-                                    WHERE di.department_id = :department_id AND di.is_current = 1");
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as facultyCount 
+                FROM faculty f 
+                JOIN department_instructors di ON f.user_id = di.user_id 
+                WHERE di.department_id = :department_id AND di.is_current = 1
+            ");
             $stmt->execute([':department_id' => $user['department_id']]);
             $facultyCount = $stmt->fetch(PDO::FETCH_ASSOC)['facultyCount'];
 
             // Fetch courses count for the department
-            $stmt = $this->db->prepare("SELECT COUNT(*) as coursesCount 
-                                    FROM courses c 
-                                    WHERE c.department_id = :department_id AND c.is_active = 1");
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as coursesCount 
+                FROM courses c 
+                WHERE c.department_id = :department_id AND c.is_active = 1
+            ");
             $stmt->execute([':department_id' => $user['department_id']]);
             $coursesCount = $stmt->fetch(PDO::FETCH_ASSOC)['coursesCount'];
 
             // Fetch pending applicants count from faculty_requests
-            $stmt = $this->db->prepare("SELECT COUNT(*) as pendingApplicantsCount 
-                                    FROM faculty_requests fr 
-                                    WHERE fr.department_id = :department_id AND fr.status = 'pending'");
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as pendingApplicantsCount 
+                FROM faculty_requests fr 
+                WHERE fr.department_id = :department_id AND fr.status = 'pending'
+            ");
             $stmt->execute([':department_id' => $user['department_id']]);
             $pendingApplicantsCount = $stmt->fetch(PDO::FETCH_ASSOC)['pendingApplicantsCount'];
 
@@ -1438,12 +1477,16 @@ public function search()
             $currentSemester = $stmt->fetch(PDO::FETCH_ASSOC)['semester_name'] ?? '2nd';
 
             // Fetch last login from auth_logs
-            $stmt = $this->db->prepare("SELECT created_at FROM auth_logs WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 1");
+            $stmt = $this->db->prepare("
+                SELECT created_at FROM auth_logs 
+                WHERE user_id = :user_id AND action = 'login_success' 
+                ORDER BY created_at DESC LIMIT 1
+            ");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
-            $lastLogin = $stmt->fetch(PDO::FETCH_ASSOC) ? $stmt->fetch(PDO::FETCH_ASSOC)['created_at'] : 'January 1, 1970, 1:00 am';
+            $lastLogin = $stmt->fetch(PDO::FETCH_ASSOC)['created_at'] ?? 'January 1, 1970, 1:00 am';
 
             require_once __DIR__ . '/../views/chair/profile.php';
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             error_log("profile: Error - " . $e->getMessage());
             $error = "Failed to load profile.";
             require_once __DIR__ . '/../views/chair/profile.php';

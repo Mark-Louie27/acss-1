@@ -21,7 +21,6 @@ ob_start();
             --solid-green: #D1E7DD;
         }
 
-        /* Custom styles to override Tailwind where needed */
         .bg-prmsu-gold {
             background-color: var(--prmsu-gold);
         }
@@ -49,50 +48,156 @@ ob_start();
         .bg-solid-green {
             background-color: var(--solid-green);
         }
+
+        /* Search bar specific styles */
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--prmsu-gold);
+            box-shadow: 0 0 0 3px rgba(239, 187, 15, 0.2);
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .suggestion-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .suggestion-item:hover {
+            background-color: var(--prmsu-gold-light);
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #EFBB0F;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Toggle advanced filters
-            $('#toggle-filters').on('click', function() {
-                $('#filter-section').slideToggle();
-                $(this).text($('#filter-section').is(':visible') ? 'Hide Filters' : 'Show Filters');
-            });
+            let searchTimeout;
 
-            // Live search feedback
+            // Debounced search
             $('#search-input').on('input', function() {
                 const query = $(this).val().trim();
-                const collegeId = $('#college_id').val();
-                const departmentId = $('#department_id').val();
                 const feedback = $('#search-feedback');
+                const suggestions = $('#suggestions');
 
-                if (query.length >= 2) {
+                clearTimeout(searchTimeout);
+
+                if (query.length < 2) {
+                    feedback.text('');
+                    suggestions.hide().empty();
+                    renderSearchResults([]);
+                    return;
+                }
+
+                feedback.text('Searching...').addClass('loading text-gray-600').removeClass('text-green-500 text-red-500');
+
+                searchTimeout = setTimeout(() => {
                     $.ajax({
                         url: '/chair/faculty/search',
                         method: 'POST',
                         data: {
-                            name: query,
-                            college_id: collegeId,
-                            department_id: departmentId
+                            name: query
                         },
                         success: function(data) {
                             if (data.length > 0) {
-                                feedback.text('Faculty found').removeClass('text-red-500').addClass('text-green-500');
+                                feedback.text('Faculty found').removeClass('loading text-gray-600 text-red-500').addClass('text-green-500');
+                                renderSuggestions(data);
                                 renderSearchResults(data);
                             } else {
-                                feedback.text('No faculty found').removeClass('text-green-500').addClass('text-red-500');
-                                $('#search-results').empty();
+                                feedback.text('No faculty found').removeClass('loading text-gray-600 text-green-500').addClass('text-red-500');
+                                suggestions.hide().empty();
+                                renderSearchResults([]);
                             }
                         },
                         error: function() {
-                            feedback.text('Error searching faculty').addClass('text-red-500');
+                            feedback.text('Error searching faculty').removeClass('loading text-gray-600 text-green-500').addClass('text-red-500');
+                            suggestions.hide().empty();
+                            renderSearchResults([]);
                         }
                     });
-                } else {
-                    feedback.text('').removeClass('text-green-500 text-red-500');
-                    $('#search-results').empty();
+                }, 300);
+            });
+
+            // Hide suggestions when clicking outside
+            $(document).on('click', function(e) {
+                if (!$(e.target).closest('.search-container').length) {
+                    $('#suggestions').hide();
                 }
             });
+
+            // Handle suggestion click
+            $(document).on('click', '.suggestion-item', function() {
+                const name = $(this).text();
+                $('#search-input').val(name);
+                $('#suggestions').hide();
+                $('#search-feedback').text('Faculty found').removeClass('text-red-500').addClass('text-green-500');
+                // Trigger search with selected name
+                $.ajax({
+                    url: '/chair/faculty/search',
+                    method: 'POST',
+                    data: {
+                        name: name
+                    },
+                    success: function(data) {
+                        renderSearchResults(data);
+                    }
+                });
+            });
+
+            // Render autocomplete suggestions
+            function renderSuggestions(results) {
+                const suggestions = $('#suggestions');
+                suggestions.empty();
+
+                if (results.length === 0) {
+                    suggestions.hide();
+                    return;
+                }
+
+                results.forEach(result => {
+                    suggestions.append(`
+                        <div class="suggestion-item">${result.first_name} ${result.last_name}</div>
+                    `);
+                });
+
+                suggestions.show();
+            }
 
             // Render search results dynamically
             function renderSearchResults(results) {
@@ -162,12 +267,24 @@ ob_start();
                 $('#include-modal').fadeIn();
             });
 
-            $('.close, #include-modal').on('click', function(e) {
-                if (e.target.id === 'include-modal' || e.target.className === 'close') {
-                    $('#include-modal').fadeOut();
+            // Remove Faculty Modal
+            $(document).on('click', '.remove-btn', function() {
+                const userId = $(this).data('id');
+                const facultyName = $(this).data('name');
+
+                $('#remove-modal-user-id').val(userId);
+                $('#remove-modal-faculty-name').text(facultyName);
+                $('#remove-modal').fadeIn();
+            });
+
+            // Close Modals
+            $('.close, #include-modal, #remove-modal').on('click', function(e) {
+                if (e.target.className.includes('close') || e.target.id === 'include-modal' || e.target.id === 'remove-modal') {
+                    $('#include-modal, #remove-modal').fadeOut();
                 }
             });
 
+            // Confirm Include Faculty
             $('#confirm-include').on('click', function() {
                 const userId = $('#modal-user-id').val();
                 const formData = new FormData();
@@ -181,7 +298,7 @@ ob_start();
                     processData: false,
                     contentType: false,
                     success: function() {
-                        location.reload(); // Refresh the page to reflect changes
+                        location.reload();
                     },
                     error: function() {
                         alert('Failed to include faculty. Please try again.');
@@ -189,30 +306,30 @@ ob_start();
                 });
             });
 
-            $('#cancel-include').on('click', function() {
-                $('#include-modal').fadeOut();
+            // Confirm Remove Faculty
+            $('#confirm-remove').on('click', function() {
+                const userId = $('#remove-modal-user-id').val();
+                const formData = new FormData();
+                formData.append('user_id', userId);
+                formData.append('remove_faculty', '1');
+
+                $.ajax({
+                    url: window.location.href,
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function() {
+                        location.reload();
+                    },
+                    error: function() {
+                        alert('Failed to remove faculty. Please try again.');
+                    }
+                });
             });
 
-            // Filter departments based on college
-            $('#college_id').on('change', function() {
-                const collegeId = $(this).val();
-                const departmentSelect = $('#department_id');
-                departmentSelect.html('<option value="">All Departments</option>');
-
-                if (collegeId) {
-                    $.ajax({
-                        url: '/api/departments',
-                        method: 'GET',
-                        data: {
-                            college_id: collegeId
-                        },
-                        success: function(data) {
-                            data.forEach(dept => {
-                                departmentSelect.append(`<option value="${dept.department_id}">${dept.department_name}</option>`);
-                            });
-                        }
-                    });
-                }
+            $('#cancel-include, #cancel-remove').on('click', function() {
+                $('#include-modal, #remove-modal').fadeOut();
             });
         });
     </script>
@@ -231,44 +348,16 @@ ob_start();
         <?php endif; ?>
 
         <!-- Search Bar -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div class="search-container bg-white rounded-lg shadow-md p-6 mb-6">
             <div class="flex items-center bg-gray-100 rounded-full p-3 shadow-inner">
                 <svg class="w-5 h-5 text-gray-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                <input type="text" id="search-input" class="flex-1 bg-transparent outline-none text-gray-700 placeholder-gray-500"
-                    placeholder="Search by name, ID, or department...">
+                <input type="text" id="search-input" class="search-input flex-1 bg-transparent outline-none text-gray-700 placeholder-gray-500"
+                    placeholder="Search faculty by name..." autocomplete="off">
                 <span id="search-feedback" class="ml-3 text-sm font-medium"></span>
             </div>
-            <div id="filter-section" class="mt-4 hidden">
-                <div class="flex flex-wrap gap-4">
-                    <div class="flex-1 min-w-[200px]">
-                        <label for="college_id" class="block text-sm font-medium text-gray-700 mb-1">College</label>
-                        <select id="college_id" name="college_id" class="w-full p-2 border rounded-lg text-sm">
-                            <option value="">All Colleges</option>
-                            <?php foreach ($colleges as $college): ?>
-                                <option value="<?php echo $college['college_id']; ?>"
-                                    <?php echo (isset($_POST['college_id']) && $_POST['college_id'] == $college['college_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($college['college_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="flex-1 min-w-[200px]">
-                        <label for="department_id" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                        <select id="department_id" name="department_id" class="w-full p-2 border rounded-lg text-sm">
-                            <option value="">All Departments</option>
-                            <?php foreach ($departments as $dept): ?>
-                                <option value="<?php echo $dept['department_id']; ?>"
-                                    <?php echo (isset($_POST['department_id']) && $_POST['department_id'] == $dept['department_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($dept['department_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div id="toggle-filters" class="text-prmsu-gold text-sm cursor-pointer mt-3 hover:underline">Show Filters</div>
+            <div id="suggestions" class="suggestions hidden"></div>
         </div>
 
         <!-- Search Results -->
@@ -308,9 +397,12 @@ ob_start();
                                     <td class="py-4 px-4"><?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?></td>
                                     <td class="py-4 px-4"><?php echo htmlspecialchars($member['academic_rank']); ?></td>
                                     <td class="py-4 px-4"><?php echo htmlspecialchars($member['employment_type']); ?></td>
-                                    <td class="py-4 px-4 flex space-x-2">
-                                        <a href="/chair/faculty/edit/<?php echo $member['user_id']; ?>" class="bg-prmsu-gold text-gray-800 py-2 px-3 rounded text-sm font-medium hover:bg-prmsu-gold-dark transition-all">Edit</a>
-                                        <a href="/chair/faculty/delete/<?php echo $member['user_id']; ?>" class="bg-red-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-red-700 transition-all" onclick="return confirm('Are you sure you want to delete this faculty member?');">Delete</a>
+                                    <td class="py-4 px-4">
+                                        <button class="bg-red-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-red-700 transition-all remove-btn"
+                                            data-id="<?php echo $member['user_id']; ?>"
+                                            data-name="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>">
+                                            Remove
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -323,13 +415,27 @@ ob_start();
         <!-- Include Faculty Modal -->
         <div id="include-modal" class="fixed inset-0 bg-black bg-opacity-50 items-center justify-center hidden z-50">
             <div class="bg-white rounded-lg p-6 w-full max-w-md relative shadow-xl">
-                <span class="close absolute top-4 right-4 text-gray-500 cursor-pointer hover:text-gray-700 text-2xl">&times;</span>
+                <span class="close absolute top-4 right-4 text-gray-500 cursor-pointer hover:text-gray-700 text-2xl">×</span>
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Include Faculty</h3>
                 <p class="text-gray-600 mb-6">Are you sure you want to include <strong id="modal-faculty-name"></strong> in your department?</p>
                 <input type="hidden" id="modal-user-id" name="user_id">
                 <div class="flex justify-end space-x-3">
                     <button id="confirm-include" class="bg-green-500 text-white py-2 px-4 rounded font-medium hover:bg-green-600 transition-all">Confirm</button>
                     <button id="cancel-include" class="bg-red-500 text-white py-2 px-4 rounded font-medium hover:bg-red-600 transition-all">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remove Faculty Modal -->
+        <div id="remove-modal" class="fixed inset-0 bg-black bg-opacity-50 items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md relative shadow-xl">
+                <span class="close absolute top-4 right-4 text-gray-500 cursor-pointer hover:text-gray-700 text-2xl">×</span>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Remove Faculty</h3>
+                <p class="text-gray-600 mb-6">Are you sure you want to remove <strong id="remove-modal-faculty-name"></strong> from your department?</p>
+                <input type="hidden" id="remove-modal-user-id" name="user_id">
+                <div class="flex justify-end space-x-3">
+                    <button id="confirm-remove" class="bg-red-600 text-white py-2 px-4 rounded font-medium hover:bg-red-700 transition-all">Confirm</button>
+                    <button id="cancel-remove" class="bg-gray-500 text-white py-2 px-4 rounded font-medium hover:bg-gray-600 transition-all">Cancel</button>
                 </div>
             </div>
         </div>

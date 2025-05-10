@@ -699,20 +699,37 @@ class DeanController
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
 
-        // Add this line before requiring the view
+        // Fetch user data
+        $query = "SELECT * FROM users WHERE user_id = :user_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':user_id' => $userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
         $controller = $this;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->updateProfile($_POST, $userId);
+            $this->updateProfile($_POST, $userId, $collegeId);
         }
 
         // Load profile view
         require_once __DIR__ . '/../views/dean/profile.php';
     }
 
-    private function updateProfile($data, $userId)
+    private function updateProfile($data, $userId, $collegeId)
     {
         try {
+            // Validate department_id belongs to the dean's college
+            $query = "SELECT department_id FROM departments WHERE department_id = :department_id AND college_id = :college_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $data['department_id'],
+                ':college_id' => $collegeId
+            ]);
+            if (!$stmt->fetch()) {
+                header('Location: /dean/profile?error=Invalid department selected');
+                exit;
+            }
+
             $updateData = [
                 'employee_id' => $data['employee_id'],
                 'username' => $data['username'],
@@ -725,9 +742,14 @@ class DeanController
                 'profile_picture' => $this->handleProfilePictureUpload() ?? null,
                 'role_id' => 4, // Dean role
                 'department_id' => $data['department_id'],
-                'college_id' => $data['college_id'],
+                'college_id' => $collegeId, // Use the dean's assigned college
                 'is_active' => 1
             ];
+
+            // Remove profile_picture from update if no new file was uploaded
+            if ($updateData['profile_picture'] === null) {
+                unset($updateData['profile_picture']);
+            }
 
             if ($this->userModel->updateUser($userId, $updateData)) {
                 header('Location: /dean/profile?success=Profile updated successfully');
@@ -747,6 +769,10 @@ class DeanController
         }
 
         $uploadDir = __DIR__ . '/../uploads/profiles/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
         $fileName = 'profile_' . $_SESSION['user_id'] . '_' . time() . '.' . pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION);
         $uploadPath = $uploadDir . $fileName;
 
