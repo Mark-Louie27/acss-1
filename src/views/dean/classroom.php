@@ -46,413 +46,430 @@ if (!is_array($reservations)) {
 }
 ?>
 
-<?php if ($success): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toast = document.createElement('div');
-            toast.className = 'toast bg-green-500 text-white px-4 py-2 rounded-lg';
-            toast.textContent = '<?php echo $success; ?>';
-            document.getElementById('toast-container').appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
-        });
-    </script>
-<?php endif; ?>
-<?php if ($error): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toast = document.createElement('div');
-            toast.className = 'toast bg-red-500 text-white px-4 py-2 rounded-lg';
-            toast.textContent = '<?php echo $error; ?>';
-            document.getElementById('toast-container').appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
-        });
-    </script>
-<?php endif; ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Classroom Management | ACSS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --gold: #D4AF37;
+            --white: #FFFFFF;
+            --gray-dark: #4B5563;
+            --gray-light: #E5E7EB;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .slide-in-left {
+            animation: slideInLeft 0.5s ease-in;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+
+        .input-focus {
+            transition: all 0.2s ease;
+        }
+
+        .input-focus:focus {
+            border-color: var(--gold);
+            ring-color: var(--gold);
+        }
+
+        .btn-gold {
+            background-color: var(--gold);
+            color: var(--white);
+        }
+
+        .btn-gold:hover {
+            background-color: #b8972e;
+        }
+
+        .tooltip {
+            display: none;
+        }
+
+        .group:hover .tooltip {
+            display: block;
+        }
+    </style>
 </head>
-<style>
-    /* Modal animations */
-    #addClassroomModal,
-    #editClassroomModal {
-        transition: opacity 0.3s ease;
-    }
 
-    #addClassroomModal.hidden,
-    #editClassroomModal.hidden {
-        opacity: 0;
-        pointer-events: none;
-    }
+<body class="bg-gray-light font-sans antialiased">
+    <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
 
-    .modal-content {
-        transition: transform 0.3s ease;
-    }
-
-    /* Table enhancements */
-    table {
-        border-collapse: separate;
-        border-spacing: 0;
-    }
-
-    th,
-    td {
-        border-right: 1px solid #E5E7EB;
-    }
-
-    th:last-child,
-    td:last-child {
-        border-right: none;
-    }
-
-    /* Tooltip styling */
-    .group:hover .group-hover\:block {
-        display: block;
-    }
-
-    /* Input and select focus and error states */
-    input:focus,
-    select:focus {
-        outline: none;
-        box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.2);
-    }
-
-    input.border-red-500,
-    select.border-red-500 {
-        border-color: #EF4444;
-    }
-
-    /* Search bar and filter styling */
-    #searchClassrooms {
-        max-width: 400px;
-    }
-
-    #clearSearch:hover {
-        cursor: pointer;
-    }
-
-    #departmentFilter {
-        min-width: 150px;
-    }
-</style>
-
-<body class="bg-gray-100 font-sans antialiased">
-
-    <div class="container mx-auto p-6 w-full max-w-7xl">
-
-        <h2 class="text-3xl font-bold text-gray-600 mb-6 slide-in-left">Classroom Management</h2>
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <header class="mb-8 slide-in-left">
+            <h2 class="text-4xl font-bold text-gray-dark">Classroom Management</h2>
+            <p class="text-gray-dark mt-2">Manage classrooms and review pending reservations</p>
+        </header>
 
         <!-- Add Classroom Button -->
-        <div class="mb-6 flex justify-end">
-            <button id="openModalBtn" class="bg-yellow-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-yellow-700 btn flex items-center transition-all duration-300">
+        <div class="mb-6 flex justify-end fade-in">
+            <button id="openModalBtn" class="btn-gold px-6 py-3 rounded-lg shadow-md hover:shadow-lg flex items-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-opacity-50">
                 <i class="fas fa-plus mr-2"></i> Add Classroom
             </button>
         </div>
 
         <!-- Add Classroom Modal -->
-        <div id="addClassroomModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-start md:items-center justify-center z-10 hidden overflow-y-auto backdrop-blur-sm py-8">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 transform transition-all duration-300 scale-95 modal-content my-8 -mt-48">
+        <div id="addClassroomModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
                 <!-- Modal Header -->
-                <div class="sticky top-0 z-10 bg-white flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-t-xl">
-                    <h3 class="text-xl font-bold text-gray-700">Add New Classroom</h3>
-                    <button id="closeModalBtn" class="text-gray-500 hover:text-gray-700 focus:outline-none bg-gray-100 hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
+                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                    <h3 class="text-xl font-bold text-gray-dark">Add New Classroom</h3>
+                    <button id="closeModalBtn" class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200" aria-label="Close modal">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
 
-                <!-- Form Content - Reorganized in 2 columns -->
-                <form action="/dean/classroom" method="POST" class="p-6 overflow-y-auto max-h-[calc(100vh-12rem)]" id="addClassroomForm">
-                    <!-- Row 1 - Two Columns -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <!-- Column 1 - Room Name -->
-                        <div>
-                            <label for="room_name" class="block text-sm font-medium text-gray-700 mb-1">Room Name</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-door-open text-gray-400"></i>
-                                </div>
-                                <input type="text" id="room_name" name="room_name" required class="pl-10 pr-4 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base" placeholder="e.g., Lecture Room 101">
+                <!-- Form Content -->
+                <form action="/dean/classroom" method="POST" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6" id="addClassroomForm">
+                    <!-- Room Name -->
+                    <div>
+                        <label for="room_name" class="block text-sm font-medium text-gray-dark mb-1">Room Name <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-door-open text-gray-dark"></i>
                             </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Room name is required.</p>
+                            <input type="text" id="room_name" name="room_name" required
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., Lecture Room 101" aria-required="true">
                         </div>
-
-                        <!-- Column 2 - Building -->
-                        <div>
-                            <label for="building" class="block text-sm font-medium text-gray-700 mb-1">Building</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-building text-gray-400"></i>
-                                </div>
-                                <input type="text" id="building" name="building" required class="pl-10 pr-4 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base" placeholder="e.g., Science Building">
-                            </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Building is required.</p>
-                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Room name is required.</p>
                     </div>
 
-                    <!-- Row 2 - Two Columns -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <!-- Column 1 - Department -->
-                        <div>
-                            <label for="department_id" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-university text-gray-400"></i>
-                                </div>
-                                <select id="department_id" name="department_id" required class="pl-10 pr-10 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base appearance-none">
-                                    <option value="">Select Department</option>
-                                    <?php foreach ($departments as $dept): ?>
-                                        <option value="<?php echo $dept['department_id']; ?>"><?php echo htmlspecialchars($dept['department_name']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-gray-400"></i>
-                                </div>
+                    <!-- Building -->
+                    <div>
+                        <label for="building" class="block text-sm font-medium text-gray-dark mb-1">Building <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-building text-gray-dark"></i>
                             </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Department is required.</p>
+                            <input type="text" id="building" name="building" required
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., Science Building" aria-required="true">
                         </div>
-
-                        <!-- Column 2 - Capacity -->
-                        <div>
-                            <label for="capacity" class="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-users text-gray-400"></i>
-                                </div>
-                                <input type="number" id="capacity" name="capacity" required min="1" class="pl-10 pr-4 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base" placeholder="e.g., 50">
-                            </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Capacity must be at least 1.</p>
-                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Building is required.</p>
                     </div>
 
-                    <!-- Row 3 - Two Columns -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <!-- Column 1 - Room Type -->
-                        <div>
-                            <label for="room_type" class="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-chalkboard text-gray-400"></i>
-                                </div>
-                                <select id="room_type" name="room_type" required class="pl-10 pr-10 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base appearance-none">
-                                    <option value="classroom">Classroom</option>
-                                    <option value="laboratory">Laboratory</option>
-                                    <option value="auditorium">Auditorium</option>
-                                    <option value="seminar">Seminar</option>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-gray-400"></i>
-                                </div>
+                    <!-- Department -->
+                    <div>
+                        <label for="department_id" class="block text-sm font-medium text-gray-dark mb-1">Department <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-university text-gray-dark"></i>
                             </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Room type is required.</p>
-                        </div>
-
-                        <!-- Column 2 - Availability -->
-                        <div>
-                            <label for="availability" class="block text-sm font-medium text-gray-700 mb-1">Availability</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-traffic-light text-gray-400"></i>
-                                </div>
-                                <select id="availability" name="availability" required class="pl-10 pr-10 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base appearance-none">
-                                    <option value="available">Available</option>
-                                    <option value="unavailable">Unavailable</option>
-                                    <option value="under_maintenance">Under Maintenance</option>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-gray-400"></i>
-                                </div>
+                            <select id="department_id" name="department_id" required
+                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none"
+                                aria-required="true">
+                                <option value="">Select Department</option>
+                                <?php foreach ($departments as $dept): ?>
+                                    <option value="<?php echo $dept['department_id']; ?>"><?php echo htmlspecialchars($dept['department_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-dark"></i>
                             </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Availability is required.</p>
                         </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Department is required.</p>
                     </div>
 
-                    <!-- Row 4 - Single Column -->
-                    <div class="mb-6">
-                        <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <input type="checkbox" id="shared" name="shared" class="h-5 w-5 text-yellow-600 focus:ring-yellow-600 border-gray-300 rounded">
-                            <label for="shared" class="ml-2 text-sm text-gray-700">Allow sharing with other departments</label>
+                    <!-- Capacity -->
+                    <div>
+                        <label for="capacity" class="block text-sm font-medium text-gray-dark mb-1">Capacity <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-users text-gray-dark"></i>
+                            </div>
+                            <input type="number" id="capacity" name="capacity" required min="1"
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., 50" aria-required="true">
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Capacity must be at least 1.</p>
+                    </div>
+
+                    <!-- Room Type -->
+                    <div>
+                        <label for="room_type" class="block text-sm font-medium text-gray-dark mb-1">Room Type <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chalkboard text-gray-dark"></i>
+                            </div>
+                            <select id="room_type" name="room_type" required
+                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none"
+                                aria-required="true">
+                                <option value="classroom">Classroom</option>
+                                <option value="laboratory">Laboratory</option>
+                                <option value="auditorium">Auditorium</option>
+                                <option value="seminar">Seminar</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-dark"></i>
+                            </div>
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Room type is required.</p>
+                    </div>
+
+                    <!-- Availability -->
+                    <div>
+                        <label for="availability" class="block text-sm font-medium text-gray-dark mb-1">Availability <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-traffic-light text-gray-dark"></i>
+                            </div>
+                            <select id="availability" name="availability" required
+                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none"
+                                aria-required="true">
+                                <option value="available">Available</option>
+                                <option value="unavailable">Unavailable</option>
+                                <option value="under_maintenance">Under Maintenance</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-dark"></i>
+                            </div>
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Availability is required.</p>
+                    </div>
+
+                    <!-- Shared -->
+                    <div class="md:col-span-2">
+                        <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-light">
+                            <input type="checkbox" id="shared" name="shared" class="h-5 w-5 text-gold focus:ring-gold border-gray-light rounded">
+                            <label for="shared" class="ml-2 text-sm text-gray-dark">Allow sharing with other departments</label>
                         </div>
                     </div>
 
                     <!-- Form Actions -->
-                    <div class="flex justify-end space-x-3 pt-2 border-t border-gray-100">
-                        <button type="button" id="cancelModalBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">
-                            Cancel
-                        </button>
-                        <button type="submit" name="add_classroom" class="bg-yellow-600 text-white px-5 py-3 rounded-lg hover:bg-yellow-700 shadow-md hover:shadow-lg btn transition-all duration-200 font-medium">
-                            Add Classroom
-                        </button>
+                    <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
+                        <button type="button" id="cancelModalBtn" class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
+                        <button type="submit" name="add_classroom" class="btn-gold px-5 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium">Add Classroom</button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Edit Classroom Modal -->
-        <div id="editClassroomModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-10 hidden backdrop-blur-sm">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-300 scale-95 modal-content my-8 -mt-48">
-                <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-t-xl">
-                    <h3 class="text-xl font-bold text-gray-700">Edit Classroom</h3>
-                    <button id="closeEditModalBtn" class="text-gray-500 hover:text-gray-700 focus:outline-none bg-gray-100 hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
+        <div id="editClassroomModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
+                <!-- Modal Header -->
+                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                    <h3 class="text-xl font-bold text-gray-dark">Edit Classroom</h3>
+                    <button id="closeEditModalBtn" class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200" aria-label="Close modal">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <form action="/dean/classroom" method="POST" class="p-6 overflow-y-auto max-h-[calc(100vh-12rem)]" id="editClassroomForm">
+
+                <!-- Form Content -->
+                <form action="/dean/classroom" method="POST" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6" id="editClassroomForm">
                     <input type="hidden" id="edit_room_id" name="room_id">
-
-                    <!-- First row - Room Name and Building side by side -->
-                    <div class="flex flex-col md:flex-row gap-4 mb-5">
-                        <div class="flex-1">
-                            <label for="edit_room_name" class="block text-sm font-medium text-gray-700 mb-1">Room Name</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-door-open text-gray-400"></i>
-                                </div>
-                                <input type="text" id="edit_room_name" name="room_name" required class="pl-10 pr-4 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base" placeholder="e.g., Lecture Room 101">
-                            </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Room name is required.</p>
-                        </div>
-                        <div class="flex-1">
-                            <label for="edit_building" class="block text-sm font-medium text-gray-700 mb-1">Building</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-building text-gray-400"></i>
-                                </div>
-                                <input type="text" id="edit_building" name="building" required class="pl-10 pr-4 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base" placeholder="e.g., Science Building">
-                            </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Building is required.</p>
-                        </div>
-                    </div>
-
-                    <!-- Second row - Department (full width) -->
-                    <div class="mb-5">
-                        <label for="edit_department_id" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <!-- Room Name -->
+                    <div>
+                        <label for="edit_room_name" class="block text-sm font-medium text-gray-dark mb-1">Room Name <span class="text-red-500">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-university text-gray-400"></i>
+                                <i class="fas fa-door-open text-gray-dark"></i>
                             </div>
-                            <select id="edit_department_id" name="department_id" required class="pl-10 pr-10 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base appearance-none">
+                            <input type="text" id="edit_room_name" name="room_name" required
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., Lecture Room 101" aria-required="true">
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Room name is required.</p>
+                    </div>
+
+                    <!-- Building -->
+                    <div>
+                        <label for="edit_building" class="block text-sm font-medium text-gray-dark mb-1">Building <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-building text-gray-dark"></i>
+                            </div>
+                            <input type="text" id="edit_building" name="building" required
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., Science Building" aria-required="true">
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Building is required.</p>
+                    </div>
+
+                    <!-- Department -->
+                    <div>
+                        <label for="edit_department_id" class="block text-sm font-medium text-gray-dark mb-1">Department <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-university text-gray-dark"></i>
+                            </div>
+                            <select id="edit_department_id" name="department_id" required
+                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none"
+                                aria-required="true">
                                 <option value="">Select Department</option>
                                 <?php foreach ($departments as $dept): ?>
                                     <option value="<?php echo $dept['department_id']; ?>"><?php echo htmlspecialchars($dept['department_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                <i class="fas fa-chevron-down text-gray-400"></i>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-dark"></i>
                             </div>
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Department is required.</p>
                     </div>
 
-                    <!-- Third row - Capacity and Room Type side by side -->
-                    <div class="flex flex-col md:flex-row gap-4 mb-5">
-                        <div class="flex-1">
-                            <label for="edit_capacity" class="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-users text-gray-400"></i>
-                                </div>
-                                <input type="number" id="edit_capacity" name="capacity" required min="1" class="pl-10 pr-4 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base" placeholder="e.g., 50">
+                    <!-- Capacity -->
+                    <div>
+                        <label for="edit_capacity" class="block text-sm font-medium text-gray-dark mb-1">Capacity <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-users text-gray-dark"></i>
                             </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Capacity must be at least 1.</p>
+                            <input type="number" id="edit_capacity" name="capacity" required min="1"
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., 50" aria-required="true">
                         </div>
-                        <div class="flex-1">
-                            <label for="edit_room_type" class="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-chalkboard text-gray-400"></i>
-                                </div>
-                                <select id="edit_room_type" name="room_type" required class="pl-10 pr-10 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base appearance-none">
-                                    <option value="classroom">Classroom</option>
-                                    <option value="laboratory">Laboratory</option>
-                                    <option value="auditorium">Auditorium</option>
-                                    <option value="seminar">Seminar</option>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-gray-400"></i>
-                                </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Capacity must be at least 1.</p>
+                    </div>
+
+                    <!-- Room Type -->
+                    <div>
+                        <label for="edit_room_type" class="block text-sm font-medium text-gray-dark mb-1">Room Type <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chalkboard text-gray-dark"></i>
                             </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Room type is required.</p>
+                            <select id="edit_room_type" name="room_type" required
+                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none"
+                                aria-required="true">
+                                <option value="classroom">Classroom</option>
+                                <option value="laboratory">Laboratory</option>
+                                <option value="auditorium">Auditorium</option>
+                                <option value="seminar">Seminar</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-dark"></i>
+                            </div>
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Room type is required.</p>
+                    </div>
+
+                    <!-- Availability -->
+                    <div>
+                        <label for="edit_availability" class="block text-sm font-medium text-gray-dark mb-1">Availability <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-traffic-light text-gray-dark"></i>
+                            </div>
+                            <select id="edit_availability" name="availability" required
+                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none"
+                                aria-required="true">
+                                <option value="available">Available</option>
+                                <option value="unavailable">Unavailable</option>
+                                <option value="under_maintenance">Under Maintenance</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-dark"></i>
+                            </div>
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Availability is required.</p>
+                    </div>
+
+                    <!-- Shared -->
+                    <div class="md:col-span-2">
+                        <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-light">
+                            <input type="checkbox" id="edit_shared" name="shared" class="h-5 w-5 text-gold focus:ring-gold border-gray-light rounded">
+                            <label for="edit_shared" class="ml-2 text-sm text-gray-dark">Allow sharing with other departments</label>
                         </div>
                     </div>
 
-                    <!-- Fourth row - Availability and Shared in a grid -->
-                    <div class="flex flex-col md:flex-row gap-4 mb-5">
-                        <div class="flex-1">
-                            <label for="edit_availability" class="block text-sm font-medium text-gray-700 mb-1">Availability</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-traffic-light text-gray-400"></i>
-                                </div>
-                                <select id="edit_availability" name="availability" required class="pl-10 pr-10 py-3 block w-full rounded-lg border-gray-300 bg-gray-50 shadow-sm focus:border-yellow-600 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition-all duration-200 text-base appearance-none">
-                                    <option value="available">Available</option>
-                                    <option value="unavailable">Unavailable</option>
-                                    <option value="under_maintenance">Under Maintenance</option>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                    <i class="fas fa-chevron-down text-gray-400"></i>
-                                </div>
-                            </div>
-                            <p class="text-red-500 text-xs mt-1 hidden error-message">Availability is required.</p>
-                        </div>
-                        <div class="flex-1 flex items-center">
-                            <div class="mt-4">
-                                <label for="edit_shared" class="text-sm font-medium text-gray-700 mb-1 block">Shared</label>
-                                <div class="flex items-center mt-1">
-                                    <input type="checkbox" id="edit_shared" name="shared" class="h-5 w-5 text-yellow-600 focus:ring-yellow-600 border-gray-300 rounded">
-                                    <span class="ml-2 text-sm text-gray-600">Allow sharing with other departments</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Buttons -->
-                    <div class="flex justify-end space-x-3 pt-4 mt-2">
-                        <button type="button" id="cancelEditModalBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
-                        <button type="submit" name="update_classroom" class="bg-yellow-600 text-white px-5 py-3 rounded-lg hover:bg-yellow-700 shadow-md hover:shadow-lg btn transition-all duration-200 font-medium">Update Classroom</button>
+                    <!-- Form Actions -->
+                    <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
+                        <button type="button" id="cancelEditModalBtn" class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
+                        <button type="submit" name="update_classroom" class="btn-gold px-5 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium">Update Classroom</button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- Search and Filter Section - Redesigned -->
-        <div class="bg-gray-25 rounded-xl shadow-sm mb-6 slide-in-right">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <!-- Search and Filter Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8 fade-in">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Search Input -->
-                <div class="space-y-1">
-                    <label class="text-sm font-medium text-gray-700 pl-1">Search Classrooms</label>
+                <div>
+                    <label for="searchClassrooms" class="block text-sm font-medium text-gray-dark mb-1">Search Classrooms</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400 text-sm"></i>
+                            <i class="fas fa-search text-gray-dark"></i>
                         </div>
                         <input type="text" id="searchClassrooms"
-                            class="w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-200 bg-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-300 transition-all text-sm hover:border-gray-300"
-                            placeholder="Room name, building, department, or capacity...">
-                        <button id="clearSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 opacity-0 transition-opacity">
-                            <i class="fas fa-times-circle text-sm"></i>
+                            class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                            placeholder="Search by room name, building, department, or capacity">
+                        <button id="clearSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-dark hover:text-gray-700 hidden">
+                            <i class="fas fa-times-circle"></i>
                         </button>
                     </div>
                 </div>
 
                 <!-- Department Filter -->
-                <div class="space-y-1 justify-end">
-                    <label class="text-sm font-medium text-gray-700 pl-1">Filter by Department</label>
+                <div>
+                    <label for="departmentFilter" class="block text-sm font-medium text-gray-dark mb-1">Filter by Department</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-sitemap text-gray-400 text-sm"></i>
+                            <i class="fas fa-sitemap text-gray-dark"></i>
                         </div>
-                        <select id="departmentFilter" class="w-full pl-10 pr-8 py-2.5 rounded-lg border border-gray-200 bg-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-300 transition-all text-sm appearance-none hover:border-gray-300">
+                        <select id="departmentFilter"
+                            class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
                             <option value="">All Departments</option>
                             <?php foreach ($departments as $dept): ?>
-                                <option value="<?= $dept['department_id'] ?>"><?= htmlspecialchars($dept['department_name']) ?></option>
+                                <option value="<?php echo $dept['department_id']; ?>"><?php echo htmlspecialchars($dept['department_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <i class="fas fa-chevron-down text-gray-400 text-sm"></i>
+                            <i class="fas fa-chevron-down text-gray-dark"></i>
                         </div>
                     </div>
                 </div>
@@ -460,74 +477,79 @@ if (!is_array($reservations)) {
         </div>
 
         <!-- Classrooms List -->
-        <div class="bg-white p-6 rounded-lg shadow-md card overflow-hidden slide-in-right">
+        <div class="bg-white rounded-xl shadow-lg p-6 fade-in">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-gray-700">Classrooms</h3>
-                <span class="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full" id="classroomCount"><?php echo count($classrooms); ?> Classrooms</span>
+                <h3 class="text-xl font-bold text-gray-dark">Classrooms</h3>
+                <span class="text-sm font-medium text-gray-dark bg-gray-light px-3 py-1 rounded-full" id="classroomCount"><?php echo count($classrooms); ?> Classrooms</span>
             </div>
 
-            <div id="noResults" class="text-gray-600 text-lg hidden py-8 text-center">
-                <i class="fas fa-search text-gray-400 text-2xl mb-2"></i>
+            <div id="noResults" class="text-gray-dark text-lg hidden py-8 text-center">
+                <i class="fas fa-search text-gray-dark text-2xl mb-2"></i>
                 <p>No classrooms found.</p>
             </div>
+
             <?php if (empty($classrooms)): ?>
-                <div class="text-gray-600 text-lg py-10 text-center">
-                    <i class="fas fa-school text-gray-400 text-3xl mb-3"></i>
+                <div class="text-gray-dark text-lg py-10 text-center">
+                    <i class="fas fa-school text-gray-dark text-3xl mb-3"></i>
                     <p>No classrooms found in your college.</p>
                 </div>
             <?php else: ?>
-                <div class="rounded-lg border border-gray-200 overflow-hidden">
-                    <table class="min-w-full divide-y divide-gray-200" id="classroomsTable">
-                        <thead class="bg-gray-50 sticky top-0">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-light" id="classroomsTable">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Room Name</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Building</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Capacity</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Room Type</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Shared</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Availability</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Room Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Building</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Department</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Capacity</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Room Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Shared</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Availability</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white divide-y divide-gray-light">
                             <?php foreach ($classrooms as $index => $classroom): ?>
-                                <tr class="transition-all duration-200 hover:bg-gray-50 <?php echo $index % 2 ? 'bg-gray-50' : ''; ?>"
+                                <tr class="hover:bg-gray-50 transition-all duration-200"
                                     data-room-name="<?php echo htmlspecialchars(strtolower($classroom['room_name'])); ?>"
                                     data-building="<?php echo htmlspecialchars(strtolower($classroom['building'])); ?>"
                                     data-department="<?php echo htmlspecialchars(strtolower($classroom['department_name'])); ?>"
                                     data-capacity="<?php echo htmlspecialchars($classroom['capacity']); ?>"
                                     data-department-id="<?php echo htmlspecialchars($classroom['department_id']); ?>">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700"><?php echo htmlspecialchars($classroom['room_name']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($classroom['building']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($classroom['room_name']); ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($classroom['building']); ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                         <?php echo htmlspecialchars($classroom['department_name']); ?>
-                                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            <i class="fas fa-graduation-cap mr-1 text-yellow-600"></i>Your College
+                                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gold text-white">
+                                            <i class="fas fa-graduation-cap mr-1"></i>Your College
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                         <span class="inline-flex items-center">
-                                            <i class="fas fa-users text-gray-400 mr-1.5"></i>
+                                            <i class="fas fa-users text-gray-dark mr-1.5"></i>
                                             <?php echo htmlspecialchars($classroom['capacity']); ?>
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars(ucfirst($classroom['room_type'])); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars(ucfirst($classroom['room_type'])); ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                         <?php echo $classroom['shared'] ? '<i class="fas fa-check text-green-500"></i> Yes' : '<i class="fas fa-times text-red-500"></i> No'; ?>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                         <form action="/dean/classroom" method="POST" class="inline">
                                             <input type="hidden" name="room_id" value="<?php echo $classroom['room_id']; ?>">
                                             <input type="hidden" name="current_availability" value="<?php echo $classroom['availability']; ?>">
-                                            <button type="submit" name="toggle_availability" class="px-3 py-1 rounded text-white text-xs font-medium <?php echo $classroom['availability'] === 'available' ? 'bg-green-500 hover:bg-green-600' : ($classroom['availability'] === 'unavailable' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'); ?> transition-all duration-200 relative group" title="Change to <?php echo $classroom['availability'] === 'available' ? 'Unavailable' : ($classroom['availability'] === 'unavailable' ? 'Under Maintenance' : 'Available'); ?>">
+                                            <button type="submit" name="toggle_availability"
+                                                class="px-3 py-1 rounded text-white text-xs font-medium <?php echo $classroom['availability'] === 'available' ? 'bg-green-500 hover:bg-green-600' : ($classroom['availability'] === 'unavailable' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'); ?> transition-all duration-200 group relative"
+                                                title="Change to <?php echo $classroom['availability'] === 'available' ? 'Unavailable' : ($classroom['availability'] === 'unavailable' ? 'Under Maintenance' : 'Available'); ?>">
                                                 <?php echo htmlspecialchars(ucfirst($classroom['availability'])); ?>
-                                                <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Change to <?php echo $classroom['availability'] === 'available' ? 'Unavailable' : ($classroom['availability'] === 'unavailable' ? 'Under Maintenance' : 'Available'); ?></span>
+                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">
+                                                    Change to <?php echo $classroom['availability'] === 'available' ? 'Unavailable' : ($classroom['availability'] === 'unavailable' ? 'Under Maintenance' : 'Available'); ?>
+                                                </span>
                                             </button>
                                         </form>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                        <button class="editClassroomBtn bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 btn transition-all duration-200 relative group"
+                                        <button class="editClassroomBtn btn-gold px-3 py-1 rounded shadow-md hover:shadow-lg transition-all duration-200 group relative"
                                             data-room-id="<?php echo $classroom['room_id']; ?>"
                                             data-room-name="<?php echo htmlspecialchars($classroom['room_name']); ?>"
                                             data-building="<?php echo htmlspecialchars($classroom['building']); ?>"
@@ -538,7 +560,7 @@ if (!is_array($reservations)) {
                                             data-availability="<?php echo htmlspecialchars($classroom['availability']); ?>"
                                             title="Edit Classroom">
                                             Edit
-                                            <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Classroom</span>
+                                            <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Classroom</span>
                                         </button>
                                     </td>
                                 </tr>
@@ -550,52 +572,53 @@ if (!is_array($reservations)) {
         </div>
 
         <!-- Room Reservations -->
-        <div class="bg-white p-6 rounded-lg shadow-md card mt-8 overflow-x-auto slide-in-right">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-gray-700">Pending Room Reservations</h3>
-                <span class="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full"><?php echo count($reservations); ?> Pending</span>
+        <div class="bg-white rounded-xl shadow-lg p-6 mt-8 fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-dark">Pending Room Reservations</h3>
+                <span class="text-sm font-medium text-gray-dark bg-gray-light px-3 py-1 rounded-full"><?php echo count($reservations); ?> Pending</span>
             </div>
+
             <?php if (empty($reservations)): ?>
-                <div class="text-gray-600 text-lg py-10 text-center">
-                    <i class="fas fa-calendar-times text-gray-400 text-3xl mb-3"></i>
+                <div class="text-gray-dark text-lg py-10 text-center">
+                    <i class="fas fa-calendar-times text-gray-dark text-3xl mb-3"></i>
                     <p>No pending room reservations.</p>
                 </div>
             <?php else: ?>
-                <div class="rounded-lg border border-gray-200 overflow-hidden">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50 sticky top-0">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-light">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Room</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Requested By</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Purpose</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
-                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Room</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Requested By</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Purpose</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Date & Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white divide-y divide-gray-light">
                             <?php foreach ($reservations as $index => $reservation): ?>
-                                <tr class="transition-all duration-200 hover:bg-gray-50 <?php echo $index % 2 ? 'bg-gray-50' : ''; ?>">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($reservation['room_name']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($reservation['first_name'] . ' ' . $reservation['last_name']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?php echo htmlspecialchars($reservation['description']); ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                <tr class="hover:bg-gray-50 transition-all duration-200">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($reservation['room_name']); ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($reservation['first_name'] . ' ' . $reservation['last_name']); ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($reservation['description']); ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                         <?php echo htmlspecialchars(date('M d, Y', strtotime($reservation['start_time'])) . ' ' . date('h:i A', strtotime($reservation['start_time'])) . ' - ' . date('h:i A', strtotime($reservation['end_time']))); ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <form action="/dean/classroom" method="POST" class="inline">
                                             <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
                                             <input type="hidden" name="status" value="Approved">
-                                            <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 btn relative group" title="Approve Reservation">
+                                            <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 group relative" title="Approve Reservation">
                                                 Approve
-                                                <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Approve Reservation</span>
+                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Approve Reservation</span>
                                             </button>
                                         </form>
                                         <form action="/dean/classroom" method="POST" class="inline ml-2">
                                             <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
                                             <input type="hidden" name="status" value="Rejected">
-                                            <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 btn relative group" title="Reject Reservation">
+                                            <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 group relative" title="Reject Reservation">
                                                 Reject
-                                                <span class="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Reject Reservation</span>
+                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Reject Reservation</span>
                                             </button>
                                         </form>
                                     </td>
@@ -607,8 +630,30 @@ if (!is_array($reservations)) {
             <?php endif; ?>
         </div>
     </div>
+
+    <!-- JavaScript for Toast Notifications and Functionality -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Toast Notifications
+            <?php if ($success): ?>
+                showToast('<?php echo $success; ?>', 'bg-green-500');
+            <?php endif; ?>
+            <?php if ($error): ?>
+                showToast('<?php echo $error; ?>', 'bg-red-500');
+            <?php endif; ?>
+
+            function showToast(message, bgColor) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg`;
+                toast.textContent = message;
+                toast.setAttribute('role', 'alert');
+                document.getElementById('toast-container').appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            }
+
             // Add Classroom Modal
             const addModal = document.getElementById('addClassroomModal');
             const openModalBtn = document.getElementById('openModalBtn');
@@ -813,7 +858,6 @@ if (!is_array($reservations)) {
             updateTable();
         });
     </script>
-
 </body>
 
 </html>

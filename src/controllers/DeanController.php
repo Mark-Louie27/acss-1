@@ -562,24 +562,135 @@ class DeanController
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
 
-        // Add this line before requiring the view
-        $controller = $this;
-
+        // Initialize variables
         $courses = [];
+        $departments = [];
+        $programs = [];
+        $totalCourses = 0;
+
+        // Pagination parameters
+        $currentPage = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $perPage = 10;
+
         if ($collegeId) {
-            $query = "
-                SELECT c.*, d.department_name, p.program_name
-                FROM courses c
-                JOIN departments d ON c.department_id = d.department_id
-                LEFT JOIN programs p ON c.program_id = p.program_id
-                WHERE d.college_id = :college_id AND c.is_active = 1
-                ORDER BY c.course_code";
+            // Get filter parameters
+            $departmentFilter = isset($_GET['department']) ? (int)$_GET['department'] : null;
+            $programFilter = isset($_GET['program']) ? (int)$_GET['program'] : null;
+            $yearLevelFilter = isset($_GET['year_level']) ? $_GET['year_level'] : null;
+            $statusFilter = isset($_GET['status']) ? $_GET['status'] : '1';
+
+            // Base query for counting
+            $countQuery = "SELECT COUNT(*) as total 
+                  FROM courses c
+                  JOIN departments d ON c.department_id = d.department_id
+                  WHERE d.college_id = :college_id";
+
+            // Base query for data
+            $query = "SELECT 
+                c.course_id,
+                c.course_code,
+                c.course_name,
+                c.year_level,
+                c.units,
+                c.lecture_hours,
+                c.lab_hours,
+                c.semester,
+                c.is_active,
+                d.department_name,
+                p.program_name,
+                p.program_code,
+                cl.college_name
+            FROM courses c
+            JOIN departments d ON c.department_id = d.department_id
+            LEFT JOIN programs p ON c.program_id = p.program_id
+            JOIN colleges cl ON d.college_id = cl.college_id
+            WHERE d.college_id = :college_id";
+
+            // Add filters to both queries
+            $params = [':college_id' => $collegeId];
+            $countParams = [':college_id' => $collegeId];
+
+            if ($departmentFilter) {
+                $query .= " AND c.department_id = :department_id";
+                $countQuery .= " AND c.department_id = :department_id";
+                $params[':department_id'] = $departmentFilter;
+                $countParams[':department_id'] = $departmentFilter;
+            }
+
+            if ($programFilter) {
+                $query .= " AND c.program_id = :program_id";
+                $countQuery .= " AND c.program_id = :program_id";
+                $params[':program_id'] = $programFilter;
+                $countParams[':program_id'] = $programFilter;
+            }
+
+            if ($yearLevelFilter) {
+                $query .= " AND c.year_level = :year_level";
+                $countQuery .= " AND c.year_level = :year_level";
+                $params[':year_level'] = $yearLevelFilter;
+                $countParams[':year_level'] = $yearLevelFilter;
+            }
+
+            if ($statusFilter !== '') {
+                $query .= " AND c.is_active = :is_active";
+                $countQuery .= " AND c.is_active = :is_active";
+                $params[':is_active'] = (int)$statusFilter;
+                $countParams[':is_active'] = (int)$statusFilter;
+            }
+
+            // Get total count
+            $countStmt = $this->db->prepare($countQuery);
+            $countStmt->execute($countParams);
+            $totalCourses = $countStmt->fetchColumn();
+
+            // Add pagination to main query
+            $query .= " ORDER BY d.department_name, c.course_code 
+               LIMIT :offset, :per_page";
+
+            // Calculate offset
+            $offset = ($currentPage - 1) * $perPage;
+            $params[':offset'] = $offset;
+            $params[':per_page'] = $perPage;
+
+            // Get paginated courses
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':college_id' => $collegeId]);
+
+            // Bind parameters with proper types
+            foreach ($params as $key => $value) {
+                $paramType = PDO::PARAM_STR;
+                if (in_array($key, [':college_id', ':department_id', ':program_id', ':is_active', ':offset', ':per_page'])) {
+                    $paramType = PDO::PARAM_INT;
+                }
+                $stmt->bindValue($key, $value, $paramType);
+            }
+
+            $stmt->execute();
             $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get all departments in the college
+            $deptQuery = "SELECT department_id, department_name 
+                 FROM departments 
+                 WHERE college_id = :college_id 
+                 ORDER BY department_name";
+            $deptStmt = $this->db->prepare($deptQuery);
+            $deptStmt->execute([':college_id' => $collegeId]);
+            $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get all programs in the college
+            $programQuery = "SELECT p.program_id, p.program_name, p.program_code, d.department_name
+                    FROM programs p
+                    JOIN departments d ON p.department_id = d.department_id
+                    WHERE d.college_id = :college_id
+                    ORDER BY p.program_name";
+            $programStmt = $this->db->prepare($programQuery);
+            $programStmt->execute([':college_id' => $collegeId]);
+            $programs = $programStmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        // Load courses view
+        // Calculate total pages
+        $totalPages = ceil($totalCourses / $perPage);
+
+        // Load courses view with all data
         require_once __DIR__ . '/../views/dean/courses.php';
     }
 

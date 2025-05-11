@@ -404,7 +404,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
             <!-- Classrooms Link -->
             <a href="/dean/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/classroom') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
                 <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/dean/classroom') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
-                <span>Classrooms</span>
+                <span>Manage Classrooms</span>
             </a>
 
             <!-- Faculty Link -->

@@ -1104,11 +1104,32 @@ class ChairController
                 $departmentIdSearch = isset($_POST['department_id']) ? intval($_POST['department_id']) : 0;
 
                 $query = "
-                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name
-                    FROM faculty f 
-                    JOIN users u ON f.user_id = u.user_id 
-                    WHERE (u.first_name LIKE :name OR u.last_name LIKE :name)
-                ";
+                SELECT 
+                    u.user_id,
+                    u.employee_id,
+                    u.first_name,
+                    u.last_name,
+                    r.role_name,
+                    f.academic_rank,
+                    f.employment_type,
+                    d.department_name,
+                    c.college_name,
+                    pc.program_id,
+                    p.program_name,
+                    deans.college_id AS dean_college_id
+                FROM 
+                    users u
+                    LEFT JOIN roles r ON u.role_id = r.role_id
+                    LEFT JOIN faculty f ON u.user_id = f.user_id
+                    LEFT JOIN departments d ON u.department_id = d.department_id
+                    LEFT JOIN colleges c ON u.college_id = c.college_id
+                    LEFT JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
+                    LEFT JOIN programs p ON pc.program_id = p.program_id
+                    LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
+                WHERE 
+                    (u.first_name LIKE :name OR u.last_name LIKE :name)
+                    AND (u.role_id IN (4, 5, 6))
+            ";
                 $params = [':name' => "%$name%"];
 
                 if ($collegeId > 0) {
@@ -1120,7 +1141,7 @@ class ChairController
                     $params[':department_id'] = $departmentIdSearch;
                 }
                 if ($departmentId) {
-                    $query .= " AND u.department_id != :chair_department_id";
+                    $query .= " AND (u.department_id != :chair_department_id OR u.department_id IS NULL)";
                     $params[':chair_department_id'] = $departmentId;
                 }
 
@@ -1146,14 +1167,25 @@ class ChairController
         } else {
             try {
                 $facultyStmt = $this->db->prepare("
-                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name, f.academic_rank, f.employment_type, d.department_name, c.college_name
-                    FROM faculty f 
+                SELECT 
+                    u.user_id, 
+                    u.employee_id, 
+                    u.first_name, 
+                    u.last_name, 
+                    f.academic_rank, 
+                    f.employment_type, 
+                    d.department_name, 
+                    c.college_name
+                FROM 
+                    faculty f 
                     JOIN users u ON f.user_id = u.user_id 
                     JOIN departments d ON u.department_id = d.department_id
                     JOIN colleges c ON u.college_id = c.college_id
-                    WHERE u.department_id = :department_id
-                    ORDER BY u.last_name, u.first_name
-                ");
+                WHERE 
+                    u.department_id = :department_id
+                ORDER BY 
+                    u.last_name, u.first_name
+            ");
                 $facultyStmt->execute([':department_id' => $departmentId]);
                 $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
             } catch (PDOException $e) {
@@ -1180,13 +1212,31 @@ class ChairController
                 $name = isset($_POST['name']) ? trim($_POST['name']) : '';
 
                 $query = "
-                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name, f.academic_rank, f.employment_type, d.department_name, c.college_name
-                    FROM faculty f 
-                    JOIN users u ON f.user_id = u.user_id 
-                    JOIN departments d ON u.department_id = d.department_id
-                    JOIN colleges c ON u.college_id = c.college_id
-                    WHERE 1=1
-                ";
+                SELECT 
+                    u.user_id,
+                    u.employee_id,
+                    u.first_name,
+                    u.last_name,
+                    r.role_name,
+                    f.academic_rank,
+                    f.employment_type,
+                    d.department_name,
+                    c.college_name,
+                    pc.program_id,
+                    p.program_name,
+                    deans.college_id AS dean_college_id
+                FROM 
+                    users u
+                    LEFT JOIN roles r ON u.role_id = r.role_id
+                    LEFT JOIN faculty f ON u.user_id = f.user_id
+                    LEFT JOIN departments d ON u.department_id = d.department_id
+                    LEFT JOIN colleges c ON u.college_id = c.college_id
+                    LEFT JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
+                    LEFT JOIN programs p ON pc.program_id = p.program_id
+                    LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
+                WHERE 
+                    (u.role_id IN (4, 5, 6))
+            ";
                 $params = [];
 
                 if ($collegeId > 0) {
@@ -1201,9 +1251,8 @@ class ChairController
                     $query .= " AND (u.first_name LIKE :name OR u.last_name LIKE :name)";
                     $params[':name'] = "%$name%";
                 }
-
                 if ($departmentId) {
-                    $query .= " AND u.department_id != :chair_department_id";
+                    $query .= " AND (u.department_id != :chair_department_id OR u.department_id IS NULL)";
                     $params[':chair_department_id'] = $departmentId;
                 }
 
@@ -1228,16 +1277,37 @@ class ChairController
                     if ($checkStmt->fetchColumn()) {
                         $error = "This faculty member is already in your department.";
                     } else {
-                        $updateStmt = $this->db->prepare("UPDATE users SET department_id = :department_id WHERE user_id = :user_id");
-                        $updateStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
+                        // Check if user is a Faculty or can be added as one
+                        $roleStmt = $this->db->prepare("SELECT role_id FROM users WHERE user_id = :user_id");
+                        $roleStmt->execute([':user_id' => $userId]);
+                        $roleId = $roleStmt->fetchColumn();
 
-                        $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = :department_id WHERE user_id = :user_id");
-                        $updateFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
+                        if ($roleId == 6) { // Only allow Faculty role to be added
+                            $updateStmt = $this->db->prepare("UPDATE users SET department_id = :department_id WHERE user_id = :user_id");
+                            $updateStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
 
-                        $success = "Faculty member added to your department successfully.";
+                            // Update or insert into faculty table
+                            $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                            $facultyCheckStmt->execute([':user_id' => $userId]);
+                            if ($facultyCheckStmt->fetchColumn()) {
+                                $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = :department_id WHERE user_id = :user_id");
+                                $updateFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
+                            } else {
+                                $insertFacultyStmt = $this->db->prepare("
+                                INSERT INTO faculty (user_id, employee_id, academic_rank, employment_type, department_id)
+                                SELECT user_id, employee_id, 'Instructor', 'Part-time', :department_id
+                                FROM users WHERE user_id = :user_id
+                            ");
+                                $insertFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
+                            }
 
-                        $facultyStmt->execute([':department_id' => $departmentId]);
-                        $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+                            $success = "Faculty member added to your department successfully.";
+
+                            $facultyStmt->execute([':department_id' => $departmentId]);
+                            $faculty = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+                        } else {
+                            $error = "Only faculty members can be added to the department.";
+                        }
                     }
                 } else {
                     $error = "Cannot add faculty: No department assigned to this chair.";
@@ -1290,11 +1360,32 @@ class ChairController
                 $chairDepartmentId = $this->getChairDepartment($_SESSION['user_id']);
 
                 $query = "
-                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name
-                    FROM faculty f 
-                    JOIN users u ON f.user_id = u.user_id 
-                    WHERE (u.first_name LIKE :name OR u.last_name LIKE :name)
-                ";
+                SELECT 
+                    u.user_id,
+                    u.employee_id,
+                    u.first_name,
+                    u.last_name,
+                    r.role_name,
+                    f.academic_rank,
+                    f.employment_type,
+                    d.department_name,
+                    c.college_name,
+                    pc.program_id,
+                    p.program_name,
+                    deans.college_id AS dean_college_id
+                FROM 
+                    users u
+                    LEFT JOIN roles r ON u.role_id = r.role_id
+                    LEFT JOIN faculty f ON u.user_id = f.user_id
+                    LEFT JOIN departments d ON u.department_id = d.department_id
+                    LEFT JOIN colleges c ON u.college_id = c.college_id
+                    LEFT JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
+                    LEFT JOIN programs p ON pc.program_id = p.program_id
+                    LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
+                WHERE 
+                    (u.first_name LIKE :name OR u.last_name LIKE :name)
+                    AND (u.role_id IN (4, 5, 6))
+            ";
                 $params = [':name' => "%$name%"];
 
                 if ($collegeId > 0) {
@@ -1306,7 +1397,7 @@ class ChairController
                     $params[':department_id'] = $departmentId;
                 }
                 if ($chairDepartmentId) {
-                    $query .= " AND u.department_id != :chair_department_id";
+                    $query .= " AND (u.department_id != :chair_department_id OR u.department_id IS NULL)";
                     $params[':chair_department_id'] = $chairDepartmentId;
                 }
 
@@ -1326,7 +1417,7 @@ class ChairController
             }
         }
 
-        require_once __DIR__ . '/../views/chair/faculty.php';
+        require_once __DIR__ . '/../views/chair/faculty/search.php';
     }
 
     /**
