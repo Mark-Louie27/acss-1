@@ -6,7 +6,8 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ob_start();
 
-// Assuming $error, $success, $programs, $courses, $editCourse, $page, $offset, $perPage, $totalCourses, $totalPages are set by ChairController
+// Assuming $error, $success, $programs, $courses, $editCourse, $page, $offset, $perPage, $totalCourses, $totalPages, $departmentId are set by ChairController
+$searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) && trim($_GET['search']) !== '') ? $_GET['search'] : '';
 ?>
 
 <!DOCTYPE html>
@@ -116,8 +117,17 @@ ob_start();
             <p class="text-gray-dark mt-2">Add, edit, and manage courses for your department</p>
         </header>
 
-        <!-- Add Course Button -->
-        <div class="mb-6 flex justify-end fade-in">
+        <!-- Search and Add Course -->
+        <div class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4 fade-in">
+            <form method="GET" class="w-full md:w-1/2">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-dark"></i>
+                    </div>
+                    <input type="text" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>" placeholder="Search by course code, name, or program"
+                        class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                </div>
+            </form>
             <button id="openAddCourseModalBtn"
                 class="btn-gold px-6 py-3 rounded-lg shadow-md hover:shadow-lg flex items-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-opacity-50">
                 <i class="fas fa-plus mr-2"></i> Add New Course
@@ -127,7 +137,6 @@ ob_start();
         <!-- Add Course Modal -->
         <div id="addCourseModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
-                <!-- Modal Header -->
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                     <h5 class="text-xl font-bold text-gray-dark">Add New Course</h5>
                     <button id="closeAddCourseModalBtn"
@@ -136,10 +145,8 @@ ob_start();
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-
-                <!-- Form Content -->
                 <form method="POST" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6" id="addCourseForm">
-                    <!-- Course Name -->
+                    <input type="hidden" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>">
                     <div>
                         <label for="course_name_add" class="block text-sm font-medium text-gray-dark mb-1">Course Name <span class="text-red-500">*</span></label>
                         <div class="relative">
@@ -152,8 +159,6 @@ ob_start();
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
                     </div>
-                    
-                    <!-- Course Code -->
                     <div>
                         <label for="course_code_add" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
                         <div class="relative">
@@ -166,8 +171,6 @@ ob_start();
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
                     </div>
-
-                    <!-- Program -->
                     <div>
                         <label for="program_id_add" class="block text-sm font-medium text-gray-dark mb-1">Program</label>
                         <div class="relative">
@@ -176,10 +179,10 @@ ob_start();
                             </div>
                             <select id="program_id_add" name="program_id"
                                 class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
-                                <option value="">Select Program (Optional)</option>
+                                <option value="">General Course (Visible to All)</option>
                                 <?php foreach ($programs as $program): ?>
                                     <option value="<?php echo htmlspecialchars($program['program_id']); ?>">
-                                        <?php echo htmlspecialchars($program['program_name']); ?>
+                                        <?php echo htmlspecialchars($program['program_name']); ?> (Department Only)
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -188,8 +191,6 @@ ob_start();
                             </div>
                         </div>
                     </div>
-
-                    <!-- Total Units -->
                     <div>
                         <label for="units_add" class="block text-sm font-medium text-gray-dark mb-1">Total Units <span class="text-red-500">*</span></label>
                         <div class="relative">
@@ -202,8 +203,6 @@ ob_start();
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Total units must be at least 1.</p>
                     </div>
-
-                    <!-- Lecture Units -->
                     <div>
                         <label for="lecture_units_add" class="block text-sm font-medium text-gray-dark mb-1">Lecture Units</label>
                         <div class="relative">
@@ -214,8 +213,6 @@ ob_start();
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
-
-                    <!-- Lab Units -->
                     <div>
                         <label for="lab_units_add" class="block text-sm font-medium text-gray-dark mb-1">Lab Units</label>
                         <div class="relative">
@@ -226,8 +223,6 @@ ob_start();
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
-
-                    <!-- Lecture Hours -->
                     <div>
                         <label for="lecture_hours_add" class="block text-sm font-medium text-gray-dark mb-1">Lecture Hours</label>
                         <div class="relative">
@@ -238,8 +233,6 @@ ob_start();
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
-
-                    <!-- Lab Hours -->
                     <div>
                         <label for="lab_hours_add" class="block text-sm font-medium text-gray-dark mb-1">Lab Hours</label>
                         <div class="relative">
@@ -250,8 +243,6 @@ ob_start();
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
-
-                    <!-- Is Active -->
                     <div class="md:col-span-2">
                         <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-light">
                             <input type="checkbox" id="is_active_add" name="is_active" checked
@@ -259,8 +250,6 @@ ob_start();
                             <label for="is_active_add" class="ml-2 text-sm text-gray-dark">Active</label>
                         </div>
                     </div>
-
-                    <!-- Form Actions -->
                     <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
                         <button type="button" id="cancelAddCourseModalBtn"
                             class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
@@ -274,7 +263,6 @@ ob_start();
         <?php if ($editCourse): ?>
             <div id="editCourseModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
-                    <!-- Modal Header -->
                     <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                         <h5 class="text-xl font-bold text-gray-dark">Edit Course</h5>
                         <button id="closeEditCourseModalBtn"
@@ -283,11 +271,9 @@ ob_start();
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-
-                    <!-- Form Content -->
                     <form method="POST" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6" id="editCourseForm">
                         <input type="hidden" name="course_id" value="<?php echo htmlspecialchars($editCourse['course_id']); ?>">
-                        <!-- Course Code -->
+                        <input type="hidden" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>">
                         <div>
                             <label for="course_code_edit" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
                             <div class="relative">
@@ -301,8 +287,6 @@ ob_start();
                             </div>
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
                         </div>
-
-                        <!-- Course Name -->
                         <div>
                             <label for="course_name_edit" class="block text-sm font-medium text-gray-dark mb-1">Course Name <span class="text-red-500">*</span></label>
                             <div class="relative">
@@ -316,8 +300,6 @@ ob_start();
                             </div>
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
                         </div>
-
-                        <!-- Program -->
                         <div>
                             <label for="program_id_edit" class="block text-sm font-medium text-gray-dark mb-1">Program</label>
                             <div class="relative">
@@ -326,11 +308,11 @@ ob_start();
                                 </div>
                                 <select id="program_id_edit" name="program_id"
                                     class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
-                                    <option value="">Select Program (Optional)</option>
+                                    <option value="">General Course (Visible to All)</option>
                                     <?php foreach ($programs as $program): ?>
                                         <option value="<?php echo htmlspecialchars($program['program_id']); ?>"
                                             <?php echo (isset($editCourse['program_id']) && $editCourse['program_id'] == $program['program_id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($program['program_name']); ?>
+                                            <?php echo htmlspecialchars($program['program_name']); ?> (Department Only)
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -339,8 +321,6 @@ ob_start();
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Total Units -->
                         <div>
                             <label for="units_edit" class="block text-sm font-medium text-gray-dark mb-1">Total Units <span class="text-red-500">*</span></label>
                             <div class="relative">
@@ -354,8 +334,6 @@ ob_start();
                             </div>
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Total units must be at least 1.</p>
                         </div>
-
-                        <!-- Lecture Units -->
                         <div>
                             <label for="lecture_units_edit" class="block text-sm font-medium text-gray-dark mb-1">Lecture Units</label>
                             <div class="relative">
@@ -367,8 +345,6 @@ ob_start();
                                     class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                             </div>
                         </div>
-
-                        <!-- Lab Units -->
                         <div>
                             <label for="lab_units_edit" class="block text-sm font-medium text-gray-dark mb-1">Lab Units</label>
                             <div class="relative">
@@ -380,8 +356,6 @@ ob_start();
                                     class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                             </div>
                         </div>
-
-                        <!-- Lecture Hours -->
                         <div>
                             <label for="lecture_hours_edit" class="block text-sm font-medium text-gray-dark mb-1">Lecture Hours</label>
                             <div class="relative">
@@ -393,8 +367,6 @@ ob_start();
                                     class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                             </div>
                         </div>
-
-                        <!-- Lab Hours -->
                         <div>
                             <label for="lab_hours_edit" class="block text-sm font-medium text-gray-dark mb-1">Lab Hours</label>
                             <div class="relative">
@@ -406,8 +378,6 @@ ob_start();
                                     class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                             </div>
                         </div>
-
-                        <!-- Is Active -->
                         <div class="md:col-span-2">
                             <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-light">
                                 <input type="checkbox" id="is_active_edit" name="is_active"
@@ -416,8 +386,6 @@ ob_start();
                                 <label for="is_active_edit" class="ml-2 text-sm text-gray-dark">Active</label>
                             </div>
                         </div>
-
-                        <!-- Form Actions -->
                         <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
                             <button type="button" id="cancelEditCourseModalBtn"
                                 class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
@@ -441,18 +409,20 @@ ob_start();
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Department</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Units</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Lecture</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Lab</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Visibility</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-light">
                             <?php if (empty($courses)): ?>
                                 <tr>
-                                    <td colspan="8" class="px-6 py-4 text-center text-gray-dark">
+                                    <td colspan="10" class="px-6 py-4 text-center text-gray-dark">
                                         <i class="fas fa-book-open text-gray-dark text-2xl mb-2"></i>
                                         <p>No courses found.</p>
                                     </td>
@@ -462,7 +432,8 @@ ob_start();
                                     <tr class="hover:bg-gray-50 transition-all duration-200">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($course['course_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['course_code']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['program_name'] ?? 'N/A'); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['department_name'] ?? 'N/A'); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['program_name'] ?? 'General'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['units']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                             <?php echo htmlspecialchars($course['lecture_units']); ?> units<br>
@@ -477,20 +448,29 @@ ob_start();
                                                 <?php echo $course['is_active'] ? 'Active' : 'Inactive'; ?>
                                             </span>
                                         </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo $course['program_id'] ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'; ?>">
+                                                <?php echo $course['program_id'] ? 'Department Only' : 'All Chairs'; ?>
+                                            </span>
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>"
-                                                class="text-gold group relative hover:text-gold-900 mr-3">
-                                                Edit
-                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Course</span>
-                                            </a>
-                                            <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>"
-                                                class="text-blue-600 group relative hover:text-blue-900"
-                                                onclick="return confirm('Are you sure you want to toggle the status?');">
-                                                <?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?>
-                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">
-                                                    <?php echo $course['is_active'] ? 'Deactivate Course' : 'Activate Course'; ?>
-                                                </span>
-                                            </a>
+                                            <?php if ($course['program_id'] === null || $course['department_id'] == $departmentId): ?>
+                                                <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                                    class="text-gold group relative hover:text-gold-900 mr-3">
+                                                    Edit
+                                                    <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Course</span>
+                                                </a>
+                                                <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                                    class="text-blue-600 group relative hover:text-blue-900"
+                                                    onclick="return confirm('Are you sure you want to toggle the status?');">
+                                                    <?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                                    <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">
+                                                        <?php echo $course['is_active'] ? 'Deactivate Course' : 'Activate Course'; ?>
+                                                    </span>
+                                                </a>
+                                            <?php else: ?>
+                                                <span class="text-gray-400">No Actions</span>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -498,15 +478,13 @@ ob_start();
                         </tbody>
                     </table>
                 </div>
-
-                <!-- Pagination Controls -->
                 <div class="mt-6 flex justify-between items-center">
                     <div class="text-sm text-gray-dark">
                         Showing <?php echo ($offset + 1); ?> to <?php echo min($offset + $perPage, $totalCourses); ?> of <?php echo $totalCourses; ?> courses
                     </div>
                     <div class="flex space-x-2">
                         <?php if ($page > 1): ?>
-                            <a href="courses?page=<?php echo $page - 1; ?>"
+                            <a href="courses?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($searchTerm); ?>"
                                 class="px-4 py-2 bg-gray-light text-gray-dark rounded-lg hover:bg-gray-200 transition-all duration-200">
                                 Previous
                             </a>
@@ -517,14 +495,14 @@ ob_start();
                         <?php endif; ?>
 
                         <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                            <a href="courses?page=<?php echo $i; ?>"
+                            <a href="courses?page=<?php echo $i; ?>&search=<?php echo urlencode($searchTerm); ?>"
                                 class="px-4 py-2 rounded-lg <?php echo $i === $page ? 'btn-gold text-white' : 'bg-gray-light text-gray-dark hover:bg-gray-200'; ?> transition-all duration-200">
                                 <?php echo $i; ?>
                             </a>
                         <?php endfor; ?>
 
                         <?php if ($page < $totalPages): ?>
-                            <a href="courses?page=<?php echo $page + 1; ?>"
+                            <a href="courses?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($searchTerm); ?>"
                                 class="px-4 py-2 bg-gray-light text-gray-dark rounded-lg hover:bg-gray-200 transition-all duration-200">
                                 Next
                             </a>
@@ -539,10 +517,8 @@ ob_start();
         </div>
     </div>
 
-    <!-- JavaScript for Toast Notifications and Functionality -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Toast Notifications
             <?php if ($success): ?>
                 showToast('<?php echo htmlspecialchars($success); ?>', 'bg-green-500');
             <?php endif; ?>
@@ -562,7 +538,6 @@ ob_start();
                 }, 5000);
             }
 
-            // Modal Functions
             function openModal(modalId) {
                 const modal = document.getElementById(modalId);
                 const modalContent = modal.querySelector('.modal-content');
@@ -580,7 +555,6 @@ ob_start();
                 setTimeout(() => {
                     modal.classList.add('hidden');
                     document.body.style.overflow = 'auto';
-                    // Reset form validation
                     const form = modal.querySelector('form');
                     if (form) {
                         form.reset();
@@ -590,7 +564,6 @@ ob_start();
                 }, 200);
             }
 
-            // Event Listeners for Add Course Modal
             const openAddCourseModalBtn = document.getElementById('openAddCourseModalBtn');
             const closeAddCourseModalBtn = document.getElementById('closeAddCourseModalBtn');
             const cancelAddCourseModalBtn = document.getElementById('cancelAddCourseModalBtn');
@@ -605,7 +578,6 @@ ob_start();
                 cancelAddCourseModalBtn.addEventListener('click', () => closeModal('addCourseModal'));
             }
 
-            // Event Listeners for Edit Course Modal
             const closeEditCourseModalBtn = document.getElementById('closeEditCourseModalBtn');
             const cancelEditCourseModalBtn = document.getElementById('cancelEditCourseModalBtn');
 
@@ -616,12 +588,10 @@ ob_start();
                 cancelEditCourseModalBtn.addEventListener('click', () => closeModal('editCourseModal'));
             }
 
-            // Automatically open edit modal if editCourse exists
             <?php if ($editCourse): ?>
                 openModal('editCourseModal');
             <?php endif; ?>
 
-                // Close modals on backdrop click
                 ['addCourseModal', 'editCourseModal'].forEach(modalId => {
                     const modal = document.getElementById(modalId);
                     if (modal) {
@@ -631,7 +601,6 @@ ob_start();
                     }
                 });
 
-            // Close modals on ESC key
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     ['addCourseModal', 'editCourseModal'].forEach(modalId => {
@@ -641,7 +610,6 @@ ob_start();
                 }
             });
 
-            // Form validation for both modals
             ['addCourseForm', 'editCourseForm'].forEach(formId => {
                 const form = document.getElementById(formId);
                 if (form) {

@@ -11,11 +11,11 @@
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
         :root {
-            --gold-primary: #FFD700;
+            --gold-primary: #DA9100;
             --gold-secondary: #FCC201;
             --gold-light: #FFEEAA;
             --gold-dark: #B8860B;
-            --gold-gradient-start: #FFD700;
+            --gold-gradient-start: #FFD200;
             --gold-gradient-end: #FFEEAA;
         }
 

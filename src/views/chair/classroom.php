@@ -7,84 +7,109 @@ error_reporting(E_ALL);
 ob_start();
 
 $searchTerm = $_GET['search'] ?? '';
-$error = $error ?? null; // From controller
-$availableClassrooms = $availableClassrooms ?? null;
+$error = $error ?? null;
+$availableClassrooms = $availableClassrooms ?? [];
 
+// Ensure $this->db is available
+$controller = new ChairController();
+$db = $controller->db;
 
-// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $room_name = $_POST['room_name'] ?? '';
     $building = $_POST['building'] ?? '';
-    $capacity = $_POST['capacity'] ?? 0;
+    $capacity = (int)($_POST['capacity'] ?? 0);
+    $room_type = $_POST['room_type'] ?? 'classroom';
+    $shared = isset($_POST['shared']) ? 1 : 0;
+    $availability = $_POST['availability'] ?? 'available';
     $department_id = $departmentId;
-    $availability = isset($_POST['availability']) ? 1 : 0;
 
-    if ($action === 'add') {
-        $room_name = $_POST['room_name'] ?? '';
-        $building = $_POST['building'] ?? ''; // Get building from form
-        $capacity = $_POST['capacity'] ?? 0;
-        $availability = isset($_POST['availability']) ? 1 : 0;
+    try {
+        if ($action === 'add') {
+            $stmt = $db->prepare("
+                INSERT INTO classrooms 
+                (room_name, building, capacity, room_type, shared, availability, department_id, created_at, updated_at) 
+                VALUES (:room_name, :building, :capacity, :room_type, :shared, :availability, :department_id, NOW(), NOW())
+            ");
+            $stmt->execute([
+                ':room_name' => $room_name,
+                ':building' => $building,
+                ':capacity' => $capacity,
+                ':room_type' => $room_type,
+                ':shared' => $shared,
+                ':availability' => $availability,
+                ':department_id' => $department_id
+            ]);
+        } elseif ($action === 'edit') {
+            $room_id = (int)($_POST['room_id'] ?? 0);
+            $stmt = $db->prepare("
+                UPDATE classrooms SET 
+                    room_name = :room_name,
+                    building = :building,
+                    capacity = :capacity,
+                    room_type = :room_type,
+                    shared = :shared,
+                    availability = :availability,
+                    updated_at = NOW()
+                WHERE room_id = :room_id AND department_id = :department_id
+            ");
+            $stmt->execute([
+                ':room_id' => $room_id,
+                ':room_name' => $room_name,
+                ':building' => $building,
+                ':capacity' => $capacity,
+                ':room_type' => $room_type,
+                ':shared' => $shared,
+                ':availability' => $availability,
+                ':department_id' => $department_id
+            ]);
+        } elseif ($action === 'search') {
+            $search_date = $_POST['search_date'] ?? date('Y-m-d');
+            $search_time = $_POST['search_time'] ?? '08:00:00';
+            $search_department = $_POST['search_department'] ?? '%';
+            $min_capacity = (int)($_POST['min_capacity'] ?? 0);
+            $room_type = $_POST['room_type'] ?? '';
 
-        $stmt = $this->db->prepare("
-        INSERT INTO classrooms 
-        (room_name, building, capacity, department_id, availability, created_at, updated_at) 
-        VALUES (:room_name, :building, :capacity, :department_id, :availability, NOW(), NOW())
-    ");
+            $query = "
+                SELECT DISTINCT c.*, d.department_name, cl.college_name
+                FROM classrooms c
+                JOIN departments d ON c.department_id = d.department_id
+                JOIN colleges cl ON d.college_id = cl.college_id
+                LEFT JOIN schedules s ON c.room_id = s.room_id 
+                    AND s.schedule_date = :search_date 
+                    AND s.start_time <= :search_time 
+                    AND s.end_time > :search_time
+                WHERE (c.department_id LIKE :search_department OR c.shared = 1)
+                    AND (s.room_id IS NULL OR s.status = 'Rejected')
+                    AND c.availability = 'available'
+            ";
+            $params = [
+                ':search_date' => $search_date,
+                ':search_time' => $search_time,
+                ':search_department' => $search_department
+            ];
 
-        $stmt->execute([
-            ':room_name' => $room_name,
-            ':building' => $building, // Add building to execute params
-            ':capacity' => $capacity,
-            ':department_id' => $departmentId,
-            ':availability' => $availability
-        ]);
-    } elseif ($action === 'edit') {
-        $room_id = $_POST['room_id'];
-        $stmt = $this->db->prepare("
-    UPDATE classrooms SET 
-    room_name = :room_name,
-    building = :building,
-    capacity = :capacity,
-    availability = :availability,
-    updated_at = NOW() 
-    WHERE room_id = :room_id
-    ");
+            if ($min_capacity > 0) {
+                $query .= " AND c.capacity >= :min_capacity";
+                $params[':min_capacity'] = $min_capacity;
+            }
+            if (!empty($room_type)) {
+                $query .= " AND c.room_type = :room_type";
+                $params[':room_type'] = $room_type;
+            }
 
-        $stmt->execute([
-            ':room_id' => $room_id,
-            ':room_name' => $room_name,
-            ':building' => $_POST['building'], // Add building
-            ':capacity' => $capacity,
-            ':availability' => $availability
-        ]);
-    } elseif ($action === 'search') {
-        $search_date = $_POST['search_date'] ?? date('Y-m-d');
-        $search_time = $_POST['search_time'] ?? '08:00:00';
-        $search_department = $_POST['search_department'] ?? '%';
-        $stmt = $this->db->prepare("SELECT c.* 
-                            FROM classrooms c 
-                            LEFT JOIN schedules s ON c.room_id = s.room_id 
-                            AND s.schedule_date = :search_date 
-                            AND s.start_time <= :search_time 
-                            AND s.end_time > :search_time 
-                            WHERE c.department_id LIKE :search_department 
-                            AND (s.room_id IS NULL OR s.status = 'Rejected') 
-                            AND c.availability = 'available' 
-                            ORDER BY c.room_name");
-        $stmt->execute([
-            ':search_date' => $search_date,
-            ':search_time' => $search_time,
-            ':search_department' => $search_department
-        ]);
-        $availableClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $query .= " ORDER BY c.room_name";
+            $stmt = $db->prepare($query);
+            $stmt->execute($params);
+            $availableClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        header("Location: classroom");
+        exit;
+    } catch (PDOException $e) {
+        $error = "Database error: " . $e->getMessage();
     }
-
-    header("Location: classroom");
-    exit;
 }
-
-
 ?>
 
 <!DOCTYPE html>
@@ -140,7 +165,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="p-6">
                     <form method="POST">
                         <input type="hidden" name="action" value="add">
-                        <!-- Display auto-assigned department/college -->
                         <?php if ($departmentInfo): ?>
                             <div class="mb-4 bg-gray-50 p-4 rounded-lg">
                                 <p class="text-sm text-gray-600">
@@ -152,29 +176,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </p>
                             </div>
                         <?php endif; ?>
-
-                        <!-- In your addClassroomModal form -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="mb-4">
-                                <label for="room_name" class="block text-gray-700 font-medium mb-2">
-                                    Room Name
-                                </label>
-                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md"
-                                    id="room_name" name="room_name" required>
+                                <label for="room_name" class="block text-gray-700 font-medium mb-2">Room Name</label>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="room_name" name="room_name" required>
                             </div>
                             <div class="mb-4">
-                                <label for="building" class="block text-gray-700 font-medium mb-2">
-                                    Building
-                                </label>
-                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md"
-                                    id="building" name="building" required>
+                                <label for="building" class="block text-gray-700 font-medium mb-2">Building</label>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="building" name="building" required>
                             </div>
                             <div class="mb-4">
-                                <label for="capacity" class="block text-gray-700 font-medium mb-2">
-                                    Capacity
+                                <label for="capacity" class="block text-gray-700 font-medium mb-2">Capacity</label>
+                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="capacity" name="capacity" min="1" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="room_type" class="block text-gray-700 font-medium mb-2">Room Type</label>
+                                <select class="w-full px-4 py-2 border border-gray-300 rounded-md" id="room_type" name="room_type" required>
+                                    <option value="classroom">Classroom</option>
+                                    <option value="laboratory">Laboratory</option>
+                                    <option value="auditorium">Auditorium</option>
+                                    <option value="seminar_room">Seminar Room</option>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 font-medium mb-2">Shared</label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="shared" value="1" class="form-checkbox text-gold-500">
+                                    <span class="ml-2 text-gray-700">Share with other departments</span>
                                 </label>
-                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md"
-                                    id="capacity" name="capacity" min="1" required>
                             </div>
                         </div>
                         <div class="mt-8 flex space-x-4">
@@ -204,30 +233,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="mb-4">
                                 <label for="edit_room_name" class="block text-gray-700 font-medium mb-2">Room Name</label>
-                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="edit_room_name" name="room_name" required>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="edit_room_name" name="room_name" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="edit_building" class="block text-gray-700 font-medium mb-2">Building</label>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="edit_building" name="building" required>
                             </div>
                             <div class="mb-4">
                                 <label for="edit_capacity" class="block text-gray-700 font-medium mb-2">Capacity</label>
-                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="edit_capacity" name="capacity" min="1" required>
+                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="edit_capacity" name="capacity" min="1" required>
                             </div>
-                        </div>
-                        <div class="mb-4">
-                            <label for="edit_building" class="block text-gray-700 font-medium mb-2">
-                                Building
-                            </label>
-                            <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md"
-                                id="edit_building" name="building" required>
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-gray-700 font-medium mb-2">Availability</label>
-                            <label class="inline-flex items-center mr-4">
-                                <input type="radio" name="availability" value="1" class="form-radio text-gold-500">
-                                <span class="ml-2 text-gray-700">Available</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="availability" value="0" class="form-radio text-gold-500">
-                                <span class="ml-2 text-gray-700">Unavailable</span>
-                            </label>
+                            <div class="mb-4">
+                                <label for="edit_room_type" class="block text-gray-700 font-medium mb-2">Room Type</label>
+                                <select class="w-full px-4 py-2 border border-gray-300 rounded-md" id="edit_room_type" name="room_type" required>
+                                    <option value="classroom">Classroom</option>
+                                    <option value="laboratory">Laboratory</option>
+                                    <option value="auditorium">Auditorium</option>
+                                    <option value="seminar_room">Seminar Room</option>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 font-medium mb-2">Shared</label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" id="edit_shared" name="shared" value="1" class="form-checkbox text-gold-500">
+                                    <span class="ml-2 text-gray-700">Share with other departments</span>
+                                </label>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 font-medium mb-2">Availability</label>
+                                <select class="w-full px-4 py-2 border border-gray-300 rounded-md" id="edit_availability" name="availability" required>
+                                    <option value="available">Available</option>
+                                    <option value="unavailable">Unavailable</option>
+                                    <option value="under_maintenance">Under Maintenance</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="mt-8 flex space-x-4">
                             <button type="submit" class="px-6 py-2 bg-gold-500 text-white font-medium rounded-md hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-offset-2">
@@ -246,32 +285,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div id="searchClassroomModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
             <div class="bg-white rounded-lg shadow-md w-full max-w-2xl">
                 <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
-                    <h5 class="text-xl font-semibold">Search Available Classroom</h5>
+                    <h5 class="text-xl font-semibold">Search Available Classrooms</h5>
                     <button onclick="closeModal('searchClassroomModal')" class="text-white hover:text-gray-300 focus:outline-none">×</button>
                 </div>
                 <div class="p-6">
                     <form method="POST">
                         <input type="hidden" name="action" value="search">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="mb-4">
                                 <label for="search_date" class="block text-gray-700 font-medium mb-2">Date</label>
-                                <input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="search_date" name="search_date" required>
+                                <input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="search_date" name="search_date" required>
                             </div>
                             <div class="mb-4">
                                 <label for="search_time" class="block text-gray-700 font-medium mb-2">Time</label>
-                                <input type="time" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="search_time" name="search_time" required>
+                                <input type="time" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="search_time" name="search_time" required>
                             </div>
                             <div class="mb-4">
                                 <label for="search_department" class="block text-gray-700 font-medium mb-2">Department</label>
-                                <select class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500" id="search_department" name="search_department">
+                                <select class="w-full px-4 py-2 border border-gray-300 rounded-md" id="search_department" name="search_department">
                                     <option value="%">All Departments</option>
                                     <?php
-                                    $departments = $this->db->query("SELECT department_id, department_name FROM departments")->fetchAll(PDO::FETCH_ASSOC);
+                                    $departments = $db->query("SELECT department_id, department_name FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
                                     foreach ($departments as $dept): ?>
                                         <option value="<?= htmlspecialchars($dept['department_id']) ?>">
                                             <?= htmlspecialchars($dept['department_name']) ?>
                                         </option>
                                     <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label for="min_capacity" class="block text-gray-700 font-medium mb-2">Minimum Capacity</label>
+                                <input type="number" class="w-full px-4 py-2 border border-gray-300 rounded-md" id="min_capacity" name="min_capacity" min="0" value="0">
+                            </div>
+                            <div class="mb-4">
+                                <label for="room_type" class="block text-gray-700 font-medium mb-2">Room Type</label>
+                                <select class="w-full px-4 py-2 border border-gray-300 rounded-md" id="room_type" name="room_type">
+                                    <option value="">Any</option>
+                                    <option value="classroom">Classroom</option>
+                                    <option value="laboratory">Laboratory</option>
+                                    <option value="auditorium">Auditorium</option>
+                                    <option value="seminar_room">Seminar Room</option>
                                 </select>
                             </div>
                         </div>
@@ -284,25 +337,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </button>
                         </div>
                     </form>
-                    <?php if (isset($availableClassrooms) && !empty($availableClassrooms)): ?>
+                    <?php if (!empty($availableClassrooms)): ?>
                         <div class="mt-6">
                             <h3 class="text-lg font-semibold text-gray-800 mb-2">Available Classrooms</h3>
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Building</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Capacity</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room Type</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shared</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <?php
-                                    $departments = array_column($this->db->query("SELECT department_id, department_name FROM departments")->fetchAll(PDO::FETCH_ASSOC), 'department_name', 'department_id');
-                                    foreach ($availableClassrooms as $room): ?>
+                                    <?php foreach ($availableClassrooms as $room): ?>
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($room['room_name']) ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($room['building']) ?></td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($room['capacity']) ?></td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($departments[$room['department_id']] ?? 'Unknown') ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars(ucfirst($room['room_type'])) ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($room['department_name']) ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $room['shared'] ? 'Yes' : 'No' ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -332,13 +389,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Room Name</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Building</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Capacity</th>
+                                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Room Type</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Department</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">College</th>
+                                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Shared</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Status</th>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Actions</th>
                                 </tr>
                             </thead>
-
                             <tbody class="divide-y divide-gray-200">
                                 <?php foreach ($classrooms as $classroom): ?>
                                     <tr class="hover:bg-gray-50 transition-colors">
@@ -351,12 +409,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <td class="px-4 py-3 text-sm text-gray-600">
                                             <?= htmlspecialchars($classroom['capacity']) ?>
                                         </td>
-                                        <!-- Safely access department/college names -->
-                                        <td class="px-4 py-3 text-sm text-gray-600"><?= htmlspecialchars($classroom['department_name'] ?? 'N/A') ?></td>
-                                        <td class="px-4 py-3 text-sm text-gray-600"><?= htmlspecialchars($classroom['college_name'] ?? 'N/A') ?></td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                            <?= htmlspecialchars(ucfirst($classroom['room_type'])) ?>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                            <?= htmlspecialchars($classroom['department_name'] ?? 'N/A') ?>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                            <?= htmlspecialchars($classroom['college_name'] ?? 'N/A') ?>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">
+                                            <?= $classroom['shared'] ? 'Yes' : 'No' ?>
+                                        </td>
                                         <td class="px-4 py-3">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?= $classroom['availability'] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' ?>">
-                                                <?= $classroom['availability'] ? 'Available' : 'Unavailable' ?>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?= $classroom['availability'] === 'available' ? 'bg-green-100 text-green-800' : ($classroom['availability'] === 'unavailable' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800') ?>">
+                                                <?= htmlspecialchars(ucfirst($classroom['availability'])) ?>
                                             </span>
                                         </td>
                                         <td class="px-4 py-3 space-x-2">
@@ -386,13 +453,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function editClassroom(classroom) {
             document.getElementById('edit_room_id').value = classroom.room_id;
             document.getElementById('edit_room_name').value = classroom.room_name;
+            document.getElementById('edit_building').value = classroom.building;
             document.getElementById('edit_capacity').value = classroom.capacity;
-            document.querySelector(`input[name="availability"][value="${classroom.availability}"]`).checked = true;
+            document.getElementById('edit_room_type').value = classroom.room_type;
+            document.getElementById('edit_availability').value = classroom.availability;
+            document.getElementById('edit_shared').checked = classroom.shared == 1;
             openModal('editClassroomModal');
         }
     </script>
 </body>
-
 <?php
 $content = ob_get_clean();
 require_once __DIR__ . '/layout.php';
