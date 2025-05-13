@@ -388,23 +388,12 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>My Schedule</span>
             </a>
 
-            <!-- My Courses Link -->
-            <a href="/faculty/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/courses') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/faculty/courses') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
-                <span>My Courses</span>
-            </a>
-
             <!-- Profile Link -->
             <a href="/faculty/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/profile') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
                 <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/faculty/profile') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
                 <span>Profile</span>
             </a>
 
-            <!-- Settings Link -->
-            <a href="/faculty/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/settings') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/faculty/settings') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
-                <span>Settings</span>
-            </a>
         </nav>
 
         <!-- Sidebar Footer -->
