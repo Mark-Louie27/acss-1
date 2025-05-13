@@ -14,6 +14,29 @@ if (!isset($courses)) {
     $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+// Add this to your existing PHP code, near the other AJAX handlers
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'check_course_in_curriculum') {
+    header('Content-Type: application/json');
+    $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
+    $course_id = intval($_POST['course_id'] ?? 0);
+    $response = ['exists' => false];
+
+    if ($curriculum_id > 0 && $course_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses 
+                                WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
+            $stmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
+            $count = $stmt->fetchColumn();
+            $response['exists'] = $count > 0;
+        } catch (PDOException $e) {
+            $response['error'] = 'Error checking course: ' . htmlspecialchars($e->getMessage());
+        }
+    }
+
+    echo json_encode($response);
+    exit;
+}
+
 // Handle AJAX request for fetching curriculum courses
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_curriculum_courses') {
     header('Content-Type: application/json');
@@ -327,6 +350,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background-color: var(--prmsu-gray-light);
         color: var(--prmsu-gray-dark);
         line-height: 1.6;
+    }
+
+    /* Add these styles to your existing CSS */
+    #courseSearchInput {
+        transition: all 0.3s ease;
+        border: 1px solid var(--prmsu-gray);
+    }
+
+    #courseSearchInput:focus {
+        border-color: var(--prmsu-gold);
+        box-shadow: 0 0 0 3px rgba(239, 187, 15, 0.2);
+    }
+
+    #courseExistsNotification {
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+    }
+
+    #courseSelect option[style*="display: none"] {
+        display: none !important;
     }
 
     .font-heading {
@@ -880,15 +924,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </button>
             </div>
             <div class="p-6">
-                <form method="POST" class="space-y-5">
+                <!-- Add Search Bar Here -->
+                <div class="relative mb-4">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="w-5 h-5 text-prmsu-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    <input type="text" id="courseSearchInput" placeholder="Search courses..."
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors">
+                </div>
+
+                <!-- Add Notification Area for Course Existence Check -->
+                <div id="courseExistsNotification" class="hidden mb-4 p-3 rounded-lg bg-red-100 text-red-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span id="courseExistsMessage">This course already exists in the curriculum.</span>
+                </div>
+
+                <form method="POST" class="space-y-5" id="manageCoursesForm">
                     <input type="hidden" name="action" value="add_course">
                     <input type="hidden" name="curriculum_id" id="curriculumIdInput">
                     <div>
                         <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Select Course</label>
-                        <select name="course_id" class="focus-gold" required>
+                        <select name="course_id" id="courseSelect" class="focus-gold" required>
                             <option value="">-- Select Course --</option>
                             <?php foreach ($courses as $course): ?>
-                                <option value="<?= $course['course_id'] ?>"><?= htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']) ?></option>
+                                <option value="<?= $course['course_id'] ?>"
+                                    data-code="<?= htmlspecialchars($course['course_code']) ?>"
+                                    data-name="<?= htmlspecialchars($course['course_name']) ?>">
+                                    <?= htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -923,7 +990,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mt-6 pt-5 border-t border-prmsu-gray-light flex justify-end space-x-3">
                         <button type="button" onclick="closeModal('manageCoursesModal')"
                             class="btn-outline">Cancel</button>
-                        <button type="submit" class="btn-gold">Add Course</button>
+                        <button type="submit" class="btn-gold" id="addCourseButton">Add Course</button>
                     </div>
                 </form>
             </div>
@@ -1074,8 +1141,125 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     function openManageCoursesModal(curriculumId, curriculumName) {
         document.getElementById('curriculumIdInput').value = curriculumId;
         document.getElementById('manageCoursesTitle').textContent = `Manage Courses for ${curriculumName}`;
+
+        // Reset form and notification
+        document.getElementById('manageCoursesForm').reset();
+        document.getElementById('courseExistsNotification').classList.add('hidden');
+        document.getElementById('addCourseButton').disabled = false;
+
         openModal('manageCoursesModal');
+
+        // Focus on search input when modal opens
+        setTimeout(() => {
+            document.getElementById('courseSearchInput').focus();
+        }, 300);
     }
+
+    // Add event listeners for search functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Course search functionality
+        const courseSearchInput = document.getElementById('courseSearchInput');
+        if (courseSearchInput) {
+            courseSearchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const options = document.querySelectorAll('#courseSelect option');
+
+                options.forEach(option => {
+                    if (option.value === '') return; // Skip the first option
+
+                    const text = option.textContent.toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        option.style.display = '';
+                    } else {
+                        option.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        // Course existence check when selecting a course
+        const courseSelect = document.getElementById('courseSelect');
+        if (courseSelect) {
+            courseSelect.addEventListener('change', function() {
+                const curriculumId = document.getElementById('curriculumIdInput').value;
+                const courseId = this.value;
+
+                if (!courseId || !curriculumId) {
+                    document.getElementById('courseExistsNotification').classList.add('hidden');
+                    document.getElementById('addCourseButton').disabled = false;
+                    return;
+                }
+
+                // Check if course already exists in curriculum
+                fetch(window.location.href, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: `action=check_course_in_curriculum&curriculum_id=${encodeURIComponent(curriculumId)}&course_id=${encodeURIComponent(courseId)}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.exists) {
+                            const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+                            const courseCode = selectedOption.dataset.code;
+                            const courseName = selectedOption.dataset.name;
+
+                            document.getElementById('courseExistsMessage').textContent =
+                                `"${courseCode} - ${courseName}" already exists in this curriculum.`;
+                            document.getElementById('courseExistsNotification').classList.remove('hidden');
+                            document.getElementById('addCourseButton').disabled = true;
+                        } else {
+                            document.getElementById('courseExistsNotification').classList.add('hidden');
+                            document.getElementById('addCourseButton').disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking course:', error);
+                        document.getElementById('courseExistsNotification').classList.add('hidden');
+                        document.getElementById('addCourseButton').disabled = false;
+                    });
+            });
+        }
+
+        // Handle form submission for adding courses
+        const manageCoursesForm = document.getElementById('manageCoursesForm');
+        if (manageCoursesForm) {
+            manageCoursesForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const formData = new FormData(this);
+                const curriculumId = formData.get('curriculum_id');
+                const courseId = formData.get('course_id');
+
+                fetch(window.location.href, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showToast(data.success, 'bg-green-500');
+                            closeModal('manageCoursesModal');
+
+                            // Refresh the view courses modal if it's open
+                            if (document.getElementById('viewCoursesModal') &&
+                                !document.getElementById('viewCoursesModal').classList.contains('hidden')) {
+                                const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
+                                fetchCoursesAndRefreshModal(curriculumId, curriculumName);
+                            }
+                        } else if (data.error) {
+                            showToast(data.error, 'bg-red-500');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error adding course:', error);
+                        showToast('Failed to add course.', 'bg-red-500');
+                    });
+            });
+        }
+    });
 
     // View courses modal with grouping and remove functionality
     function openViewCoursesModal(courses, curriculumName, curriculumId) {

@@ -289,6 +289,9 @@
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
+  .top-1\/2 {
+    top: calc(1/2 * 100%);
+  }
   .top-3 {
     top: calc(var(--spacing) * 3);
   }
@@ -339,6 +342,9 @@
   }
   .z-50 {
     z-index: 50;
+  }
+  .z-\[1000\] {
+    z-index: 1000;
   }
   .container {
     width: 100%;
@@ -657,8 +663,16 @@
     --tw-translate-x: -100%;
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
+  .-translate-y-1\/2 {
+    --tw-translate-y: calc(calc(1/2 * 100%) * -1);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
   .translate-y-0 {
     --tw-translate-y: calc(var(--spacing) * 0);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+  }
+  .translate-y-4 {
+    --tw-translate-y: calc(var(--spacing) * 4);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
   .translate-y-8 {
@@ -835,6 +849,11 @@
       border-bottom-width: calc(1px * calc(1 - var(--tw-divide-y-reverse)));
     }
   }
+  .divide-\[var\(--prmsu-gray-light\)\] {
+    :where(& > :not(:last-child)) {
+      border-color: var(--prmsu-gray-light);
+    }
+  }
   .divide-gray-200 {
     :where(& > :not(:last-child)) {
       border-color: var(--color-gray-200);
@@ -916,6 +935,15 @@
     border-left-style: var(--tw-border-style);
     border-left-width: 4px;
   }
+  .border-\[var\(--prmsu-gold\)\] {
+    border-color: var(--prmsu-gold);
+  }
+  .border-\[var\(--prmsu-gray\)\] {
+    border-color: var(--prmsu-gray);
+  }
+  .border-\[var\(--prmsu-gray-light\)\] {
+    border-color: var(--prmsu-gray-light);
+  }
   .border-amber-500 {
     border-color: var(--color-amber-500);
   }
@@ -954,6 +982,21 @@
   }
   .border-yellow-500 {
     border-color: var(--color-yellow-500);
+  }
+  .bg-\[var\(--prmsu-gold\)\] {
+    background-color: var(--prmsu-gold);
+  }
+  .bg-\[var\(--prmsu-gray\)\] {
+    background-color: var(--prmsu-gray);
+  }
+  .bg-\[var\(--prmsu-gray-dark\)\] {
+    background-color: var(--prmsu-gray-dark);
+  }
+  .bg-\[var\(--prmsu-gray-light\)\] {
+    background-color: var(--prmsu-gray-light);
+  }
+  .bg-\[var\(--prmsu-white\)\] {
+    background-color: var(--prmsu-white);
   }
   .bg-\[var\(--solid-green\)\] {
     background-color: var(--solid-green);
@@ -1061,12 +1104,20 @@
     --tw-gradient-position: to right in oklab;
     background-image: linear-gradient(var(--tw-gradient-stops));
   }
+  .from-\[var\(--prmsu-gold-light\)\] {
+    --tw-gradient-from: var(--prmsu-gold-light);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
   .from-amber-50 {
     --tw-gradient-from: var(--color-amber-50);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
   .from-white {
     --tw-gradient-from: var(--color-white);
+    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
+  }
+  .to-\[var\(--prmsu-white\)\] {
+    --tw-gradient-to: var(--prmsu-white);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
   }
   .to-gray-50 {
@@ -1282,6 +1333,21 @@
   }
   .whitespace-nowrap {
     white-space: nowrap;
+  }
+  .text-\[var\(--prmsu-gold\)\] {
+    color: var(--prmsu-gold);
+  }
+  .text-\[var\(--prmsu-gray\)\] {
+    color: var(--prmsu-gray);
+  }
+  .text-\[var\(--prmsu-gray-dark\)\] {
+    color: var(--prmsu-gray-dark);
+  }
+  .text-\[var\(--prmsu-gray-light\)\] {
+    color: var(--prmsu-gray-light);
+  }
+  .text-\[var\(--prmsu-white\)\] {
+    color: var(--prmsu-white);
   }
   .text-amber-500 {
     color: var(--color-amber-500);
@@ -1595,6 +1661,13 @@
       }
     }
   }
+  .hover\:bg-\[var\(--prmsu-gray-light\)\] {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--prmsu-gray-light);
+      }
+    }
+  }
   .hover\:bg-amber-600 {
     &:hover {
       @media (hover: hover) {
@@ -1697,6 +1770,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-yellow-600);
+      }
+    }
+  }
+  .hover\:text-\[var\(--prmsu-gray-dark\)\] {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--prmsu-gray-dark);
       }
     }
   }

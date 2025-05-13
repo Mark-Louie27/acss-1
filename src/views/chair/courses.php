@@ -139,20 +139,6 @@ ob_start();
 
                 <!-- Form Content -->
                 <form method="POST" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6" id="addCourseForm">
-                    <!-- Course Code -->
-                    <div>
-                        <label for="course_code_add" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-tag text-gray-dark"></i>
-                            </div>
-                            <input type="text" id="course_code_add" name="course_code" required
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
-                                placeholder="e.g., CS101" aria-required="true">
-                        </div>
-                        <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
-                    </div>
-
                     <!-- Course Name -->
                     <div>
                         <label for="course_name_add" class="block text-sm font-medium text-gray-dark mb-1">Course Name <span class="text-red-500">*</span></label>
@@ -165,6 +151,20 @@ ob_start();
                                 placeholder="e.g., Introduction to Programming" aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
+                    </div>
+                    
+                    <!-- Course Code -->
+                    <div>
+                        <label for="course_code_add" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-tag text-gray-dark"></i>
+                            </div>
+                            <input type="text" id="course_code_add" name="course_code" required
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                placeholder="e.g., CS101" aria-required="true">
+                        </div>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
                     </div>
 
                     <!-- Program -->
