@@ -333,86 +333,134 @@ class DeanController
 
     public function faculty()
     {
-        $userId = $_SESSION['user_id'];
-        $collegeId = $this->getDeanCollegeId($userId);
-        $controller = $this;
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            error_log("faculty: No user_id in session");
+            http_response_code(401);
+            return ['error' => 'No user session'];
+        }
 
+        $collegeId = $this->getDeanCollegeId($userId);
         if (!$collegeId) {
-            error_log("No college found for dean user_id: $userId");
+            error_log("faculty: No college found for dean user_id: $userId");
+            http_response_code(403);
             return ['error' => 'No college assigned to this dean'];
         }
 
-        // Fetch Program Chairs
-        $queryChairs = "
+        try {
+            // Initialize variables for the view
+            $programChairs = [];
+            $faculty = [];
+            $requests = [];
+            $departments = [];
+            $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
+            $error = null;
+
+            // Fetch Program Chairs
+            $queryChairs = "
             SELECT u.*, pc.program_id, p.program_name, d.department_name, d.department_id
             FROM users u
-            JOIN program_chairs pc ON u.user_id = pc.user_id
+            JOIN faculty f ON u.user_id = f.user_id
+            JOIN program_chairs pc ON f.faculty_id = pc.faculty_id
             JOIN programs p ON pc.program_id = p.program_id
             JOIN departments d ON p.department_id = d.department_id
             WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.is_active = 1
             ORDER BY u.last_name, u.first_name";
-        $stmtChairs = $this->db->prepare($queryChairs);
-        $stmtChairs->execute([':college_id' => $collegeId]);
-        $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
+            $stmtChairs = $this->db->prepare($queryChairs);
+            if (!$stmtChairs) {
+                throw new PDOException("Failed to prepare queryChairs: " . implode(', ', $this->db->errorInfo()));
+            }
+            $stmtChairs->execute([':college_id' => $collegeId]);
+            $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
 
-        // Fetch Faculty (including those with schedules in the college)
-        $queryFaculty = "
+            // Fetch Faculty (including those with schedules in the college)
+            $queryFaculty = "
             SELECT DISTINCT u.*, f.academic_rank, f.employment_type, d.department_name, d.department_id
             FROM users u
             JOIN faculty f ON u.user_id = f.user_id
-            JOIN departments d ON f.department_id = d.department_id
+            JOIN departments d ON u.department_id = d.department_id
             LEFT JOIN schedules s ON f.faculty_id = s.faculty_id
             LEFT JOIN courses c ON s.course_id = c.course_id
             WHERE (d.college_id = :college_id1 OR c.department_id IN (
                 SELECT department_id FROM departments WHERE college_id = :college_id2
             )) AND u.is_active = 1
             ORDER BY u.last_name, u.first_name";
-        $stmtFaculty = $this->db->prepare($queryFaculty);
-        $stmtFaculty->execute([':college_id1' => $collegeId, ':college_id2' => $collegeId]);
-        $faculty = $stmtFaculty->fetchAll(PDO::FETCH_ASSOC);
+            $stmtFaculty = $this->db->prepare($queryFaculty);
+            if (!$stmtFaculty) {
+                throw new PDOException("Failed to prepare queryFaculty: " . implode(', ', $this->db->errorInfo()));
+            }
+            $stmtFaculty->execute([':college_id1' => $collegeId, ':college_id2' => $collegeId]);
+            $faculty = $stmtFaculty->fetchAll(PDO::FETCH_ASSOC);
 
-        // Fetch pending faculty requests
-        $queryRequests = "
+            // Fetch pending faculty requests
+            $queryRequests = "
             SELECT fr.*, d.department_name
             FROM faculty_requests fr
             JOIN departments d ON fr.department_id = d.department_id
             WHERE fr.college_id = :college_id AND fr.status = 'pending'
             ORDER BY fr.created_at";
-        $stmtRequests = $this->db->prepare($queryRequests);
-        $stmtRequests->execute([':college_id' => $collegeId]);
-        $requests = $stmtRequests->fetchAll(PDO::FETCH_ASSOC);
+            $stmtRequests = $this->db->prepare($queryRequests);
+            if (!$stmtRequests) {
+                throw new PDOException("Failed to prepare queryRequests: " . implode(', ', $this->db->errorInfo()));
+            }
+            $stmtRequests->execute([':college_id' => $collegeId]);
+            $requests = $stmtRequests->fetchAll(PDO::FETCH_ASSOC);
 
-        // Fetch departments for filter
-        $queryDepartments = "
+            // Fetch departments for filter
+            $queryDepartments = "
             SELECT department_id, department_name
             FROM departments
             WHERE college_id = :college_id
             ORDER BY department_name";
-        $stmtDepartments = $this->db->prepare($queryDepartments);
-        $stmtDepartments->execute([':college_id' => $collegeId]);
-        $departments = $stmtDepartments->fetchAll(PDO::FETCH_ASSOC);
+            $stmtDepartments = $this->db->prepare($queryDepartments);
+            if (!$stmtDepartments) {
+                throw new PDOException("Failed to prepare queryDepartments: " . implode(', ', $this->db->errorInfo()));
+            }
+            $stmtDepartments->execute([':college_id' => $collegeId]);
+            $departments = $stmtDepartments->fetchAll(PDO::FETCH_ASSOC);
 
-        // Fetch current semester
-        $querySemester = "
+            // Fetch current semester
+            $querySemester = "
             SELECT semester_name, academic_year
             FROM semesters
             WHERE is_current = 1
             LIMIT 1";
-        $stmtSemester = $this->db->prepare($querySemester);
-        $stmtSemester->execute();
-        $currentSemester = $stmtSemester->fetch(PDO::FETCH_ASSOC);
-
-        // Handle POST actions (accept, reject, deactivate)
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            if (isset($_POST['action']) && isset($_POST['user_id'])) {
-                $this->handleUserAction($_POST);
-            } elseif (isset($_POST['request_id'])) {
-                $this->handleFacultyRequest($_POST);
+            $stmtSemester = $this->db->prepare($querySemester);
+            if (!$stmtSemester) {
+                throw new PDOException("Failed to prepare querySemester: " . implode(', ', $this->db->errorInfo()));
             }
-        }
+            $stmtSemester->execute();
+            $currentSemester = $stmtSemester->fetch(PDO::FETCH_ASSOC) ?: ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
 
-        // Load faculty management view
-        require_once __DIR__ . '/../views/dean/faculty.php';
+            // Handle POST actions (accept, reject, deactivate)
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (isset($_POST['action'], $_POST['user_id']) && in_array($_POST['action'], ['accept', 'reject', 'deactivate'])) {
+                    $this->handleUserAction($_POST);
+                } elseif (isset($_POST['request_id']) && is_numeric($_POST['request_id'])) {
+                    $this->handleFacultyRequest($_POST);
+                } else {
+                    error_log("faculty: Invalid POST data");
+                    $error = "Invalid request data";
+                }
+            }
+
+            // Load faculty management view
+            require_once __DIR__ . '/../views/dean/faculty.php';
+        } catch (PDOException $e) {
+            error_log("faculty: PDO Error - " . $e->getMessage());
+            http_response_code(500);
+            $error = "Database error: " . $e->getMessage();
+            $programChairs = $faculty = $requests = $departments = [];
+            $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
+            require_once __DIR__ . '/../views/dean/faculty.php';
+        } catch (Exception $e) {
+            error_log("faculty: Error - " . $e->getMessage());
+            http_response_code(500);
+            $error = $e->getMessage();
+            $programChairs = $faculty = $requests = $departments = [];
+            $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
+            require_once __DIR__ . '/../views/dean/faculty.php';
+        }
     }
 
     private function handleUserAction($data)
@@ -895,94 +943,409 @@ class DeanController
     }
 
     public function settings()
-    {
-        $userId = $_SESSION['user_id'];
-        $collegeId = $this->getDeanCollegeId($userId);
+{
+    $userId = $_SESSION['user_id'] ?? null;
+    if (!$userId) {
+        error_log("settings: No user_id in session");
+        http_response_code(401);
+        return ['error' => 'No user session'];
+    }
 
-        // Add this line before requiring the view
-        $controller = $this;
+    $collegeId = $this->getDeanCollegeId($userId);
+    if (!$collegeId) {
+        error_log("settings: No college found for dean user_id: $userId");
+        http_response_code(403);
+        return ['error' => 'No college assigned to this dean'];
+    }
 
-        if (!$collegeId) {
-            error_log("No college found for dean user_id: $userId");
-            return ['error' => 'No college assigned to this dean'];
+    $controller = $this;
+    $error = null;
+    $success = null;
+
+    try {
+        // Generate CSRF token
+        if (!isset($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
-            $this->updateSettings($_POST, $collegeId);
+        // Handle POST actions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Validate CSRF token
+            if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+                error_log("settings: Invalid CSRF token");
+                $error = "Invalid request";
+                http_response_code(403);
+            } else {
+                if (isset($_POST['update_settings'])) {
+                    $result = $this->updateSettings($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                } elseif (isset($_POST['add_department'])) {
+                    $result = $this->addDepartment($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                } elseif (isset($_POST['edit_department'])) {
+                    $result = $this->editDepartment($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                } elseif (isset($_POST['delete_department'])) {
+                    $result = $this->deleteDepartment($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                } elseif (isset($_POST['add_program'])) {
+                    $result = $this->addProgram($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                } elseif (isset($_POST['edit_program'])) {
+                    $result = $this->editProgram($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                } elseif (isset($_POST['delete_program'])) {
+                    $result = $this->deleteProgram($_POST, $collegeId);
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $success = $result['success'];
+                    }
+                }
+            }
         }
+
+        // Fetch college details
+        $query = "SELECT college_name, logo_path FROM colleges WHERE college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        $college = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['college_name' => '', 'logo_path' => null];
+
+        // Fetch departments
+        $query = "SELECT department_id, department_name FROM departments WHERE college_id = :college_id ORDER BY department_name";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch programs
+        $query = "
+            SELECT p.program_id, p.program_name, p.department_id, d.department_name
+            FROM programs p
+            JOIN departments d ON p.department_id = d.department_id
+            WHERE d.college_id = :college_id AND p.is_active = 1
+            ORDER BY d.department_name, p.program_name";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Load settings view
         require_once __DIR__ . '/../views/dean/settings.php';
+    } catch (PDOException $e) {
+        error_log("settings: PDO Error - " . $e->getMessage());
+        $error = "Database error occurred";
+        http_response_code(500);
+        require_once __DIR__ . '/../views/dean/settings.php';
+    } catch (Exception $e) {
+        error_log("settings: Error - " . $e->getMessage());
+        $error = $e->getMessage();
+        http_response_code(500);
+        require_once __DIR__ . '/../views/dean/settings.php';
     }
+}
 
-    private function updateSettings($data, $collegeId)
-    {
-        try {
-            // Validate college name
-            if (empty($data['college_name']) || strlen($data['college_name']) > 100) {
-                error_log("Invalid college name provided");
-                header('Location: /dean/settings?error=College name must be 1-100 characters');
-                exit;
-            }
-
-            // Handle logo upload
-            $logoPath = null;
-            if (isset($_FILES['college_logo']) && $_FILES['college_logo']['error'] != UPLOAD_ERR_NO_FILE) {
-                $allowedTypes = ['image/png', 'image/jpeg', 'image/gif'];
-                $maxSize = 2 * 1024 * 1024; // 2MB
-                $fileType = $_FILES['college_logo']['type'];
-                $fileSize = $_FILES['college_logo']['size'];
-
-                if (!in_array($fileType, $allowedTypes)) {
-                    error_log("Invalid file type for college logo");
-                    header('Location: /dean/settings?error=Invalid file type. Use PNG, JPEG, or GIF');
-                    exit;
-                }
-
-                if ($fileSize > $maxSize) {
-                    error_log("College logo file too large: $fileSize bytes");
-                    header('Location: /dean/settings?error=File size exceeds 2MB limit');
-                    exit;
-                }
-
-                $uploadDir = __DIR__ . '/../uploads/colleges/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-
-                $fileName = 'college_' . $collegeId . '_' . time() . '.' . pathinfo($_FILES['college_logo']['name'], PATHINFO_EXTENSION);
-                $uploadPath = $uploadDir . $fileName;
-
-                if (move_uploaded_file($_FILES['college_logo']['tmp_name'], $uploadPath)) {
-                    $logoPath = '/uploads/colleges/' . $fileName;
-                } else {
-                    error_log("Failed to move uploaded college logo");
-                    header('Location: /dean/settings?error=Failed to upload logo');
-                    exit;
-                }
-            }
-
-            // Update college details
-            $query = "
-                UPDATE colleges 
-                SET college_name = :college_name" . ($logoPath ? ", logo_path = :logo_path" : "") . "
-                WHERE college_id = :college_id";
-            $stmt = $this->db->prepare($query);
-            $params = [
-                ':college_name' => $data['college_name'],
-                ':college_id' => $collegeId
-            ];
-            if ($logoPath) {
-                $params[':logo_path'] = $logoPath;
-            }
-            $stmt->execute($params);
-
-            header('Location: /dean/settings?success=Settings updated successfully');
-        } catch (PDOException $e) {
-            error_log("Error updating settings: " . $e->getMessage());
-            header('Location: /dean/settings?error=Failed to update settings');
+private function updateSettings($data, $collegeId)
+{
+    try {
+        // Validate college name
+        $collegeName = trim($data['college_name'] ?? '');
+        if (empty($collegeName) || strlen($collegeName) > 100) {
+            error_log("Invalid college name provided");
+            return ['error' => 'College name must be 1-100 characters'];
         }
+
+        // Handle logo upload
+        $logoPath = null;
+        if (isset($_FILES['college_logo']) && $_FILES['college_logo']['error'] != UPLOAD_ERR_NO_FILE) {
+            $allowedTypes = ['image/png', 'image/jpeg', 'image/gif'];
+            $maxSize = 2 * 1024 * 1024; // 2MB
+            $fileType = $_FILES['college_logo']['type'];
+            $fileSize = $_FILES['college_logo']['size'];
+
+            if (!in_array($fileType, $allowedTypes)) {
+                error_log("Invalid file type for college logo");
+                return ['error' => 'Invalid file type. Use PNG, JPEG, or GIF'];
+            }
+
+            if ($fileSize > $maxSize) {
+                error_log("College logo file too large: $fileSize bytes");
+                return ['error' => 'File size exceeds 2MB limit'];
+            }
+
+            $uploadDir = __DIR__ . '/../public/uploads/colleges/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $fileName = 'college_' . $collegeId . '_' . time() . '.' . pathinfo($_FILES['college_logo']['name'], PATHINFO_EXTENSION);
+            $uploadPath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($_FILES['college_logo']['tmp_name'], $uploadPath)) {
+                $logoPath = '/uploads/colleges/' . $fileName;
+            } else {
+                error_log("Failed to move uploaded college logo");
+                return ['error' => 'Failed to upload logo'];
+            }
+        }
+
+        // Update college details
+        $query = "
+            UPDATE colleges 
+            SET college_name = :college_name" . ($logoPath ? ", logo_path = :logo_path" : "") . "
+            WHERE college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $params = [
+            ':college_name' => $collegeName,
+            ':college_id' => $collegeId
+        ];
+        if ($logoPath) {
+            $params[':logo_path'] = $logoPath;
+        }
+        $stmt->execute($params);
+
+        return ['success' => 'Settings updated successfully'];
+    } catch (PDOException $e) {
+        error_log("updateSettings: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to update settings'];
     }
+}
+
+private function addDepartment($data, $collegeId)
+{
+    try {
+        $departmentName = trim($data['department_name'] ?? '');
+        if (empty($departmentName) || strlen($departmentName) > 100) {
+            error_log("Invalid department name provided");
+            return ['error' => 'Department name must be 1-100 characters'];
+        }
+
+        // Check if department exists
+        $query = "SELECT COUNT(*) FROM departments WHERE department_name = :department_name AND college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_name' => $departmentName, ':college_id' => $collegeId]);
+        if ($stmt->fetchColumn() > 0) {
+            error_log("Department already exists: $departmentName");
+            return ['error' => 'Department already exists'];
+        }
+
+        // Insert department
+        $query = "INSERT INTO departments (department_name, college_id) VALUES (:department_name, :college_id)";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_name' => $departmentName, ':college_id' => $collegeId]);
+
+        return ['success' => 'Department added successfully'];
+    } catch (PDOException $e) {
+        error_log("addDepartment: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to add department'];
+    }
+}
+
+private function editDepartment($data, $collegeId)
+{
+    try {
+        $departmentId = intval($data['department_id'] ?? 0);
+        $departmentName = trim($data['department_name'] ?? '');
+        if (empty($departmentName) || strlen($departmentName) > 100) {
+            error_log("Invalid department name provided");
+            return ['error' => 'Department name must be 1-100 characters'];
+        }
+
+        // Verify department belongs to college
+        $query = "SELECT COUNT(*) FROM departments WHERE department_id = :department_id AND college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_id' => $departmentId, ':college_id' => $collegeId]);
+        if ($stmt->fetchColumn() == 0) {
+            error_log("Department not found or unauthorized: $departmentId");
+            return ['error' => 'Department not found'];
+        }
+
+        // Update department
+        $query = "UPDATE departments SET department_name = :department_name WHERE department_id = :department_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_name' => $departmentName, ':department_id' => $departmentId]);
+
+        return ['success' => 'Department updated successfully'];
+    } catch (PDOException $e) {
+        error_log("editDepartment: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to update department'];
+    }
+}
+
+private function deleteDepartment($data, $collegeId)
+{
+    try {
+        $departmentId = intval($data['department_id'] ?? 0);
+
+        // Verify department belongs to college
+        $query = "SELECT COUNT(*) FROM departments WHERE department_id = :department_id AND college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_id' => $departmentId, ':college_id' => $collegeId]);
+        if ($stmt->fetchColumn() == 0) {
+            error_log("Department not found or unauthorized: $departmentId");
+            return ['error' => 'Department not found'];
+        }
+
+        // Check for dependent programs
+        $query = "SELECT COUNT(*) FROM programs WHERE department_id = :department_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_id' => $departmentId]);
+        if ($stmt->fetchColumn() > 0) {
+            error_log("Cannot delete department with programs: $departmentId");
+            return ['error' => 'Cannot delete department with associated programs'];
+        }
+
+        // Delete department
+        $query = "DELETE FROM departments WHERE department_id = :department_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_id' => $departmentId]);
+
+        return ['success' => 'Department deleted successfully'];
+    } catch (PDOException $e) {
+        error_log("deleteDepartment: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to delete department'];
+    }
+}
+
+private function addProgram($data, $collegeId)
+{
+    try {
+        $programName = trim($data['program_name'] ?? '');
+        $departmentId = intval($data['department_id'] ?? 0);
+        if (empty($programName) || strlen($programName) > 100) {
+            error_log("Invalid program name provided");
+            return ['error' => 'Program name must be 1-100 characters'];
+        }
+        if ($departmentId <= 0) {
+            error_log("Invalid department ID provided");
+            return ['error' => 'Invalid department selected'];
+        }
+
+        // Verify department belongs to college
+        $query = "SELECT COUNT(*) FROM departments WHERE department_id = :department_id AND college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':department_id' => $departmentId, ':college_id' => $collegeId]);
+        if ($stmt->fetchColumn() == 0) {
+            error_log("Department not found or unauthorized: $departmentId");
+            return ['error' => 'Department not found'];
+        }
+
+        // Check if program exists
+        $query = "SELECT COUNT(*) FROM programs WHERE program_name = :program_name AND department_id = :department_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':program_name' => $programName, ':department_id' => $departmentId]);
+        if ($stmt->fetchColumn() > 0) {
+            error_log("Program already exists: $programName");
+            return ['error' => 'Program already exists in this department'];
+        }
+
+        // Insert program
+        $query = "INSERT INTO programs (program_name, department_id, is_active) VALUES (:program_name, :department_id, 1)";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':program_name' => $programName, ':department_id' => $departmentId]);
+
+        return ['success' => 'Program added successfully'];
+    } catch (PDOException $e) {
+        error_log("addProgram: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to add program'];
+    }
+}
+
+private function editProgram($data, $collegeId)
+{
+    try {
+        $programId = intval($data['program_id'] ?? 0);
+        $programName = trim($data['program_name'] ?? '');
+        $departmentId = intval($data['department_id'] ?? 0);
+        if (empty($programName) || strlen($programName) > 100) {
+            error_log("Invalid program name provided");
+            return ['error' => 'Program name must be 1-100 characters'];
+        }
+        if ($departmentId <= 0) {
+            error_log("Invalid department ID provided");
+            return ['error' => 'Invalid department selected'];
+        }
+
+        // Verify program and department
+        $query = "
+            SELECT COUNT(*) 
+            FROM programs p
+            JOIN departments d ON p.department_id = d.department_id
+            WHERE p.program_id = :program_id AND d.college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':program_id' => $programId, ':college_id' => $collegeId]);
+        if ($stmt->fetchColumn() == 0) {
+            error_log("Program not found or unauthorized: $programId");
+            return ['error' => 'Program not found'];
+        }
+
+        // Update program
+        $query = "UPDATE programs SET program_name = :program_name, department_id = :department_id WHERE program_id = :program_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([
+            ':program_name' => $programName,
+            ':department_id' => $departmentId,
+            ':program_id' => $programId
+        ]);
+
+        return ['success' => 'Program updated successfully'];
+    } catch (PDOException $e) {
+        error_log("editProgram: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to update program'];
+    }
+}
+
+private function deleteProgram($data, $collegeId)
+{
+    try {
+        $programId = intval($data['program_id'] ?? 0);
+
+        // Verify program
+        $query = "
+            SELECT COUNT(*) 
+            FROM programs p
+            JOIN departments d ON p.department_id = d.department_id
+            WHERE p.program_id = :program_id AND d.college_id = :college_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':program_id' => $programId, ':college_id' => $collegeId]);
+        if ($stmt->fetchColumn() == 0) {
+            error_log("Program not found or unauthorized: $programId");
+            return ['error' => 'Program not found'];
+        }
+
+        // Delete program
+        $query = "DELETE FROM programs WHERE program_id = :program_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':program_id' => $programId]);
+
+        return ['success' => 'Program deleted successfully'];
+    } catch (PDOException $e) {
+        error_log("deleteProgram: PDO Error - " . $e->getMessage());
+        return ['error' => 'Failed to delete program'];
+    }
+}
 
     public function getDeanCollegeId($userId)
     {

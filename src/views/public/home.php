@@ -156,7 +156,7 @@
                         <i class="fas fa-sign-in-alt mr-2"></i>
                         <span>Login</span>
                     </a>
-                    <a href="/auth/register" class="btn-primary px-5 flex items-center">
+                    <a href="/register" class="btn-primary px-5 flex items-center">
                         <i class="fas fa-user-plus mr-2"></i>
                         <span>Register</span>
                     </a>

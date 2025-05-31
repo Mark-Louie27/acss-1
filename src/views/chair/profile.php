@@ -1,5 +1,6 @@
 <?php
 ob_start();
+
 ?>
 
 <!DOCTYPE html>
@@ -9,7 +10,7 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile | ACSS</title>
-    
+
     <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
     <style>
         :root {
@@ -120,8 +121,8 @@ ob_start();
                 </div>
                 <div>
                     <h1 class="text-3xl font-bold text-gray-dark"><?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?></h1>
-                    <p class="text-sm font-medium text-gold"><?php echo htmlspecialchars($user['role_name'] ?? 'Program Chair', ENT_QUOTES, 'UTF-8'); ?></p>
-                    <p class="text-sm text-gray-dark"><?php echo htmlspecialchars($user['department_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?> | <?php echo htmlspecialchars($user['college_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="text-sm font-medium text-gold"><?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="text-sm text-gray-dark"><?php echo htmlspecialchars($user['department_name'], ENT_QUOTES, 'UTF-8'); ?> | <?php echo htmlspecialchars($user['college_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                 </div>
             </div>
             <button id="editProfileBtn" class="btn-gold px-6 py-3 rounded-lg shadow-md hover:shadow-lg flex items-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-opacity-50">
@@ -151,7 +152,7 @@ ob_start();
                     </div>
                     <div class="bg-gray-50 p-4 rounded-lg text-center border border-gray-light">
                         <p class="text-sm text-gray-dark">Semester</p>
-                        <p class="text-xl font-bold text-gold"><?php echo htmlspecialchars($currentSemester ?? '2nd', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-xl font-bold text-gold"><?php echo htmlspecialchars($currentSemester, ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                 </div>
             </section>
@@ -164,27 +165,27 @@ ob_start();
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <p class="text-sm text-gray-dark">First Name</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['first_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Middle Name</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['middle_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['middle_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Last Name</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['last_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Suffix</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['suffix'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Email Address</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Phone Number</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['phone'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['phone'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                 </div>
             </section>
@@ -197,15 +198,15 @@ ob_start();
                 <div class="space-y-3">
                     <div>
                         <p class="text-sm text-gray-dark">Employee ID</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['employee_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['employee_id'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Department</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['department_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['department_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">College</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['college_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['college_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">College Code</p>
@@ -213,7 +214,7 @@ ob_start();
                     </div>
                     <div>
                         <p class="text-sm text-gray-dark">Role</p>
-                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['role_name'] ?? 'Chair', ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                 </div>
             </section>
@@ -230,7 +231,7 @@ ob_start();
                         </span>
                         <div>
                             <p class="text-sm text-gray-dark">Last Login</p>
-                            <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($lastLogin ?? 'January 1, 1970, 1:00 am', ENT_QUOTES, 'UTF-8'); ?></p>
+                            <p class="text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($lastLogin, ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                     </div>
                     <div class="flex items-center">
@@ -239,7 +240,7 @@ ob_start();
                         </span>
                         <div>
                             <p class="text-sm text-gray-dark">Profile Update</p>
-                            <p class="text-sm font-medium text-gray-dark">Last updated on <?php echo date('F d, Y', strtotime($user['updated_at'] ?? '2025-04-30')); ?></p>
+                            <p class="text-sm font-medium text-gray-dark">Last updated on <?php echo date('F d, Y', strtotime($user['updated_at'])); ?></p>
                         </div>
                     </div>
                 </div>
@@ -248,12 +249,10 @@ ob_start();
 
         <!-- Edit Profile Modal -->
         <div id="editProfileModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 transform modal-content scale-95">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                     <h3 class="text-xl font-bold text-gray-dark">Edit Profile</h3>
-                    <button id="closeModalBtn"
-                        class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200"
-                        aria-label="Close modal">
+                    <button id="closeModalBtn" class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200" aria-label="Close modal">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -266,7 +265,7 @@ ob_start();
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
                             <input type="text" id="first_name" name="first_name" required
-                                value="<?php echo htmlspecialchars($user['first_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>"
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
                                 aria-required="true">
                         </div>
@@ -281,7 +280,7 @@ ob_start();
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
                             <input type="text" id="middle_name" name="middle_name"
-                                value="<?php echo htmlspecialchars($user['middle_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($user['middle_name'], ENT_QUOTES, 'UTF-8'); ?>"
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
@@ -294,7 +293,7 @@ ob_start();
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
                             <input type="text" id="last_name" name="last_name" required
-                                value="<?php echo htmlspecialchars($user['last_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>"
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
                                 aria-required="true">
                         </div>
@@ -309,7 +308,7 @@ ob_start();
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
                             <input type="text" id="suffix" name="suffix"
-                                value="<?php echo htmlspecialchars($user['suffix'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?>"
                                 class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
@@ -322,8 +321,8 @@ ob_start();
                                 <i class="fas fa-envelope text-gray-dark"></i>
                             </div>
                             <input type="email" id="email" name="email" required
-                                value="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>"
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-300 bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
                                 aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Valid email is required.</p>
@@ -337,20 +336,19 @@ ob_start();
                                 <i class="fas fa-phone text-gray-dark"></i>
                             </div>
                             <input type="text" id="phone" name="phone"
-                                value="<?php echo htmlspecialchars($user['phone'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($user['phone'], ENT_QUOTES, 'UTF-8'); ?>"
                                 pattern="\d{10,12}" placeholder="10-12 digits"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-300 shadow-sm input-focus focus:ring focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-opacity-50">
                         </div>
-                        <p class="text-red-500 text-xs mt-1 hidden error-message">Phone number must be 10-12 digits.</p>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Phone number must be between 10-12 digits</p>
                     </div>
 
                     <!-- Profile Picture -->
                     <div class="md:col-span-2">
                         <label for="profile_picture" class="block text-sm font-medium text-gray-dark mb-1">Profile Picture</label>
                         <div class="file-input-wrapper">
-                            <input type="file" name="profile_picture" id="profile_picture"
-                                accept="image/jpeg,image/png,image/gif"
-                                class="w-full text-gray-dark file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-gray-50 file:text-gray-dark hover:file:bg-gray-100">
+                            <input type="file" name="profile_picture" id="profile_picture" accept="image/jpeg,image/png,image/gif"
+                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:bg-gray-50 file:text-gray-dark hover:file:bg-gray-100">
                             <p class="text-xs text-gray-dark mt-2">Accepted formats: JPEG, PNG, GIF (max 2MB)</p>
                         </div>
                     </div>
@@ -407,23 +405,29 @@ ob_start();
                     modal.classList.add('hidden');
                     document.body.style.overflow = 'auto';
                     // Reset form validation
-                    const form = modal.querySelector('form');
-                    form.querySelectorAll('.error-message').forEach(msg => msg.classList.add('hidden'));
-                    form.querySelectorAll('input').forEach(input => input.classList.remove('border-red-500'));
+                    const modalForm = modal.querySelector('form');
+                    modalForm.querySelectorAll('.error-message').forEach(msg => {
+                        msg.classList.add('hidden');
+                    });
+                    modalForm.querySelectorAll('input').forEach(input => {
+                        input.classList.remove('border-red-500');
+                    });
                 }, 200);
             }
 
             // Event Listeners
-            document.getElementById('editProfileBtn').addEventListener('click', openModal);
+            document.getElementById('editProfileModalBtn').addEventListener('click', openModal);
             document.getElementById('closeModalBtn').addEventListener('click', closeModal);
             document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
 
             // Close modal on backdrop click
             document.getElementById('editProfileModal').addEventListener('click', (e) => {
-                if (e.target === document.getElementById('editProfileModal')) closeModal();
+                if (e.target === document.getElementById('editProfileModal')) {
+                    closeModal();
+                }
             });
 
-            // Close modal on ESC key
+            // Close modal on ESC key press
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && !document.getElementById('editProfileModal').classList.contains('hidden')) {
                     closeModal();
@@ -431,10 +435,10 @@ ob_start();
             });
 
             // Form Validation
-            const form = document.querySelector('form');
-            form.addEventListener('submit', (e) => {
+            const modalForm = document.querySelector('form');
+            modalForm.addEventListener('submit', (e) => {
                 let isValid = true;
-                form.querySelectorAll('input[required]').forEach(input => {
+                modalForm.querySelectorAll('input[required]').forEach(input => {
                     const errorMessage = input.nextElementSibling?.nextElementSibling;
                     if (!input.value.trim()) {
                         input.classList.add('border-red-500');
@@ -460,8 +464,8 @@ ob_start();
 
                 const phoneInput = document.getElementById('phone');
                 const phoneError = phoneInput.nextElementSibling?.nextElementSibling;
-                const phoneRegex = /^\d{10,12}$/;
-                if (phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
+                const phoneRegex = /^(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/;
+                if (!phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
                     phoneInput.classList.add('border-red-500');
                     phoneError?.classList.remove('hidden');
                     isValid = false;
@@ -470,10 +474,12 @@ ob_start();
                     phoneError?.classList.add('hidden');
                 }
 
-                if (!isValid) e.preventDefault();
+                if (!isValid) {
+                    e.preventDefault();
+                }
             });
 
-            form.querySelectorAll('input[required]').forEach(input => {
+            modalForm.querySelectorAll('input[required]').forEach(input => {
                 input.addEventListener('input', () => {
                     const errorMessage = input.nextElementSibling?.nextElementSibling;
                     if (input.value.trim()) {
@@ -494,7 +500,7 @@ ob_start();
 
             document.getElementById('phone').addEventListener('input', function() {
                 const errorMessage = this.nextElementSibling?.nextElementSibling;
-                const phoneRegex = /^\d{10,12}$/;
+                const phoneRegex = /^(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/;
                 if (!this.value.trim() || phoneRegex.test(this.value.trim())) {
                     this.classList.remove('border-red-500');
                     errorMessage?.classList.add('hidden');

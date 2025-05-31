@@ -76,9 +76,10 @@ class ChairController
     public function getChairDepartment($chairId)
     {
         $stmt = $this->db->prepare("SELECT p.department_id 
-                                    FROM program_chairs pc 
-                                    JOIN programs p ON pc.program_id = p.program_id 
-                                    WHERE pc.user_id = :user_id AND pc.is_current = 1");
+                               FROM program_chairs pc 
+                               JOIN faculty f ON pc.faculty_id = f.faculty_id
+                               JOIN programs p ON pc.program_id = p.program_id 
+                               WHERE f.user_id = :user_id AND pc.is_current = 1");
         $stmt->execute([':user_id' => $chairId]);
         return $stmt->fetchColumn();
     }
@@ -1515,7 +1516,8 @@ class ChairController
                      LEFT JOIN faculty f ON u.user_id = f.user_id
                      LEFT JOIN departments d ON u.department_id = d.department_id
                      LEFT JOIN colleges c ON u.college_id = c.college_id
-                     LEFT JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
+                     LEFT JOIN faculty f2 ON u.user_id = f2.user_id
+                     LEFT JOIN program_chairs pc ON f2.faculty_id = pc.faculty_id AND pc.is_current = 1
                      LEFT JOIN programs p ON pc.program_id = p.program_id
                      LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
                  WHERE 
@@ -1523,7 +1525,8 @@ class ChairController
                      AND u.college_id = :college_id
                      AND u.department_id = :department_id
                      AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
-                 ORDER BY u.last_name, u.first_name LIMIT 10
+                 ORDER BY u.last_name, u.first_name
+                 LIMIT 10
              ";
             $params = [
                 ':college_id' => $collegeId,
@@ -1571,7 +1574,8 @@ class ChairController
                      AND (u.college_id = :college_id OR u.college_id IS NULL)
                      AND (u.department_id != :department_id OR u.department_id IS NULL)
                      AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
-                 ORDER BY u.last_name, u.first_name LIMIT 10
+                 ORDER BY u.last_name, u.first_name
+                 LIMIT 10
              ";
             $includableParams = [
                 ':college_id' => $collegeId,
@@ -1646,38 +1650,41 @@ class ChairController
             error_log("faculty: No department assigned for chairId: $chairId");
         }
 
-        // Fetch current faculty members in the chair's department
+        // Function to fetch faculty list
+        $fetchFaculty = function ($collegeId, $departmentId) {
+            $query = "
+            SELECT 
+                u.user_id, 
+                u.employee_id, 
+                u.first_name, 
+                u.last_name, 
+                f.academic_rank, 
+                f.employment_type, 
+                d.department_name, 
+                c.college_name
+            FROM 
+                faculty f 
+                JOIN users u ON f.user_id = u.user_id 
+                JOIN departments d ON u.department_id = d.department_id
+                JOIN colleges c ON u.college_id = c.college_id
+            WHERE 
+                u.college_id = :college_id 
+                AND u.department_id = :department_id
+            ORDER BY 
+                u.last_name, u.first_name
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':college_id' => $collegeId,
+                ':department_id' => $departmentId
+            ]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        };
+
+        // Fetch current faculty members
         if ($departmentId && $collegeId) {
             try {
-                $query = "
-                     SELECT 
-                         u.user_id, 
-                         u.employee_id, 
-                         u.first_name, 
-                         u.last_name, 
-                         f.academic_rank, 
-                         f.employment_type, 
-                         d.department_name, 
-                         c.college_name
-                     FROM 
-                         faculty f 
-                         JOIN users u ON f.user_id = u.user_id 
-                         JOIN departments d ON u.department_id = d.department_id
-                         JOIN colleges c ON u.college_id = c.college_id
-                     WHERE 
-                         u.college_id = :college_id 
-                         AND u.department_id = :department_id
-                     ORDER BY 
-                         u.last_name, u.first_name
-                 ";
-                $params = [
-                    ':college_id' => $collegeId,
-                    ':department_id' => $departmentId
-                ];
-
-                $stmt = $this->db->prepare($query);
-                $stmt->execute($params);
-                $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $faculty = $fetchFaculty($collegeId, $departmentId);
             } catch (PDOException $e) {
                 $error = "Failed to load faculty: " . htmlspecialchars($e->getMessage());
                 error_log("faculty: Faculty Fetch Error: " . $e->getMessage());
@@ -1700,72 +1707,54 @@ class ChairController
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_faculty'])) {
             try {
                 $userId = intval($_POST['user_id']);
-                if ($departmentId) {
-                    $checkStmt = $this->db->prepare("SELECT user_id FROM users WHERE user_id = :user_id AND department_id = :department_id");
-                    $checkStmt->execute([':user_id' => $userId, ':department_id' => $departmentId]);
+                if ($departmentId && $collegeId) {
+                    // Validate user exists and has role_id = 6
+                    $checkStmt = $this->db->prepare("SELECT role_id, department_id FROM users WHERE user_id = :user_id");
+                    $checkStmt->execute([':user_id' => $userId]);
+                    $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
-                    if ($checkStmt->fetchColumn()) {
+                    if (!$user) {
+                        $error = "User does not exist.";
+                        error_log("faculty: User ID $userId does not exist");
+                    } elseif ($user['role_id'] != 6) {
+                        $error = "Only faculty members can be added to the department.";
+                        error_log("faculty: User ID $userId has invalid role_id: {$user['role_id']}");
+                    } elseif ($user['department_id'] == $departmentId) {
                         $error = "This faculty member is already in your department.";
+                        error_log("faculty: User ID $userId already in department_id: $departmentId");
                     } else {
-                        $roleStmt = $this->db->prepare("SELECT role_id FROM users WHERE user_id = :user_id");
-                        $roleStmt->execute([':user_id' => $userId]);
-                        $roleId = $roleStmt->fetchColumn();
+                        // Update users table
+                        $updateStmt = $this->db->prepare("UPDATE users SET department_id = :department_id, college_id = :college_id WHERE user_id = :user_id");
+                        $updateStmt->execute([
+                            ':department_id' => $departmentId,
+                            ':college_id' => $collegeId,
+                            ':user_id' => $userId
+                        ]);
 
-                        if ($roleId == 6) {
-                            $updateStmt = $this->db->prepare("UPDATE users SET department_id = :department_id WHERE user_id = :user_id");
-                            $updateStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
-
-                            $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
-                            $facultyCheckStmt->execute([':user_id' => $userId]);
-                            if ($facultyCheckStmt->fetchColumn()) {
-                                $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = :department_id WHERE user_id = :user_id");
-                                $updateFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
-                            } else {
-                                $insertFacultyStmt = $this->db->prepare("
-                                     INSERT INTO faculty (user_id, employee_id, academic_rank, employment_type, department_id)
-                                     SELECT user_id, employee_id, 'Instructor', 'Part-time', :department_id
-                                     FROM users WHERE user_id = :user_id
-                                 ");
-                                $insertFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
-                            }
-
-                            $success = "Faculty member added to your department successfully.";
-
-                            // Refresh faculty list
-                            $query = "
-                                 SELECT 
-                                     u.user_id, 
-                                     u.employee_id, 
-                                     u.first_name, 
-                                     u.last_name, 
-                                     f.academic_rank, 
-                                     f.employment_type, 
-                                     d.department_name, 
-                                     c.college_name
-                                 FROM 
-                                     faculty f 
-                                     JOIN users u ON f.user_id = u.user_id 
-                                     JOIN departments d ON u.department_id = d.department_id
-                                     JOIN colleges c ON u.college_id = c.college_id
-                                 WHERE 
-                                     u.college_id = :college_id 
-                                     AND u.department_id = :department_id
-                                 ORDER BY 
-                                     u.last_name, u.first_name
-                             ";
-                            $params = [
-                                ':college_id' => $collegeId,
-                                ':department_id' => $departmentId
-                            ];
-                            $stmt = $this->db->prepare($query);
-                            $stmt->execute($params);
-                            $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        // Update or insert faculty record
+                        $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyCheckStmt->execute([':user_id' => $userId]);
+                        if ($facultyCheckStmt->fetchColumn()) {
+                            $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = :department_id WHERE user_id = :user_id");
+                            $updateFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
                         } else {
-                            $error = "Only faculty members can be added to the department.";
+                            $insertFacultyStmt = $this->db->prepare("
+                            INSERT INTO faculty (user_id, employee_id, academic_rank, employment_type, department_id)
+                            SELECT user_id, employee_id, 'Instructor', 'Part-time', :department_id
+                            FROM users WHERE user_id = :user_id
+                        ");
+                            $insertFacultyStmt->execute([':department_id' => $departmentId, ':user_id' => $userId]);
                         }
+
+                        $success = "Faculty member added to your department successfully.";
+                        error_log("faculty: Added user_id: $userId to department_id: $departmentId");
+
+                        // Refresh faculty list
+                        $faculty = $fetchFaculty($collegeId, $departmentId);
                     }
                 } else {
                     $error = "Cannot add faculty: No department assigned to this chair.";
+                    error_log("faculty: Cannot add faculty, no department_id for chairId: $chairId");
                 }
             } catch (PDOException $e) {
                 $error = "Failed to add faculty: " . htmlspecialchars($e->getMessage());
@@ -1783,47 +1772,23 @@ class ChairController
 
                     if (!$checkStmt->fetchColumn()) {
                         $error = "This faculty member is not in your department.";
+                        error_log("faculty: User ID $userId not in department_id: $departmentId");
                     } else {
-                        $updateStmt = $this->db->prepare("UPDATE users SET department_id = NULL WHERE user_id = :user_id");
+                        $updateStmt = $this->db->prepare("UPDATE users SET department_id = NULL, college_id = NULL WHERE user_id = :user_id");
                         $updateStmt->execute([':user_id' => $userId]);
 
                         $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET department_id = NULL WHERE user_id = :user_id");
                         $updateFacultyStmt->execute([':user_id' => $userId]);
 
                         $success = "Faculty member removed from your department successfully.";
+                        error_log("faculty: Removed user_id: $userId from department_id: $departmentId");
 
                         // Refresh faculty list
-                        $query = "
-                             SELECT 
-                                 u.user_id, 
-                                 u.employee_id, 
-                                 u.first_name, 
-                                 u.last_name, 
-                                 f.academic_rank, 
-                                 f.employment_type, 
-                                 d.department_name, 
-                                 c.college_name
-                             FROM 
-                                 faculty f 
-                                 JOIN users u ON f.user_id = u.user_id 
-                                 JOIN departments d ON u.department_id = d.department_id
-                                 JOIN colleges c ON u.college_id = c.college_id
-                             WHERE 
-                                 u.college_id = :college_id 
-                                 AND u.department_id = :department_id
-                             ORDER BY 
-                                 u.last_name, u.first_name
-                         ";
-                        $params = [
-                            ':college_id' => $collegeId,
-                            ':department_id' => $departmentId
-                        ];
-                        $stmt = $this->db->prepare($query);
-                        $stmt->execute($params);
-                        $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        $faculty = $fetchFaculty($collegeId, $departmentId);
                     }
                 } else {
                     $error = "Cannot remove faculty: No department assigned to this chair.";
+                    error_log("faculty: Cannot remove faculty, no department_id for chairId: $chairId");
                 }
             } catch (PDOException $e) {
                 $error = "Failed to remove faculty: " . htmlspecialchars($e->getMessage());
@@ -1844,6 +1809,16 @@ class ChairController
     {
         error_log("profile: Starting profile method");
 
+        // Initialize variables to ensure they are defined
+        $user = null;
+        $facultyCount = 0;
+        $coursesCount = 0;
+        $pendingApplicantsCount = 0;
+        $currentSemester = '2nd';
+        $lastLogin = 'January 1, 1970, 1:00 am';
+        $error = null;
+        $success = null;
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $uploadDir = __DIR__ . '/../public/uploads/profiles/';
@@ -1852,7 +1827,7 @@ class ChairController
                 }
 
                 $data = [
-                    'user_id' => $_SESSION['user_id'],
+                    'user_id' => $_SESSION['user_id'] ?? null,
                     'email' => trim($_POST['email'] ?? ''),
                     'phone' => trim($_POST['phone'] ?? ''),
                     'first_name' => trim($_POST['first_name'] ?? ''),
@@ -1861,6 +1836,10 @@ class ChairController
                     'suffix' => trim($_POST['suffix'] ?? ''),
                     'college_id' => $_SESSION['college_id'] ?? null
                 ];
+
+                if (!$data['user_id']) {
+                    throw new Exception("No user session found.");
+                }
 
                 $errors = [];
                 if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
@@ -1930,52 +1909,61 @@ class ChairController
             } catch (PDOException $e) {
                 error_log("profile: Error updating profile - " . $e->getMessage());
                 $error = "Failed to update profile.";
+            } catch (Exception $e) {
+                error_log("profile: Error - " . $e->getMessage());
+                $error = $e->getMessage();
             }
         }
 
         try {
+            // Validate session
+            if (!isset($_SESSION['user_id'])) {
+                throw new Exception("No user session found.");
+            }
+
             // Fetch user data
             $stmt = $this->db->prepare("
-                SELECT u.*, d.department_name, c.college_name, r.role_name
-                FROM users u
-                LEFT JOIN departments d ON u.department_id = d.department_id
-                LEFT JOIN colleges c ON u.college_id = c.college_id
-                LEFT JOIN roles r ON u.role_id = r.role_id
-                LEFT JOIN program_chairs pc ON u.user_id = pc.user_id
-                WHERE u.user_id = :user_id AND (pc.is_current = 1 OR pc.is_current IS NULL)
-            ");
+            SELECT u.*, d.department_name, c.college_name, r.role_name
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON u.college_id = c.college_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            LEFT JOIN faculty f ON u.user_id = f.user_id
+            LEFT JOIN program_chairs pc ON f.faculty_id = pc.faculty_id AND pc.is_current = 1
+            WHERE u.user_id = :user_id
+        ");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
-                throw new Exception("User not found");
+                throw new Exception("User not found.");
             }
 
             // Fetch faculty count for the department
             $stmt = $this->db->prepare("
-                SELECT COUNT(*) as facultyCount 
-                FROM faculty f 
-                JOIN department_instructors di ON f.user_id = di.user_id 
-                WHERE di.department_id = :department_id AND di.is_current = 1
-            ");
+            SELECT COUNT(*) as facultyCount 
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            WHERE u.department_id = :department_id
+        ");
             $stmt->execute([':department_id' => $user['department_id']]);
             $facultyCount = $stmt->fetch(PDO::FETCH_ASSOC)['facultyCount'];
 
             // Fetch courses count for the department
             $stmt = $this->db->prepare("
-                SELECT COUNT(*) as coursesCount 
-                FROM courses c 
-                WHERE c.department_id = :department_id AND c.is_active = 1
-            ");
+            SELECT COUNT(*) as coursesCount 
+            FROM courses c 
+            WHERE c.department_id = :department_id AND c.is_active = 1
+        ");
             $stmt->execute([':department_id' => $user['department_id']]);
             $coursesCount = $stmt->fetch(PDO::FETCH_ASSOC)['coursesCount'];
 
             // Fetch pending applicants count from faculty_requests
             $stmt = $this->db->prepare("
-                SELECT COUNT(*) as pendingApplicantsCount 
-                FROM faculty_requests fr 
-                WHERE fr.department_id = :department_id AND fr.status = 'pending'
-            ");
+            SELECT COUNT(*) as pendingApplicantsCount 
+            FROM faculty_requests fr 
+            WHERE fr.department_id = :department_id AND fr.status = 'pending'
+        ");
             $stmt->execute([':department_id' => $user['department_id']]);
             $pendingApplicantsCount = $stmt->fetch(PDO::FETCH_ASSOC)['pendingApplicantsCount'];
 
@@ -1986,18 +1974,34 @@ class ChairController
 
             // Fetch last login from auth_logs
             $stmt = $this->db->prepare("
-                SELECT created_at FROM auth_logs 
-                WHERE user_id = :user_id AND action = 'login_success' 
-                ORDER BY created_at DESC LIMIT 1
-            ");
+            SELECT created_at FROM auth_logs 
+            WHERE user_id = :user_id AND action = 'login_success' 
+            ORDER BY created_at DESC LIMIT 1
+        ");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
             $lastLogin = $stmt->fetch(PDO::FETCH_ASSOC)['created_at'] ?? 'January 1, 1970, 1:00 am';
-
-            require_once __DIR__ . '/../views/chair/profile.php';
         } catch (Exception $e) {
             error_log("profile: Error - " . $e->getMessage());
             $error = "Failed to load profile.";
-            require_once __DIR__ . '/../views/chair/profile.php';
+            // Initialize $user with default values to prevent view errors
+            $user = [
+                'user_id' => $_SESSION['user_id'] ?? 0,
+                'first_name' => '',
+                'last_name' => '',
+                'middle_name' => '',
+                'suffix' => '',
+                'email' => '',
+                'phone' => '',
+                'profile_picture' => '',
+                'employee_id' => '',
+                'department_name' => '',
+                'college_name' => '',
+                'college_id' => null,
+                'role_name' => 'Chair',
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
         }
+
+        require_once __DIR__ . '/../views/chair/profile.php';
     }
 }
