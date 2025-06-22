@@ -18,10 +18,61 @@ require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 // Define route handler functions
 function handleAdminRoutes($path)
 {
+    error_log("Entering handleAdminRoutes with path: $path");
     AuthMiddleware::handle('admin'); // Require admin role
-    http_response_code(404);
-    echo "Admin routes not implemented";
-    exit;
+
+    require_once __DIR__ . '/../src/controllers/AdminController.php';
+    $controller = new AdminController();
+
+    // Normalize path for comparison
+    $normalizedPath = '/' . trim($path, '/');
+    error_log("Normalized path: $normalizedPath");
+
+    switch ($normalizedPath) {
+        case '/admin/dashboard':
+            error_log("Routing to AdminController::dashboard");
+            $controller->dashboard();
+            break;
+        case '/admin/users':
+            error_log("Routing to AdminController::users");
+            $controller->users();
+            break;
+        case '/admin/users/create':
+            error_log("Routing to AdminController::createUser");
+            $controller->createUser();
+            break;
+        case '/admin/colleges':
+        case '/admin/departments': // Redirect departments to colleges
+            error_log("Routing to AdminController::collegesDepartments");
+            $controller->collegesDepartments();
+            break;
+        case '/admin/colleges_departments/create':
+            error_log("Routing to AdminController::createCollegeDepartment");
+            $controller->createCollegeDepartment();
+            break;
+        case '/admin/faculty':
+            error_log("Routing to AdminController::faculty");
+            $controller->faculty();
+            break;
+        case '/admin/faculty/create':
+            error_log("Routing to AdminController::createFaculty");
+            $controller->createFaculty();
+            break;
+        case '/admin/schedules':
+            error_log("Routing to AdminController::schedules");
+            $controller->schedules();
+            break;
+        case '/admin/logout':
+            error_log("Routing to AuthController::logout");
+            require_once __DIR__ . '/../src/controllers/AuthController.php';
+            (new AuthController())->logout();
+            exit;
+        default:
+            error_log("No matching admin route for: $normalizedPath");
+            http_response_code(404);
+            echo "404 Not Found: $normalizedPath";
+            exit;
+    }
 }
 
 function handleVpaaRoutes($path)
