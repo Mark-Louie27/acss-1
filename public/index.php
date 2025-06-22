@@ -33,6 +33,10 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::dashboard");
             $controller->dashboard();
             break;
+        case '/admin/act_logs':
+            error_log("Routing to AdminController::activityLogs");
+            $controller->activityLogs();
+            break;
         case '/admin/users':
             error_log("Routing to AdminController::users");
             $controller->users();
@@ -61,6 +65,14 @@ function handleAdminRoutes($path)
         case '/admin/schedules':
             error_log("Routing to AdminController::schedules");
             $controller->schedules();
+            break;
+        case '/admin/profile':
+            error_log("Routing to AdminController::profile");
+            $controller->profile();
+            break;
+        case '/admin/settings':
+            error_log("Routing to AdminController::settings");
+            $controller->settings();
             break;
         case '/admin/logout':
             error_log("Routing to AuthController::logout");
