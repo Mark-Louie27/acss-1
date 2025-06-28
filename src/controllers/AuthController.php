@@ -65,7 +65,7 @@ class AuthController
                 'role_id' => intval($_POST['role_id']),
                 'college_id' => intval($_POST['college_id']),
                 'department_id' => intval($_POST['department_id']),
-                'classification' => $_POST['classification'] ?? null,
+                'classification' => $_POST['classification'] ?? '',
                 'academic_rank' => $_POST['academic_rank'] ?? 'Instructor',
                 'employment_type' => $_POST['employment_type'] ?? 'Regular'
             ];

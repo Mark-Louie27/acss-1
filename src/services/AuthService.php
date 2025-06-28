@@ -23,7 +23,7 @@ class AuthService
         try {
             $query = "
             SELECT u.user_id, u.employee_id, u.username, u.first_name, u.last_name, 
-                   u.password_hash, u.role_id, u.is_active
+                   u.password_hash, u.role_id, u.profile_picture, u.is_active
             FROM users u
             WHERE u.employee_id = :employee_id
         ";
@@ -40,7 +40,8 @@ class AuthService
                     'username' => $user['username'],
                     'first_name' => $user['first_name'],
                     'last_name' => $user['last_name'],
-                    'role_id' => $user['role_id']
+                    'role_id' => $user['role_id'],
+                    'profile_picture' => $user['profile_picture'] ?? null, // Default profile picture
                 ];
             } else {
                 $this->logAuthAction(null, 'login_failed', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $employeeId);
@@ -133,7 +134,7 @@ class AuthService
                             'employee_id' => $data['employee_id'],
                             'academic_rank' => $data['academic_rank'] ?? 'Instructor',
                             'employment_type' => $data['employment_type'] ?? 'Regular',
-                            'department_id' => $data['department_id'],
+                            'classification' => $data['classification'] ?? 'TL',
                             'primary_program_id' => $program_id
                         ]);
                         if (!$success) {
@@ -153,6 +154,19 @@ class AuthService
             error_log("Error during registration: " . $e->getMessage());
             throw $e; // Re-throw to let the controller handle the error
         }
+    }
+
+    public function verifyCsrfToken($token)
+    {
+        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    }
+
+    public function generateCsrfToken()
+    {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
     }
 
     /**
@@ -200,6 +214,7 @@ class AuthService
         $_SESSION['first_name'] = $user['first_name'];
         $_SESSION['last_name'] = $user['last_name'];
         $_SESSION['role_id'] = $user['role_id'];  // Integer
+        $_SESSION['profile_picture'] = $user['profile_picture'] ?? null; // Default profile picture
         $_SESSION['logged_in'] = true;
 
         session_regenerate_id(true);  // Prevent session fixation

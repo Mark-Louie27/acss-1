@@ -7,6 +7,9 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['r
 
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
+
+// Fetch profile picture from session or database
+$profilePicture = $_SESSION['profile_picture'] ?? null;
 ?>
 
 <!DOCTYPE html>
@@ -325,9 +328,14 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
                     <button class="flex items-center text-gray-600 hover:text-gold-400 focus:outline-none">
-                        <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
-                            src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?>&background=D4A017&color=FFFFFF"
-                            alt="Profile">
+                        <?php if (!empty($profilePicture)): ?>
+                            <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
+                                src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                        <?php else: ?>
+                            <div class="h-8 w-8 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-sm font-bold">
+                                <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                            </div>
+                        <?php endif; ?>
                         <span class="ml-2 hidden sm:inline text-sm font-medium"><?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
@@ -361,11 +369,16 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <!-- User Profile Section -->
         <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
             <div class="flex items-center space-x-3">
-                <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
-                    src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?>&background=D4A017&color=FFFFFF"
-                    alt="Profile">
+                <?php if (!empty($profilePicture)): ?>
+                    <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
+                        src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                <?php else: ?>
+                    <div class="h-12 w-12 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                        <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                    </div>
+                <?php endif; ?>
                 <div>
-                    <p class="font-medium text-white"><?= htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?></p>
+                    <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-gold-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>Faculty</span>
@@ -377,23 +390,22 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <!-- Navigation -->
         <nav class="mt-4 px-2">
             <!-- Dashboard Link -->
-            <a href="/faculty/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/dashboard') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/faculty/dashboard') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/faculty/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/faculty/dashboard') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
+                <i class="fas fa-tachometer-alt w-5 mr-3 <?php echo strpos($currentUri, '/faculty/dashboard') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
                 <span>Dashboard</span>
             </a>
 
             <!-- My Schedule Link -->
-            <a href="/faculty/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/schedule') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/faculty/schedule') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/faculty/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/faculty/schedule') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo strpos($currentUri, '/faculty/schedule') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
                 <span>My Schedule</span>
             </a>
 
             <!-- Profile Link -->
-            <a href="/faculty/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/profile') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/faculty/profile') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/faculty/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/faculty/profile') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
+                <i class="fas fa-user-circle w-5 mr-3 <?php echo strpos($currentUri, '/faculty/profile') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
                 <span>Profile</span>
             </a>
-
         </nav>
 
         <!-- Sidebar Footer -->
@@ -437,9 +449,9 @@ $currentUri = $_SERVER['REQUEST_URI'];
                                 <div class="flex items-center">
                                     <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
                                     <?php if ($isLast): ?>
-                                        <span class="text-gold-400 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
+                                        <span class="text-gold-400 font-medium"><?php echo ucfirst(str_replace('-', ' ', $segment)); ?></span>
                                     <?php else: ?>
-                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-gold-400"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
+                                        <a href="<?php echo $path; ?>" class="text-gray-500 hover:text-gold-400"><?php echo ucfirst(str_replace('-', ' ', $segment)); ?></a>
                                     <?php endif; ?>
                                 </div>
                             </li>
@@ -513,3 +525,4 @@ $currentUri = $_SERVER['REQUEST_URI'];
 </body>
 
 </html>
+```

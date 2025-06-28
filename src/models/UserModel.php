@@ -199,9 +199,9 @@ class UserModel
         try {
             $query = "
                 INSERT INTO faculty (
-                    user_id, employee_id, academic_rank, employment_type, classification, department_id, primary_program_id
+                    user_id, employee_id, academic_rank, employment_type, classification, primary_program_id
                 ) VALUES (
-                    :user_id, :employee_id, :academic_rank, :employment_type, :classification, :department_id, :primary_program_id
+                    :user_id, :employee_id, :academic_rank, :employment_type, :classification, :primary_program_id
                 )
             ";
             $stmt = $this->db->prepare($query);
@@ -210,14 +210,13 @@ class UserModel
                 ':employee_id' => $data['employee_id'],
                 ':academic_rank' => $data['academic_rank'],
                 ':employment_type' => $data['employment_type'],
-                ':classification' => $data['classification'] ?? null,
-                ':department_id' => $data['department_id'],
+                ':classification' => $data['classification'],
                 ':primary_program_id' => $data['primary_program_id'] ?? null
             ]);
             return true;
         } catch (PDOException $e) {
             error_log("Error creating faculty: " . $e->getMessage());
-            return false;
+            throw new Exception("Failed to create faculty record: " . $e->getMessage());
         }
     }
 
@@ -466,5 +465,12 @@ class UserModel
             error_log("Error fetching programs by department: " . $e->getMessage());
             return [];
         }
+    }
+
+    public function employeeIdExists($employee_id)
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM faculty WHERE employee_id = :employee_id");
+        $stmt->execute([':employee_id' => $employee_id]);
+        return $stmt->fetchColumn() > 0;
     }
 }
