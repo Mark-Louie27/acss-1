@@ -1030,9 +1030,6 @@
   .bg-\[var\(--solid-red\)\] {
     background-color: var(--solid-red);
   }
-  .bg-amber-400 {
-    background-color: var(--color-amber-400);
-  }
   .bg-amber-500 {
     background-color: var(--color-amber-500);
   }

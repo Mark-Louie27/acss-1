@@ -34,7 +34,7 @@ class ApiController
             SELECT d.department_id
             FROM departments d
             JOIN users u ON u.department_id = d.department_id
-            JOIN program_chairs pc ON pc.user_id = u.user_id
+            JOIN program_chairs pc ON pc.chair_id = u.user_id
             WHERE u.user_id = :user_id
             LIMIT 1
         ");

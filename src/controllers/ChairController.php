@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../../vendor/autoload.php'; // Make sure to install PhpSpreadsheet via Composer
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -8,6 +9,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 class ChairController
 {
     public $db;
+    private $authService;
 
     public function __construct()
     {
@@ -19,6 +21,8 @@ class ChairController
         }
         $this->restrictToChair();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $this->authService = new AuthService($this->db);
     }
 
     public function getDb()
@@ -1807,185 +1811,116 @@ class ChairController
      */
     public function profile()
     {
-        error_log("profile: Starting profile method");
+        try {
+            if (!$this->authService->isLoggedIn()) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view your profile'];
+                header('Location: /login');
+                exit;
+            }
 
-        // Initialize variables to ensure they are defined
-        $user = null;
-        $facultyCount = 0;
-        $coursesCount = 0;
-        $pendingApplicantsCount = 0;
-        $currentSemester = '2nd';
-        $lastLogin = 'January 1, 1970, 1:00 am';
-        $error = null;
-        $success = null;
+            $userId = $_SESSION['user_id'];
+            $csrfToken = $this->authService->generateCsrfToken();
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            try {
-                $uploadDir = __DIR__ . '/../public/uploads/profiles/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                    header('Location: /chair/profile');
+                    exit;
                 }
 
                 $data = [
-                    'user_id' => $_SESSION['user_id'] ?? null,
                     'email' => trim($_POST['email'] ?? ''),
                     'phone' => trim($_POST['phone'] ?? ''),
                     'first_name' => trim($_POST['first_name'] ?? ''),
                     'middle_name' => trim($_POST['middle_name'] ?? ''),
                     'last_name' => trim($_POST['last_name'] ?? ''),
                     'suffix' => trim($_POST['suffix'] ?? ''),
-                    'college_id' => $_SESSION['college_id'] ?? null
+                    'user_id' => $userId
                 ];
-
-                if (!$data['user_id']) {
-                    throw new Exception("No user session found.");
-                }
 
                 $errors = [];
                 if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = "Valid email is required.";
+                    $errors[] = 'Valid email is required.';
                 }
-                if (empty($data['first_name'])) {
-                    $errors[] = "First name is required.";
-                }
-                if (empty($data['last_name'])) {
-                    $errors[] = "Last name is required.";
-                }
+                if (empty($data['first_name'])) $errors[] = 'First name is required.';
+                if (empty($data['last_name'])) $errors[] = 'Last name is required.';
                 if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
-                    $errors[] = "Phone number must be 10-12 digits.";
+                    $errors[] = 'Phone number must be 10-12 digits.';
                 }
 
-                // Handle file upload
                 if (!empty($_FILES['profile_picture']['name'])) {
-                    $file = $_FILES['profile_picture'];
-                    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-                    $maxSize = 2 * 1024 * 1024; // 2MB
-
-                    if (!in_array($file['type'], $allowedTypes)) {
-                        $errors[] = "Only JPG, PNG, and GIF files are allowed.";
-                    } elseif ($file['size'] > $maxSize) {
-                        $errors[] = "File size must be less than 2MB.";
+                    $profilePicture = $this->handleProfilePictureUpload($userId);
+                    if (is_string($profilePicture) && strpos($profilePicture, 'Error') === 0) {
+                        $errors[] = $profilePicture;
                     } else {
-                        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-                        $filename = 'profile_' . $data['user_id'] . '_' . time() . '.' . $extension;
-                        $targetPath = $uploadDir . $filename;
-
-                        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-                            $data['profile_picture'] = '/uploads/profiles/' . $filename;
-                        } else {
-                            $errors[] = "Failed to upload profile picture.";
-                        }
+                        $data['profile_picture'] = $profilePicture;
                     }
                 }
 
                 if (empty($errors)) {
                     $setClause = [];
                     $params = [];
-
-                    foreach (['email', 'phone', 'first_name', 'middle_name', 'last_name', 'suffix'] as $field) {
-                        $setClause[] = "$field = :$field";
-                        $params[":$field"] = $data[$field];
+                    foreach (['email', 'phone', 'first_name', 'middle_name', 'last_name', 'suffix', 'profile_picture'] as $field) {
+                        if (isset($data[$field])) {
+                            $setClause[] = "$field = :$field";
+                            $params[":$field"] = $data[$field];
+                        }
                     }
+                    $params[':user_id'] = $userId;
 
-                    if (isset($data['profile_picture'])) {
-                        $setClause[] = "profile_picture = :profile_picture";
-                        $params[':profile_picture'] = $data['profile_picture'];
-                    }
-
-                    $query = "UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id";
-                    $params[':user_id'] = $data['user_id'];
-
-                    $stmt = $this->db->prepare($query);
+                    $stmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
                     $stmt->execute($params);
 
-                    // Update session variables
                     $_SESSION['first_name'] = $data['first_name'];
                     $_SESSION['email'] = $data['email'];
-                    $success = "Profile updated successfully.";
+                    $_SESSION['profile_picture'] = $profilePicture;
+                    if (isset($data['profile_picture'])) {
+                        $_SESSION['profile_picture'] = $data['profile_picture'];
+                    }
+                    $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
                 } else {
-                    error_log("profile: Validation errors - " . implode(", ", $errors));
-                    $error = implode("<br>", $errors);
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => implode('<br>', $errors)];
                 }
-            } catch (PDOException $e) {
-                error_log("profile: Error updating profile - " . $e->getMessage());
-                $error = "Failed to update profile.";
-            } catch (Exception $e) {
-                error_log("profile: Error - " . $e->getMessage());
-                $error = $e->getMessage();
-            }
-        }
-
-        try {
-            // Validate session
-            if (!isset($_SESSION['user_id'])) {
-                throw new Exception("No user session found.");
+                header('Location: /chair/profile');
+                exit;
             }
 
-            // Fetch user data
+            // Fetch user data and stats
             $stmt = $this->db->prepare("
-            SELECT u.*, d.department_name, c.college_name, r.role_name
-            FROM users u
-            LEFT JOIN departments d ON u.department_id = d.department_id
-            LEFT JOIN colleges c ON u.college_id = c.college_id
-            LEFT JOIN roles r ON u.role_id = r.role_id
-            LEFT JOIN faculty f ON u.user_id = f.user_id
-            LEFT JOIN program_chairs pc ON f.faculty_id = pc.faculty_id AND pc.is_current = 1
-            WHERE u.user_id = :user_id
-        ");
-            $stmt->execute([':user_id' => $_SESSION['user_id']]);
+                SELECT u.*, d.department_name, c.college_name, r.role_name,
+                       (SELECT COUNT(*) FROM faculty f JOIN users fu ON f.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
+                       (SELECT COUNT(*) FROM courses c WHERE c.department_id = u.department_id AND c.is_active = 1) as coursesCount,
+                       (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
+                       (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
+                       (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                LEFT JOIN colleges c ON u.college_id = c.college_id
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN faculty f ON u.user_id = f.user_id
+                LEFT JOIN program_chairs pc ON f.faculty_id = pc.faculty_id AND pc.is_current = 1
+                WHERE u.user_id = :user_id
+            ");
+            $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
-                throw new Exception("User not found.");
+                throw new Exception('User not found.');
             }
 
-            // Fetch faculty count for the department
-            $stmt = $this->db->prepare("
-            SELECT COUNT(*) as facultyCount 
-            FROM faculty f 
-            JOIN users u ON f.user_id = u.user_id 
-            WHERE u.department_id = :department_id
-        ");
-            $stmt->execute([':department_id' => $user['department_id']]);
-            $facultyCount = $stmt->fetch(PDO::FETCH_ASSOC)['facultyCount'];
+            // Extract stats
+            $facultyCount = $user['facultyCount'] ?? 0;
+            $coursesCount = $user['coursesCount'] ?? 0;
+            $pendingApplicantsCount = $user['pendingApplicantsCount'] ?? 0;
+            $currentSemester = $user['currentSemester'] ?? '2nd';
+            $lastLogin = $user['lastLogin'] ?? 'January 1, 1970, 1:00 am';
 
-            // Fetch courses count for the department
-            $stmt = $this->db->prepare("
-            SELECT COUNT(*) as coursesCount 
-            FROM courses c 
-            WHERE c.department_id = :department_id AND c.is_active = 1
-        ");
-            $stmt->execute([':department_id' => $user['department_id']]);
-            $coursesCount = $stmt->fetch(PDO::FETCH_ASSOC)['coursesCount'];
-
-            // Fetch pending applicants count from faculty_requests
-            $stmt = $this->db->prepare("
-            SELECT COUNT(*) as pendingApplicantsCount 
-            FROM faculty_requests fr 
-            WHERE fr.department_id = :department_id AND fr.status = 'pending'
-        ");
-            $stmt->execute([':department_id' => $user['department_id']]);
-            $pendingApplicantsCount = $stmt->fetch(PDO::FETCH_ASSOC)['pendingApplicantsCount'];
-
-            // Fetch current semester
-            $stmt = $this->db->prepare("SELECT semester_name FROM semesters WHERE is_current = 1");
-            $stmt->execute();
-            $currentSemester = $stmt->fetch(PDO::FETCH_ASSOC)['semester_name'] ?? '2nd';
-
-            // Fetch last login from auth_logs
-            $stmt = $this->db->prepare("
-            SELECT created_at FROM auth_logs 
-            WHERE user_id = :user_id AND action = 'login_success' 
-            ORDER BY created_at DESC LIMIT 1
-        ");
-            $stmt->execute([':user_id' => $_SESSION['user_id']]);
-            $lastLogin = $stmt->fetch(PDO::FETCH_ASSOC)['created_at'] ?? 'January 1, 1970, 1:00 am';
+            require_once __DIR__ . '/../views/chair/profile.php';
         } catch (Exception $e) {
             error_log("profile: Error - " . $e->getMessage());
-            $error = "Failed to load profile.";
-            // Initialize $user with default values to prevent view errors
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load profile.'];
             $user = [
-                'user_id' => $_SESSION['user_id'] ?? 0,
+                'user_id' => $userId,
                 'first_name' => '',
                 'last_name' => '',
                 'middle_name' => '',
@@ -1996,12 +1931,48 @@ class ChairController
                 'employee_id' => '',
                 'department_name' => '',
                 'college_name' => '',
-                'college_id' => null,
                 'role_name' => 'Chair',
                 'updated_at' => date('Y-m-d H:i:s')
             ];
+            $facultyCount = $coursesCount = $pendingApplicantsCount = 0;
+            $currentSemester = '2nd';
+            $lastLogin = 'January 1, 1970, 1:00 am';
+            require_once __DIR__ . '/../views/chair/profile.php';
+        }
+    }
+
+    private function handleProfilePictureUpload($userId)
+    {
+        $file = $_FILES['profile_picture'];
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        $maxSize = 2 * 1024 * 1024;
+        $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/profiles/';
+
+        if (!in_array($file['type'], $allowedTypes)) {
+            return 'Error: Only JPG, PNG, and GIF files are allowed.';
+        }
+        if ($file['size'] > $maxSize) {
+            return 'Error: File size must be less than 2MB.';
+        }
+        if (!getimagesize($file['tmp_name'])) {
+            return 'Error: Invalid image file.';
         }
 
-        require_once __DIR__ . '/../views/chair/profile.php';
+        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $filename = "profile_{$userId}_" . time() . ".{$extension}";
+        $targetPath = $uploadDir . $filename;
+
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $stmt = $this->db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
+        $stmt->execute([':user_id' => $userId]);
+        $currentPicture = $stmt->fetchColumn();
+        if ($currentPicture && file_exists($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
+            unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture);
+        }
+
+        return move_uploaded_file($file['tmp_name'], $targetPath) ? "/uploads/profiles/{$filename}" : 'Error: Failed to upload file.';
     }
 }

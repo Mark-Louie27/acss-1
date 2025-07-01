@@ -4,6 +4,20 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['r
     header('Location: /login?error=Unauthorized access');
     exit;
 }
+// Fetch profile picture from session or database
+$profilePicture = $_SESSION['profile_picture'] ?? null;
+if (!$profilePicture) {
+    try {
+        $db = (new Database())->connect();
+        $stmt = $db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
+        $stmt->execute([':user_id' => $_SESSION['user_id']]);
+        $profilePicture = $stmt->fetchColumn() ?: '';
+        $_SESSION['profile_picture'] = $profilePicture; // Cache in session
+    } catch (PDOException $e) {
+        error_log("layout: Error fetching profile picture - " . $e->getMessage());
+        $profilePicture = '';
+    }
+}
 
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
@@ -336,24 +350,28 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
             <!-- Right: User Profile and Notifications -->
             <div class="flex items-center space-x-4">
-
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
-                    <button class="flex items-center text-gray-600 hover:text-gold-500 focus:outline-none">
-                        <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
-                            src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?>&background=D4AF37&color=FFFFFF"
-                            alt="Profile">
+                    <button class="flex items-center text-gray-600 hover:text-gold-400 focus:outline-none">
+                        <?php if (!empty($profilePicture)): ?>
+                            <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
+                                src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                        <?php else: ?>
+                            <div class="h-8 w-8 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-sm font-bold">
+                                <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                            </div>
+                        <?php endif; ?>
                         <span class="ml-2 hidden sm:inline text-sm font-medium"><?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
                     <div class="dropdown-menu right-0 mt-2">
-                        <a href="/chair/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-gold-300">
+                        <a href="/chair/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
                             <i class="fas fa-user w-5 mr-2"></i> Profile
                         </a>
-                        <a href="/chair/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-gold-300">
+                        <a href="/chair/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
                             <i class="fas fa-cog w-5 mr-2"></i> Settings
                         </a>
-                        <a href="/chair/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-gold-300">
+                        <a href="/chair/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
                             <i class="fas fa-sign-out-alt w-5 mr-2"></i> Logout
                         </a>
                     </div>
@@ -376,14 +394,19 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <!-- User Profile Section -->
         <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
             <div class="flex items-center space-x-3">
-                <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
-                    src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?>&background=D4AF37&color=FFFFFF"
-                    alt="Profile">
+                <?php if (!empty($profilePicture)): ?>
+                    <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
+                        src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                <?php else: ?>
+                    <div class="h-12 w-12 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                        <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                    </div>
+                <?php endif; ?>
                 <div>
-                    <p class="font-medium text-white"><?= htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?></p>
-                    <div class="flex items-center text-xs text-gold-300">
+                    <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
+                    <div class="flex items-center text-xs text-gold-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
-                        <span>Program Chair</span>
+                        <span>Faculty</span>
                     </div>
                 </div>
             </div>

@@ -1,6 +1,5 @@
 <?php
 ob_start();
-
 ?>
 
 <!DOCTYPE html>
@@ -10,7 +9,6 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile | ACSS</title>
-
     <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
     <style>
         :root {
@@ -106,10 +104,7 @@ ob_start();
 
 <body class="bg-gray-light font-sans antialiased">
     <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
-
-    <!-- Main Content -->
     <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <!-- Header Section -->
         <header class="bg-white rounded-xl shadow-lg p-6 mb-8 flex flex-col sm:flex-row items-center justify-between slide-in-left">
             <div class="flex items-center mb-4 sm:mb-0">
                 <div class="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mr-4 overflow-hidden border-4 border-gold">
@@ -129,10 +124,7 @@ ob_start();
                 <i class="fas fa-edit mr-2"></i> Edit Profile
             </button>
         </header>
-
-        <!-- Main Content -->
         <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Quick Stats Card -->
             <section class="bg-white rounded-xl shadow-lg p-6 lg:col-span-1 fade-in">
                 <h2 class="text-lg font-semibold text-gray-dark mb-4 flex items-center">
                     <i class="fas fa-chart-bar mr-2 text-gold"></i> Quick Stats
@@ -156,8 +148,6 @@ ob_start();
                     </div>
                 </div>
             </section>
-
-            <!-- Personal Information Card -->
             <section class="bg-white rounded-xl shadow-lg p-6 lg:col-span-2 fade-in">
                 <h2 class="text-lg font-semibold text-gray-dark mb-4 flex items-center">
                     <i class="fas fa-user mr-2 text-gold"></i> Personal Information
@@ -189,8 +179,6 @@ ob_start();
                     </div>
                 </div>
             </section>
-
-            <!-- Department Information Card -->
             <section class="bg-white rounded-xl shadow-lg p-6 lg:col-span-1 fade-in">
                 <h2 class="text-lg font-semibold text-gray-dark mb-4 flex items-center">
                     <i class="fas fa-building mr-2 text-gold"></i> Department Information
@@ -218,8 +206,6 @@ ob_start();
                     </div>
                 </div>
             </section>
-
-            <!-- Recent Activity Card -->
             <section class="bg-white rounded-xl shadow-lg p-6 lg:col-span-2 fade-in">
                 <h2 class="text-lg font-semibold text-gray-dark mb-4 flex items-center">
                     <i class="fas fa-clock mr-2 text-gold"></i> Recent Activity
@@ -246,8 +232,6 @@ ob_start();
                 </div>
             </section>
         </main>
-
-        <!-- Edit Profile Modal -->
         <div id="editProfileModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -257,121 +241,85 @@ ob_start();
                     </button>
                 </div>
                 <form method="POST" enctype="multipart/form-data" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- First Name -->
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <div>
                         <label for="first_name" class="block text-sm font-medium text-gray-dark mb-1">First Name <span class="text-red-500">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
-                            <input type="text" id="first_name" name="first_name" required
-                                value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
-                                aria-required="true">
+                            <input type="text" id="first_name" name="first_name" required value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50" aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">First name is required.</p>
                     </div>
-
-                    <!-- Middle Name -->
                     <div>
                         <label for="middle_name" class="block text-sm font-medium text-gray-dark mb-1">Middle Name</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
-                            <input type="text" id="middle_name" name="middle_name"
-                                value="<?php echo htmlspecialchars($user['middle_name'], ENT_QUOTES, 'UTF-8'); ?>"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                            <input type="text" id="middle_name" name="middle_name" value="<?php echo htmlspecialchars($user['middle_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
-
-                    <!-- Last Name -->
                     <div>
                         <label for="last_name" class="block text-sm font-medium text-gray-dark mb-1">Last Name <span class="text-red-500">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
-                            <input type="text" id="last_name" name="last_name" required
-                                value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
-                                aria-required="true">
+                            <input type="text" id="last_name" name="last_name" required value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50" aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Last name is required.</p>
                     </div>
-
-                    <!-- Suffix -->
                     <div>
                         <label for="suffix" class="block text-sm font-medium text-gray-dark mb-1">Suffix</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-user text-gray-dark"></i>
                             </div>
-                            <input type="text" id="suffix" name="suffix"
-                                value="<?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?>"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                            <input type="text" id="suffix" name="suffix" value="<?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
                         </div>
                     </div>
-
-                    <!-- Email Address -->
                     <div class="md:col-span-2">
                         <label for="email" class="block text-sm font-medium text-gray-dark mb-1">Email Address <span class="text-red-500">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-envelope text-gray-dark"></i>
                             </div>
-                            <input type="email" id="email" name="email" required
-                                value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-300 bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
-                                aria-required="true">
+                            <input type="email" id="email" name="email" required value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-300 bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50" aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Valid email is required.</p>
                     </div>
-
-                    <!-- Phone Number -->
                     <div class="md:col-span-2">
                         <label for="phone" class="block text-sm font-medium text-gray-dark mb-1">Phone Number</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-phone text-gray-dark"></i>
                             </div>
-                            <input type="text" id="phone" name="phone"
-                                value="<?php echo htmlspecialchars($user['phone'], ENT_QUOTES, 'UTF-8'); ?>"
-                                pattern="\d{10,12}" placeholder="10-12 digits"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-300 shadow-sm input-focus focus:ring focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-opacity-50">
+                            <input type="text" id="phone" name="phone" value="<?php echo htmlspecialchars($user['phone'], ENT_QUOTES, 'UTF-8'); ?>" pattern="\d{10,12}" placeholder="10-12 digits" class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-300 shadow-sm input-focus focus:ring focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-opacity-50">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Phone number must be between 10-12 digits</p>
                     </div>
-
-                    <!-- Profile Picture -->
                     <div class="md:col-span-2">
                         <label for="profile_picture" class="block text-sm font-medium text-gray-dark mb-1">Profile Picture</label>
                         <div class="file-input-wrapper">
-                            <input type="file" name="profile_picture" id="profile_picture" accept="image/jpeg,image/png,image/gif"
-                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:bg-gray-50 file:text-gray-dark hover:file:bg-gray-100">
+                            <input type="file" name="profile_picture" id="profile_picture" accept="image/jpeg,image/png,image/gif" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:bg-gray-50 file:text-gray-dark hover:file:bg-gray-100">
                             <p class="text-xs text-gray-dark mt-2">Accepted formats: JPEG, PNG, GIF (max 2MB)</p>
                         </div>
                     </div>
-
-                    <!-- Action Buttons -->
                     <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
-                        <button type="button" id="cancelModalBtn"
-                            class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
+                        <button type="button" id="cancelModalBtn" class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
                         <button type="submit" class="btn-gold px-5 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium">Save Changes</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Toast Notifications
-            <?php if (isset($success)): ?>
-                showToast('<?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?>', 'bg-green-500');
-            <?php endif; ?>
-            <?php if (isset($error)): ?>
-                showToast('<?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>', 'bg-red-500');
+            <?php if (isset($_SESSION['flash'])): ?>
+                showToast('<?php echo htmlspecialchars($_SESSION['flash']['message'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $_SESSION['flash']['type'] === 'success' ? 'bg-green-500' : 'bg-red-500'; ?>');
+                <?php unset($_SESSION['flash']); ?>
             <?php endif; ?>
 
             function showToast(message, bgColor) {
@@ -386,7 +334,6 @@ ob_start();
                 }, 5000);
             }
 
-            // Modal Functions
             function openModal() {
                 const modal = document.getElementById('editProfileModal');
                 const modalContent = modal.querySelector('.modal-content');
@@ -404,37 +351,19 @@ ob_start();
                 setTimeout(() => {
                     modal.classList.add('hidden');
                     document.body.style.overflow = 'auto';
-                    // Reset form validation
-                    const modalForm = modal.querySelector('form');
-                    modalForm.querySelectorAll('.error-message').forEach(msg => {
-                        msg.classList.add('hidden');
-                    });
-                    modalForm.querySelectorAll('input').forEach(input => {
-                        input.classList.remove('border-red-500');
-                    });
+                    modal.querySelectorAll('.error-message').forEach(msg => msg.classList.add('hidden'));
+                    modal.querySelectorAll('input').forEach(input => input.classList.remove('border-red-500'));
                 }, 200);
             }
-
-            // Event Listeners
-            document.getElementById('editProfileModalBtn').addEventListener('click', openModal);
+            document.getElementById('editProfileBtn').addEventListener('click', openModal);
             document.getElementById('closeModalBtn').addEventListener('click', closeModal);
             document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
-
-            // Close modal on backdrop click
             document.getElementById('editProfileModal').addEventListener('click', (e) => {
-                if (e.target === document.getElementById('editProfileModal')) {
-                    closeModal();
-                }
+                if (e.target === document.getElementById('editProfileModal')) closeModal();
             });
-
-            // Close modal on ESC key press
             document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && !document.getElementById('editProfileModal').classList.contains('hidden')) {
-                    closeModal();
-                }
+                if (e.key === 'Escape' && !document.getElementById('editProfileModal').classList.contains('hidden')) closeModal();
             });
-
-            // Form Validation
             const modalForm = document.querySelector('form');
             modalForm.addEventListener('submit', (e) => {
                 let isValid = true;
@@ -449,7 +378,6 @@ ob_start();
                         errorMessage?.classList.add('hidden');
                     }
                 });
-
                 const emailInput = document.getElementById('email');
                 const emailError = emailInput.nextElementSibling?.nextElementSibling;
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -461,11 +389,10 @@ ob_start();
                     emailInput.classList.remove('border-red-500');
                     emailError?.classList.add('hidden');
                 }
-
                 const phoneInput = document.getElementById('phone');
                 const phoneError = phoneInput.nextElementSibling?.nextElementSibling;
-                const phoneRegex = /^(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/;
-                if (!phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
+                const phoneRegex = /^\d{10,12}$/;
+                if (phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
                     phoneInput.classList.add('border-red-500');
                     phoneError?.classList.remove('hidden');
                     isValid = false;
@@ -473,12 +400,8 @@ ob_start();
                     phoneInput.classList.remove('border-red-500');
                     phoneError?.classList.add('hidden');
                 }
-
-                if (!isValid) {
-                    e.preventDefault();
-                }
+                if (!isValid) e.preventDefault();
             });
-
             modalForm.querySelectorAll('input[required]').forEach(input => {
                 input.addEventListener('input', () => {
                     const errorMessage = input.nextElementSibling?.nextElementSibling;
@@ -488,7 +411,6 @@ ob_start();
                     }
                 });
             });
-
             document.getElementById('email').addEventListener('input', function() {
                 const errorMessage = this.nextElementSibling?.nextElementSibling;
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -497,10 +419,9 @@ ob_start();
                     errorMessage?.classList.add('hidden');
                 }
             });
-
             document.getElementById('phone').addEventListener('input', function() {
                 const errorMessage = this.nextElementSibling?.nextElementSibling;
-                const phoneRegex = /^(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/;
+                const phoneRegex = /^\d{10,12}$/;
                 if (!this.value.trim() || phoneRegex.test(this.value.trim())) {
                     this.classList.remove('border-red-500');
                     errorMessage?.classList.add('hidden');
@@ -511,7 +432,6 @@ ob_start();
 </body>
 
 </html>
-
 <?php
 $content = ob_get_clean();
 require_once __DIR__ . '/layout.php';
