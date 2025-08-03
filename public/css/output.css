@@ -378,12 +378,6 @@
   .z-50 {
     z-index: 50;
   }
-  .z-99999 {
-    z-index: 99999;
-  }
-  .z-\[99999\] {
-    z-index: 99999;
-  }
   .col-span-2 {
     grid-column: span 2 / span 2;
   }
@@ -608,9 +602,6 @@
   }
   .max-h-\[60vh\] {
     max-height: 60vh;
-  }
-  .max-h-screen {
-    max-height: 100vh;
   }
   .min-h-\[60px\] {
     min-height: 60px;
@@ -1579,6 +1570,9 @@
   .text-yellow-600 {
     color: var(--color-yellow-600);
   }
+  .text-yellow-700 {
+    color: var(--color-yellow-700);
+  }
   .text-yellow-800 {
     color: var(--color-yellow-800);
   }
@@ -2011,6 +2005,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-yellow-600);
+      }
+    }
+  }
+  .hover\:bg-yellow-700 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-yellow-700);
       }
     }
   }
@@ -2578,11 +2579,6 @@
   .md\:w-1\/2 {
     @media (width >= 48rem) {
       width: calc(1/2 * 100%);
-    }
-  }
-  .md\:w-1\/4 {
-    @media (width >= 48rem) {
-      width: calc(1/4 * 100%);
     }
   }
   .md\:w-2\/5 {

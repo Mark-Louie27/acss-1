@@ -20,6 +20,18 @@ ob_start();
             </div>
         <?php endif; ?>
 
+        <!-- Debug Schedules -->
+        <?php if (isset($schedules)): ?>
+            <div class="bg-gray-100 p-4 rounded-md mb-6 shadow-md">
+                <p class="text-sm text-gray-700">Debug: Number of schedules = <?php echo count($schedules); ?></p>
+                <pre class="text-xs text-gray-600 overflow-x-auto"><?php echo htmlspecialchars(print_r($schedules, true)); ?></pre>
+            </div>
+        <?php else: ?>
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-6 shadow-md">
+                <p class="text-sm">Debug: $schedules is not set or empty.</p>
+            </div>
+        <?php endif; ?>
+
         <!-- Semester Info -->
         <div class="bg-white p-4 rounded-md shadow-md mb-6 flex items-center justify-between">
             <div class="flex items-center">
@@ -70,36 +82,36 @@ ob_start();
                             <tbody id="scheduleBody">
                                 <?php
                                 $times = [
-                                    ['07:30', '08:30'],
-                                    ['08:30', '09:30'],
-                                    ['09:30', '10:30'],
-                                    ['10:30', '11:30'],
-                                    ['11:30', '12:30'],
-                                    ['12:30', '13:30'],
-                                    ['13:30', '14:30'],
-                                    ['14:30', '15:30'],
-                                    ['15:30', '16:30'],
-                                    ['16:30', '17:30'],
-                                    ['17:30', '18:00']
+                                    ['07:30', '08:30'], // 60 minutes
+                                    ['08:30', '10:00'], // 90 minutes
+                                    ['10:00', '11:00'], // 60 minutes
+                                    ['11:00', '12:30'], // 90 minutes
+                                    ['12:30', '13:30'], // 60 minutes
+                                    ['13:00', '14:30'], // 90 minutes
+                                    ['14:30', '15:30'], // 60 minutes
+                                    ['15:30', '17:00'], // 90 minutes
+                                    ['17:00', '18:00']  // 60 minutes
                                 ];
                                 foreach ($times as $time) {
                                     echo "<tr>";
                                     echo "<td class='border-b border-gray-200 p-2 text-sm text-gray-700 bg-gray-50'>{$time[0]} - {$time[1]}</td>";
                                     foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $day) {
-                                        $schedule = array_filter($schedules, fn($s) => $s['day_of_week'] === $day && $s['start_time'] === $time[0]);
+                                        $schedule = array_filter($schedules, fn($s) => $s['day_of_week'] === $day && substr($s['start_time'], 0, 5) === $time[0] && substr($s['end_time'], 0, 5) === $time[1]);
                                         $schedule = reset($schedule) ?: null;
                                         echo "<td class='droppable border-b border-gray-200 p-2 text-sm text-gray-700 min-h-[60px] relative' data-time='{$time[0]}' data-end-time='{$time[1]}' data-day='{$day}'>";
                                         if ($schedule) {
                                             echo "<div class='schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative' data-id='{$schedule['schedule_id']}'>";
                                             echo "<strong class='text-gray-900'>{$schedule['course_code']} - {$schedule['course_name']}</strong><br>";
                                             echo "<span class='text-gray-600 text-xs'>{$schedule['faculty_name']}</span><br>";
-                                            echo "<span class='text-gray-600 text-xs'>" . (isset($schedule['room_name']) ? $schedule['room_name'] : 'Online') . " </span><br>";
+                                            echo "<span class='text-gray-600 text-xs'>" . (isset($schedule['room_name']) ? $schedule['room_name'] : 'Online') . "</span><br>";
                                             echo "<span class='text-gray-600 text-xs'>{$schedule['section_name']} ({$schedule['schedule_type']})</span>";
-                                            echo "<div class='absolute top-1 right-1 flex space-x-1'>";
-                                            echo "<button class='remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded' onclick='removeSchedule(this)'>✕</button>";
-                                            echo "<button class='edit-btn text-blue-500 text-xs p-1 hover:bg-blue-100 rounded' onclick='editSchedule(this)'>✎</button>";
+                                            echo "<div class='mt-2'>";
+                                            echo "<button class='remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded' onclick='removeSchedule(this)'>Remove</button>";
+                                            echo "<button class='edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded' onclick='editScheduleInline(this)'>Edit</button>";
                                             echo "</div>";
                                             echo "</div>";
+                                        } else {
+                                            echo "<button class='add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded' onclick='addScheduleInline(this)'>Add</button>";
                                         }
                                         echo "</td>";
                                     }
@@ -123,6 +135,12 @@ ob_start();
             <div class="tab-pane <?php echo $activeTab === 'generate' ? 'active' : 'hidden'; ?>" id="generate" role="tabpanel">
                 <div class="bg-white rounded-md shadow-md p-6">
                     <h3 class="text-xl font-semibold text-gray-900 mb-4">Generate Schedules</h3>
+                    <?php
+                    $unassignedWarning = false;
+                    if (isset($schedules) && !empty($schedules)) {
+                        $unassignedWarning = true; // Replace with actual check from generateSchedules
+                    }
+                    ?>
                     <form method="POST" class="grid grid-cols-1 gap-6">
                         <input type="hidden" name="tab" value="generate">
                         <div>
@@ -149,6 +167,14 @@ ob_start();
                                 <option value="4th Year">4th Year</option>
                             </select>
                         </div>
+                        <?php if ($unassignedWarning): ?>
+                            <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md mb-6 shadow-md">
+                                <p class="font-medium">Warning: Some subjects could not be scheduled. Please click "Generate Schedules" again to attempt filling the remaining slots.</p>
+                                <button type="submit" class="mt-2 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors duration-200">
+                                    Generate Schedules Again
+                                </button>
+                            </div>
+                        <?php endif; ?>
                         <div>
                             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
                                 Generate Schedules
@@ -158,7 +184,6 @@ ob_start();
                 </div>
             </div>
 
-            <!-- Schedule List Tab -->
             <!-- Schedule List Tab -->
             <div class="tab-pane <?php echo $activeTab === 'schedule-list' ? 'active' : 'hidden'; ?>" id="schedule-list" role="tabpanel">
                 <div class="bg-white rounded-lg shadow-lg p-6">
@@ -217,52 +242,55 @@ ob_start();
                             <!-- Time slots -->
                             <div id="timetableGrid" class="divide-y divide-gray-200">
                                 <?php
-                                // Generate time slots from 7:00 AM to 6:00 PM
-                                $timeSlots = [];
-                                for ($hour = 7; $hour <= 18; $hour++) {
-                                    $timeSlots[] = sprintf("%02d:00", $hour);
-                                }
+                                $timeSlots = [
+                                    ['07:30', '08:30'], // 60 minutes
+                                    ['08:30', '10:00'], // 90 minutes
+                                    ['10:00', '11:00'], // 60 minutes
+                                    ['11:00', '12:30'], // 90 minutes
+                                    ['12:30', '13:30'], // 60 minutes
+                                    ['13:00', '14:30'], // 90 minutes
+                                    ['14:30', '15:30'], // 60 minutes
+                                    ['15:30', '17:00'], // 90 minutes
+                                    ['17:00', '18:00']  // 60 minutes
+                                ];
 
-                                // Group schedules by day and time
                                 $scheduleGrid = [];
                                 $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
                                 foreach ($schedules as $schedule) {
                                     $day = $schedule['day_of_week'];
-                                    $startTime = date('H:i', strtotime($schedule['start_time']));
-                                    $endTime = date('H:i', strtotime($schedule['end_time']));
+                                    $startTime = substr($schedule['start_time'], 0, 5);
+                                    $endTime = substr($schedule['end_time'], 0, 5);
 
                                     if (!isset($scheduleGrid[$day])) {
                                         $scheduleGrid[$day] = [];
                                     }
 
-                                    // Find which time slots this schedule spans
-                                    $startHour = (int)date('H', strtotime($schedule['start_time']));
-                                    $endHour = (int)date('H', strtotime($schedule['end_time']));
-
-                                    for ($h = $startHour; $h < $endHour; $h++) {
-                                        $timeKey = sprintf("%02d:00", $h);
-                                        if (!isset($scheduleGrid[$day][$timeKey])) {
-                                            $scheduleGrid[$day][$timeKey] = [];
-                                        }
-                                        $scheduleGrid[$day][$timeKey][] = $schedule;
+                                    // Group by start time for rendering
+                                    if (!isset($scheduleGrid[$day][$startTime])) {
+                                        $scheduleGrid[$day][$startTime] = [];
                                     }
+                                    $scheduleGrid[$day][$startTime][] = $schedule;
                                 }
                                 ?>
 
                                 <?php foreach ($timeSlots as $time): ?>
-                                    <div class="grid grid-cols-6 min-h-[80px] hover:bg-gray-50 transition-colors duration-200">
-                                        <!-- Time column -->
-                                        <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center">
-                                            <span class="text-lg"><?php echo date('g:i A', strtotime($time)); ?></span>
+                                    <?php
+                                    $duration = strtotime($time[1]) - strtotime($time[0]);
+                                    $rowSpan = $duration / 3600; // Convert seconds to hours
+                                    ?>
+                                    <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
+                                        <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
+                                            <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
                                         </div>
-
-                                        <!-- Day columns -->
                                         <?php foreach ($days as $day): ?>
-                                            <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[80px] relative">
+                                            <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative" data-day="<?php echo $day; ?>" data-time="<?php echo $time[0]; ?>" data-end-time="<?php echo $time[1]; ?>">
                                                 <?php
-                                                if (isset($scheduleGrid[$day][$time])) {
-                                                    foreach ($scheduleGrid[$day][$time] as $schedule) {
+                                                $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
+                                                foreach ($schedulesForSlot as $schedule) {
+                                                    $scheduleStart = substr($schedule['start_time'], 0, 5);
+                                                    $scheduleEnd = substr($schedule['end_time'], 0, 5);
+                                                    if ($scheduleStart === $time[0]) { // Match by start time only
                                                         $colors = [
                                                             'bg-blue-100 border-blue-300 text-blue-800',
                                                             'bg-green-100 border-green-300 text-green-800',
@@ -272,9 +300,7 @@ ob_start();
                                                         ];
                                                         $colorClass = $colors[array_rand($colors)];
                                                 ?>
-                                                        <div class="<?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 cursor-pointer hover:shadow-md transition-shadow duration-200 schedule-item"
-                                                            data-schedule-id="<?php echo $schedule['schedule_id']; ?>"
-                                                            onclick="showScheduleDetails(<?php echo htmlspecialchars(json_encode($schedule)); ?>)">
+                                                        <div class="<?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1" data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>" data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>">
                                                             <div class="font-semibold text-xs truncate mb-1">
                                                                 <?php echo htmlspecialchars($schedule['course_code']); ?>
                                                             </div>
@@ -309,38 +335,9 @@ ob_start();
                         <div class="flex flex-wrap gap-4 text-xs">
                             <div class="flex items-center space-x-2">
                                 <div class="w-4 h-4 bg-blue-100 border-l-4 border-blue-300 rounded"></div>
-                                <span class="text-gray-600">Click on any schedule item to view details</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-4 h-4 bg-green-100 border-l-4 border-green-300 rounded"></div>
                                 <span class="text-gray-600">Different colors for visual distinction</span>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Schedule Details Modal -->
-            <div id="scheduleModal" class="modal fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center" style="z-index: 99999 !important;">
-                <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Schedule Details</h3>
-                        <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-gray-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="scheduleDetails" class="space-y-3">
-                        <!-- Schedule details will be populated here -->
-                    </div>
-                    <div class="mt-6 flex space-x-3">
-                        <button onclick="editScheduleFromModal()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200">
-                            Edit Schedule
-                        </button>
-                        <button onclick="deleteScheduleFromModal()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200">
-                            Delete Schedule
-                        </button>
                     </div>
                 </div>
             </div>
@@ -363,140 +360,17 @@ ob_start();
 </div>
 
 <script>
-    let currentSchedule = null;
-
-    function showScheduleDetails(schedule) {
-        currentSchedule = schedule;
-
-        // Create modal if it doesn't exist in body
-        let modal = document.getElementById('scheduleModal');
-        if (!modal.parentElement.tagName === 'BODY') {
-            // Remove existing modal
-            modal.remove();
-
-            // Create new modal at body level
-            const modalHTML = `
-            <div id="scheduleModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style="z-index: 99999 !important;">
-                <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Schedule Details</h3>
-                        <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-gray-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="scheduleDetails" class="space-y-3">
-                        <!-- Schedule details will be populated here -->
-                    </div>
-                    <div class="mt-6 flex space-x-3">
-                        <button onclick="editScheduleFromModal()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200">
-                            Edit Schedule
-                        </button>
-                        <button onclick="deleteScheduleFromModal()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200">
-                            Delete Schedule
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-            modal = document.getElementById('scheduleModal');
-
-            // Add click outside to close
-            modal.addEventListener('click', function(e) {
-                if (e.target === this) {
-                    closeScheduleModal();
-                }
-            });
-        }
-
-        const detailsDiv = document.getElementById('scheduleDetails');
-
-        detailsDiv.innerHTML = `
-        <div class="space-y-2">
-            <div><span class="font-medium">Course:</span> ${schedule.course_code} - ${schedule.course_name}</div>
-            <div><span class="font-medium">Section:</span> ${schedule.section_name}</div>
-            <div><span class="font-medium">Year Level:</span> ${schedule.year_level}</div>
-            <div><span class="font-medium">Day:</span> ${schedule.day_of_week}</div>
-            <div><span class="font-medium">Time:</span> ${schedule.start_time} - ${schedule.end_time}</div>
-            <div><span class="font-medium">Faculty:</span> ${schedule.faculty_name}</div>
-            <div><span class="font-medium">Room:</span> ${schedule.room_name || 'Online'}</div>
-        </div>
-    `;
-
-        modal.classList.remove('hidden');
-    }
-
-    function closeScheduleModal() {
-        const modal = document.getElementById('scheduleModal');
-        if (modal) {
-            modal.classList.add('hidden');
-        }
-        currentSchedule = null;
-    }
-
-    function editScheduleFromModal() {
-        if (currentSchedule) {
-            editSchedule(currentSchedule);
-            closeScheduleModal();
-        }
-    }
-
-    function deleteScheduleFromModal() {
-        if (currentSchedule) {
-            deleteSchedule(currentSchedule.schedule_id);
-            closeScheduleModal();
-        }
-    }
-
-    function filterSchedules() {
-        const yearLevel = document.getElementById('filterYearLevel').value;
-        const section = document.getElementById('filterSection').value;
-
-        const scheduleItems = document.querySelectorAll('.schedule-item');
-
-        scheduleItems.forEach(item => {
-            const scheduleData = JSON.parse(item.getAttribute('onclick').match(/showScheduleDetails\((.*?)\)/)[1]);
-
-            let show = true;
-
-            if (yearLevel && scheduleData.year_level !== yearLevel) {
-                show = false;
-            }
-
-            if (section && scheduleData.section_name !== section) {
-                show = false;
-            }
-
-            if (show) {
-                item.style.display = 'block';
-            } else {
-                item.style.display = 'none';
-            }
-        });
-    }
-
-    // Close modal when clicking outside
-    document.getElementById('scheduleModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeScheduleModal();
-        }
-    });
     const departmentId = <?php echo json_encode($departmentId); ?>;
     const times = [
-        ['07:30', '08:30'],
-        ['08:30', '09:30'],
-        ['09:30', '10:30'],
-        ['10:30', '11:30'],
-        ['11:30', '12:30'],
-        ['12:30', '13:30'],
-        ['13:30', '14:30'],
-        ['14:30', '15:30'],
-        ['15:30', '16:30'],
-        ['16:30', '17:30'],
-        ['17:30', '18:00']
+        ['07:30', '08:30'], // 60 minutes
+        ['08:30', '10:00'], // 90 minutes
+        ['10:00', '11:00'], // 60 minutes
+        ['11:00', '12:30'], // 90 minutes
+        ['12:30', '13:30'], // 60 minutes
+        ['13:00', '14:30'], // 90 minutes
+        ['14:30', '15:30'], // 60 minutes
+        ['15:30', '17:00'], // 90 minutes
+        ['17:00', '18:00'] // 60 minutes
     ];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     let scheduleData = <?php echo json_encode($schedules); ?> || [];
@@ -525,9 +399,11 @@ ob_start();
     function renderSchedules() {
         document.querySelectorAll('.droppable').forEach(cell => {
             cell.innerHTML = '';
-            const schedule = scheduleData.find(s => s.day_of_week === cell.dataset.day && s.start_time === cell.dataset.time);
+            const schedule = scheduleData.find(s => s.day_of_week === cell.dataset.day && s.start_time.substring(0, 5) === cell.dataset.time && s.end_time.substring(0, 5) === cell.dataset.endTime);
             if (schedule) {
-                cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${schedule.schedule_id ?? ''}"><strong class="text-gray-900">${schedule.course_code} - ${schedule.course_name}</strong><br><span class="text-gray-600 text-xs">${schedule.faculty_name}</span><br><span class="text-gray-600 text-xs">${schedule.room_name}</span><br><span class="text-gray-600 text-xs">${schedule.section_name} (${schedule.schedule_type})</span><div class="absolute top-1 right-1 flex space-x-1"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">✕</button><button class="edit-btn text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editSchedule(this)">✎</button></div></div>`;
+                cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${schedule.schedule_id ?? ''}"><strong class="text-gray-900">${schedule.course_code} - ${schedule.course_name}</strong><br><span class="text-gray-600 text-xs">${schedule.faculty_name}</span><br><span class="text-gray-600 text-xs">${schedule.room_name ?? 'Online'}</span><br><span class="text-gray-600 text-xs">${schedule.section_name} (${schedule.schedule_type})</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
+            } else {
+                cell.innerHTML = `<button class="add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded" onclick="addScheduleInline(this)">Add</button>`;
             }
         });
     }
@@ -535,14 +411,23 @@ ob_start();
     function filterSchedules() {
         const yearLevel = document.getElementById('filterYearLevel').value;
         const section = document.getElementById('filterSection').value;
-        const rows = document.querySelectorAll('#scheduleList tr');
+        const rows = document.querySelectorAll('#timetableGrid > div');
         rows.forEach(row => {
-            if (row.cells.length > 2) {
-                const rowYearLevel = row.cells[2].textContent;
-                const rowSection = row.cells[1].textContent;
-                const show = (!yearLevel || rowYearLevel === yearLevel) && (!section || rowSection === section);
-                row.style.display = show ? '' : 'none';
-            }
+            const cells = row.querySelectorAll('div:nth-child(n+2)');
+            cells.forEach(cell => {
+                const scheduleItems = cell.querySelectorAll('[data-year-level]');
+                let show = !scheduleItems.length; // Show empty cells by default
+                scheduleItems.forEach(item => {
+                    const itemYearLevel = item.getAttribute('data-year-level');
+                    const itemSectionName = item.getAttribute('data-section-name');
+                    const matchesYear = !yearLevel || itemYearLevel === yearLevel;
+                    const matchesSection = !section || itemSectionName === section;
+                    if (matchesYear && matchesSection) {
+                        show = true;
+                    }
+                });
+                cell.style.display = show ? 'block' : 'none';
+            });
         });
     }
 
@@ -558,7 +443,10 @@ ob_start();
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        document.querySelector(`#scheduleList tr td button[onclick="deleteSchedule(${scheduleId})"]`).closest('tr').remove();
+                        const item = document.querySelector(`[data-id="${scheduleId}"]`);
+                        if (item) item.closest('td').innerHTML = '<button class="add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded" onclick="addScheduleInline(this)">Add</button>';
+                        scheduleData = scheduleData.filter(s => s.schedule_id !== scheduleId);
+                        document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
                         alert('Schedule deleted successfully.');
                     } else {
                         alert('Failed to delete schedule.');
@@ -568,141 +456,149 @@ ob_start();
         }
     }
 
-    function editSchedule(button) {
+    function editScheduleInline(button) {
         const item = button.parentElement.parentElement;
-        const schedule = scheduleData.find(s => s.schedule_id === item.dataset.id) || JSON.parse(item.dataset.schedule);
-        const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.innerHTML = `
-            <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Edit Schedule</h3>
-                <form id="editForm">
-                    <input type="hidden" name="schedule_id" value="${schedule.schedule_id}">
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Course</label>
-                        <select name="course_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                            <option value="${schedule.course_id}">${schedule.course_code} - ${schedule.course_name}</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Section</label>
-                        <select name="section_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                            <option value="${schedule.section_id}">${schedule.section_name}</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Room</label>
-                        <select name="room_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="${schedule.room_id ?? ''}">${schedule.room_name ?? 'Online'}</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Faculty</label>
-                        <select name="faculty_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                            <option value="${schedule.faculty_id}">${schedule.faculty_name}</option>
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Day</label>
-                        <select name="day_of_week" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                            ${days.map(d => `<option value="${d}" ${d === schedule.day_of_week ? 'selected' : ''}>${d}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Start Time</label>
-                        <select name="start_time" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                            ${times.map(t => `<option value="${t[0]}" ${t[0] === schedule.start_time ? 'selected' : ''}>${t[0]} - ${t[1]}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="flex justify-end space-x-3">
-                        <button type="button" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors duration-200" onclick="this.parentElement.parentElement.parentElement.remove()">Cancel</button>
-                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        `;
-        document.body.appendChild(modal);
+        const schedule = scheduleData.find(s => s.schedule_id === item.dataset.id) || {};
+        const cell = item.closest('td');
+        item.remove();
 
-        document.getElementById('editForm').onsubmit = function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            fetch('/chair/updateSchedule', {
-                    method: 'POST',
-                    body: new URLSearchParams({
-                        schedule_id: formData.get('schedule_id'),
-                        data: JSON.stringify(Object.fromEntries(formData))
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Schedule updated successfully.');
-                        modal.remove();
-                        location.reload();
-                    } else {
-                        alert('Failed to update schedule.');
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-        };
+        cell.innerHTML = `
+            <form class="edit-form p-2 bg-white rounded-md shadow-sm" onsubmit="saveEdit(event, this, '${schedule.schedule_id}')">
+                <input type="hidden" name="schedule_id" value="${schedule.schedule_id ?? ''}">
+                <input type="hidden" name="day_of_week" value="${cell.dataset.day}">
+                <input type="hidden" name="start_time" value="${cell.dataset.time}">
+                <input type="hidden" name="end_time" value="${cell.dataset.endTime}">
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Course</label>
+                    <input type="text" name="course_code" value="${schedule.course_code ?? ''}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Faculty</label>
+                    <input type="text" name="faculty_name" value="${schedule.faculty_name ?? ''}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Room</label>
+                    <input type="text" name="room_name" value="${schedule.room_name ?? 'Online'}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs">
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Section</label>
+                    <input type="text" name="section_name" value="${schedule.section_name ?? ''}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" class="bg-gray-300 text-gray-800 px-2 py-1 rounded-md text-xs hover:bg-gray-400" onclick="cancelEdit(this)">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white px-2 py-1 rounded-md text-xs hover:bg-blue-700">Save</button>
+                </div>
+            </form>`;
     }
 
-    document.addEventListener('dragover', e => {
-        e.preventDefault();
-        const cell = e.target.closest('.droppable');
-        if (cell) cell.classList.add('bg-gray-100');
-    });
+    function saveEdit(event, form, scheduleId) {
+        event.preventDefault();
+        const formData = new FormData(form);
+        fetch('/chair/updateSchedule', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    schedule_id: scheduleId,
+                    data: JSON.stringify(Object.fromEntries(formData))
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Schedule updated successfully.');
+                    const cell = form.closest('td');
+                    cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${scheduleId}"><strong class="text-gray-900">${formData.get('course_code')}</strong><br><span class="text-gray-600 text-xs">${formData.get('faculty_name')}</span><br><span class="text-gray-600 text-xs">${formData.get('room_name')}</span><br><span class="text-gray-600 text-xs">${formData.get('section_name')}</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
+                    scheduleData = scheduleData.map(s => s.schedule_id === scheduleId ? {
+                        ...s,
+                        ...Object.fromEntries(formData)
+                    } : s);
+                    document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
+                } else {
+                    alert('Failed to update schedule.');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
 
-    document.addEventListener('dragleave', e => {
-        const cell = e.target.closest('.droppable');
-        if (cell) cell.classList.remove('bg-gray-100');
-    });
+    function cancelEdit(button) {
+        const form = button.closest('.edit-form');
+        const cell = form.closest('td');
+        renderSchedules();
+    }
 
-    document.addEventListener('drop', e => {
-        e.preventDefault();
-        const cell = e.target.closest('.droppable');
-        if (!cell || !document.getElementById('draggableBox').draggable) return;
+    function addScheduleInline(button) {
+        const cell = button.closest('td');
+        cell.innerHTML = `
+            <form class="add-form p-2 bg-white rounded-md shadow-sm" onsubmit="saveAdd(event, this)">
+                <input type="hidden" name="day_of_week" value="${cell.dataset.day}">
+                <input type="hidden" name="start_time" value="${cell.dataset.time}">
+                <input type="hidden" name="end_time" value="${cell.dataset.endTime}">
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Course</label>
+                    <input type="text" name="course_code" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Faculty</label>
+                    <input type="text" name="faculty_name" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Room</label>
+                    <input type="text" name="room_name" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs">
+                </div>
+                <div class="mb-2">
+                    <label class="block text-xs font-medium text-gray-700">Section</label>
+                    <input type="text" name="section_name" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" class="bg-gray-300 text-gray-800 px-2 py-1 rounded-md text-xs hover:bg-gray-400" onclick="cancelAdd(this)">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white px-2 py-1 rounded-md text-xs hover:bg-blue-700">Add</button>
+                </div>
+            </form>`;
+    }
 
-        cell.classList.remove('bg-gray-100');
-        const curriculumId = document.getElementById('curriculum_id').value;
-        const facultyId = document.getElementById('faculty_id').value;
-        const courseId = document.getElementById('course_id').value;
-        const roomId = document.getElementById('room_id').value;
-        const sectionId = document.getElementById('section_id').value;
+    function saveAdd(event, form) {
+        event.preventDefault();
+        const formData = new FormData(form);
+        fetch('/chair/addSchedule', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    data: JSON.stringify(Object.fromEntries(formData))
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Schedule added successfully.');
+                    const cell = form.closest('td');
+                    const newSchedule = {
+                        schedule_id: data.schedule_id,
+                        ...Object.fromEntries(formData)
+                    };
+                    scheduleData.push(newSchedule);
+                    cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${newSchedule.schedule_id}"><strong class="text-gray-900">${formData.get('course_code')}</strong><br><span class="text-gray-600 text-xs">${formData.get('faculty_name')}</span><br><span class="text-gray-600 text-xs">${formData.get('room_name') ?? 'Online'}</span><br><span class="text-gray-600 text-xs">${formData.get('section_name')}</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
+                    document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
+                } else {
+                    alert('Failed to add schedule.');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
 
-        if (curriculumId && facultyId && courseId && roomId && sectionId) {
-            const courseText = document.getElementById('course_id').options[document.getElementById('course_id').selectedIndex].text;
-            const facultyText = document.getElementById('faculty_id').options[document.getElementById('faculty_id').selectedIndex].text;
-            const roomText = document.getElementById('room_id').options[document.getElementById('room_id').selectedIndex].text;
-            const sectionText = document.getElementById('section_id').options[document.getElementById('section_id').selectedIndex].text;
-            cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id=""><strong class="text-gray-900">${courseText}</strong><br><span class="text-gray-600 text-xs">${facultyText}</span><br><span class="text-gray-600 text-xs">${roomText}</span><br><span class="text-gray-600 text-xs">${sectionText}</span><div class="absolute top-1 right-1 flex space-x-1"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">✕</button><button class="edit-btn text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editSchedule(this)">✎</button></div></div>`;
-            scheduleData.push({
-                curriculum_id: curriculumId,
-                course_id: courseId,
-                faculty_id: facultyId,
-                room_id: roomId,
-                section_id: sectionId,
-                day_of_week: cell.dataset.day,
-                start_time: cell.dataset.time,
-                end_time: cell.dataset.endTime
-            });
-            document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
-        } else {
-            alert('Please select all fields.');
-        }
-    });
+    function cancelAdd(button) {
+        const form = button.closest('.add-form');
+        const cell = form.closest('td');
+        renderSchedules();
+    }
 
     function removeSchedule(button) {
         const item = button.parentElement.parentElement;
-        item.remove();
-        scheduleData = scheduleData.filter(s => s.schedule_id !== item.dataset.id);
-        document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
+        const scheduleId = item.dataset.id;
+        deleteSchedule(scheduleId);
     }
 
     if (document.getElementById('scheduleBody').children.length === 0) {
         populateSchedule();
     }
-    if (document.getElementById('scheduleList')) {
+    if (document.getElementById('timetableGrid')) {
         filterSchedules();
     }
 </script>
