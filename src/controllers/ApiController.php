@@ -181,4 +181,43 @@ class ApiController
             ]);
         }
     }
+
+    public function searchCoursesAPI()
+    {
+        header('Content-Type: application/json');
+
+        $searchTerm = isset($_GET['term']) ? trim($_GET['term']) : '';
+
+        if (empty($searchTerm)) {
+            echo json_encode([]);
+            return;
+        }
+
+        try {
+            $chairId = $_SESSION['user_id'] ?? 0;
+            $departmentId = $this->getChairDepartment($chairId);
+
+            if (!$departmentId) {
+                echo json_encode([]);
+                return;
+            }
+
+            $searchTerm = '%' . $searchTerm . '%';
+            $query = "SELECT course_code, course_name FROM courses WHERE department_id = :department_id AND (course_code LIKE :search OR course_name LIKE :search) LIMIT 10";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindValue(':department_id', $departmentId, PDO::PARAM_INT);
+            $stmt->bindValue(':search', $searchTerm, PDO::PARAM_STR);
+
+            if ($stmt->execute()) {
+                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                echo json_encode($results);
+            } else {
+                error_log("searchCoursesAPI: Query failed - " . implode(', ', $stmt->errorInfo()));
+                echo json_encode([]);
+            }
+        } catch (PDOException $e) {
+            error_log("searchCoursesAPI: Error - " . $e->getMessage());
+            echo json_encode([]);
+        }
+    }
 }

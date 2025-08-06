@@ -9,9 +9,10 @@ if (!isset($curricula)) {
 // Ensure $courses is set
 if (!isset($courses)) {
     $courses = [];
-    $coursesStmt = $db->prepare("SELECT course_id, course_code, course_name, units FROM courses WHERE department_id = :department_id");
+    $coursesStmt = $db->prepare("SELECT course_id, course_code, course_name, units, subject_type FROM courses WHERE department_id = :department_id");
     $coursesStmt->execute([':department_id' => $departmentId]);
     $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Fetched courses: " . print_r($courses, true));
 }
 
 // Add this to your existing PHP code, near the other AJAX handlers
@@ -61,41 +62,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// Handle AJAX request for course code validation
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'check_course_code') {
-    header('Content-Type: application/json');
-    $course_code = trim($_POST['course_code'] ?? '');
-    $response = ['exists' => false, 'message' => ''];
-
-    if (!empty($course_code)) {
-        try {
-            $stmt = $db->prepare("SELECT COUNT(*) FROM courses WHERE course_code = :code AND department_id = :dept");
-            $stmt->execute([':code' => $course_code, ':dept' => $departmentId]);
-            $count = $stmt->fetchColumn();
-            if ($count > 0) {
-                $response['exists'] = true;
-                $response['message'] = 'This course code already exists.';
-            }
-        } catch (PDOException $e) {
-            $response['message'] = 'Error checking course code: ' . htmlspecialchars($e->getMessage());
-        }
-    }
-
-    echo json_encode($response);
-    exit;
-}
-
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         try {
             if ($_POST['action'] === 'add_curriculum') {
-                // Add new curriculum
                 $curriculum_name = trim($_POST['curriculum_name'] ?? '');
                 $curriculum_code = trim($_POST['curriculum_code'] ?? '');
                 $effective_year = intval($_POST['effective_year'] ?? 0);
                 $description = trim($_POST['description'] ?? '');
-                $total_units = 0; // Will be updated when courses are added
+                $total_units = 0;
 
                 $errors = [];
                 if (empty($curriculum_name)) $errors[] = "Curriculum name is required.";
@@ -114,7 +90,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                     $curriculum_id = $db->lastInsertId();
 
-                    // Associate with the program (assuming one program per department for simplicity)
                     $programStmt = $db->prepare("SELECT program_id FROM programs WHERE department_id = :department_id LIMIT 1");
                     $programStmt->execute([':department_id' => $departmentId]);
                     $program_id = $programStmt->fetchColumn();
@@ -124,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $success = "Curriculum added successfully.";
-                    // Refresh the curricula list
                     $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
                                                   FROM curricula c 
                                                   JOIN programs p ON c.department_id = p.department_id 
@@ -135,7 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = implode("<br>", $errors);
                 }
             } elseif ($_POST['action'] === 'edit_curriculum') {
-                // Edit curriculum
                 $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
                 $curriculum_name = trim($_POST['curriculum_name'] ?? '');
                 $curriculum_code = trim($_POST['curriculum_code'] ?? '');
@@ -162,7 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
 
                     $success = "Curriculum updated successfully.";
-                    // Refresh the curricula list
                     $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
                                                   FROM curricula c 
                                                   JOIN programs p ON c.department_id = p.department_id 
@@ -173,7 +145,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = implode("<br>", $errors);
                 }
             } elseif ($_POST['action'] === 'add_course') {
-                // Add course to curriculum
                 $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
                 $course_id = intval($_POST['course_id'] ?? 0);
                 $year_level = $_POST['year_level'] ?? '';
@@ -184,11 +155,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($curriculum_id < 1) $errors[] = "Invalid curriculum.";
                 if ($course_id < 1) $errors[] = "Please select a course.";
                 if (!in_array($year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year'])) $errors[] = "Invalid year level.";
-                if (!in_array($semester, ['1st', '2nd', 'Summer'])) $errors[] = "Invalid semester.";
-                if (!in_array($subject_type, ['Major', 'Minor', 'General Education', 'Elective'])) $errors[] = "Invalid subject type.";
+                if (!in_array($semester, ['1st', '2nd', 'Mid Year'])) $errors[] = "Invalid semester.";
+                if (!in_array($subject_type, ['Professional Course', 'General Education', 'Elective'])) $errors[] = "Invalid subject type.";
+
+                // Check if course already exists in curriculum
+                if (empty($errors)) {
+                    $checkStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
+                    $checkStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
+                    if ($checkStmt->fetchColumn() > 0) {
+                        $errors[] = "This course is already added to the curriculum.";
+                    }
+                }
 
                 if (empty($errors)) {
-                    // Insert into curriculum_courses
                     $stmt = $db->prepare("INSERT INTO curriculum_courses (curriculum_id, course_id, year_level, semester, subject_type, is_core) VALUES (:curriculum_id, :course_id, :year_level, :semester, :subject_type, 1)");
                     $stmt->execute([
                         ':curriculum_id' => $curriculum_id,
@@ -198,7 +177,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':subject_type' => $subject_type
                     ]);
 
-                    // Update total_units in curricula
                     $unitsStmt = $db->prepare("SELECT SUM(c.units) as total FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id WHERE cc.curriculum_id = :curriculum_id");
                     $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
                     $total_units = $unitsStmt->fetchColumn();
@@ -206,8 +184,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare("UPDATE curricula SET total_units = :total_units WHERE curriculum_id = :curriculum_id")
                         ->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
 
+                    // Handle AJAX response
+                    if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => 'Course added to curriculum successfully.']);
+                        exit;
+                    }
+
                     $success = "Course added to curriculum successfully.";
-                    // Refresh the curricula list
                     $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
                                                   FROM curricula c 
                                                   JOIN programs p ON c.department_id = p.department_id 
@@ -215,45 +199,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $curriculaStmt->execute([':department_id' => $departmentId]);
                     $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
                 } else {
-                    $error = implode("<br>", $errors);
-                }
-            } elseif ($_POST['action'] === 'create_course') {
-                // Create new course
-                $course_code = trim($_POST['course_code'] ?? '');
-                $course_name = trim($_POST['course_name'] ?? '');
-                $units = intval($_POST['units'] ?? 0);
-                $description = trim($_POST['description'] ?? '');
-
-                $errors = [];
-                if (empty($course_code)) $errors[] = "Course code is required.";
-                if (empty($course_name)) $errors[] = "Course name is required.";
-                if ($units < 1 || $units > 10) $errors[] = "Units must be between 1 and 10.";
-                // Check if course code already exists
-                $stmt = $db->prepare("SELECT COUNT(*) FROM courses WHERE course_code = :code AND department_id = :dept");
-                $stmt->execute([':code' => $course_code, ':dept' => $departmentId]);
-                if ($stmt->fetchColumn() > 0) {
-                    $errors[] = "Course code already exists.";
-                }
-
-                if (empty($errors)) {
-                    $stmt = $db->prepare("INSERT INTO courses (course_code, course_name, units, department_id) VALUES (:code, :name, :units, :dept)");
-                    $stmt->execute([
-                        ':code' => $course_code,
-                        ':name' => $course_name,
-                        ':units' => $units,
-                        ':dept' => $departmentId
-                    ]);
-
-                    $success = "Course created successfully.";
-                    // Refresh the courses list
-                    $coursesStmt = $db->prepare("SELECT course_id, course_code, course_name, units FROM courses WHERE department_id = :department_id");
-                    $coursesStmt->execute([':department_id' => $departmentId]);
-                    $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
-                } else {
+                    // Handle AJAX error response
+                    if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                        header('Content-Type: application/json');
+                        echo json_encode(['error' => implode(' ', $errors)]);
+                        exit;
+                    }
                     $error = implode("<br>", $errors);
                 }
             } elseif ($_POST['action'] === 'toggle_curriculum') {
-                // Toggle curriculum status
                 $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
                 $new_status = $_POST['status'] === 'Active' ? 'Draft' : 'Active';
 
@@ -261,7 +215,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([':status' => $new_status, ':curriculum_id' => $curriculum_id]);
 
                 $success = "Curriculum status updated to $new_status.";
-                // Refresh the curricula list
                 $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
                                               FROM curricula c 
                                               JOIN programs p ON c.department_id = p.department_id 
@@ -269,7 +222,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $curriculaStmt->execute([':department_id' => $departmentId]);
                 $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
             } elseif ($_POST['action'] === 'remove_course') {
-                // Remove course from curriculum
                 $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
                 $course_id = intval($_POST['course_id'] ?? 0);
 
@@ -278,17 +230,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($course_id < 1) $errors[] = "Invalid course.";
 
                 if (empty($errors)) {
-                    // Check if the course exists in the curriculum
                     $checkStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
                     $checkStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
                     if ($checkStmt->fetchColumn() == 0) {
                         $errors[] = "Course not found in this curriculum.";
                     } else {
-                        // Delete the course from curriculum_courses
                         $deleteStmt = $db->prepare("DELETE FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
                         $deleteStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
 
-                        // Update total_units in curricula
                         $unitsStmt = $db->prepare("SELECT SUM(c.units) as total FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id WHERE cc.curriculum_id = :curriculum_id");
                         $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
                         $total_units = $unitsStmt->fetchColumn() ?: 0;
@@ -296,7 +245,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->prepare("UPDATE curricula SET total_units = :total_units WHERE curriculum_id = :curriculum_id")
                             ->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
 
-                        // Return JSON for AJAX
                         if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
                             header('Content-Type: application/json');
                             echo json_encode(['success' => 'Course removed successfully.']);
@@ -304,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
 
                         $success = "Course removed successfully.";
-                        // Refresh the curricula list
                         $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
                                                       FROM curricula c 
                                                       JOIN programs p ON c.department_id = p.department_id 
@@ -325,6 +272,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (PDOException $e) {
             $error = "Database error: " . htmlspecialchars($e->getMessage());
+
+            // Handle AJAX error response
+            if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['error' => $error]);
+                exit;
+            }
         }
     }
 }
@@ -341,6 +295,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         --solid-green: #D1E7DD;
         --solid-red: #F8D7DA;
         --solid-black: #000000;
+        --warning-yellow: #FFF3CD;
+        --warning-yellow-text: #856404;
+        --warning-orange: #FFE4CC;
+        --warning-orange-text: #B45309;
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -352,25 +310,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         line-height: 1.6;
     }
 
-    /* Add these styles to your existing CSS */
-    #courseSearchInput {
+    #searchInput,
+    #statusFilter,
+    #yearFilter {
         transition: all 0.3s ease;
         border: 1px solid var(--prmsu-gray);
     }
 
-    #courseSearchInput:focus {
+    #searchInput:focus,
+    #statusFilter:focus,
+    #yearFilter:focus {
         border-color: var(--prmsu-gold);
         box-shadow: 0 0 0 3px rgba(239, 187, 15, 0.2);
-    }
-
-    #courseExistsNotification {
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-    }
-
-    #courseSelect option[style*="display: none"] {
-        display: none !important;
     }
 
     .font-heading {
@@ -405,6 +356,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .btn-gold:active {
         transform: translateY(0);
         box-shadow: 0 2px 4px #0000001A;
+    }
+
+    .btn-gold:disabled {
+        background-color: var(--prmsu-gray);
+        color: var(--prmsu-gray-light);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
     }
 
     .btn-outline {
@@ -450,7 +409,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background-color: var(--prmsu-gray-light);
     }
 
-    /* Group Header */
     .group-header {
         font-size: 1.125rem;
         font-weight: 600;
@@ -458,13 +416,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         margin-bottom: 0.5rem;
     }
 
-    /* Toast Notification */
     .toast {
         opacity: 1;
         transition: opacity 0.3s ease-in-out;
     }
 
-    /* Ensure table headers are uppercase and consistent */
     .table-header th {
         font-size: 0.75rem;
         font-weight: 600;
@@ -474,19 +430,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .modal-overlay {
-        background-color: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(4px);
-        transition: opacity 0.3s ease, transform 0.3s ease;
-        transform: scale(0.95);
-    }
-
-    .modal-content {
-        transform: translateY(20px);
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(8px);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        opacity: 0;
+        visibility: hidden;
         transition: all 0.3s ease;
     }
 
-    .modal-content.modal-open {
-        transform: translateY(0);
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background: var(--prmsu-white);
+        border-radius: 16px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        width: 100%;
+        max-width: 95vw;
+        max-height: 95vh;
+        overflow-y: auto;
+        transform: scale(0.9) translateY(20px);
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .modal-overlay.active .modal-content {
+        transform: scale(1) translateY(0);
     }
 
     input,
@@ -558,6 +538,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         margin-top: 0.25rem;
         display: none;
     }
+
+    /* Warning and notification styles */
+    .warning-notification {
+        background-color: var(--warning-yellow);
+        color: var(--warning-yellow-text);
+        border: 1px solid #F6E05E;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        animation: slideInDown 0.3s ease-out;
+    }
+
+    .duplicate-warning {
+        background-color: var(--warning-orange);
+        color: var(--warning-orange-text);
+        border: 1px solid #F97316;
+    }
+
+    @keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .loading-spinner {
+        border: 3px solid var(--prmsu-gray-light);
+        border-top: 3px solid var(--prmsu-gold);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
 </style>
 
 <!-- Display success/error messages -->
@@ -609,17 +641,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="flex space-x-3 w-full sm:w-auto">
-            <select class="border border-prmsu-gray rounded-lg px-4 py-3 focus-gold bg-prmsu-white text-prmsu-gray-dark w-full sm:w-auto shadow-sm">
+            <select id="statusFilter" class="border border-prmsu-gray rounded-lg px-4 py-3 focus-gold bg-prmsu-white text-prmsu-gray-dark w-full sm:w-auto shadow-sm">
                 <option value="">All Statuses</option>
                 <option value="active">Active</option>
                 <option value="draft">Draft</option>
-            </select>
-
-            <select class="border border-prmsu-gray rounded-lg px-4 py-3 focus-gold bg-prmsu-white text-prmsu-gray-dark w-full sm:w-auto shadow-sm">
-                <option value="">All Years</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-                <option value="2023">2023</option>
             </select>
         </div>
     </div>
@@ -638,15 +663,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <th class="px-4 sm:px-6 py-4 text-left">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-prmsu-gray-light">
+                <tbody id="curriculaTableBody" class="divide-y divide-prmsu-gray-light">
                     <?php foreach ($curricula as $curriculum): ?>
                         <?php
-                        // Fetch the number of courses in this curriculum
                         $courseCountStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id");
                         $courseCountStmt->execute([':curriculum_id' => $curriculum['curriculum_id']]);
                         $course_count = $courseCountStmt->fetchColumn();
 
-                        // Fetch courses for the curriculum to display in the View Courses modal
                         $coursesStmt = $db->prepare("SELECT c.course_code, c.course_name, c.units, cc.year_level, cc.semester, cc.subject_type 
                                                     FROM curriculum_courses cc 
                                                     JOIN courses c ON cc.course_id = c.course_id 
@@ -654,7 +677,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $coursesStmt->execute([':curriculum_id' => $curriculum['curriculum_id']]);
                         $curriculum_courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
                         ?>
-                        <tr class="table-row">
+                        <tr class="table-row" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
                             <td class="px-4 sm:px-6 py-4 text-sm font-medium text-prmsu-gray-dark"><?= htmlspecialchars($curriculum['curriculum_name']) ?></td>
                             <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($course_count) ?> Courses</td>
                             <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($curriculum['total_units']) ?> Total Units</td>
@@ -682,14 +705,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                                         </svg>
                                     </button>
-                                    <button onclick='openEditCurriculumModal(<?= json_encode([
-                                                                                    "id" => $curriculum['curriculum_id'],
-                                                                                    "name" => htmlspecialchars($curriculum['curriculum_name']),
-                                                                                    "code" => htmlspecialchars($curriculum['curriculum_code']),
-                                                                                    "year" => $curriculum['effective_year'],
-                                                                                    "description" => htmlspecialchars($curriculum['description']),
-                                                                                    "status" => $curriculum['status']
-                                                                                ]) ?>)'
+                                    <button onclick="openEditCurriculumModal(<?= json_encode([
+                                                                                    'id' => $curriculum['curriculum_id'],
+                                                                                    'name' => htmlspecialchars($curriculum['curriculum_name']),
+                                                                                    'code' => htmlspecialchars($curriculum['curriculum_code']),
+                                                                                    'year' => $curriculum['effective_year'],
+                                                                                    'description' => htmlspecialchars($curriculum['description']),
+                                                                                    'status' => $curriculum['status'],
+                                                                                ]) ?>)"
                                         class="text-blue-600 hover:text-blue-800 transition-all"
                                         title="Edit Curriculum">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -732,17 +755,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- Merged Add Curriculum and Course Modal -->
+<!-- Add Curriculum Modal -->
 <div id="addCurriculumCourseModal" class="fixed inset-0 hidden">
-    <div class="bg-white modal-overlay fixed inset-0 flex items-center justify-center p-4 bg-opacity-50 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+    <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4 bg-opacity-50 backdrop-blur-sm opacity-0 transition-opacity duration-300">
         <div class="modal-content bg-white rounded-xl shadow-2xl max-w-lg w-full transform translate-y-8 transition-transform duration-300 ease-out">
-            <!-- Modal Header -->
             <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-amber-50 to-white rounded-t-xl">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center">
                     <svg class="w-6 h-6 mr-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                     </svg>
-                    <span id="modalTitle">Add New</span>
+                    <span id="modalTitle">Add New Curriculum</span>
                 </h3>
                 <button onclick="closeModal('addCurriculumCourseModal')" class="text-gray-500 hover:text-gray-700 transition-all transform hover:scale-110 focus:outline-none">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -752,102 +774,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="p-6">
-                <!-- Tabs -->
-                <div class="flex border-b border-gray-200 mb-6">
-                    <button id="curriculumTab" class="tab-button py-3 px-4 font-medium text-sm border-b-2 border-amber-500 text-amber-600 mr-4 focus:outline-none" onclick="showTab('curriculumForm', 'curriculumTab')">
-                        <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                        </svg>
-                        Add Curriculum
-                    </button>
-                    <button id="courseTab" class="tab-button py-3 px-4 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700 focus:outline-none" onclick="showTab('courseForm', 'courseTab')">
-                        <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                        </svg>
-                        Add Course
-                    </button>
-                </div>
-
-                <!-- Curriculum Form -->
-                <div id="curriculumForm" class="tab-content">
-                    <form method="POST" class="space-y-5">
-                        <input type="hidden" name="action" value="add_curriculum">
+                <form method="POST" class="space-y-5">
+                    <input type="hidden" name="action" value="add_curriculum">
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Name</label>
+                        <input type="text" name="curriculum_name" placeholder="e.g. Bachelor of Science in Computer Science"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
                         <div class="form-group">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Name</label>
-                            <input type="text" name="curriculum_name" placeholder="e.g. Bachelor of Science in Computer Science"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="form-group">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code</label>
-                                <input type="text" name="curriculum_code" placeholder="e.g. BSCS-2025"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
-                            </div>
-                            <div class="form-group">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Effective Year</label>
-                                <input type="number" name="effective_year" value="2025" min="2000" max="2100"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea name="description" rows="3" placeholder="Brief description of the curriculum..."
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"></textarea>
-                        </div>
-                        <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
-                            <button type="button" onclick="closeModal('addCurriculumCourseModal')"
-                                class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                Cancel
-                            </button>
-                            <button type="submit"
-                                class="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
-                                Create Curriculum
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Course Form -->
-                <div id="courseForm" class="tab-content hidden">
-                    <form method="POST" class="space-y-5" id="courseFormElement">
-                        <input type="hidden" name="action" value="create_course">
-                        <div class="form-group">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Course Code</label>
-                            <input type="text" name="course_code" id="courseCodeInput" placeholder="e.g. CS101"
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
-                            <p id="courseCodeError" class="error-text"></p>
-                        </div>
-                        <div class="form-group">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Course Name</label>
-                            <input type="text" name="course_name" placeholder="e.g. Introduction to Programming"
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Curriculum Code</label>
+                            <input type="text" name="curriculum_code" placeholder="e.g. BSCS-2025"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                         </div>
                         <div class="form-group">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Units</label>
-                            <input type="number" name="units" value="3" min="1" max="10"
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Effective Year</label>
+                            <input type="number" name="effective_year" value="2025" min="2000" max="2100"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                         </div>
-                        <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
-                            <button type="button" onclick="closeModal('addCurriculumCourseModal')"
-                                class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                Cancel
-                            </button>
-                            <button type="submit" id="createCourseButton"
-                                class="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
-                                Create Course
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea name="description" rows="3" placeholder="Brief description of the curriculum..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"></textarea>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
+                        <button type="button" onclick="closeModal('addCurriculumCourseModal')"
+                            class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                            Create Curriculum
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Edit Curriculum Modal -->
-<div id="editCurriculumModal" class="fixed inset-0 z-50 hidden">
+<div id="editCurriculumModal" class="fixed inset-0 hidden">
     <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white modal-content bg-prmsu-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="modal-content bg-white rounded-xl shadow-2xl max-w-md w-full">
             <div class="p-6 border-b border-prmsu-gray-light flex justify-between items-center">
                 <h3 class="text-xl font-heading text-prmsu-gray-dark flex items-center">
                     <svg class="w-6 h-6 mr-2 text-prmsu-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -907,9 +877,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <!-- Manage Courses Modal -->
-<div id="manageCoursesModal" class="fixed inset-0 z-50 hidden">
+<div id="manageCoursesModal" class="fixed inset-0 hidden">
     <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white modal-content bg-prmsu-white rounded-xl shadow-2xl max-w-2xl w-full">
+        <div class="modal-content bg-white rounded-xl shadow-2xl max-w-2xl w-full">
             <div class="p-6 border-b border-prmsu-gray-light flex justify-between items-center">
                 <h3 class="text-xl font-heading text-prmsu-gray-dark flex items-center" id="manageCoursesTitle">
                     <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -924,7 +894,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </button>
             </div>
             <div class="p-6">
-                <!-- Add Search Bar Here -->
                 <div class="relative mb-4">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <svg class="w-5 h-5 text-prmsu-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -935,12 +904,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors">
                 </div>
 
-                <!-- Add Notification Area for Course Existence Check -->
                 <div id="courseExistsNotification" class="hidden mb-4 p-3 rounded-lg bg-red-100 text-red-800 flex items-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span id="courseExistsMessage">This course already exists in the curriculum.</span>
+                    <div id="courseCheckingLoader" class="hidden loading-spinner mr-2"></div>
+                    <span id="courseExistsMessage">This course already exists in this curriculum.</span>
                 </div>
 
                 <form method="POST" class="space-y-5" id="manageCoursesForm">
@@ -950,13 +916,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Select Course</label>
                         <select name="course_id" id="courseSelect" class="focus-gold" required>
                             <option value="">-- Select Course --</option>
-                            <?php foreach ($courses as $course): ?>
-                                <option value="<?= $course['course_id'] ?>"
-                                    data-code="<?= htmlspecialchars($course['course_code']) ?>"
-                                    data-name="<?= htmlspecialchars($course['course_name']) ?>">
-                                    <?= htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']) ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <?php
+                            // Ensure $courses is set
+                            if (!isset($courses)) {
+                                $courses = [];
+                                $coursesStmt = $db->prepare("SELECT course_id, course_code, course_name, units, subject_type FROM courses WHERE department_id = :department_id");
+                                $coursesStmt->execute([':department_id' => $departmentId]);
+                                $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+                                error_log("Fetched courses at " . date('Y-m-d H:i:s') . ": " . print_r($courses, true));
+                            }
+                            // Generate options with detailed debugging
+                            foreach ($courses as $index => $course) {
+                                $subjectType = $course['subject_type'] ?? 'Unknown';
+                                error_log("Course #$index - ID: {$course['course_id']}, Subject Type: $subjectType");
+                                echo '<option value="' . htmlspecialchars($course['course_id']) . '" ' .
+                                    'data-code="' . htmlspecialchars($course['course_code'] ?? '') . '" ' .
+                                    'data-name="' . htmlspecialchars($course['course_name'] ?? '') . '" ' .
+                                    'data-subject-type="' . htmlspecialchars($subjectType) . '">' .
+                                    htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']) .
+                                    '</option>';
+                            }
+                            ?>
                         </select>
                     </div>
                     <div class="grid grid-cols-3 gap-4">
@@ -974,12 +954,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <select name="semester" class="focus-gold" required>
                                 <option value="1st">1st Semester</option>
                                 <option value="2nd">2nd Semester</option>
-                                <option value="Summer">Summer</option>
+                                <option value="Mid Year">Mid Year</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Subject Type</label>
-                            <select name="subject_type" class="focus-gold" required>
+                            <select name="subject_type" id="subjectTypeSelect" class="focus-gold" required disabled>
+                                <option value="">-- Auto Set --</option>
+                                <option value="Professional Course">Professional Course</option>
                                 <option value="Major">Major</option>
                                 <option value="Minor">Minor</option>
                                 <option value="General Education">General Education</option>
@@ -999,9 +981,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <!-- View Courses Modal -->
-<div id="viewCoursesModal" class="fixed inset-0 z-50 hidden">
+<div id="viewCoursesModal" class="fixed inset-0 hidden">
     <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white modal-content bg-prmsu-white rounded-xl shadow-2xl max-w-4xl w-full">
+        <div class="modal-content bg-white rounded-xl shadow-2xl max-w-4xl w-full">
             <div class="p-6 border-b border-prmsu-gray-light flex justify-between items-center">
                 <h3 class="text-xl font-heading text-prmsu-gray-dark flex items-center" id="viewCoursesTitle">
                     <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1036,6 +1018,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+    // Global variables
+    let duplicateCheckTimeout = null;
+
     // Open modal function
     function openModal(modalId) {
         const modal = document.getElementById(modalId);
@@ -1048,13 +1033,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         void modal.offsetWidth;
 
-        overlay.classList.add('opacity-100');
+        overlay.classList.add('active');
         content.classList.remove('translate-y-8');
         content.classList.add('translate-y-0');
-
-        if (modalId === 'addCurriculumCourseModal') {
-            showTab('curriculumForm', 'curriculumTab');
-        }
     }
 
     // Close modal function
@@ -1065,65 +1046,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const overlay = modal.querySelector('.modal-overlay');
         const content = modal.querySelector('.modal-content');
 
-        overlay.classList.remove('opacity-100');
+        overlay.classList.remove('active');
         content.classList.remove('translate-y-0');
         content.classList.add('translate-y-8');
 
         setTimeout(() => {
             modal.classList.add('hidden');
+            // Reset form when closing manage courses modal
+            if (modalId === 'manageCoursesModal') {
+                resetManageCoursesForm();
+            }
         }, 300);
     }
 
-    // Tab functionality
-    function showTab(tabContentId, tabButtonId) {
-        console.log('Switching to tab:', tabContentId);
-
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-            content.classList.add('hidden');
-        });
-
-        const selectedTab = document.getElementById(tabContentId);
-        if (selectedTab) {
-            selectedTab.classList.add('active');
-            selectedTab.classList.remove('hidden');
+    // Reset manage courses form
+    function resetManageCoursesForm() {
+        const form = document.getElementById('manageCoursesForm');
+        if (form) {
+            form.reset();
         }
+        hideAllNotifications();
+        enableAddButton();
+    }
 
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.classList.remove('active', 'border-amber-500', 'text-amber-600');
-            button.classList.add('border-transparent', 'text-gray-500');
-        });
+    // Hide all notifications
+    function hideAllNotifications() {
+        document.getElementById('courseExistsNotification').classList.add('hidden');
+        document.getElementById('courseCheckingLoader').classList.add('hidden');
+    }
 
-        const selectedButton = document.getElementById(tabButtonId);
-        if (selectedButton) {
-            selectedButton.classList.add('active', 'border-amber-500', 'text-amber-600');
-            selectedButton.classList.remove('border-transparent', 'text-gray-500');
-        }
+    // Enable/disable add button
+    function enableAddButton(enabled = true) {
+        const button = document.getElementById('addCourseButton');
+        const buttonText = document.getElementById('addCourseButtonText');
+        const buttonSpinner = document.getElementById('addCourseButtonSpinner');
 
-        const modalTitle = document.getElementById('modalTitle');
-        if (modalTitle) {
-            modalTitle.textContent = tabContentId === 'curriculumForm' ? 'Add New Curriculum' : 'Add New Course';
-        }
-
-        if (tabContentId === 'courseForm') {
-            document.getElementById('courseCodeError').style.display = 'none';
-            document.getElementById('courseCodeError').textContent = '';
-            document.getElementById('createCourseButton').disabled = false;
+        if (button) {
+            button.disabled = !enabled;
+            if (enabled) {
+                buttonText.classList.remove('hidden');
+                buttonSpinner.classList.add('hidden');
+            } else {
+                buttonText.classList.add('hidden');
+                buttonSpinner.classList.remove('hidden');
+            }
         }
     }
 
-    // Toast notification function
-    function showToast(message, bgColor) {
+    // Enhanced toast notification function
+    function showToast(message, type = 'success') {
+        const bgColors = {
+            success: 'bg-green-500',
+            error: 'bg-red-500',
+            warning: 'bg-yellow-500',
+            info: 'bg-blue-500'
+        };
+
+        const icons = {
+            success: `<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`,
+            error: `<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>`,
+            warning: `<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>`,
+            info: `<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>`
+        };
+
         const toast = document.createElement('div');
-        toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white ${bgColor} transition-all duration-300`;
-        toast.textContent = message;
-        toast.style.zIndex = '9999';
+        toast.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg text-white ${bgColors[type]} transition-all duration-300 z-50 flex items-center max-w-sm`;
+        toast.innerHTML = `${icons[type]}${message}`;
+        toast.style.transform = 'translateX(100%)';
+
         document.body.appendChild(toast);
 
+        // Slide in
         setTimeout(() => {
-            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(0)';
+        }, 100);
+
+        // Slide out and remove
+        setTimeout(() => {
+            toast.style.transform = 'translateX(100%)';
             setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        }, 4000);
     }
 
     // Edit curriculum modal
@@ -1139,25 +1141,199 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Manage courses modal
     function openManageCoursesModal(curriculumId, curriculumName) {
-        document.getElementById('curriculumIdInput').value = curriculumId;
-        document.getElementById('manageCoursesTitle').textContent = `Manage Courses for ${curriculumName}`;
+        const curriculumIdInput = document.getElementById('curriculumIdInput');
+        const manageCoursesTitle = document.getElementById('manageCoursesTitle');
+        if (!curriculumIdInput || !manageCoursesTitle) return;
 
-        // Reset form and notification
-        document.getElementById('manageCoursesForm').reset();
-        document.getElementById('courseExistsNotification').classList.add('hidden');
-        document.getElementById('addCourseButton').disabled = false;
-
+        curriculumIdInput.value = curriculumId;
+        manageCoursesTitle.textContent = `Manage Courses for ${curriculumName}`;
+        resetManageCoursesForm();
         openModal('manageCoursesModal');
 
-        // Focus on search input when modal opens
         setTimeout(() => {
-            document.getElementById('courseSearchInput').focus();
+            const courseSearchInput = document.getElementById('courseSearchInput');
+            if (courseSearchInput) courseSearchInput.focus();
         }, 300);
     }
 
-    // Add event listeners for search functionality
+    // Reset manage courses form
+    function resetManageCoursesForm() {
+        const form = document.getElementById('manageCoursesForm');
+        if (form) form.reset();
+        hideAllNotifications();
+        enableAddButton();
+    }
+
+    // Hide all notifications
+    function hideAllNotifications() {
+        const courseExistsNotification = document.getElementById('courseExistsNotification');
+        if (courseExistsNotification) courseExistsNotification.classList.add('hidden');
+        const courseCheckingLoader = document.getElementById('courseCheckingLoader');
+        if (courseCheckingLoader) courseCheckingLoader.classList.add('hidden');
+    }
+
+    // Enable/disable add button
+    function enableAddButton(enabled = true) {
+        const button = document.getElementById('addCourseButton');
+        if (!button) return;
+        button.disabled = !enabled;
+    }
+
+    // Enhanced course duplicate checking
+    function checkCourseDuplicate(curriculumId, courseId) {
+        if (!curriculumId || !courseId) {
+            hideAllNotifications();
+            enableAddButton();
+            return;
+        }
+
+        // Show loading indicator
+        hideAllNotifications();
+        document.getElementById('courseCheckingLoader').classList.remove('hidden');
+        enableAddButton(false);
+
+        // Clear previous timeout
+        if (duplicateCheckTimeout) {
+            clearTimeout(duplicateCheckTimeout);
+        }
+
+        // Debounce the API call
+        duplicateCheckTimeout = setTimeout(() => {
+            fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `action=check_course_in_curriculum&curriculum_id=${encodeURIComponent(curriculumId)}&course_id=${encodeURIComponent(courseId)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    hideAllNotifications();
+
+                    if (data.exists) {
+                        const courseSelect = document.getElementById('courseSelect');
+                        const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+                        const courseCode = selectedOption.dataset.code;
+                        const courseName = selectedOption.dataset.name;
+
+                        document.getElementById('courseExistsMessage').innerHTML =
+                            `<strong>${courseCode}</strong> - ${courseName} is already part of this curriculum. Please select a different course.`;
+                        document.getElementById('courseExistsNotification').classList.remove('hidden');
+                        enableAddButton(false);
+                    } else {
+                        enableAddButton(true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking course:', error);
+                    hideAllNotifications();
+                    enableAddButton(true);
+                    showToast('Error checking for duplicates. Please try again.', 'error');
+                });
+        }, 500); // 500ms debounce
+    }
+
+    // View courses modal with grouping and remove functionality
+    function openViewCoursesModal(courses, curriculumName, curriculumId) {
+        const container = document.getElementById('coursesContainer');
+        const noCoursesMessage = document.getElementById('noCoursesMessage');
+        container.innerHTML = '';
+
+        if (!courses || courses.length === 0) {
+            noCoursesMessage.classList.remove('hidden');
+            container.classList.add('hidden');
+        } else {
+            noCoursesMessage.classList.add('hidden');
+            container.classList.remove('hidden');
+
+            const groupedCourses = {};
+            courses.forEach(course => {
+                const key = `${course.year_level}-${course.semester}`;
+                if (!groupedCourses[key]) {
+                    groupedCourses[key] = [];
+                }
+                groupedCourses[key].push(course);
+            });
+
+            const yearOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+            const semesterOrder = ['1st', '2nd', 'Mid Year'];
+            const sortedKeys = Object.keys(groupedCourses).sort((a, b) => {
+                const [yearA, semesterA] = a.split('-');
+                const [yearB, semesterB] = b.split('-');
+                const yearDiff = yearOrder.indexOf(yearA) - yearOrder.indexOf(yearB);
+                if (yearDiff !== 0) return yearDiff;
+                return semesterOrder.indexOf(semesterA) - semesterOrder.indexOf(semesterB);
+            });
+
+            sortedKeys.forEach(key => {
+                const [yearLevel, semester] = key.split('-');
+                const groupCourses = groupedCourses[key].sort((a, b) => a.course_code.localeCompare(b.course_code));
+
+                const header = document.createElement('div');
+                header.className = 'mt-6 mb-4';
+                header.innerHTML = `
+                    <h4 class="text-lg font-semibold text-prmsu-gray-dark flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-prmsu-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
+                        ${yearLevel} - ${semester} Semester
+                        <span class="ml-2 text-sm text-prmsu-gray bg-prmsu-gray-light px-2 py-1 rounded-full">${groupCourses.length} courses</span>
+                    </h4>
+                    <hr class="border-prmsu-gray-light mt-2">
+                `;
+                container.appendChild(header);
+
+                const table = document.createElement('table');
+                table.className = 'w-full table-auto border-collapse mb-6';
+                table.innerHTML = `
+                    <thead>
+                        <tr class="table-header">
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Course Code</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Course Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Units</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Subject Type</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-prmsu-gray-light">
+                        ${groupCourses.map(course => `
+                            <tr class="table-row hover:bg-prmsu-gray-light transition-colors">
+                                <td class="px-4 py-3 text-sm font-medium text-prmsu-gray-dark">${course.course_code || ''}</td>
+                                <td class="px-4 py-3 text-sm text-prmsu-gray-dark">${course.course_name || ''}</td>
+                                <td class="px-4 py-3 text-sm text-prmsu-gray">${course.units || ''}</td>
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        ${course.subject_type || ''}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm font-medium">
+                                    <button class="remove-course-btn text-red-600 hover:text-red-800 hover:bg-red-50 transition-all p-2 rounded-lg"
+                                        data-course-id="${course.course_id}"
+                                        data-curriculum-id="${curriculumId}"
+                                        data-course-name="${course.course_name}"
+                                        data-course-code="${course.course_code}"
+                                        title="Remove Course">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                `;
+                container.appendChild(table);
+            });
+        }
+
+        document.getElementById('viewCoursesTitle').textContent = `Courses for ${curriculumName}`;
+        openModal('viewCoursesModal');
+    }
+
+    // Event listeners
     document.addEventListener('DOMContentLoaded', function() {
-        // Course search functionality
+        // Course search functionality in Manage Courses modal
         const courseSearchInput = document.getElementById('courseSearchInput');
         if (courseSearchInput) {
             courseSearchInput.addEventListener('input', function() {
@@ -1165,7 +1341,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const options = document.querySelectorAll('#courseSelect option');
 
                 options.forEach(option => {
-                    if (option.value === '') return; // Skip the first option
+                    if (option.value === '') return;
 
                     const text = option.textContent.toLowerCase();
                     if (text.includes(searchTerm)) {
@@ -1177,12 +1353,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // Course existence check when selecting a course
+        // Course selection and subject type auto-set
         const courseSelect = document.getElementById('courseSelect');
-        if (courseSelect) {
+        const subjectTypeSelect = document.getElementById('subjectTypeSelect');
+        if (courseSelect && subjectTypeSelect) {
             courseSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const subjectType = selectedOption.dataset.subjectType;
+                console.log('Selected Option:', selectedOption); // Log the entire option
+                console.log('Selected subjectType:', subjectType); // Log the subjectType value
+
+                if (subjectType) {
+                    subjectTypeSelect.value = subjectType === 'Unknown' ? '' : subjectType;
+                    console.log('Setting subjectTypeSelect to:', subjectTypeSelect.value);
+                } else {
+                    subjectTypeSelect.value = '';
+                    console.log('No subjectType, setting to empty');
+                }
+
                 const curriculumId = document.getElementById('curriculumIdInput').value;
                 const courseId = this.value;
+                checkCourseDuplicate(curriculumId, courseId);
 
                 if (!courseId || !curriculumId) {
                     document.getElementById('courseExistsNotification').classList.add('hidden');
@@ -1190,7 +1381,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return;
                 }
 
-                // Check if course already exists in curriculum
                 fetch(window.location.href, {
                         method: 'POST',
                         headers: {
@@ -1202,7 +1392,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     .then(response => response.json())
                     .then(data => {
                         if (data.exists) {
-                            const selectedOption = courseSelect.options[courseSelect.selectedIndex];
                             const courseCode = selectedOption.dataset.code;
                             const courseName = selectedOption.dataset.name;
 
@@ -1223,7 +1412,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // Handle form submission for adding courses
+        // Handle form submission for adding courses with enhanced error handling
         const manageCoursesForm = document.getElementById('manageCoursesForm');
         if (manageCoursesForm) {
             manageCoursesForm.addEventListener('submit', function(e) {
@@ -1232,201 +1421,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const formData = new FormData(this);
                 const curriculumId = formData.get('curriculum_id');
                 const courseId = formData.get('course_id');
+                const courseSelect = document.getElementById('courseSelect');
+                const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+                const courseName = selectedOption ? selectedOption.dataset.name : 'Unknown Course';
+
+                // Show loading state
+                enableAddButton(false);
+                hideAllNotifications();
 
                 fetch(window.location.href, {
                         method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
                         body: formData
                     })
                     .then(response => response.json())
                     .then(data => {
+                        enableAddButton(true);
+
                         if (data.success) {
-                            showToast(data.success, 'bg-green-500');
+                            showToast(`${courseName} added successfully!`, 'success');
                             closeModal('manageCoursesModal');
 
-                            // Refresh the view courses modal if it's open
-                            if (document.getElementById('viewCoursesModal') &&
-                                !document.getElementById('viewCoursesModal').classList.contains('hidden')) {
+                            // Refresh view courses modal if it's open
+                            if (!document.getElementById('viewCoursesModal').classList.contains('hidden')) {
                                 const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
                                 fetchCoursesAndRefreshModal(curriculumId, curriculumName);
                             }
+
+                            // Optionally refresh the page to update the curriculum table
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1500);
                         } else if (data.error) {
-                            showToast(data.error, 'bg-red-500');
+                            showToast(data.error, 'error');
                         }
                     })
                     .catch(error => {
                         console.error('Error adding course:', error);
-                        showToast('Failed to add course.', 'bg-red-500');
+                        enableAddButton(true);
+                        showToast('Failed to add course. Please try again.', 'error');
                     });
             });
         }
-    });
 
-    // View courses modal with grouping and remove functionality
-    function openViewCoursesModal(courses, curriculumName, curriculumId) {
-        const container = document.getElementById('coursesContainer');
-        const noCoursesMessage = document.getElementById('noCoursesMessage');
-        container.innerHTML = '';
-
-        if (!courses || courses.length === 0) {
-            noCoursesMessage.classList.remove('hidden');
-            container.classList.add('hidden');
-        } else {
-            noCoursesMessage.classList.add('hidden');
-            container.classList.remove('hidden');
-
-            // Group courses by year_level and semester
-            const groupedCourses = {};
-            courses.forEach(course => {
-                const key = `${course.year_level}-${course.semester}`;
-                if (!groupedCourses[key]) {
-                    groupedCourses[key] = [];
-                }
-                groupedCourses[key].push(course);
-            });
-
-            // Sort groups by year_level and semester
-            const yearOrder = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-            const semesterOrder = ['1st', '2nd', 'Summer'];
-            const sortedKeys = Object.keys(groupedCourses).sort((a, b) => {
-                const [yearA, semesterA] = a.split('-');
-                const [yearB, semesterB] = b.split('-');
-                const yearDiff = yearOrder.indexOf(yearA) - yearOrder.indexOf(yearB);
-                if (yearDiff !== 0) return yearDiff;
-                return semesterOrder.indexOf(semesterA) - semesterOrder.indexOf(semesterB);
-            });
-
-            // Render each group
-            sortedKeys.forEach(key => {
-                const [yearLevel, semester] = key.split('-');
-                const groupCourses = groupedCourses[key].sort((a, b) => a.course_code.localeCompare(b.course_code));
-
-                // Create group header
-                const header = document.createElement('div');
-                header.className = 'mt-6 mb-4';
-                header.innerHTML = `
-                <h4 class="text-lg font-semibold text-prmsu-gray-dark">${yearLevel} - ${semester} Semester</h4>
-                <hr class="border-prmsu-gray-light mt-2">
-            `;
-                container.appendChild(header);
-
-                // Create table for the group
-                const table = document.createElement('table');
-                table.className = 'w-full table-auto border-collapse mb-6';
-                table.innerHTML = `
-                <thead>
-                    <tr class="table-header">
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Course Code</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Course Name</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Units</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Year Level</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Semester</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Subject Type</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-prmsu-white">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-prmsu-gray-light">
-                    ${groupCourses.map(course => `
-                        <tr class="table-row">
-                            <td class="px-4 py-3 text-sm text-prmsu-gray-dark">${course.course_code || ''}</td>
-                            <td class="px-4 py-3 text-sm text-prmsu-gray-dark">${course.course_name || ''}</td>
-                            <td class="px-4 py-3 text-sm text-prmsu-gray">${course.units || ''}</td>
-                            <td class="px-4 py-3 text-sm text-prmsu-gray">${course.year_level || ''}</td>
-                            <td class="px-4 py-3 text-sm text-prmsu-gray">${course.semester || ''}</td>
-                            <td class="px-4 py-3 text-sm text-prmsu-gray">${course.subject_type || ''}</td>
-                            <td class="px-4 py-3 text-sm font-medium">
-                                <button class="remove-course-btn text-red-600 hover:text-red-800 transition-all"
-                                    data-course-id="${course.course_id}"
-                                    data-curriculum-id="${curriculumId}"
-                                    data-course-name="${course.course_name}"
-                                    title="Remove Course">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                    </svg>
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-                container.appendChild(table);
-            });
-        }
-
-        document.getElementById('viewCoursesTitle').textContent = `Courses for ${curriculumName}`;
-        openModal('viewCoursesModal');
-    }
-
-    // Event listeners
-    document.addEventListener('DOMContentLoaded', function() {
-        const courseCodeInput = document.getElementById('courseCodeInput');
-        const courseCodeError = document.getElementById('courseCodeError');
-        const createCourseButton = document.getElementById('createCourseButton');
-        let debounceTimeout;
-
-        if (courseCodeInput) {
-            courseCodeInput.addEventListener('input', function() {
-                clearTimeout(debounceTimeout);
-                debounceTimeout = setTimeout(() => {
-                    const courseCode = courseCodeInput.value.trim();
-                    if (courseCode === '') {
-                        courseCodeError.textContent = '';
-                        courseCodeError.style.display = 'none';
-                        createCourseButton.disabled = false;
-                        return;
-                    }
-
-                    fetch(window.location.href, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                                'X-Requested-With': 'XMLHttpRequest'
-                            },
-                            body: `action=check_course_code&course_code=${encodeURIComponent(courseCode)}`
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.exists) {
-                                courseCodeError.textContent = data.message;
-                                courseCodeError.style.display = 'block';
-                                createCourseButton.disabled = true;
-                            } else {
-                                courseCodeError.textContent = '';
-                                courseCodeError.style.display = 'none';
-                                createCourseButton.disabled = false;
-                            }
-                        })
-                        .catch(error => {
-                            courseCodeError.textContent = 'Error checking course code.';
-                            courseCodeError.style.display = 'block';
-                            createCourseButton.disabled = true;
-                            console.error('Error:', error);
-                        });
-                }, 500);
-            });
-        }
-
-        showTab('curriculumForm', 'curriculumTab');
-
-        document.querySelectorAll('.modal-overlay').forEach(overlay => {
-            overlay.addEventListener('click', function(e) {
-                if (e.target === this) {
-                    const modal = this.closest('.fixed');
-                    if (modal) {
-                        closeModal(modal.id);
-                    }
-                }
-            });
-        });
-
-        // Handle remove course button clicks
+        // Handle remove course button clicks with confirmation
         document.getElementById('viewCoursesModal').addEventListener('click', function(e) {
             if (e.target.closest('.remove-course-btn')) {
                 const button = e.target.closest('.remove-course-btn');
                 const courseId = button.dataset.courseId;
                 const curriculumId = button.dataset.curriculumId;
                 const courseName = button.dataset.courseName;
+                const courseCode = button.dataset.courseCode;
 
-                if (confirm(`Are you sure you want to remove "${courseName}" from this curriculum?`)) {
+                // Enhanced confirmation dialog
+                if (confirm(`⚠️ Remove Course Confirmation\n\nAre you sure you want to remove "${courseCode} - ${courseName}" from this curriculum?\n\nThis action cannot be undone.`)) {
+                    // Show loading state on button
+                    button.innerHTML = `<div class="loading-spinner"></div>`;
+                    button.disabled = true;
+
                     fetch(window.location.href, {
                             method: 'POST',
                             headers: {
@@ -1438,17 +1492,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
-                                showToast(data.success, 'bg-green-500');
-                                // Fetch updated courses list
+                                showToast(`${courseCode} removed successfully!`, 'success');
+                                const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
                                 fetchCoursesAndRefreshModal(curriculumId, curriculumName);
                             } else {
-                                showToast(data.error || 'Failed to remove course.', 'bg-red-500');
+                                showToast(data.error || 'Failed to remove course.', 'error');
+                                // Reset button
+                                button.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                                button.disabled = false;
                             }
                         })
                         .catch(error => {
                             console.error('Remove Course Error:', error);
-                            showToast('Failed to remove course.', 'bg-red-500');
+                            showToast('Failed to remove course. Please try again.', 'error');
+                            // Reset button
+                            button.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                            button.disabled = false;
                         });
+                }
+            }
+        });
+
+        // Search and filter functionality
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        const tableBody = document.getElementById('curriculaTableBody');
+
+        function filterTable() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const statusValue = statusFilter.value.toLowerCase();
+
+            Array.from(tableBody.getElementsByTagName('tr')).forEach(row => {
+                if (row.dataset.name) {
+                    const name = row.dataset.name.toLowerCase();
+                    const status = row.dataset.status;
+
+                    const matchesSearch = name.includes(searchTerm);
+                    const matchesStatus = !statusValue || status === statusValue;
+
+                    row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+                }
+            });
+        }
+
+        [searchInput, statusFilter].forEach(element => {
+            if (element) {
+                element.addEventListener('input', () => {
+                    clearTimeout(window.filterTimeout);
+                    window.filterTimeout = setTimeout(filterTable, 300);
+                });
+            }
+        });
+
+        // Initial filter application
+        filterTable();
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
+                const modal = e.target.closest('[id$="Modal"]');
+                if (modal) {
+                    closeModal(modal.id);
+                }
+            }
+        });
+
+        // Close modals with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const activeModal = document.querySelector('.modal-overlay.active');
+                if (activeModal) {
+                    const modal = activeModal.closest('[id$="Modal"]');
+                    if (modal) {
+                        closeModal(modal.id);
+                    }
                 }
             }
         });
@@ -1470,7 +1587,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .catch(error => {
                 console.error('Fetch Courses Error:', error);
-                showToast('Failed to refresh courses.', 'bg-red-500');
+                showToast('Failed to refresh courses.', 'error');
             });
     }
 </script>

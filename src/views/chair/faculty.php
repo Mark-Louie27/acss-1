@@ -152,8 +152,8 @@ ob_start();
         </header>
 
         <!-- Search Bar -->
-        <div class="search-container bg-white rounded-xl shadow-lg p-6 mb-6 fade-in">
-            <div class="flex items-center bg-gray-50 rounded-full p-3 shadow-inner">
+        <div class="search-container mx-4 sm:mx-6 md:mx-auto bg-white rounded-xl shadow-xl border border-black p-4 fade-in">
+            <div class="flex items-center ">
                 <i class="fas fa-search text-gray-dark w-5 h-5 mr-3"></i>
                 <input type="text" id="search-input" class="search-input flex-1 bg-transparent outline-none text-gray-dark placeholder-gray-dark"
                     placeholder="Search faculty by name..." autocomplete="off" aria-label="Search faculty">

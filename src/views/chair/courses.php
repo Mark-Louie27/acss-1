@@ -6,7 +6,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ob_start();
 
-// Assuming $error, $success, $programs, $courses, $editCourse, $page, $offset, $perPage, $totalCourses, $totalPages, $departmentId are set by ChairController
+// Assuming $error, $success, $courses, $editCourse, $page, $offset, $perPage, $totalCourses, $totalPages, $departmentId are set by ChairController
 $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) && trim($_GET['search']) !== '') ? $_GET['search'] : '';
 ?>
 
@@ -74,8 +74,79 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             pointer-events: none;
         }
 
+        /* Modal Styles */
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 50;
+            /* Higher than sidebar (20) and header (30) */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
         .modal-content {
-            transition: transform 0.3s ease;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 90vw;
+            /* Responsive max-width */
+            max-height: 90vh;
+            /* Responsive max-height */
+            overflow-y: auto;
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1) translateY(0);
+        }
+
+        /* Responsive Modal Sizes */
+        .modal-sm {
+            max-width: 500px;
+        }
+
+        .modal-md {
+            max-width: 700px;
+        }
+
+        .modal-lg {
+            max-width: 900px;
+        }
+
+        .modal-xl {
+            max-width: 1200px;
+        }
+
+        .modal-full {
+            max-width: 95vw;
+        }
+
+        /* Ensure focus styles */
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: #D4AF37;
+            /* Gold from your theme */
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
         }
 
         .input-focus {
@@ -103,10 +174,28 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
         .group:hover .tooltip {
             display: block;
         }
+
+        .course-code-warning {
+            color: #dc2626;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .course-code-input.invalid {
+            border-color: #dc2626;
+            background-color: #fee2e2;
+        }
+
+        .search-highlight {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 0 2px;
+        }
     </style>
 </head>
 
-<body class="bg-gray-light font-sans antialiased">
+<body class="bg-gray-light font-sans antialiased max-w-full">
     <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
 
     <!-- Main Content -->
@@ -117,20 +206,32 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             <p class="text-gray-dark mt-2">Add, edit, and manage courses for your department</p>
         </header>
 
-        <!-- Search and Add Course -->
-        <div class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4 fade-in">
-            <form method="GET" class="w-full md:w-1/2">
+        <div class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <!-- Search Form -->
+            <!-- The search bar is always full width on all screen sizes -->
+            <form method="GET" class="w-full">
                 <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-gray-dark"></i>
+                    <!-- Search Icon -->
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <!-- Using a darker gray for better aesthetic contrast -->
+                        <i class="fas fa-search text-gray-500"></i>
                     </div>
-                    <input type="text" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>" placeholder="Search by course code, name, or program"
-                        class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                    <!-- Search Input -->
+                    <input type="text" id="searchInput" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>"
+                        placeholder="Search by course code or name"
+                        class="pl-12 pr-4 py-3 w-full text-base rounded-xl border border-black bg-white shadow-sm
+                               focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent">
                 </div>
             </form>
+
+            <!-- Add New Course Button -->
+            <!-- The button is full width on mobile but shrinks to its content size on larger screens -->
             <button id="openAddCourseModalBtn"
-                class="btn-gold px-6 py-3 rounded-lg shadow-md hover:shadow-lg flex items-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-opacity-50">
-                <i class="fas fa-plus mr-2"></i> Add New Course
+                class="w-full md:w-auto px-6 py-3 rounded-xl bg-gray-800 text-white font-medium shadow-md
+                       hover:bg-gray-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-opacity-50
+                       flex items-center justify-center whitespace-nowrap">
+                <i class="fas fa-plus mr-2"></i>
+                Add New Course
             </button>
         </div>
 
@@ -148,6 +249,19 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                 <form method="POST" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6" id="addCourseForm">
                     <input type="hidden" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>">
                     <div>
+                        <label for="course_code_add" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-tag text-gray-dark"></i>
+                            </div>
+                            <input type="text" id="course_code_add" name="course_code" required
+                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 course-code-input"
+                                placeholder="e.g., CS101" aria-required="true">
+                        </div>
+                        <p id="courseCodeWarning" class="course-code-warning">This course code already exists.</p>
+                        <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
+                    </div>
+                    <div>
                         <label for="course_name_add" class="block text-sm font-medium text-gray-dark mb-1">Course Name <span class="text-red-500">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -160,31 +274,15 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
                     </div>
                     <div>
-                        <label for="course_code_add" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
+                        <label for="subject_type_add" class="block text-sm font-medium text-gray-dark mb-1">Subject Type <span class="text-red-500">*</span></label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-tag text-gray-dark"></i>
+                                <i class="fas fa-list text-gray-dark"></i>
                             </div>
-                            <input type="text" id="course_code_add" name="course_code" required
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
-                                placeholder="e.g., CS101" aria-required="true">
-                        </div>
-                        <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
-                    </div>
-                    <div>
-                        <label for="program_id_add" class="block text-sm font-medium text-gray-dark mb-1">Program</label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-graduation-cap text-gray-dark"></i>
-                            </div>
-                            <select id="program_id_add" name="program_id"
+                            <select id="subject_type_add" name="subject_type" required
                                 class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
-                                <option value="">General Course (Visible to All)</option>
-                                <?php foreach ($programs as $program): ?>
-                                    <option value="<?php echo htmlspecialchars($program['program_id']); ?>">
-                                        <?php echo htmlspecialchars($program['program_name']); ?> (Department Only)
-                                    </option>
-                                <?php endforeach; ?>
+                                <option value="General Education">General Education</option>
+                                <option value="Professional Course">Professional Course</option>
                             </select>
                             <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                 <i class="fas fa-chevron-down text-gray-dark"></i>
@@ -301,20 +399,15 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
                         </div>
                         <div>
-                            <label for="program_id_edit" class="block text-sm font-medium text-gray-dark mb-1">Program</label>
+                            <label for="subject_type_edit" class="block text-sm font-medium text-gray-dark mb-1">Subject Type <span class="text-red-500">*</span></label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-graduation-cap text-gray-dark"></i>
+                                    <i class="fas fa-list text-gray-dark"></i>
                                 </div>
-                                <select id="program_id_edit" name="program_id"
+                                <select id="subject_type_edit" name="subject_type" required
                                     class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
-                                    <option value="">General Course (Visible to All)</option>
-                                    <?php foreach ($programs as $program): ?>
-                                        <option value="<?php echo htmlspecialchars($program['program_id']); ?>"
-                                            <?php echo (isset($editCourse['program_id']) && $editCourse['program_id'] == $program['program_id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($program['program_name']); ?> (Department Only)
-                                        </option>
-                                    <?php endforeach; ?>
+                                    <option value="General Education" <?php echo ($editCourse['subject_type'] === 'General Education') ? 'selected' : ''; ?>>General Education</option>
+                                    <option value="Professional Course" <?php echo ($editCourse['subject_type'] === 'Professional Course') ? 'selected' : ''; ?>>Professional Courses</option>
                                 </select>
                                 <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                     <i class="fas fa-chevron-down text-gray-dark"></i>
@@ -407,33 +500,37 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     <table class="min-w-full divide-y divide-gray-light">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Department</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Subject Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Units</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Lecture</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Lab</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Visibility</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-light">
                             <?php if (empty($courses)): ?>
                                 <tr>
-                                    <td colspan="10" class="px-6 py-4 text-center text-gray-dark">
+                                    <td colspan="9" class="px-6 py-4 text-center text-gray-dark">
                                         <i class="fas fa-book-open text-gray-dark text-2xl mb-2"></i>
                                         <p>No courses found.</p>
                                     </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($courses as $course): ?>
-                                    <tr class="hover:bg-gray-50 transition-all duration-200">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($course['course_name']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['course_code']); ?></td>
+                                    <tr class="hover:bg-gray-50 transition-all duration-200 curriculum-row"
+                                        data-code="<?php echo htmlspecialchars(strtolower($course['course_code'])); ?>"
+                                        data-name="<?php echo htmlspecialchars(strtolower($course['course_name'])); ?>"
+                                        data-department="<?php echo htmlspecialchars(strtolower($course['department_name'] ?? '')); ?>"
+                                        data-subject-type="<?php echo htmlspecialchars(strtolower($course['subject_type'])); ?>"
+                                        data-status="<?php echo htmlspecialchars($course['is_active'] ? 'active' : 'inactive'); ?>">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark curriculum-code"><?php echo htmlspecialchars($course['course_code']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark curriculum-name"><?php echo htmlspecialchars($course['course_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['department_name'] ?? 'N/A'); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['program_name'] ?? 'General'); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark curriculum-subject-type"><?php echo htmlspecialchars($course['subject_type']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['units']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                             <?php echo htmlspecialchars($course['lecture_units']); ?> units<br>
@@ -448,29 +545,20 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                                                 <?php echo $course['is_active'] ? 'Active' : 'Inactive'; ?>
                                             </span>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo $course['program_id'] ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'; ?>">
-                                                <?php echo $course['program_id'] ? 'Department Only' : 'All Chairs'; ?>
-                                            </span>
-                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <?php if ($course['program_id'] === null || $course['department_id'] == $departmentId): ?>
-                                                <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                                    class="text-gold group relative hover:text-gold-900 mr-3">
-                                                    Edit
-                                                    <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Course</span>
-                                                </a>
-                                                <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                                    class="text-blue-600 group relative hover:text-blue-900"
-                                                    onclick="return confirm('Are you sure you want to toggle the status?');">
-                                                    <?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?>
-                                                    <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">
-                                                        <?php echo $course['is_active'] ? 'Deactivate Course' : 'Activate Course'; ?>
-                                                    </span>
-                                                </a>
-                                            <?php else: ?>
-                                                <span class="text-gray-400">No Actions</span>
-                                            <?php endif; ?>
+                                            <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                                class="text-gold group relative hover:text-gold-900 mr-3">
+                                                Edit
+                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Course</span>
+                                            </a>
+                                            <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                                class="text-blue-600 group relative hover:text-blue-900"
+                                                onclick="return confirm('Are you sure you want to toggle the status?');">
+                                                <?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">
+                                                    <?php echo $course['is_active'] ? 'Deactivate Course' : 'Activate Course'; ?>
+                                                </span>
+                                            </a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -518,7 +606,173 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
     </div>
 
     <script>
+        // Define utility functions first
+        function showToast(message, bgColor) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            toast.setAttribute('role', 'alert');
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            const modalContent = modal.querySelector('.modal-content');
+            modal.classList.remove('hidden');
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+            document.body.style.overflow = 'hidden';
+
+            if (!modal) {
+                console.error(`Modal with ID ${modalId} not found`);
+                return;
+            }
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scroll
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            const modalContent = modal.querySelector('.modal-content');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+                const form = modal.querySelector('form');
+                if (form) {
+                    form.reset();
+                    form.querySelectorAll('.error-message').forEach(msg => msg.classList.add('hidden'));
+                    form.querySelectorAll('input, select').forEach(input => input.classList.remove('border-red-500'));
+                }
+            }, 200);
+
+            if (!modal) return;
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto'; // Restore background scroll
+        }
+
+        // Function to check course code availability
+        function checkCourseCodeAvailability(input) {
+            const courseCode = input.value.trim();
+            const warning = document.getElementById('courseCodeWarning');
+            const inputField = document.querySelector('.course-code-input');
+
+            if (courseCode.length > 0) {
+                fetch('/chair/checkCourseCode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `course_code=${encodeURIComponent(courseCode)}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.exists) {
+                            warning.style.display = 'block';
+                            inputField.classList.add('invalid');
+                        } else {
+                            warning.style.display = 'none';
+                            inputField.classList.remove('invalid');
+                        }
+                    })
+                    .catch(error => console.error('Error checking course code:', error));
+            } else {
+                warning.style.display = 'none';
+                inputField.classList.remove('invalid');
+            }
+        }
+
+        // Client-side course search functionality
+        let searchTimeout;
+
+        function initializeCourseSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const tableBody = document.querySelector('tbody');
+            const noResultsRow = document.createElement('tr');
+            noResultsRow.id = 'noResultsRow';
+            noResultsRow.innerHTML = '<td colspan="9" class="px-6 py-4 text-center text-gray-dark"><i class="fas fa-book-open text-gray-dark text-2xl mb-2"></i><p>No courses match your search criteria</p></td>';
+            tableBody.appendChild(noResultsRow);
+
+            function filterCourses() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const rows = tableBody.querySelectorAll('.curriculum-row');
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    const code = row.dataset.code || '';
+                    const name = row.dataset.name || '';
+                    const department = row.dataset.department || '';
+                    const subjectType = row.dataset.subjectType || '';
+                    const status = row.dataset.status || '';
+
+                    const matchesSearch = searchTerm === '' ||
+                        code.includes(searchTerm) ||
+                        name.includes(searchTerm) ||
+                        department.includes(searchTerm) ||
+                        subjectType.includes(searchTerm);
+
+                    if (matchesSearch) {
+                        row.style.display = '';
+                        visibleCount++;
+
+                        // Highlight search terms
+                        if (searchTerm !== '') {
+                            highlightText(row, searchTerm);
+                        } else {
+                            removeHighlight(row);
+                        }
+                    } else {
+                        row.style.display = 'none';
+                        removeHighlight(row);
+                    }
+                });
+
+                // Show/hide no results message
+                noResultsRow.style.display = visibleCount === 0 ? '' : 'none';
+                if (visibleCount === 0) {
+                    const message = noResultsRow.querySelector('p:first-of-type');
+                    message.textContent = searchTerm ? 'No courses match your search criteria' : 'No courses found';
+                }
+            }
+
+            function highlightText(row, searchTerm) {
+                const elementsToHighlight = row.querySelectorAll('.curriculum-code, .curriculum-name, .curriculum-subject-type');
+                elementsToHighlight.forEach(element => {
+                    const text = element.textContent;
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    element.innerHTML = text.replace(regex, '<span class="search-highlight">$1</span>');
+                });
+            }
+
+            function removeHighlight(row) {
+                const highlightedElements = row.querySelectorAll('.search-highlight');
+                highlightedElements.forEach(element => {
+                    const parent = element.parentNode;
+                    parent.replaceChild(document.createTextNode(element.textContent), element);
+                    parent.normalize();
+                });
+            }
+
+            // Event listeners
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(filterCourses, 300);
+            });
+
+            // Initial filter to handle pre-loaded search term
+            if (searchInput.value) {
+                filterCourses();
+            }
+        }
+
+        // Event listeners and initialization
         document.addEventListener('DOMContentLoaded', () => {
+            // Show toast messages
             <?php if ($success): ?>
                 showToast('<?php echo htmlspecialchars($success); ?>', 'bg-green-500');
             <?php endif; ?>
@@ -526,44 +780,10 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                 showToast('<?php echo htmlspecialchars($error); ?>', 'bg-red-500');
             <?php endif; ?>
 
-            function showToast(message, bgColor) {
-                const toast = document.createElement('div');
-                toast.className = `toast ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg`;
-                toast.textContent = message;
-                toast.setAttribute('role', 'alert');
-                document.getElementById('toast-container').appendChild(toast);
-                setTimeout(() => {
-                    toast.style.opacity = '0';
-                    setTimeout(() => toast.remove(), 300);
-                }, 5000);
-            }
+            // Initialize course search
+            initializeCourseSearch();
 
-            function openModal(modalId) {
-                const modal = document.getElementById(modalId);
-                const modalContent = modal.querySelector('.modal-content');
-                modal.classList.remove('hidden');
-                modalContent.classList.remove('scale-95');
-                modalContent.classList.add('scale-100');
-                document.body.style.overflow = 'hidden';
-            }
-
-            function closeModal(modalId) {
-                const modal = document.getElementById(modalId);
-                const modalContent = modal.querySelector('.modal-content');
-                modalContent.classList.remove('scale-100');
-                modalContent.classList.add('scale-95');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                    document.body.style.overflow = 'auto';
-                    const form = modal.querySelector('form');
-                    if (form) {
-                        form.reset();
-                        form.querySelectorAll('.error-message').forEach(msg => msg.classList.add('hidden'));
-                        form.querySelectorAll('input, select').forEach(input => input.classList.remove('border-red-500'));
-                    }
-                }, 200);
-            }
-
+            // Modal event listeners
             const openAddCourseModalBtn = document.getElementById('openAddCourseModalBtn');
             const closeAddCourseModalBtn = document.getElementById('closeAddCourseModalBtn');
             const cancelAddCourseModalBtn = document.getElementById('cancelAddCourseModalBtn');
@@ -660,6 +880,14 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     });
                 }
             });
+
+            // Add course code availability check
+            const courseCodeInput = document.getElementById('course_code_add');
+            if (courseCodeInput) {
+                courseCodeInput.addEventListener('input', function() {
+                    checkCourseCodeAvailability(this);
+                });
+            }
         });
     </script>
 </body>

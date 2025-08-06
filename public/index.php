@@ -200,6 +200,10 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::courses");
             $controller->courses();
             exit;
+        case '/chair/checkCourseCode': // New route for AJAX check
+            error_log("Routing to ChairController::checkCourseCode");
+            $controller->checkCourseCode();
+            break;
         case '/chair/curriculum':
             error_log("Routing to ChairController::curriculum");
             $controller->curriculum();

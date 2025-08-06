@@ -499,10 +499,8 @@ $currentUri = $_SERVER['REQUEST_URI'];
         </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="md:ml-64 pt-20 md:pt-16 p-4 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-50">
+    <main class="md:ml-64 pt-20 md:pt-16 p-4 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-50 relative">
         <div class="max-w-7xl mx-auto">
-
             <!-- Breadcrumb -->
             <?php
             $segments = explode('/', trim($currentUri, '/'));
