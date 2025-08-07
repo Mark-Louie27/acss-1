@@ -84,7 +84,6 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             right: 0;
             bottom: 0;
             z-index: 50;
-            /* Higher than sidebar (20) and header (30) */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -103,11 +102,9 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             background: white;
             border-radius: 16px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            width: 100%;
+            width: 70%;
             max-width: 90vw;
-            /* Responsive max-width */
             max-height: 90vh;
-            /* Responsive max-height */
             overflow-y: auto;
             transform: scale(0.9) translateY(20px);
             transition: all 0.3s ease;
@@ -144,7 +141,6 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
         select:focus,
         textarea:focus {
             border-color: #D4AF37;
-            /* Gold from your theme */
             outline: none;
             box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
         }
@@ -168,11 +164,22 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
         }
 
         .tooltip {
-            display: none;
+            position: absolute;
+            background-color: var(--gray-dark);
+            color: var(--white);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 10;
+            transform: translateY(-8px);
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
 
         .group:hover .tooltip {
-            display: block;
+            opacity: 1;
+            transform: translateY(-28px);
         }
 
         .course-code-warning {
@@ -192,6 +199,84 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             color: #856404;
             padding: 0 2px;
         }
+
+        /* Enhanced table styles */
+        .responsive-table {
+            min-width: 100%;
+            font-size: 0.875rem;
+        }
+
+        .table-cell {
+            padding: 12px 16px;
+            vertical-align: middle;
+        }
+
+        .table-header {
+            padding: 12px 16px;
+            background-color: #f9fafb;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .table-row {
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.2s ease;
+        }
+
+        .table-row:hover {
+            background-color: #f9fafb;
+        }
+
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            .responsive-table {
+                font-size: 0.75rem;
+            }
+
+            .table-cell {
+                padding: 8px 12px;
+            }
+
+            .table-header {
+                padding: 8px 12px;
+            }
+
+            .mobile-stack {
+                display: block;
+            }
+
+            .mobile-stack>div {
+                margin-bottom: 4px;
+            }
+        }
+
+        /* Filter styles */
+        .filter-active {
+            background-color: var(--gold);
+            color: white;
+            border-color: var(--gold);
+        }
+
+        .filter-count {
+            background-color: #ef4444;
+            color: white;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .action-icon {
+            transition: color 0.2s ease, transform 0.2s ease;
+        }
+
+        .action-icon:hover {
+            transform: scale(1.2);
+        }
     </style>
 </head>
 
@@ -200,23 +285,35 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
 
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <!-- Header -->
-        <header class="mb-8 slide-in-left">
-            <h1 class="text-4xl font-bold text-gray-dark">Manage Courses</h1>
-            <p class="text-gray-dark mt-2">Add, edit, and manage courses for your department</p>
-        </header>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <!-- Header Content -->
+                <div class="slide-in-left">
+                    <h1 class="text-2xl md:text-3xl font-bold text-gray-dark">Manage Courses</h1>
+                    <p class="text-gray-600 mt-1 text-sm md:text-base">Add, edit, and manage courses for your department</p>
+                </div>
+
+                <!-- Action Button -->
+                <div class="flex-shrink-0">
+                    <button id="openAddCourseModalBtn"
+                        class="w-full lg:w-auto px-6 py-3 rounded-xl bg-gray-800 text-white font-medium shadow-lg
+                       hover:bg-gray-700 btn-hover-lift transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-opacity-50
+                       flex items-center justify-center gap-2 text-sm md:text-base">
+                        <i class="fas fa-plus"></i>
+                        <span>Add New Course</span>
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <div class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
             <!-- Search Form -->
-            <!-- The search bar is always full width on all screen sizes -->
             <form method="GET" class="w-full">
                 <div class="relative">
-                    <!-- Search Icon -->
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <!-- Using a darker gray for better aesthetic contrast -->
                         <i class="fas fa-search text-gray-500"></i>
                     </div>
-                    <!-- Search Input -->
                     <input type="text" id="searchInput" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>"
                         placeholder="Search by course code or name"
                         class="pl-12 pr-4 py-3 w-full text-base rounded-xl border border-black bg-white shadow-sm
@@ -224,15 +321,14 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                 </div>
             </form>
 
-            <!-- Add New Course Button -->
-            <!-- The button is full width on mobile but shrinks to its content size on larger screens -->
-            <button id="openAddCourseModalBtn"
-                class="w-full md:w-auto px-6 py-3 rounded-xl bg-gray-800 text-white font-medium shadow-md
-                       hover:bg-gray-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-opacity-50
-                       flex items-center justify-center whitespace-nowrap">
-                <i class="fas fa-plus mr-2"></i>
-                Add New Course
-            </button>
+            <div class="flex space-x-3 w-full sm:w-auto">
+                <select id="statusFilter" class="border border-gray-light rounded-lg px-4 py-3 bg-white text-gray-dark w-full sm:w-auto shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                    <option value="">All Subject Types</option>
+                    <option value="Professional Course">Professional Course</option>
+                    <option value="General Education">General Education</option>
+                </select>
+                <span id="filterCount" class="filter-count hidden">0</span>
+            </div>
         </div>
 
         <!-- Add Course Modal -->
@@ -407,7 +503,7 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                                 <select id="subject_type_edit" name="subject_type" required
                                     class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
                                     <option value="General Education" <?php echo ($editCourse['subject_type'] === 'General Education') ? 'selected' : ''; ?>>General Education</option>
-                                    <option value="Professional Course" <?php echo ($editCourse['subject_type'] === 'Professional Course') ? 'selected' : ''; ?>>Professional Courses</option>
+                                    <option value="Professional Course" <?php echo ($editCourse['subject_type'] === 'Professional Course') ? 'selected' : ''; ?>>Professional Course</option>
                                 </select>
                                 <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                     <i class="fas fa-chevron-down text-gray-dark"></i>
@@ -493,72 +589,121 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
         <div class="bg-white rounded-xl shadow-lg fade-in">
             <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                 <h5 class="text-xl font-bold text-gray-dark">Courses List</h5>
-                <span class="text-sm font-medium text-gray-dark bg-gray-light px-3 py-1 rounded-full"><?php echo $totalCourses; ?> Courses</span>
+                <div class="flex items-center gap-4">
+                    <span id="resultCount" class="text-sm font-medium text-gray-600">Showing all courses</span>
+                    <span class="text-sm font-medium text-gray-dark bg-gray-light px-3 py-1 rounded-full"><?php echo $totalCourses; ?> Total</span>
+                </div>
             </div>
-            <div class="p-6">
+            <div class="overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-light">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Code</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Course Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Department</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Subject Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Units</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Lecture</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Lab</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
+                    <table class="responsive-table w-full">
+                        <thead>
+                            <tr class="border-b border-gray-200">
+                                <th class="table-header text-left">Course Code</th>
+                                <th class="table-header text-left">Course Name</th>
+                                <th class="table-header text-left hidden sm:table-cell">Department</th>
+                                <th class="table-header text-left">Subject Type</th>
+                                <th class="table-header text-left hidden md:table-cell">Units</th>
+                                <th class="table-header text-left hidden lg:table-cell">Lecture</th>
+                                <th class="table-header text-left hidden lg:table-cell">Lab</th>
+                                <th class="table-header text-left">Status</th>
+                                <th class="table-header text-left">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-light">
+                        <tbody id="courseTableBody" class="divide-y divide-gray-100">
                             <?php if (empty($courses)): ?>
-                                <tr>
-                                    <td colspan="9" class="px-6 py-4 text-center text-gray-dark">
-                                        <i class="fas fa-book-open text-gray-dark text-2xl mb-2"></i>
-                                        <p>No courses found.</p>
+                                <tr id="noCoursesRow">
+                                    <td colspan="9" class="table-cell text-center text-gray-500 py-12">
+                                        <div class="flex flex-col items-center">
+                                            <i class="fas fa-book-open text-gray-400 text-3xl mb-3"></i>
+                                            <p class="text-lg font-medium">No courses found</p>
+                                            <p class="text-sm text-gray-400 mt-1">Start by adding your first course</p>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($courses as $course): ?>
-                                    <tr class="hover:bg-gray-50 transition-all duration-200 curriculum-row"
+                                    <tr class="table-row curriculum-row"
                                         data-code="<?php echo htmlspecialchars(strtolower($course['course_code'])); ?>"
                                         data-name="<?php echo htmlspecialchars(strtolower($course['course_name'])); ?>"
                                         data-department="<?php echo htmlspecialchars(strtolower($course['department_name'] ?? '')); ?>"
                                         data-subject-type="<?php echo htmlspecialchars(strtolower($course['subject_type'])); ?>"
-                                        data-status="<?php echo htmlspecialchars($course['is_active'] ? 'active' : 'inactive'); ?>">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark curriculum-code"><?php echo htmlspecialchars($course['course_code']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark curriculum-name"><?php echo htmlspecialchars($course['course_name']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['department_name'] ?? 'N/A'); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark curriculum-subject-type"><?php echo htmlspecialchars($course['subject_type']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($course['units']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
-                                            <?php echo htmlspecialchars($course['lecture_units']); ?> units<br>
-                                            <?php echo htmlspecialchars($course['lecture_hours']); ?> hours
+                                        data-status="<?php echo $course['is_active'] ? 'active' : 'inactive'; ?>">
+
+                                        <td class="table-cell">
+                                            <div class="font-semibold text-gray-900 curriculum-code">
+                                                <?php echo htmlspecialchars($course['course_code']); ?>
+                                            </div>
+                                            <div class="sm:hidden text-xs text-gray-500 mt-1">
+                                                <?php echo htmlspecialchars($course['subject_type']); ?>
+                                            </div>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
-                                            <?php echo htmlspecialchars($course['lab_units']); ?> units<br>
-                                            <?php echo htmlspecialchars($course['lab_hours']); ?> hours
+
+                                        <td class="table-cell">
+                                            <div class="font-medium text-gray-900 curriculum-name">
+                                                <?php echo htmlspecialchars($course['course_name']); ?>
+                                            </div>
+                                            <div class="sm:hidden text-xs text-gray-500 mt-1 mobile-stack">
+                                                <div><?php echo htmlspecialchars($course['department_name'] ?? 'N/A'); ?></div>
+                                                <div><?php echo htmlspecialchars($course['units']); ?> units</div>
+                                            </div>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo $course['is_active'] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
+
+                                        <td class="table-cell hidden sm:table-cell text-gray-600">
+                                            <?php echo htmlspecialchars($course['department_name'] ?? 'N/A'); ?>
+                                        </td>
+
+                                        <td class="table-cell">
+                                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full curriculum-subject-type
+                                                <?php echo ($course['subject_type'] === 'Professional Course')
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : 'bg-green-100 text-green-800'; ?>">
+                                                <?php echo htmlspecialchars($course['subject_type']); ?>
+                                            </span>
+                                        </td>
+
+                                        <td class="table-cell hidden md:table-cell text-gray-600 font-medium">
+                                            <?php echo htmlspecialchars($course['units']); ?>
+                                        </td>
+
+                                        <td class="table-cell hidden lg:table-cell text-gray-600 text-xs">
+                                            <div><?php echo htmlspecialchars($course['lecture_units']); ?> units</div>
+                                            <div class="text-gray-400"><?php echo htmlspecialchars($course['lecture_hours']); ?> hrs</div>
+                                        </td>
+
+                                        <td class="table-cell hidden lg:table-cell text-gray-600 text-xs">
+                                            <div><?php echo htmlspecialchars($course['lab_units']); ?> units</div>
+                                            <div class="text-gray-400"><?php echo htmlspecialchars($course['lab_hours']); ?> hrs</div>
+                                        </td>
+
+                                        <td class="table-cell">
+                                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full
+                                                <?php echo $course['is_active']
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-red-100 text-red-800'; ?>">
                                                 <?php echo $course['is_active'] ? 'Active' : 'Inactive'; ?>
                                             </span>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                                class="text-gold group relative hover:text-gold-900 mr-3">
-                                                Edit
-                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Course</span>
-                                            </a>
-                                            <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                                class="text-blue-600 group relative hover:text-blue-900"
-                                                onclick="return confirm('Are you sure you want to toggle the status?');">
-                                                <?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?>
-                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">
-                                                    <?php echo $course['is_active'] ? 'Deactivate Course' : 'Activate Course'; ?>
-                                                </span>
-                                            </a>
+
+                                        <td class="table-cell">
+                                            <div class="flex flex-col sm:flex-row gap-2">
+                                                <div class="relative group">
+                                                    <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                                        class="text-gold hover:text-gold-900 action-icon" title="Edit Course">
+                                                        <i class="fas fa-pencil-alt"></i>
+                                                    </a>
+                                                    <span class="tooltip">Edit</span>
+                                                </div>
+                                                <div class="relative group">
+                                                    <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                                        class="text-blue-600 hover:text-blue-800 action-icon"
+                                                        onclick="return confirm('Are you sure you want to <?php echo $course['is_active'] ? 'deactivate' : 'activate'; ?> this course?');"
+                                                        title="<?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?> Course">
+                                                        <i class="fas fa-power-off"></i>
+                                                    </a>
+                                                    <span class="tooltip"><?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?></span>
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -566,42 +711,71 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         </tbody>
                     </table>
                 </div>
-                <div class="mt-6 flex justify-between items-center">
-                    <div class="text-sm text-gray-dark">
-                        Showing <?php echo ($offset + 1); ?> to <?php echo min($offset + $perPage, $totalCourses); ?> of <?php echo $totalCourses; ?> courses
-                    </div>
-                    <div class="flex space-x-2">
-                        <?php if ($page > 1): ?>
-                            <a href="courses?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                class="px-4 py-2 bg-gray-light text-gray-dark rounded-lg hover:bg-gray-200 transition-all duration-200">
-                                Previous
-                            </a>
-                        <?php else: ?>
-                            <span class="px-4 py-2 bg-gray-50 text-gray-dark rounded-lg cursor-not-allowed">
-                                Previous
-                            </span>
-                        <?php endif; ?>
 
-                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                            <a href="courses?page=<?php echo $i; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                class="px-4 py-2 rounded-lg <?php echo $i === $page ? 'btn-gold text-white' : 'bg-gray-light text-gray-dark hover:bg-gray-200'; ?> transition-all duration-200">
-                                <?php echo $i; ?>
-                            </a>
-                        <?php endfor; ?>
-
-                        <?php if ($page < $totalPages): ?>
-                            <a href="courses?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                class="px-4 py-2 bg-gray-light text-gray-dark rounded-lg hover:bg-gray-200 transition-all duration-200">
-                                Next
-                            </a>
-                        <?php else: ?>
-                            <span class="px-4 py-2 bg-gray-50 text-gray-dark rounded-lg cursor-not-allowed">
-                                Next
-                            </span>
-                        <?php endif; ?>
+                <!-- No results row for filtered results -->
+                <div id="noResultsRow" style="display: none;" class="text-center py-12 px-6">
+                    <div class="flex flex-col items-center">
+                        <i class="fas fa-search text-gray-400 text-3xl mb-3"></i>
+                        <p class="text-lg font-medium text-gray-600">No courses match your criteria</p>
+                        <p class="text-sm text-gray-400 mt-1">Try adjusting your search or filter settings</p>
                     </div>
                 </div>
             </div>
+
+            <!-- Pagination -->
+            <?php if ($totalPages > 1): ?>
+                <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl">
+                    <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div class="text-sm text-gray-600">
+                            Showing <?php echo ($offset + 1); ?> to <?php echo min($offset + $perPage, $totalCourses); ?> of <?php echo $totalCourses; ?> courses
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <?php if ($page > 1): ?>
+                                <a href="courses?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                    class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                                    Previous
+                                </a>
+                            <?php endif; ?>
+
+                            <?php
+                            $startPage = max(1, $page - 2);
+                            $endPage = min($totalPages, $page + 2);
+
+                            if ($startPage > 1): ?>
+                                <a href="courses?page=1&search=<?php echo urlencode($searchTerm); ?>"
+                                    class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">1</a>
+                                <?php if ($startPage > 2): ?>
+                                    <span class="px-2 text-gray-400">...</span>
+                                <?php endif; ?>
+                            <?php endif; ?>
+
+                            <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                                <a href="courses?page=<?php echo $i; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                    class="px-3 py-2 text-sm rounded-lg transition-colors duration-200 <?php echo $i === $page
+                                                                                                            ? 'bg-gold text-white font-medium'
+                                                                                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'; ?>">
+                                    <?php echo $i; ?>
+                                </a>
+                            <?php endfor; ?>
+
+                            <?php if ($endPage < $totalPages): ?>
+                                <?php if ($endPage < $totalPages - 1): ?>
+                                    <span class="px-2 text-gray-400">...</span>
+                                <?php endif; ?>
+                                <a href="courses?page=<?php echo $totalPages; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                    class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"><?php echo $totalPages; ?></a>
+                            <?php endif; ?>
+
+                            <?php if ($page < $totalPages): ?>
+                                <a href="courses?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($searchTerm); ?>"
+                                    class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                                    Next
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -621,25 +795,25 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
 
         function openModal(modalId) {
             const modal = document.getElementById(modalId);
-            const modalContent = modal.querySelector('.modal-content');
-            modal.classList.remove('hidden');
-            modalContent.classList.remove('scale-95');
-            modalContent.classList.add('scale-100');
-            document.body.style.overflow = 'hidden';
-
             if (!modal) {
                 console.error(`Modal with ID ${modalId} not found`);
                 return;
             }
+            const modalContent = modal.querySelector('.modal-content');
+            modal.classList.remove('hidden');
             modal.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent background scroll
+            modalContent.classList.remove('scale-95');
+            modalContent.classList.add('scale-100');
+            document.body.style.overflow = 'hidden';
         }
 
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
+            if (!modal) return;
             const modalContent = modal.querySelector('.modal-content');
             modalContent.classList.remove('scale-100');
             modalContent.classList.add('scale-95');
+            modal.classList.remove('active');
             setTimeout(() => {
                 modal.classList.add('hidden');
                 document.body.style.overflow = 'auto';
@@ -650,10 +824,6 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     form.querySelectorAll('input, select').forEach(input => input.classList.remove('border-red-500'));
                 }
             }, 200);
-
-            if (!modal) return;
-            modal.classList.remove('active');
-            document.body.style.overflow = 'auto'; // Restore background scroll
         }
 
         // Function to check course code availability
@@ -687,19 +857,20 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             }
         }
 
-        // Client-side course search functionality
+        // Client-side course search and filter functionality
         let searchTimeout;
 
-        function initializeCourseSearch() {
+        function initializeCourseSearchAndFilter() {
             const searchInput = document.getElementById('searchInput');
-            const tableBody = document.querySelector('tbody');
-            const noResultsRow = document.createElement('tr');
-            noResultsRow.id = 'noResultsRow';
-            noResultsRow.innerHTML = '<td colspan="9" class="px-6 py-4 text-center text-gray-dark"><i class="fas fa-book-open text-gray-dark text-2xl mb-2"></i><p>No courses match your search criteria</p></td>';
-            tableBody.appendChild(noResultsRow);
+            const statusFilter = document.getElementById('statusFilter');
+            const filterCount = document.getElementById('filterCount');
+            const tableBody = document.querySelector('#courseTableBody');
+            const noResultsRow = document.getElementById('noResultsRow');
+            const resultCount = document.getElementById('resultCount');
 
             function filterCourses() {
                 const searchTerm = searchInput.value.toLowerCase();
+                const filterType = statusFilter.value;
                 const rows = tableBody.querySelectorAll('.curriculum-row');
                 let visibleCount = 0;
 
@@ -716,11 +887,12 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         department.includes(searchTerm) ||
                         subjectType.includes(searchTerm);
 
-                    if (matchesSearch) {
+                    const matchesFilter = filterType === '' ||
+                        subjectType === filterType.toLowerCase();
+
+                    if (matchesSearch && matchesFilter) {
                         row.style.display = '';
                         visibleCount++;
-
-                        // Highlight search terms
                         if (searchTerm !== '') {
                             highlightText(row, searchTerm);
                         } else {
@@ -732,12 +904,19 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     }
                 });
 
-                // Show/hide no results message
+                // Update no results message
                 noResultsRow.style.display = visibleCount === 0 ? '' : 'none';
                 if (visibleCount === 0) {
                     const message = noResultsRow.querySelector('p:first-of-type');
-                    message.textContent = searchTerm ? 'No courses match your search criteria' : 'No courses found';
+                    message.textContent = searchTerm || filterType ? 'No courses match your criteria' : 'No courses found';
                 }
+
+                // Update result count
+                resultCount.textContent = `Showing ${visibleCount} course${visibleCount !== 1 ? 's' : ''}`;
+
+                // Update filter count
+                filterCount.textContent = visibleCount;
+                filterCount.classList.toggle('hidden', filterType === '');
             }
 
             function highlightText(row, searchTerm) {
@@ -764,8 +943,13 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                 searchTimeout = setTimeout(filterCourses, 300);
             });
 
-            // Initial filter to handle pre-loaded search term
-            if (searchInput.value) {
+            statusFilter.addEventListener('change', function() {
+                statusFilter.classList.toggle('filter-active', this.value !== '');
+                filterCourses();
+            });
+
+            // Initial filter to handle pre-loaded search term or filter
+            if (searchInput.value || statusFilter.value) {
                 filterCourses();
             }
         }
@@ -780,8 +964,8 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                 showToast('<?php echo htmlspecialchars($error); ?>', 'bg-red-500');
             <?php endif; ?>
 
-            // Initialize course search
-            initializeCourseSearch();
+            // Initialize course search and filter
+            initializeCourseSearchAndFilter();
 
             // Modal event listeners
             const openAddCourseModalBtn = document.getElementById('openAddCourseModalBtn');

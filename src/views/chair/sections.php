@@ -141,6 +141,18 @@ ob_start();
             <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                 <h3 class="text-xl font-bold text-gray-dark">Your Department's Sections</h3>
                 <div class="flex items-center space-x-4">
+                    <select id="semesterFilter" class="input-focus px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold">
+                        <option value="">All Semesters</option>
+                        <?php
+                        // Assuming $semesters is an array of available semesters fetched from the database
+                        $semesters = array_unique(array_column($groupedSections['1st Year'] ?? [], 'semester') +
+                            array_column($groupedSections['2nd Year'] ?? [], 'semester') +
+                            array_column($groupedSections['3rd Year'] ?? [], 'semester') +
+                            array_column($groupedSections['4th Year'] ?? [], 'semester'));
+                        foreach ($semesters as $semester): ?>
+                            <option value="<?php echo htmlspecialchars($semester); ?>"><?php echo htmlspecialchars($semester); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                     <span class="text-sm font-medium text-gray-dark bg-gray-light px-3 py-1 rounded-full">
                         <?php echo array_sum(array_map('count', $groupedSections)); ?> Sections
                     </span>
@@ -173,17 +185,17 @@ ob_start();
                             <tbody class="bg-white divide-y divide-gray-light">
                                 <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
                                     <?php if (!empty($groupedSections[$yearLevel])): ?>
-                                        <tr class="collapsible-header bg-gray-100">
+                                        <tr class="collapsible-header bg-gray-100" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
                                             <td colspan="7" class="px-6 py-3 text-sm font-semibold text-gray-dark">
                                                 <div class="flex items-center">
                                                     <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
-                                                    <?php echo htmlspecialchars($yearLevel); ?> (<?php echo count($groupedSections[$yearLevel]); ?> Sections)
+                                                    <?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count"><?php echo count($groupedSections[$yearLevel]); ?></span> Sections)
                                                 </div>
                                             </td>
                                         </tr>
                             <tbody class="collapsible-content">
                                 <?php foreach ($groupedSections[$yearLevel] as $section): ?>
-                                    <tr class="hover:bg-gray-50 transition-all duration-200">
+                                    <tr class="hover:bg-gray-50 transition-all duration-200 section-row" data-semester="<?php echo htmlspecialchars($section['semester']); ?>">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['section_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
@@ -496,6 +508,52 @@ ob_start();
                     icon.classList.toggle('fa-chevron-down');
                     icon.classList.toggle('fa-chevron-up');
                 });
+            });
+
+            // Semester Filter
+            const semesterFilter = document.getElementById('semesterFilter');
+            semesterFilter.addEventListener('change', () => {
+                const selectedSemester = semesterFilter.value;
+                const sectionRows = document.querySelectorAll('.section-row');
+                const yearHeaders = document.querySelectorAll('.collapsible-header');
+                const sectionCountSpan = document.querySelector('.text-sm.font-medium.bg-gray-light');
+
+                let visibleSections = 0;
+
+                // Update visibility of sections
+                sectionRows.forEach(row => {
+                    const semester = row.dataset.semester;
+                    if (selectedSemester === '' || semester === selectedSemester) {
+                        row.style.display = '';
+                        visibleSections++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                // Update visibility of year level headers
+                yearHeaders.forEach(header => {
+                    const yearLevel = header.dataset.yearLevel;
+                    const sectionsInYear = document.querySelectorAll(`.section-row[data-semester="${selectedSemester}"]`);
+                    const yearSections = Array.from(sectionRows).filter(row =>
+                        row.closest('tbody').previousElementSibling.dataset.yearLevel === yearLevel
+                    );
+                    const visibleYearSections = yearSections.filter(row => row.style.display !== 'none').length;
+
+                    header.querySelector('.section-count').textContent = visibleYearSections;
+                    header.style.display = (selectedSemester === '' || visibleYearSections > 0) ? '' : 'none';
+
+                    // Keep collapsible content open when filtering
+                    const content = header.nextElementSibling;
+                    if (visibleYearSections > 0 && content.classList.contains('hidden')) {
+                        content.classList.remove('hidden');
+                        header.querySelector('.fas').classList.remove('fa-chevron-down');
+                        header.querySelector('.fas').classList.add('fa-chevron-up');
+                    }
+                });
+
+                // Update total sections count
+                sectionCountSpan.textContent = `${visibleSections} Sections`;
             });
         });
     </script>

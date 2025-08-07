@@ -21,6 +21,9 @@ if (!$profilePicture) {
 
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
+
+// Initialize modal content variable
+$modal_content = $modal_content ?? '';
 ?>
 
 <!DOCTYPE html>
@@ -94,7 +97,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
             font-family: 'Poppins', sans-serif;
         }
 
-
         @keyframes slideInLeft {
             from {
                 transform: translateX(-20px);
@@ -164,7 +166,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
         .dropdown-menu.show {
             display: flex;
             flex-direction: column;
-
             transform: translateY(0);
         }
 
@@ -326,13 +327,17 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 opacity: 0;
             }
         }
+
+        /* Ensure modals are above all elements */
+        .modal-overlay {
+            z-index: 50 !important;
+        }
     </style>
 </head>
 
 <body class="bg-gray-50 font-sans">
     <!-- Toast notifications container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-4"></div>
-
 
     <!-- Header -->
     <header class="fixed top-0 left-55 right-0 bg-white header-shadow z-30">
@@ -543,6 +548,11 @@ $currentUri = $_SERVER['REQUEST_URI'];
         </div>
     </main>
 
+    <!-- Modal Container -->
+    <div id="modal-container">
+        <?php echo $modal_content; ?>
+    </div>
+
     <script>
         // Sidebar toggle
         const toggleSidebar = document.getElementById('toggleSidebar');
@@ -596,6 +606,19 @@ $currentUri = $_SERVER['REQUEST_URI'];
                     }
                 });
             });
+
+            // Log stacking context for debugging
+            console.log('Sidebar z-index:', window.getComputedStyle(sidebar).zIndex);
+            console.log('Sidebar position:', window.getComputedStyle(sidebar).position);
+            console.log('Sidebar transform:', window.getComputedStyle(sidebar).transform);
+            let parent = sidebar.parentElement;
+            while (parent && parent !== document.body) {
+                const parentStyle = window.getComputedStyle(parent);
+                console.log(`Sidebar parent <${parent.tagName.toLowerCase()}>: z-index=${parentStyle.zIndex}, transform=${parentStyle.transform}, opacity=${parentStyle.opacity}, position=${parentStyle.position}`);
+                parent = parent.parentElement;
+            }
+            const modalContainer = document.getElementById('modal-container');
+            console.log('Modal container z-index:', window.getComputedStyle(modalContainer).zIndex);
         });
     </script>
 </body>

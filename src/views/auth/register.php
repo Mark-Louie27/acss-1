@@ -128,6 +128,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: rgba(0, 0, 0, 0.5);
             z-index: 2;
         }
+
+        /* Custom radio button styles */
+        .radio-group input[type="radio"]:checked+.radio-label {
+            border-color: #d97706;
+            background-color: #fef3c7;
+            box-shadow: 0 0 0 2px #d97706;
+        }
+
+        .radio-group input[type="radio"]:checked+.radio-label .radio-circle {
+            border-color: #d97706;
+        }
+
+        .radio-group input[type="radio"]:checked+.radio-label .radio-dot {
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -440,23 +455,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             </div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label for="classification" class="block text-xs md:text-sm font-medium text-gray-700">Classification</label>
-                                        <div class="mt-1 relative">
-                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <svg class="h-4 md:h-5 w-4 md:w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <div class="col-span-2">
+                                        <label class="block text-xs md:text-sm font-medium text-gray-700 mb-3">
+                                            <div class="flex items-center">
+                                                <svg class="h-4 md:h-5 w-4 md:w-5 text-yellow-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                                                 </svg>
+                                                Classification
                                             </div>
-                                            <select id="classification" name="classification" class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
-                                                <option value="">Select Classification</option>
-                                                <option value="TL" <?= (isset($_POST['classification']) && $_POST['classification'] == 'TL') ? 'selected' : '' ?>>TL</option>
-                                                <option value="VSL" <?= (isset($_POST['classification']) && $_POST['classification'] == 'VSL') ? 'selected' : '' ?>>VSL</option>
-                                            </select>
-                                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                                <svg class="h-4 md:h-5 w-4 md:w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                </svg>
+                                        </label>
+
+                                        <div class="space-y-2">
+                                            <!-- TL Radio Button -->
+                                            <div class="relative radio-group">
+                                                <input
+                                                    type="radio"
+                                                    id="classification_tl"
+                                                    name="classification"
+                                                    value="TL"
+                                                    class="hidden"
+                                                    <?= (isset($_POST['classification']) && $_POST['classification'] == 'TL') ? 'checked' : '' ?>>
+                                                <label
+                                                    for="classification_tl"
+                                                    class="flex items-center w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base cursor-pointer transition-all duration-200 hover:bg-gray-50 radio-label">
+                                                    <div class="flex items-center">
+                                                        <div class="w-4 h-4 border-2 border-gray-300 rounded-full mr-3 flex items-center justify-center transition-all duration-200 radio-circle">
+                                                            <div class="w-2 h-2 rounded-full bg-yellow-500 opacity-0 transition-opacity duration-200 radio-dot"></div>
+                                                        </div>
+                                                        <span class="text-gray-700 font-medium">TL</span>
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            <!-- VSL Radio Button -->
+                                            <div class="relative radio-group">
+                                                <input
+                                                    type="radio"
+                                                    id="classification_vsl"
+                                                    name="classification"
+                                                    value="VSL"
+                                                    class="hidden"
+                                                    <?= (isset($_POST['classification']) && $_POST['classification'] == 'VSL') ? 'checked' : '' ?>>
+                                                <label
+                                                    for="classification_vsl"
+                                                    class="flex items-center w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base cursor-pointer transition-all duration-200 hover:bg-gray-50 radio-label">
+                                                    <div class="flex items-center">
+                                                        <div class="w-4 h-4 border-2 border-gray-300 rounded-full mr-3 flex items-center justify-center transition-all duration-200 radio-circle">
+                                                            <div class="w-2 h-2 rounded-full bg-yellow-500 opacity-0 transition-opacity duration-200 radio-dot"></div>
+                                                        </div>
+                                                        <span class="text-gray-700 font-medium">VSL</span>
+                                                    </div>
+                                                </label>
                                             </div>
                                         </div>
                                     </div>

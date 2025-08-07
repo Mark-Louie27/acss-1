@@ -1,287 +1,6 @@
 <?php
 ob_start();
 
-// Ensure $curricula is set
-if (!isset($curricula)) {
-    $curricula = [];
-}
-
-// Ensure $courses is set
-if (!isset($courses)) {
-    $courses = [];
-    $coursesStmt = $db->prepare("SELECT course_id, course_code, course_name, units, subject_type FROM courses WHERE department_id = :department_id");
-    $coursesStmt->execute([':department_id' => $departmentId]);
-    $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log("Fetched courses: " . print_r($courses, true));
-}
-
-// Add this to your existing PHP code, near the other AJAX handlers
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'check_course_in_curriculum') {
-    header('Content-Type: application/json');
-    $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-    $course_id = intval($_POST['course_id'] ?? 0);
-    $response = ['exists' => false];
-
-    if ($curriculum_id > 0 && $course_id > 0) {
-        try {
-            $stmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses 
-                                WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
-            $stmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
-            $count = $stmt->fetchColumn();
-            $response['exists'] = $count > 0;
-        } catch (PDOException $e) {
-            $response['error'] = 'Error checking course: ' . htmlspecialchars($e->getMessage());
-        }
-    }
-
-    echo json_encode($response);
-    exit;
-}
-
-// Handle AJAX request for fetching curriculum courses
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_curriculum_courses') {
-    header('Content-Type: application/json');
-    $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-
-    if ($curriculum_id < 1) {
-        echo json_encode(['error' => 'Invalid curriculum ID']);
-        exit;
-    }
-
-    try {
-        $coursesStmt = $db->prepare("SELECT c.course_id, c.course_code, c.course_name, c.units, cc.year_level, cc.semester, cc.subject_type 
-                                    FROM curriculum_courses cc 
-                                    JOIN courses c ON cc.course_id = c.course_id 
-                                    WHERE cc.curriculum_id = :curriculum_id");
-        $coursesStmt->execute([':curriculum_id' => $curriculum_id]);
-        $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode($courses);
-    } catch (PDOException $e) {
-        echo json_encode(['error' => 'Error fetching courses: ' . htmlspecialchars($e->getMessage())]);
-    }
-    exit;
-}
-
-// Handle form submissions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        try {
-            if ($_POST['action'] === 'add_curriculum') {
-                $curriculum_name = trim($_POST['curriculum_name'] ?? '');
-                $curriculum_code = trim($_POST['curriculum_code'] ?? '');
-                $effective_year = intval($_POST['effective_year'] ?? 0);
-                $description = trim($_POST['description'] ?? '');
-                $total_units = 0;
-
-                $errors = [];
-                if (empty($curriculum_name)) $errors[] = "Curriculum name is required.";
-                if (empty($curriculum_code)) $errors[] = "Curriculum code is required.";
-                if ($effective_year < 2000 || $effective_year > 2100) $errors[] = "Invalid effective year.";
-
-                if (empty($errors)) {
-                    $stmt = $db->prepare("INSERT INTO curricula (curriculum_name, curriculum_code, description, total_units, department_id, effective_year, status) VALUES (:name, :code, :desc, :units, :dept, :year, 'Draft')");
-                    $stmt->execute([
-                        ':name' => $curriculum_name,
-                        ':code' => $curriculum_code,
-                        ':desc' => $description,
-                        ':units' => $total_units,
-                        ':dept' => $departmentId,
-                        ':year' => $effective_year
-                    ]);
-                    $curriculum_id = $db->lastInsertId();
-
-                    $programStmt = $db->prepare("SELECT program_id FROM programs WHERE department_id = :department_id LIMIT 1");
-                    $programStmt->execute([':department_id' => $departmentId]);
-                    $program_id = $programStmt->fetchColumn();
-                    if ($program_id) {
-                        $db->prepare("INSERT INTO curriculum_programs (curriculum_id, program_id, is_primary, required) VALUES (:curriculum_id, :program_id, 1, 1)")
-                            ->execute([':curriculum_id' => $curriculum_id, ':program_id' => $program_id]);
-                    }
-
-                    $success = "Curriculum added successfully.";
-                    $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
-                                                  FROM curricula c 
-                                                  JOIN programs p ON c.department_id = p.department_id 
-                                                  WHERE c.department_id = :department_id");
-                    $curriculaStmt->execute([':department_id' => $departmentId]);
-                    $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
-                } else {
-                    $error = implode("<br>", $errors);
-                }
-            } elseif ($_POST['action'] === 'edit_curriculum') {
-                $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-                $curriculum_name = trim($_POST['curriculum_name'] ?? '');
-                $curriculum_code = trim($_POST['curriculum_code'] ?? '');
-                $effective_year = intval($_POST['effective_year'] ?? 0);
-                $description = trim($_POST['description'] ?? '');
-                $status = $_POST['status'] ?? 'Draft';
-
-                $errors = [];
-                if ($curriculum_id < 1) $errors[] = "Invalid curriculum.";
-                if (empty($curriculum_name)) $errors[] = "Curriculum name is required.";
-                if (empty($curriculum_code)) $errors[] = "Curriculum code is required.";
-                if ($effective_year < 2000 || $effective_year > 2100) $errors[] = "Invalid effective year.";
-                if (!in_array($status, ['Draft', 'Active', 'Archived'])) $errors[] = "Invalid status.";
-
-                if (empty($errors)) {
-                    $stmt = $db->prepare("UPDATE curricula SET curriculum_name = :name, curriculum_code = :code, description = :desc, effective_year = :year, status = :status WHERE curriculum_id = :id");
-                    $stmt->execute([
-                        ':name' => $curriculum_name,
-                        ':code' => $curriculum_code,
-                        ':desc' => $description,
-                        ':year' => $effective_year,
-                        ':status' => $status,
-                        ':id' => $curriculum_id
-                    ]);
-
-                    $success = "Curriculum updated successfully.";
-                    $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
-                                                  FROM curricula c 
-                                                  JOIN programs p ON c.department_id = p.department_id 
-                                                  WHERE c.department_id = :department_id");
-                    $curriculaStmt->execute([':department_id' => $departmentId]);
-                    $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
-                } else {
-                    $error = implode("<br>", $errors);
-                }
-            } elseif ($_POST['action'] === 'add_course') {
-                $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-                $course_id = intval($_POST['course_id'] ?? 0);
-                $year_level = $_POST['year_level'] ?? '';
-                $semester = $_POST['semester'] ?? '';
-                $subject_type = $_POST['subject_type'] ?? 'Major';
-
-                $errors = [];
-                if ($curriculum_id < 1) $errors[] = "Invalid curriculum.";
-                if ($course_id < 1) $errors[] = "Please select a course.";
-                if (!in_array($year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year'])) $errors[] = "Invalid year level.";
-                if (!in_array($semester, ['1st', '2nd', 'Mid Year'])) $errors[] = "Invalid semester.";
-                if (!in_array($subject_type, ['Professional Course', 'General Education', 'Elective'])) $errors[] = "Invalid subject type.";
-
-                // Check if course already exists in curriculum
-                if (empty($errors)) {
-                    $checkStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
-                    $checkStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
-                    if ($checkStmt->fetchColumn() > 0) {
-                        $errors[] = "This course is already added to the curriculum.";
-                    }
-                }
-
-                if (empty($errors)) {
-                    $stmt = $db->prepare("INSERT INTO curriculum_courses (curriculum_id, course_id, year_level, semester, subject_type, is_core) VALUES (:curriculum_id, :course_id, :year_level, :semester, :subject_type, 1)");
-                    $stmt->execute([
-                        ':curriculum_id' => $curriculum_id,
-                        ':course_id' => $course_id,
-                        ':year_level' => $year_level,
-                        ':semester' => $semester,
-                        ':subject_type' => $subject_type
-                    ]);
-
-                    $unitsStmt = $db->prepare("SELECT SUM(c.units) as total FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id WHERE cc.curriculum_id = :curriculum_id");
-                    $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
-                    $total_units = $unitsStmt->fetchColumn();
-
-                    $db->prepare("UPDATE curricula SET total_units = :total_units WHERE curriculum_id = :curriculum_id")
-                        ->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
-
-                    // Handle AJAX response
-                    if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                        header('Content-Type: application/json');
-                        echo json_encode(['success' => 'Course added to curriculum successfully.']);
-                        exit;
-                    }
-
-                    $success = "Course added to curriculum successfully.";
-                    $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
-                                                  FROM curricula c 
-                                                  JOIN programs p ON c.department_id = p.department_id 
-                                                  WHERE c.department_id = :department_id");
-                    $curriculaStmt->execute([':department_id' => $departmentId]);
-                    $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
-                } else {
-                    // Handle AJAX error response
-                    if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                        header('Content-Type: application/json');
-                        echo json_encode(['error' => implode(' ', $errors)]);
-                        exit;
-                    }
-                    $error = implode("<br>", $errors);
-                }
-            } elseif ($_POST['action'] === 'toggle_curriculum') {
-                $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-                $new_status = $_POST['status'] === 'Active' ? 'Draft' : 'Active';
-
-                $stmt = $db->prepare("UPDATE curricula SET status = :status WHERE curriculum_id = :curriculum_id");
-                $stmt->execute([':status' => $new_status, ':curriculum_id' => $curriculum_id]);
-
-                $success = "Curriculum status updated to $new_status.";
-                $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
-                                              FROM curricula c 
-                                              JOIN programs p ON c.department_id = p.department_id 
-                                              WHERE c.department_id = :department_id");
-                $curriculaStmt->execute([':department_id' => $departmentId]);
-                $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
-            } elseif ($_POST['action'] === 'remove_course') {
-                $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-                $course_id = intval($_POST['course_id'] ?? 0);
-
-                $errors = [];
-                if ($curriculum_id < 1) $errors[] = "Invalid curriculum.";
-                if ($course_id < 1) $errors[] = "Invalid course.";
-
-                if (empty($errors)) {
-                    $checkStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
-                    $checkStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
-                    if ($checkStmt->fetchColumn() == 0) {
-                        $errors[] = "Course not found in this curriculum.";
-                    } else {
-                        $deleteStmt = $db->prepare("DELETE FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
-                        $deleteStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
-
-                        $unitsStmt = $db->prepare("SELECT SUM(c.units) as total FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id WHERE cc.curriculum_id = :curriculum_id");
-                        $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
-                        $total_units = $unitsStmt->fetchColumn() ?: 0;
-
-                        $db->prepare("UPDATE curricula SET total_units = :total_units WHERE curriculum_id = :curriculum_id")
-                            ->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
-
-                        if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                            header('Content-Type: application/json');
-                            echo json_encode(['success' => 'Course removed successfully.']);
-                            exit;
-                        }
-
-                        $success = "Course removed successfully.";
-                        $curriculaStmt = $db->prepare("SELECT c.*, p.program_name 
-                                                      FROM curricula c 
-                                                      JOIN programs p ON c.department_id = p.department_id 
-                                                      WHERE c.department_id = :department_id");
-                        $curriculaStmt->execute([':department_id' => $departmentId]);
-                        $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
-                    }
-                }
-
-                if (!empty($errors)) {
-                    if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                        header('Content-Type: application/json');
-                        echo json_encode(['error' => implode(' ', $errors)]);
-                        exit;
-                    }
-                    $error = implode("<br>", $errors);
-                }
-            }
-        } catch (PDOException $e) {
-            $error = "Database error: " . htmlspecialchars($e->getMessage());
-
-            // Handle AJAX error response
-            if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                header('Content-Type: application/json');
-                echo json_encode(['error' => $error]);
-                exit;
-            }
-        }
-    }
-}
 ?>
 
 <style>
@@ -429,6 +148,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         color: var(--prmsu-white);
     }
 
+    .modal.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* Modal Styles */
     .modal-overlay {
         background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(8px);
@@ -453,12 +178,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     .modal-content {
-        background: var(--prmsu-white);
+        background: white;
         border-radius: 16px;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         width: 100%;
-        max-width: 95vw;
-        max-height: 95vh;
+        max-width: 90vw;
+        max-height: 90vh;
         overflow-y: auto;
         transform: scale(0.9) translateY(20px);
         transition: all 0.3s ease;
@@ -467,6 +192,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .modal-overlay.active .modal-content {
         transform: scale(1) translateY(0);
+    }
+
+    /* Responsive Modal Sizes */
+    .modal-sm {
+        max-width: 500px;
+    }
+
+    .modal-md {
+        max-width: 700px;
+    }
+
+    .modal-lg {
+        max-width: 900px;
+    }
+
+    .modal-xl {
+        max-width: 1200px;
+    }
+
+    .modal-full {
+        max-width: 95vw;
     }
 
     input,
@@ -943,6 +689,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div>
                             <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Year Level</label>
                             <select name="year_level" class="focus-gold" required>
+                                <option value="">--- Please Select Year Level ---</option>
                                 <option value="1st Year">1st Year</option>
                                 <option value="2nd Year">2nd Year</option>
                                 <option value="3rd Year">3rd Year</option>
@@ -952,6 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div>
                             <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Semester</label>
                             <select name="semester" class="focus-gold" required>
+                                <option value="">--- Please Select Semester ---</option>
                                 <option value="1st">1st Semester</option>
                                 <option value="2nd">2nd Semester</option>
                                 <option value="Mid Year">Mid Year</option>
@@ -1026,16 +774,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const modal = document.getElementById(modalId);
         if (!modal) return;
 
+        const modalContent = modal.querySelector('.modal-content');
+        modal.classList.remove('hidden');
+        modalContent.classList.remove('scale-95');
+        modalContent.classList.add('scale-100');
+        document.body.style.overflow = 'hidden';
+
         modal.classList.remove('hidden');
 
         const overlay = modal.querySelector('.modal-overlay');
-        const content = modal.querySelector('.modal-content');
 
         void modal.offsetWidth;
 
         overlay.classList.add('active');
-        content.classList.remove('translate-y-8');
-        content.classList.add('translate-y-0');
+        modalContent.classList.remove('translate-y-8');
+        modalContent.classList.add('translate-y-0');
     }
 
     // Close modal function
