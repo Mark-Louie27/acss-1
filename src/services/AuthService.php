@@ -158,7 +158,10 @@ class AuthService
 
     public function verifyCsrfToken($token)
     {
-        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+        $expectedToken = $_SESSION['csrf_token'] ?? '';
+        $isValid = !empty($token) && hash_equals($expectedToken, $token);
+        error_log("verifyCsrfToken: token=$token, expected=$expectedToken, isValid=" . ($isValid ? 'true' : 'false'));
+        return $isValid;
     }
 
     public function generateCsrfToken()
