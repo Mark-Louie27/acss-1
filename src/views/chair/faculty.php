@@ -137,38 +137,39 @@ ob_start();
                 transform: rotate(360deg);
             }
         }
+
+        .faculty-row {
+            cursor: pointer;
+        }
+
+        .faculty-row:hover {
+            background-color: rgba(212, 175, 55, 0.1);
+        }
     </style>
 </head>
 
 <body class="bg-gray-light font-sans antialiased">
     <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
 
-    <!-- Main Content -->
     <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <!-- Header -->
         <header class="mb-8 slide-in-left">
             <h1 class="text-4xl font-bold text-gray-dark">Faculty Management</h1>
             <p class="text-gray-dark mt-2">Manage faculty members for your department</p>
         </header>
 
-        <!-- Search Bar -->
         <div class="search-container mx-4 sm:mx-6 md:mx-auto bg-white rounded-xl shadow-xl border border-black p-4 fade-in">
-            <div class="flex items-center ">
+            <div class="flex items-center">
                 <i class="fas fa-search text-gray-dark w-5 h-5 mr-3"></i>
-                <input type="text" id="search-input" class="search-input flex-1 bg-transparent outline-none text-gray-dark placeholder-gray-dark"
+                <input type="text" id="search-input" class="search-input flex-1 bg-transparent outline-none text-gray-dark placeholder-gray-dark input-focus"
                     placeholder="Search faculty by name..." autocomplete="off" aria-label="Search faculty">
                 <span id="search-feedback" class="ml-3 text-sm font-medium"></span>
             </div>
             <div id="suggestions" class="suggestions hidden"></div>
         </div>
 
-        <!-- Search Results -->
         <div id="search-results" class="mb-6"></div>
-
-        <!-- Includable Faculty Table -->
         <div id="includable-faculty" class="mb-6"></div>
 
-        <!-- Faculty Table -->
         <div class="bg-white rounded-xl shadow-lg fade-in">
             <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                 <h3 class="text-xl font-bold text-gray-dark">Your Department's Faculty</h3>
@@ -195,7 +196,9 @@ ob_start();
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-light">
                                 <?php foreach ($faculty as $member): ?>
-                                    <tr class="hover:bg-gray-50 transition-all duration-200">
+                                    <tr class="faculty-row hover:bg-gray-50 transition-all duration-200"
+                                        data-id="<?php echo $member['user_id']; ?>"
+                                        data-name="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['employee_id']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['academic_rank'] ?? 'N/A'); ?></td>
@@ -204,7 +207,7 @@ ob_start();
                                             <button class="remove-btn text-red-600 group relative hover:text-red-700 transition-all duration-200"
                                                 data-id="<?php echo $member['user_id']; ?>"
                                                 data-name="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>">
-                                                Remove
+                                                <i class="fa-solid fa-xmark"></i>
                                                 <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Remove Faculty</span>
                                             </button>
                                         </td>
@@ -260,6 +263,32 @@ ob_start();
                 </div>
             </div>
         </div>
+
+        <!-- Faculty Details Modal -->
+        <div id="faculty-details-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 transform modal-content scale-95">
+                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                    <h3 class="text-xl font-bold text-gray-dark">Faculty Details</h3>
+                    <button id="closeFacultyDetailsModalBtn"
+                        class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200"
+                        aria-label="Close modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div id="faculty-details-content" class="text-gray-dark">
+                        <div class="animate-pulse">
+                            <div class="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end mt-6">
+                        <button id="closeFacultyDetailsBtn" class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -284,7 +313,6 @@ ob_start();
                 }, 5000);
             }
 
-            // Modal Functions
             function openModal(modalId) {
                 const modal = document.getElementById(modalId);
                 const modalContent = modal.querySelector('.modal-content');
@@ -382,14 +410,12 @@ ob_start();
                 }, 300);
             });
 
-            // Hide suggestions on outside click
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.search-container')) {
                     suggestions.classList.add('hidden');
                 }
             });
 
-            // Handle suggestion click
             suggestions.addEventListener('click', async (e) => {
                 if (e.target.classList.contains('suggestion-item')) {
                     const name = e.target.dataset.name;
@@ -418,7 +444,6 @@ ob_start();
                 }
             });
 
-            // Render autocomplete suggestions
             function renderSuggestions(results) {
                 suggestions.innerHTML = '';
                 if (results.length === 0) {
@@ -437,7 +462,6 @@ ob_start();
                 suggestions.classList.remove('hidden');
             }
 
-            // Render search results (chair's department faculty)
             function renderSearchResults(results) {
                 searchResults.innerHTML = '';
                 if (results.length === 0) {
@@ -488,7 +512,6 @@ ob_start();
                 searchResults.appendChild(container);
             }
 
-            // Render includable faculty
             function renderIncludableFaculty(includable) {
                 includableFaculty.innerHTML = '';
                 if (includable.length === 0) {
@@ -542,7 +565,95 @@ ob_start();
                 includableFaculty.appendChild(container);
             }
 
-            // Event Listeners for Include Modal
+            // Faculty Details Modal Handling
+            document.querySelectorAll('.faculty-row').forEach(row => {
+                row.addEventListener('click', async (e) => {
+                    if (e.target.closest('.remove-btn')) return; // Prevent modal if clicking Remove button
+                    const userId = row.dataset.id;
+                    const facultyName = row.dataset.name;
+                    openModal('faculty-details-modal');
+                    const contentDiv = document.getElementById('faculty-details-content');
+                    contentDiv.innerHTML = `
+                        <div class="animate-pulse">
+                            <div class="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                            <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+                        </div>
+                    `;
+
+                    try {
+                        console.log('Fetching details for user_id:', userId);
+                        const response = await fetch(window.location.href, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: `action=get_faculty_details&user_id=${encodeURIComponent(userId)}`
+                        });
+                        console.log('Response status:', response.status);
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({}));
+                            throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+                        }
+                        const data = await response.json();
+                        console.log('Faculty details response:', data);
+
+                        if (data.success) {
+                            const details = data.data;
+                            contentDiv.innerHTML = `
+                                <h4 class="text-lg font-semibold text-gray-dark mb-4">${details.first_name} ${details.last_name}</h4>
+                                <dl class="space-y-2">
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">User ID:</dt>
+                                        <dd class="text-gray-dark">${details.user_id || 'N/A'}</dd>
+                                    </div>
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">Employee ID:</dt>
+                                        <dd class="text-gray-dark">${details.employee_id || 'N/A'}</dd>
+                                    </div>
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">Academic Rank:</dt>
+                                        <dd class="text-gray-dark">${details.academic_rank || 'N/A'}</dd>
+                                    </div>
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">Employment Type:</dt>
+                                        <dd class="text-gray-dark">${details.employment_type || 'N/A'}</dd>
+                                    </div>
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">College:</dt>
+                                        <dd class="text-gray-dark">${details.college_name || 'N/A'}</dd>
+                                    </div>
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">Department:</dt>
+                                        <dd class="text-gray-dark">${details.department_name || 'N/A'}</dd>
+                                    </div>
+                                    <div class="flex">
+                                        <dt class="font-medium text-gray-dark w-1/3">Email:</dt>
+                                        <dd class="text-gray-dark">${details.email || 'N/A'}</dd>
+                                    </div>
+                                </dl>
+                            `;
+                        } else {
+                            contentDiv.innerHTML = `<p class="text-red-500">${data.error || 'Failed to load faculty details'}</p>`;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching faculty details:', error);
+                        contentDiv.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                        showToast('Failed to load faculty details.', 'bg-red-500');
+                    }
+                });
+            });
+
+            document.getElementById('closeFacultyDetailsModalBtn').addEventListener('click', () => closeModal('faculty-details-modal'));
+            document.getElementById('closeFacultyDetailsBtn').addEventListener('click', () => closeModal('faculty-details-modal'));
+
+            document.getElementById('faculty-details-modal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('faculty-details-modal')) {
+                    closeModal('faculty-details-modal');
+                }
+            });
+
             document.addEventListener('click', (e) => {
                 if (e.target.classList.contains('include-btn')) {
                     const userId = e.target.dataset.id;
@@ -553,26 +664,6 @@ ob_start();
                 }
             });
 
-            document.getElementById('closeIncludeModalBtn').addEventListener('click', () => closeModal('include-modal'));
-            document.getElementById('cancelIncludeBtn').addEventListener('click', () => closeModal('include-modal'));
-            document.getElementById('confirmIncludeBtn').addEventListener('click', async () => {
-                const userId = document.getElementById('modal-user-id').value;
-                const formData = new FormData();
-                formData.append('user_id', userId);
-                formData.append('add_faculty', '1');
-
-                try {
-                    await fetch(window.location.href, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    location.reload();
-                } catch (error) {
-                    showToast('Failed to include faculty. Please try again.', 'bg-red-500');
-                }
-            });
-
-            // Event Listeners for Remove Modal
             document.querySelectorAll('.remove-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const userId = btn.dataset.id;
@@ -583,37 +674,66 @@ ob_start();
                 });
             });
 
+            document.getElementById('closeIncludeModalBtn').addEventListener('click', () => closeModal('include-modal'));
+            document.getElementById('cancelIncludeBtn').addEventListener('click', () => closeModal('include-modal'));
+            document.getElementById('confirmIncludeBtn').addEventListener('click', async () => {
+                const userId = document.getElementById('modal-user-id').value;
+                const formData = new FormData();
+                formData.append('action', 'add_faculty');
+                formData.append('user_id', userId);
+
+                try {
+                    const response = await fetch(window.location.href, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast(data.success, 'bg-green-500');
+                        location.reload();
+                    } else {
+                        showToast(data.error || 'Failed to include faculty.', 'bg-red-500');
+                    }
+                } catch (error) {
+                    showToast('Failed to include faculty. Please try again.', 'bg-red-500');
+                }
+            });
+
             document.getElementById('closeRemoveModalBtn').addEventListener('click', () => closeModal('remove-modal'));
             document.getElementById('cancelRemoveBtn').addEventListener('click', () => closeModal('remove-modal'));
             document.getElementById('confirmRemoveBtn').addEventListener('click', async () => {
                 const userId = document.getElementById('remove-modal-user-id').value;
                 const formData = new FormData();
+                formData.append('action', 'remove_faculty');
                 formData.append('user_id', userId);
-                formData.append('remove_faculty', '1');
 
                 try {
-                    await fetch(window.location.href, {
+                    const response = await fetch(window.location.href, {
                         method: 'POST',
                         body: formData
                     });
-                    location.reload();
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast(data.success, 'bg-green-500');
+                        location.reload();
+                    } else {
+                        showToast(data.error || 'Failed to remove faculty.', 'bg-red-500');
+                    }
                 } catch (error) {
                     showToast('Failed to remove faculty. Please try again.', 'bg-red-500');
                 }
             });
 
-            // Close modals on backdrop click
-            ['include-modal', 'remove-modal'].forEach(modalId => {
+            ['include-modal', 'remove-modal', 'faculty-details-modal'].forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 modal.addEventListener('click', (e) => {
                     if (e.target === modal) closeModal(modalId);
                 });
             });
 
-            // Close modals on ESC key
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    ['include-modal', 'remove-modal'].forEach(modalId => {
+                    ['include-modal', 'remove-modal', 'faculty-details-modal'].forEach(modalId => {
                         const modal = document.getElementById(modalId);
                         if (!modal.classList.contains('hidden')) closeModal(modalId);
                     });
