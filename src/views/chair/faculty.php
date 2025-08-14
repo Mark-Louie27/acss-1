@@ -1,3 +1,4 @@
+```php
 <?php
 ob_start();
 ?>
@@ -145,6 +146,38 @@ ob_start();
         .faculty-row:hover {
             background-color: rgba(212, 175, 55, 0.1);
         }
+
+        .profile-picture {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 2px solid var(--gray-light);
+        }
+
+        .profile-picture-large {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 2px solid var(--gold);
+        }
+
+        .profile-icon {
+            color: var(--gray-light);
+            font-size: 40px;
+        }
+
+        .profile-icon-large {
+            color: var(--gold);
+            font-size: 100px;
+        }
+
+        td.specialization {
+            white-space: normal;
+            word-wrap: break-word;
+            max-width: 200px;
+        }
     </style>
 </head>
 
@@ -187,10 +220,12 @@ ob_start();
                         <table class="min-w-full divide-y divide-gray-light">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Picture</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Employee ID</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Academic Rank</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Employment Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Departments</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -199,10 +234,17 @@ ob_start();
                                     <tr class="faculty-row hover:bg-gray-50 transition-all duration-200"
                                         data-id="<?php echo $member['user_id']; ?>"
                                         data-name="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <img src="<?php echo htmlspecialchars($member['profile_picture']); ?>"
+                                                alt="Profile picture of <?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>"
+                                                class="profile-picture"
+                                                onerror="replaceWithIcon(this, 'profile-icon')">
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['employee_id']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['academic_rank'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['employment_type'] ?? 'N/A'); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['department_names'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button class="remove-btn text-red-600 group relative hover:text-red-700 transition-all duration-200"
                                                 data-id="<?php echo $member['user_id']; ?>"
@@ -220,7 +262,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Include Faculty Modal -->
         <div id="include-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -242,7 +283,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Remove Faculty Modal -->
         <div id="remove-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -265,35 +305,79 @@ ob_start();
         </div>
 
         <!-- Faculty Details Modal -->
-        <div id="faculty-details-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 transform modal-content scale-95">
-                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
-                    <h3 class="text-xl font-bold text-gray-dark">Faculty Details</h3>
+        <div id="faculty-details-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] mx-4 transform modal-content scale-95 flex flex-col">
+                <!-- Header -->
+                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl flex-shrink-0">
+                    <h3 class="text-2xl font-bold text-gray-dark">Faculty Details</h3>
                     <button id="closeFacultyDetailsModalBtn"
-                        class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200"
+                        class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-10 w-10 flex items-center justify-center transition-all duration-200"
                         aria-label="Close modal">
-                        <i class="fas fa-times"></i>
+                        <i class="fas fa-times text-lg"></i>
                     </button>
                 </div>
-                <div class="p-6">
-                    <div id="faculty-details-content" class="text-gray-dark">
-                        <div class="animate-pulse">
-                            <div class="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-                            <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-                            <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+
+                <!-- Content Area with Scrolling -->
+                <div class="flex-1 overflow-y-auto">
+                    <div class="p-6">
+                        <div id="faculty-details-content" class="text-gray-dark">
+                            <!-- Loading State -->
+                            <div class="animate-pulse">
+                                <div class="flex items-center space-x-4 mb-6">
+                                    <div class="w-20 h-20 bg-gray-200 rounded-full"></div>
+                                    <div class="flex-1">
+                                        <div class="h-6 bg-gray-200 rounded w-1/2 mb-2"></div>
+                                        <div class="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                                        <div class="h-4 bg-gray-200 rounded w-1/4"></div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-4">
+                                        <div class="h-6 bg-gray-200 rounded w-3/4"></div>
+                                        <div class="space-y-3">
+                                            <div class="h-4 bg-gray-200 rounded w-full"></div>
+                                            <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                                            <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-4">
+                                        <div class="h-6 bg-gray-200 rounded w-3/4"></div>
+                                        <div class="space-y-3">
+                                            <div class="h-4 bg-gray-200 rounded w-full"></div>
+                                            <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-6">
+                                    <div class="h-20 bg-gray-200 rounded-lg"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex justify-end mt-6">
-                        <button id="closeFacultyDetailsBtn" class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Close</button>
-                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex justify-end p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl flex-shrink-0">
+                    <button id="closeFacultyDetailsBtn"
+                        class="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium shadow-sm">
+                        Close
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        function replaceWithIcon(img, iconClass) {
+            const parent = img.parentNode;
+            const icon = document.createElement('i');
+            icon.className = `fas fa-user-circle ${iconClass}`;
+            icon.setAttribute('aria-hidden', 'true');
+            icon.title = img.alt;
+            parent.replaceChild(icon, img);
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Toast Notifications
             <?php if (isset($success)): ?>
                 showToast('<?php echo htmlspecialchars($success); ?>', 'bg-green-500');
             <?php endif; ?>
@@ -333,7 +417,6 @@ ob_start();
                 }, 200);
             }
 
-            // Search Functionality
             let searchTimeout;
             const searchInput = document.getElementById('search-input');
             const searchFeedback = document.getElementById('search-feedback');
@@ -484,7 +567,8 @@ ob_start();
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Role</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">College</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Department</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Departments</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Specialization</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Academic Rank</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Employment Type</th>
                                 </tr>
@@ -500,7 +584,8 @@ ob_start();
                                             ${result.program_name ? `(Chair of ${result.program_name})` : ''}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.college_name || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_name || 'N/A'}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_names || 'N/A'}</td>
+                                        <td class="px-6 py-4 text-sm text-gray-dark specialization">${result.specialization || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.academic_rank || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employment_type || 'N/A'}</td>
                                     </tr>
@@ -533,7 +618,8 @@ ob_start();
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Employee ID</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">College</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Department</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Departments</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Specialization</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Academic Rank</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Employment Type</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Action</th>
@@ -545,16 +631,18 @@ ob_start();
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employee_id || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.first_name} ${result.last_name}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.college_name || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_name || 'N/A'}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_names || 'N/A'}</td>
+                                        <td class="px-6 py-4 text-sm text-gray-dark specialization">${result.specialization || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.academic_rank || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employment_type || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <button class="include-btn text-green-600 group relative hover:text-green-700 transition-all duration-200"
-                                                data-id="${result.user_id}"
-                                                data-name="${result.first_name} ${result.last_name}">
-                                                Include
-                                                <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Include Faculty</span>
-                                            </button>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button class="include-btn text-green-600 group relative hover:text-green-700 hover:bg-green-50 rounded-md transition-all duration-200 px-3 py-2 min-w-[44px] min-h-[36px] flex items-center justify-center border border-transparent hover:border-green-200"
+                                                        data-id="${result.user_id}"
+                                                        data-name="${result.first_name} ${result.last_name}">
+                                                    <i class="fa-regular fa-plus text-lg"></i>
+                                                    <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">Include Faculty</span>
+                                                </button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -565,10 +653,9 @@ ob_start();
                 includableFaculty.appendChild(container);
             }
 
-            // Faculty Details Modal Handling
             document.querySelectorAll('.faculty-row').forEach(row => {
                 row.addEventListener('click', async (e) => {
-                    if (e.target.closest('.remove-btn')) return; // Prevent modal if clicking Remove button
+                    if (e.target.closest('.remove-btn')) return;
                     const userId = row.dataset.id;
                     const facultyName = row.dataset.name;
                     openModal('faculty-details-modal');
@@ -602,37 +689,138 @@ ob_start();
                         if (data.success) {
                             const details = data.data;
                             contentDiv.innerHTML = `
-                                <h4 class="text-lg font-semibold text-gray-dark mb-4">${details.first_name} ${details.last_name}</h4>
-                                <dl class="space-y-2">
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">User ID:</dt>
-                                        <dd class="text-gray-dark">${details.user_id || 'N/A'}</dd>
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                                <!-- Header Section with Profile -->
+                                <div class="flex items-start space-x-6 mb-8 pb-6 border-b border-gray-100">
+                                    <div class="flex-shrink-0">
+                                        <div class="relative">
+                                            <img src="${details.profile_picture || 'http://localhost:8000/uploads/faculty/default.jpg'}" 
+                                                alt="Profile picture of ${details.first_name} ${details.last_name}" 
+                                                class="w-20 h-20 rounded-full object-cover ring-4 ring-gray-50 shadow-sm"
+                                                onerror="replaceWithIcon(this, 'profile-icon-large')">
+                                            <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                                                <i class="fas fa-check text-white text-xs"></i>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">Employee ID:</dt>
-                                        <dd class="text-gray-dark">${details.employee_id || 'N/A'}</dd>
+                                    <div class="flex-1 min-w-0">
+                                        <h4 class="text-2xl font-bold text-gray-900 mb-2">${details.first_name} ${details.last_name}</h4>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            ${details.academic_rank ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">${details.academic_rank}</span>` : ''}
+                                            ${details.employment_type ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">${details.employment_type}</span>` : ''}
+                                        </div>
+                                        ${details.specialization ? `<p class="text-sm text-gray-600 font-medium">${details.specialization}${details.expertise_level ? ' • ' + details.expertise_level : ''}</p>` : ''}
                                     </div>
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">Academic Rank:</dt>
-                                        <dd class="text-gray-dark">${details.academic_rank || 'N/A'}</dd>
+                                </div>
+
+                                <!-- Details Grid -->
+                            <div class="space-y-6">
+                                <!-- Personal Information -->
+                                <div class="bg-gray-50 rounded-lg p-5">
+                                    <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4">
+                                        <i class="fas fa-user text-blue-500 mr-3"></i>
+                                        Personal Information
+                                    </h5>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div class="bg-white rounded-md p-4 shadow-sm">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-id-card text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">User ID</span>
+                                            </div>
+                                            <p class="text-sm font-mono text-gray-900">${details.user_id || 'N/A'}</p>
+                                        </div>
+                                        <div class="bg-white rounded-md p-4 shadow-sm">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-badge text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Employee ID</span>
+                                            </div>
+                                            <p class="text-sm font-mono text-gray-900">${details.employee_id || 'N/A'}</p>
+                                        </div>
+                                        <div class="bg-white rounded-md p-4 shadow-sm sm:col-span-2 lg:col-span-1">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-envelope text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</span>
+                                            </div>
+                                            <p class="text-sm text-gray-900 break-all">
+                                                ${details.email ? `<a href="mailto:${details.email}" class="text-blue-600 hover:text-blue-800 hover:underline transition-colors">${details.email}</a>` : 'N/A'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">Employment Type:</dt>
-                                        <dd class="text-gray-dark">${details.employment_type || 'N/A'}</dd>
+                                </div>
+
+                                <!-- Academic Information -->
+                                <div class="bg-gray-50 rounded-lg p-5">
+                                    <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4">
+                                        <i class="fas fa-graduation-cap text-green-500 mr-3"></i>
+                                        Academic Information
+                                    </h5>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div class="bg-white rounded-md p-4 shadow-sm">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-university text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">College</span>
+                                            </div>
+                                            <p class="text-sm text-gray-900">${details.college_name || 'N/A'}</p>
+                                        </div>
+                                        <div class="bg-white rounded-md p-4 shadow-sm">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-building text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Departments</span>
+                                            </div>
+                                            <p class="text-sm text-gray-900">${details.department_names || 'N/A'}</p>
+                                        </div>
                                     </div>
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">College:</dt>
-                                        <dd class="text-gray-dark">${details.college_name || 'N/A'}</dd>
+                                </div>
+
+                                <!-- Employment & Rank Information -->
+                                <div class="bg-gray-50 rounded-lg p-5">
+                                    <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4">
+                                        <i class="fas fa-briefcase text-purple-500 mr-3"></i>
+                                        Employment Details
+                                    </h5>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div class="bg-white rounded-md p-4 shadow-sm">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-medal text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Academic Rank</span>
+                                            </div>
+                                            <p class="text-sm text-gray-900">
+                                                ${details.academic_rank ? `<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">${details.academic_rank}</span>` : 'N/A'}
+                                            </p>
+                                        </div>
+                                        <div class="bg-white rounded-md p-4 shadow-sm">
+                                            <div class="flex items-center mb-2">
+                                                <i class="fas fa-clock text-gray-400 mr-2"></i>
+                                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Employment Type</span>
+                                            </div>
+                                            <p class="text-sm text-gray-900">
+                                                ${details.employment_type ? `<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">${details.employment_type}</span>` : 'N/A'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">Department:</dt>
-                                        <dd class="text-gray-dark">${details.department_name || 'N/A'}</dd>
+                                </div>
+
+                                <!-- Specialization Section -->
+                                ${details.specialization ? `
+                                <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-5 border border-blue-200">
+                                    <h5 class="flex items-center text-base font-semibold text-blue-900 mb-4">
+                                        <i class="fas fa-star text-yellow-500 mr-3"></i>
+                                        Specialization & Expertise
+                                    </h5>
+                                    <div class="bg-white/70 backdrop-blur rounded-md p-4">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-blue-900 font-medium text-sm">${details.specialization}</span>
+                                            ${details.expertise_level ? `
+                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-200 text-blue-900 border border-blue-300">
+                                                <i class="fas fa-trophy mr-1"></i>
+                                                ${details.expertise_level}
+                                            </span>
+                                            ` : ''}
+                                        </div>
                                     </div>
-                                    <div class="flex">
-                                        <dt class="font-medium text-gray-dark w-1/3">Email:</dt>
-                                        <dd class="text-gray-dark">${details.email || 'N/A'}</dd>
-                                    </div>
-                                </dl>
+                                </div>
+                                ` : ''}
+                            </div>
                             `;
                         } else {
                             contentDiv.innerHTML = `<p class="text-red-500">${data.error || 'Failed to load faculty details'}</p>`;

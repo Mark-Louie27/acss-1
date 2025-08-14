@@ -1,8 +1,5 @@
 <?php
 // curriculum.php
-
-
-
 ob_start();
 ?>
 
