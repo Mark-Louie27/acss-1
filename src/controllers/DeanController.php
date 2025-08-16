@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/UserModel.php';
+require_once __DIR__ . '/../services/EmailService.php';
 
 class DeanController
 {
     private $db;
     private $userModel;
+    private $emailService;
 
     public function __construct()
     {
@@ -18,6 +20,7 @@ class DeanController
         $this->userModel = new UserModel();
         $this->restrictToDean();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $this->emailService = new EmailService();
     }
 
     private function restrictToDean()
@@ -100,8 +103,8 @@ class DeanController
                 case 'faculty':
                     $query = "
                         SELECT COUNT(*) 
-                        FROM faculty f 
-                        JOIN departments d ON f.department_id = d.department_id 
+                        FROM faculty_departments fd 
+                        JOIN departments d ON fd.department_id = d.department_id 
                         WHERE d.college_id = :college_id";
                     break;
                 case 'classrooms':
@@ -351,96 +354,100 @@ class DeanController
             // Initialize variables for the view
             $programChairs = [];
             $faculty = [];
-            $requests = [];
+            $pendingUsers = [];
             $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             $error = null;
 
             // Fetch Program Chairs
             $queryChairs = "
-            SELECT u.*, pc.program_id, p.program_name, d.department_name, d.department_id
-            FROM users u
-            JOIN faculty f ON u.user_id = f.user_id
-            JOIN program_chairs pc ON f.faculty_id = pc.faculty_id
-            JOIN programs p ON pc.program_id = p.program_id
-            JOIN departments d ON p.department_id = d.department_id
-            WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.is_active = 1
-            ORDER BY u.last_name, u.first_name";
+                SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, pc.program_id, p.program_name, d.department_name, d.department_id
+                FROM users u
+                JOIN program_chairs pc ON u.user_id = pc.user_id
+                JOIN programs p ON pc.program_id = p.program_id
+                JOIN departments d ON p.department_id = d.department_id
+                WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
+                ORDER BY u.last_name, u.first_name";
             $stmtChairs = $this->db->prepare($queryChairs);
             if (!$stmtChairs) {
                 throw new PDOException("Failed to prepare queryChairs: " . implode(', ', $this->db->errorInfo()));
             }
             $stmtChairs->execute([':college_id' => $collegeId]);
             $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($programChairs) . " program chairs");
 
-            // Fetch Faculty (including those with schedules in the college)
+            // Fetch Faculty (only those with primary department in Dean's college)
             $queryFaculty = "
-            SELECT DISTINCT u.*, f.academic_rank, f.employment_type, d.department_name, d.department_id
-            FROM users u
-            JOIN faculty f ON u.user_id = f.user_id
-            JOIN departments d ON u.department_id = d.department_id
-            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id
-            LEFT JOIN courses c ON s.course_id = c.course_id
-            WHERE (d.college_id = :college_id1 OR c.department_id IN (
-                SELECT department_id FROM departments WHERE college_id = :college_id2
-            )) AND u.is_active = 1
-            ORDER BY u.last_name, u.first_name";
+                SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, f.academic_rank, f.employment_type, d.department_name, d.department_id
+                FROM users u
+                JOIN faculty f ON u.user_id = f.user_id
+                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                JOIN departments d ON fd.department_id = d.department_id
+                WHERE d.college_id = :college_id AND u.role_id = 6 AND fd.is_primary = 1
+                ORDER BY u.last_name, u.first_name";
             $stmtFaculty = $this->db->prepare($queryFaculty);
             if (!$stmtFaculty) {
                 throw new PDOException("Failed to prepare queryFaculty: " . implode(', ', $this->db->errorInfo()));
             }
-            $stmtFaculty->execute([':college_id1' => $collegeId, ':college_id2' => $collegeId]);
+            $stmtFaculty->execute([':college_id' => $collegeId]);
             $faculty = $stmtFaculty->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($faculty) . " faculty members");
 
-            // Fetch pending faculty requests
-            $queryRequests = "
-            SELECT fr.*, d.department_name
-            FROM faculty_requests fr
-            JOIN departments d ON fr.department_id = d.department_id
-            WHERE fr.college_id = :college_id AND fr.status = 'pending'
-            ORDER BY fr.created_at";
-            $stmtRequests = $this->db->prepare($queryRequests);
-            if (!$stmtRequests) {
-                throw new PDOException("Failed to prepare queryRequests: " . implode(', ', $this->db->errorInfo()));
+            // Fetch pending users
+            $queryPending = "
+                SELECT u.user_id, u.email, u.first_name, u.last_name, u.role_id, r.role_name, d.department_name, d.department_id
+                FROM users u
+                JOIN roles r ON u.role_id = r.role_id
+                JOIN departments d ON u.department_id = d.department_id
+                WHERE u.college_id = :college_id AND u.is_active = 0 AND u.role_id IN (5, 6)
+                ORDER BY u.created_at";
+            $stmtPending = $this->db->prepare($queryPending);
+            if (!$stmtPending) {
+                throw new PDOException("Failed to prepare queryPending: " . implode(', ', $this->db->errorInfo()));
             }
-            $stmtRequests->execute([':college_id' => $collegeId]);
-            $requests = $stmtRequests->fetchAll(PDO::FETCH_ASSOC);
+            $stmtPending->execute([':college_id' => $collegeId]);
+            $pendingUsers = $stmtPending->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($pendingUsers) . " pending users");
 
             // Fetch departments for filter
             $queryDepartments = "
-            SELECT department_id, department_name
-            FROM departments
-            WHERE college_id = :college_id
-            ORDER BY department_name";
+                SELECT department_id, department_name
+                FROM departments
+                WHERE college_id = :college_id
+                ORDER BY department_name";
             $stmtDepartments = $this->db->prepare($queryDepartments);
             if (!$stmtDepartments) {
                 throw new PDOException("Failed to prepare queryDepartments: " . implode(', ', $this->db->errorInfo()));
             }
             $stmtDepartments->execute([':college_id' => $collegeId]);
             $departments = $stmtDepartments->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($departments) . " departments");
 
             // Fetch current semester
             $querySemester = "
-            SELECT semester_name, academic_year
-            FROM semesters
-            WHERE is_current = 1
-            LIMIT 1";
+                SELECT semester_name, academic_year
+                FROM semesters
+                WHERE is_current = 1
+                LIMIT 1";
             $stmtSemester = $this->db->prepare($querySemester);
             if (!$stmtSemester) {
                 throw new PDOException("Failed to prepare querySemester: " . implode(', ', $this->db->errorInfo()));
             }
             $stmtSemester->execute();
             $currentSemester = $stmtSemester->fetch(PDO::FETCH_ASSOC) ?: ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
+            error_log("faculty: Current semester - " . json_encode($currentSemester));
 
-            // Handle POST actions (accept, reject, deactivate)
+            // Handle POST actions
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                if (isset($_POST['action'], $_POST['user_id']) && in_array($_POST['action'], ['accept', 'reject', 'deactivate'])) {
-                    $this->handleUserAction($_POST);
-                } elseif (isset($_POST['request_id']) && is_numeric($_POST['request_id'])) {
-                    $this->handleFacultyRequest($_POST);
+                header('Content-Type: application/json');
+                if (isset($_POST['action'], $_POST['user_id']) && in_array($_POST['action'], ['activate', 'deactivate'])) {
+                    $result = $this->handleUserAction($_POST);
+                    echo json_encode($result);
+                    exit;
                 } else {
                     error_log("faculty: Invalid POST data");
-                    $error = "Invalid request data";
+                    echo json_encode(['success' => false, 'error' => 'Invalid request data']);
+                    exit;
                 }
             }
 
@@ -450,14 +457,14 @@ class DeanController
             error_log("faculty: PDO Error - " . $e->getMessage());
             http_response_code(500);
             $error = "Database error: " . $e->getMessage();
-            $programChairs = $faculty = $requests = $departments = [];
+            $programChairs = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
         } catch (Exception $e) {
             error_log("faculty: Error - " . $e->getMessage());
             http_response_code(500);
             $error = $e->getMessage();
-            $programChairs = $faculty = $requests = $departments = [];
+            $programChairs = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
         }
@@ -470,8 +477,8 @@ class DeanController
         $collegeId = $this->getDeanCollegeId($_SESSION['user_id']);
 
         if (!$userId || !$collegeId) {
-            $_SESSION['error'] = 'Invalid user or college.';
-            return;
+            error_log("handleUserAction: Invalid user_id=$userId or college_id=$collegeId");
+            return ['success' => false, 'error' => 'Invalid user or college'];
         }
 
         try {
@@ -481,96 +488,46 @@ class DeanController
                 $query = "UPDATE users SET is_active = 0 WHERE user_id = :user_id AND college_id = :college_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
-                $_SESSION['success'] = 'User account deactivated successfully.';
+                error_log("handleUserAction: Deactivated user_id=$userId");
+                $message = 'User account deactivated successfully';
             } elseif ($action === 'activate') {
                 $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id AND college_id = :college_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
-                $_SESSION['success'] = 'User account activated successfully.';
-            }
+                error_log("handleUserAction: Activated user_id=$userId");
 
-            $this->db->commit();
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log("Error handling user action: " . $e->getMessage());
-            $_SESSION['error'] = 'An error occurred while processing the action.';
-        }
-    }
-
-    private function handleFacultyRequest($data)
-    {
-        $requestId = filter_var($data['request_id'], FILTER_VALIDATE_INT);
-        $action = $data['action'] ?? '';
-        $collegeId = $this->getDeanCollegeId($_SESSION['user_id']);
-
-        if (!$requestId || !$collegeId) {
-            $_SESSION['error'] = 'Invalid request or college.';
-            return;
-        }
-
-        try {
-            $this->db->beginTransaction();
-
-            if ($action === 'accept') {
-                // Fetch request details
-                $query = "SELECT * FROM faculty_requests WHERE request_id = :request_id AND college_id = :college_id";
+                // Fetch user details for email
+                $query = "SELECT u.email, u.first_name, u.last_name, u.role_id AS user_role_id, r.role_name 
+                          FROM users u 
+                          JOIN roles r ON u.role_id = r.role_id 
+                          WHERE u.user_id = :user_id";
                 $stmt = $this->db->prepare($query);
-                $stmt->execute([':request_id' => $requestId, ':college_id' => $collegeId]);
-                $request = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($request) {
-                    // Insert into users table
-                    $query = "
-                        INSERT INTO users (employee_id, username, password_hash, email, first_name, middle_name, last_name, suffix, role_id, department_id, college_id)
-                        VALUES (:employee_id, :username, :password_hash, :email, :first_name, :middle_name, :last_name, :suffix, :role_id, :department_id, :college_id)";
-                    $stmt = $this->db->prepare($query);
-                    $stmt->execute([
-                        ':employee_id' => $request['employee_id'],
-                        ':username' => $request['username'],
-                        ':password_hash' => $request['password_hash'],
-                        ':email' => $request['email'],
-                        ':first_name' => $request['first_name'],
-                        ':middle_name' => $request['middle_name'],
-                        ':last_name' => $request['last_name'],
-                        ':suffix' => $request['suffix'],
-                        ':role_id' => 6, // Faculty role
-                        ':department_id' => $request['department_id'],
-                        ':college_id' => $request['college_id']
-                    ]);
-                    $userId = $this->db->lastInsertId();
-
-                    // Insert into faculty table
-                    $query = "
-                        INSERT INTO faculty (user_id, employee_id, academic_rank, employment_type, department_id)
-                        VALUES (:user_id, :employee_id, :academic_rank, :employment_type, :department_id)";
-                    $stmt = $this->db->prepare($query);
-                    $stmt->execute([
-                        ':user_id' => $userId,
-                        ':employee_id' => $request['employee_id'],
-                        ':academic_rank' => $request['academic_rank'],
-                        ':employment_type' => $request['employment_type'],
-                        ':department_id' => $request['department_id']
-                    ]);
-
-                    // Update request status
-                    $query = "UPDATE faculty_requests SET status = 'approved' WHERE request_id = :request_id";
-                    $stmt = $this->db->prepare($query);
-                    $stmt->execute([':request_id' => $requestId]);
-
-                    $_SESSION['success'] = 'Faculty request approved successfully.';
+                if (!$stmt) {
+                    throw new PDOException("Failed to prepare user details query: " . implode(', ', $this->db->errorInfo()));
                 }
-            } elseif ($action === 'reject') {
-                $query = "UPDATE faculty_requests SET status = 'rejected' WHERE request_id = :request_id AND college_id = :college_id";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([':request_id' => $requestId, ':college_id' => $collegeId]);
-                $_SESSION['success'] = 'Faculty request rejected successfully.';
+                $stmt->execute([':user_id' => $userId]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($user) {
+                    error_log("handleUserAction: Fetched user details for user_id=$userId, role_id={$user['user_role_id']}, role_name={$user['role_name']}");
+                    $this->emailService->sendApprovalEmail(
+                        $user['email'],
+                        $user['first_name'] . ' ' . $user['last_name'],
+                        $user['role_name']
+                    );
+                } else {
+                    error_log("handleUserAction: No user found for user_id=$userId");
+                }
+                $message = 'User account activated successfully';
+            } else {
+                throw new Exception("Invalid action: $action");
             }
 
             $this->db->commit();
+            return ['success' => true, 'message' => $message];
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log("Error handling faculty request: " . $e->getMessage());
-            $_SESSION['error'] = 'An error occurred while processing the request.';
+            error_log("handleUserAction: Error - " . $e->getMessage());
+            return ['success' => false, 'error' => 'An error occurred while processing the action: ' . $e->getMessage()];
         }
     }
 

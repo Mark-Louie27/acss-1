@@ -37,11 +37,28 @@ ob_start();
         .transition-height {
             transition: max-height 0.3s ease-in-out;
         }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .profile-img {
+            object-fit: cover;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
     </style>
 </head>
 
 <body class="bg-gray-50 font-sans text-gray-800">
     <div class="p-6 my-8 min-h-screen flex flex-col">
+        <!-- Toast Container -->
+        <div id="toast-container" class="toast"></div>
+
         <!-- Header -->
         <header class="bg-gray-800 text-white shadow-md">
             <div class="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -73,13 +90,23 @@ ob_start();
                     </button>
                 </div>
             <?php endif; ?>
-
             <?php if (isset($_SESSION['error'])): ?>
                 <div id="errorAlert" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md mb-6 flex justify-between items-center">
                     <div class="flex items-center">
                         <i class="fas fa-exclamation-circle mr-3"></i>
                         <p><?php echo htmlspecialchars($_SESSION['error']);
                             unset($_SESSION['error']); ?></p>
+                    </div>
+                    <button onclick="document.getElementById('errorAlert').style.display='none'" class="text-red-500 hover:text-red-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div id="errorAlert" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md mb-6 flex justify-between items-center">
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-circle mr-3"></i>
+                        <p><?php echo htmlspecialchars($error); ?></p>
                     </div>
                     <button onclick="document.getElementById('errorAlert').style.display='none'" class="text-red-500 hover:text-red-700">
                         <i class="fas fa-times"></i>
@@ -136,10 +163,10 @@ ob_start();
                         <button id="tab-faculty" class="tab-button text-gray-500 hover:text-gray-700 py-3 px-1 border-b-2 border-transparent font-medium text-sm">
                             <i class="fas fa-chalkboard-teacher mr-2"></i>Faculty Members
                         </button>
-                        <button id="tab-requests" class="tab-button text-gray-500 hover:text-gray-700 py-3 px-1 border-b-2 border-transparent font-medium text-sm">
-                            <i class="fas fa-user-plus mr-2"></i>Pending Requests
-                            <?php if (!empty($requests)): ?>
-                                <span class="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-1"><?php echo count($requests); ?></span>
+                        <button id="tab-pending" class="tab-button text-gray-500 hover:text-gray-700 py-3 px-1 border-b-2 border-transparent font-medium text-sm">
+                            <i class="fas fa-user-plus mr-2"></i>Pending Users
+                            <?php if (!empty($pendingUsers)): ?>
+                                <span class="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-1"><?php echo count($pendingUsers); ?></span>
                             <?php endif; ?>
                         </button>
                     </nav>
@@ -186,13 +213,20 @@ ob_start();
                                                 data-name="<?php echo htmlspecialchars(strtolower($chair['last_name'] . ' ' . $chair['first_name'])); ?>">
                                                 <td class="py-4 px-6">
                                                     <div class="flex items-center">
-                                                        <div class="flex-shrink-0 h-10 w-10 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center">
-                                                            <span class="font-medium">
-                                                                <?php echo strtoupper(substr($chair['first_name'], 0, 1) . substr($chair['last_name'], 0, 1)); ?>
-                                                            </span>
+                                                        <div class="flex-shrink-0 h-10 w-10">
+                                                            <?php if (!empty($chair['profile_picture']) && file_exists(__DIR__ . '/../../' . $chair['profile_picture'])): ?>
+                                                                <img src="/<?php echo htmlspecialchars($chair['profile_picture']); ?>" alt="Profile" class="profile-img">
+                                                            <?php else: ?>
+                                                                <div class="h-10 w-10 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center">
+                                                                    <span class="font-medium">
+                                                                        <?php echo strtoupper(substr($chair['first_name'], 0, 1) . substr($chair['last_name'], 0, 1)); ?>
+                                                                    </span>
+                                                                </div>
+                                                            <?php endif; ?>
                                                         </div>
                                                         <div class="ml-4">
                                                             <div class="font-medium text-gray-900"><?php echo htmlspecialchars($chair['last_name'] . ', ' . $chair['first_name']); ?></div>
+                                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($chair['email']); ?></div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -205,7 +239,7 @@ ob_start();
                                                     </span>
                                                 </td>
                                                 <td class="py-4 px-6 text-right">
-                                                    <form method="POST" class="inline">
+                                                    <form method="POST" class="inline action-form">
                                                         <input type="hidden" name="user_id" value="<?php echo $chair['user_id']; ?>">
                                                         <input type="hidden" name="action" value="<?php echo $chair['is_active'] ? 'deactivate' : 'activate'; ?>">
                                                         <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white <?php echo $chair['is_active'] ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'; ?> focus:outline-none focus:ring-2 focus:ring-offset-2 <?php echo $chair['is_active'] ? 'focus:ring-red-500' : 'focus:ring-green-500'; ?>">
@@ -265,13 +299,20 @@ ob_start();
                                                 data-name="<?php echo htmlspecialchars(strtolower($member['last_name'] . ' ' . $member['first_name'])); ?>">
                                                 <td class="py-4 px-6">
                                                     <div class="flex items-center">
-                                                        <div class="flex-shrink-0 h-10 w-10 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center">
-                                                            <span class="font-medium">
-                                                                <?php echo strtoupper(substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1)); ?>
-                                                            </span>
+                                                        <div class="flex-shrink-0 h-10 w-10">
+                                                            <?php if (!empty($member['profile_picture']) && file_exists(__DIR__ . '/../../' . $member['profile_picture'])): ?>
+                                                                <img src="/<?php echo htmlspecialchars($member['profile_picture']); ?>" alt="Profile" class="profile-img">
+                                                            <?php else: ?>
+                                                                <div class="h-10 w-10 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center">
+                                                                    <span class="font-medium">
+                                                                        <?php echo strtoupper(substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1)); ?>
+                                                                    </span>
+                                                                </div>
+                                                            <?php endif; ?>
                                                         </div>
                                                         <div class="ml-4">
                                                             <div class="font-medium text-gray-900"><?php echo htmlspecialchars($member['last_name'] . ', ' . $member['first_name']); ?></div>
+                                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($member['email']); ?></div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -289,7 +330,7 @@ ob_start();
                                                     </span>
                                                 </td>
                                                 <td class="py-4 px-6 text-right">
-                                                    <form method="POST" class="inline">
+                                                    <form method="POST" class="inline action-form">
                                                         <input type="hidden" name="user_id" value="<?php echo $member['user_id']; ?>">
                                                         <input type="hidden" name="action" value="<?php echo $member['is_active'] ? 'deactivate' : 'activate'; ?>">
                                                         <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white <?php echo $member['is_active'] ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'; ?> focus:outline-none focus:ring-2 focus:ring-offset-2 <?php echo $member['is_active'] ? 'focus:ring-red-500' : 'focus:ring-green-500'; ?>">
@@ -310,13 +351,13 @@ ob_start();
                     </div>
                 </div>
 
-                <!-- Pending Requests Section -->
-                <div id="requests-content" class="tab-content hidden">
+                <!-- Pending Users Section -->
+                <div id="pending-content" class="tab-content hidden">
                     <div class="bg-white rounded-lg shadow-md overflow-hidden">
                         <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                            <h2 class="text-lg font-semibold text-gray-800">Pending Faculty Requests</h2>
+                            <h2 class="text-lg font-semibold text-gray-800">Pending Users</h2>
                             <div class="text-sm text-gray-500">
-                                <span id="requests-count"><?php echo count($requests); ?></span> requests
+                                <span id="pending-count"><?php echo count($pendingUsers); ?></span> pending
                             </div>
                         </div>
                         <div class="overflow-x-auto">
@@ -324,56 +365,51 @@ ob_start();
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                        <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Academic Rank</th>
-                                        <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment Type</th>
+                                        <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                         <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                                         <th class="py-3 px-6 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200">
-                                    <?php if (empty($requests)): ?>
+                                    <?php if (empty($pendingUsers)): ?>
                                         <tr>
-                                            <td colspan="5" class="py-6 px-6 text-center text-gray-500">
+                                            <td colspan="4" class="py-6 px-6 text-center text-gray-500">
                                                 <div class="flex flex-col items-center">
                                                     <i class="fas fa-clipboard-check text-gray-300 text-3xl mb-2"></i>
-                                                    <p>No pending requests at this time.</p>
+                                                    <p>No pending users at this time.</p>
                                                 </div>
                                             </td>
                                         </tr>
                                     <?php else: ?>
-                                        <?php foreach ($requests as $request): ?>
+                                        <?php foreach ($pendingUsers as $user): ?>
                                             <tr class="hover:bg-gray-50">
                                                 <td class="py-4 px-6">
                                                     <div class="flex items-center">
                                                         <div class="flex-shrink-0 h-10 w-10 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center">
                                                             <span class="font-medium">
-                                                                <?php echo strtoupper(substr($request['first_name'], 0, 1) . substr($request['last_name'], 0, 1)); ?>
+                                                                <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
                                                             </span>
                                                         </div>
                                                         <div class="ml-4">
-                                                            <div class="font-medium text-gray-900"><?php echo htmlspecialchars($request['last_name'] . ', ' . $request['first_name']); ?></div>
+                                                            <div class="font-medium text-gray-900"><?php echo htmlspecialchars($user['last_name'] . ', ' . $user['first_name']); ?></div>
+                                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($user['email']); ?></div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td class="py-4 px-6"><?php echo htmlspecialchars($request['academic_rank']); ?></td>
-                                                <td class="py-4 px-6">
-                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $request['employment_type'] == 'Full-time' ? 'bg-gold-100 text-gold-800' : 'bg-yellow-100 text-yellow-800'; ?>">
-                                                        <?php echo htmlspecialchars($request['employment_type']); ?>
-                                                    </span>
-                                                </td>
-                                                <td class="py-4 px-6"><?php echo htmlspecialchars($request['department_name']); ?></td>
+                                                <td class="py-4 px-6"><?php echo htmlspecialchars($user['role_name']); ?></td>
+                                                <td class="py-4 px-6"><?php echo htmlspecialchars($user['department_name']); ?></td>
                                                 <td class="py-4 px-6 text-right">
                                                     <div class="flex justify-end space-x-2">
-                                                        <form method="POST" class="inline">
-                                                            <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
-                                                            <input type="hidden" name="action" value="accept">
+                                                        <form method="POST" class="inline action-form">
+                                                            <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
+                                                            <input type="hidden" name="action" value="activate">
                                                             <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                                                <i class="fas fa-check mr-1"></i> Accept
+                                                                <i class="fas fa-check mr-1"></i> Approve
                                                             </button>
                                                         </form>
-                                                        <form method="POST" class="inline">
-                                                            <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
-                                                            <input type="hidden" name="action" value="reject">
+                                                        <form method="POST" class="inline action-form">
+                                                            <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
+                                                            <input type="hidden" name="action" value="deactivate">
                                                             <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
                                                                 <i class="fas fa-times mr-1"></i> Reject
                                                             </button>
@@ -393,6 +429,19 @@ ob_start();
     </div>
 
     <script>
+        // Show toast notification
+        function showToast(message, bgColor) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 1s';
+                setTimeout(() => toast.remove(), 1000);
+            }, 5000);
+        }
+
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.tab-button');
@@ -400,22 +449,38 @@ ob_start();
 
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
-                    // Reset all tabs
                     tabs.forEach(t => {
                         t.classList.remove('border-gold-500', 'text-gold-600');
                         t.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700');
                     });
-
-                    // Reset all content
                     contents.forEach(c => c.classList.add('hidden'));
-
-                    // Activate clicked tab
                     tab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700');
                     tab.classList.add('border-gold-500', 'text-gold-600');
-
-                    // Show content
                     const contentId = tab.id.replace('tab-', '') + '-content';
                     document.getElementById(contentId).classList.remove('hidden');
+                });
+            });
+
+            // Form submission
+            document.querySelectorAll('.action-form').forEach(form => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(form);
+                    try {
+                        const response = await fetch('/dean/faculty', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast(data.message || 'Action successful', 'bg-green-500');
+                            setTimeout(() => location.reload(), 2000);
+                        } else {
+                            showToast(data.error || 'Action failed', 'bg-red-500');
+                        }
+                    } catch (error) {
+                        showToast('Request failed: ' + error.message, 'bg-red-500');
+                    }
                 });
             });
 
@@ -448,7 +513,7 @@ ob_start();
 
             function filterTableRows(tableId, departmentId, status, searchTerm) {
                 const table = document.getElementById(tableId);
-                if (!table) return; // Table might not exist
+                if (!table) return;
 
                 const rows = table.querySelectorAll('tbody tr.table-row');
                 let visibleRows = 0;
@@ -470,7 +535,6 @@ ob_start();
                     }
                 });
 
-                // Show or hide no results message
                 const noResultsRow = table.querySelector('tbody tr.no-results');
                 if (noResultsRow) {
                     noResultsRow.style.display = visibleRows === 0 ? '' : 'none';
@@ -478,10 +542,9 @@ ob_start();
             }
 
             function updateCounts() {
-                // Update counts for each section
                 const chairsCount = document.getElementById('chairs-count');
                 const facultyCount = document.getElementById('faculty-count');
-                const requestsCount = document.getElementById('requests-count');
+                const pendingCount = document.getElementById('pending-count');
 
                 if (chairsCount) {
                     const visibleChairs = document.querySelectorAll('#programChairsTable tbody tr.table-row:not(.hidden)').length;
@@ -493,16 +556,15 @@ ob_start();
                     facultyCount.textContent = visibleFaculty;
                 }
 
-                if (requestsCount) {
-                    // Requests count doesn't change with filters
-                    requestsCount.textContent = document.querySelectorAll('#requests-content table tbody tr:not(.no-results)').length;
+                if (pendingCount) {
+                    pendingCount.textContent = document.querySelectorAll('#pending-content table tbody tr:not(.no-results)').length;
                 }
             }
 
             // Initialize with default tab visible
             document.getElementById('tab-chairs').click();
 
-            // Auto-hide alerts after 5 seconds
+            // Auto-hide alerts
             const alerts = document.querySelectorAll('#successAlert, #errorAlert');
             alerts.forEach(alert => {
                 setTimeout(() => {

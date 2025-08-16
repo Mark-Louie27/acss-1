@@ -317,9 +317,6 @@
   .-top-8 {
     top: calc(var(--spacing) * -8);
   }
-  .-top-10 {
-    top: calc(var(--spacing) * -10);
-  }
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
@@ -412,9 +409,6 @@
   }
   .-mx-1\.5 {
     margin-inline: calc(var(--spacing) * -1.5);
-  }
-  .-mx-2 {
-    margin-inline: calc(var(--spacing) * -2);
   }
   .mx-2 {
     margin-inline: calc(var(--spacing) * 2);
@@ -736,9 +730,6 @@
   }
   .min-w-\[44px\] {
     min-width: 44px;
-  }
-  .min-w-\[50px\] {
-    min-width: 50px;
   }
   .min-w-full {
     min-width: 100%;
@@ -1067,9 +1058,6 @@
   }
   .border-black {
     border-color: var(--color-black);
-  }
-  .border-blue-100 {
-    border-color: var(--color-blue-100);
   }
   .border-blue-200 {
     border-color: var(--color-blue-200);
@@ -1856,6 +1844,9 @@
     --tw-outline-style: none;
     outline-style: none;
   }
+  .\[hostname\:port\] {
+    hostname: port;
+  }
   .ring-inset {
     --tw-ring-inset: inset;
   }
@@ -1980,13 +1971,6 @@
     &:hover {
       @media (hover: hover) {
         border-color: var(--color-green-200);
-      }
-    }
-  }
-  .hover\:border-green-300 {
-    &:hover {
-      @media (hover: hover) {
-        border-color: var(--color-green-300);
       }
     }
   }

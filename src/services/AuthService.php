@@ -9,24 +9,26 @@ class AuthService
     public function __construct($db)
     {
         $this->db = $db;
-        $this->userModel = new UserModel($db);
+        $this->userModel = new UserModel();
     }
 
     /**
-     * Authenticate a user
+     * Login a user
      * @param string $employeeId
      * @param string $password
-     * @return array|bool
+     * @return array|bool User data on success, false on failure
      */
     public function login($employeeId, $password)
     {
         try {
             $query = "
-            SELECT u.user_id, u.employee_id, u.username, u.first_name, u.last_name, 
-                   u.password_hash, u.role_id, u.profile_picture, u.is_active
-            FROM users u
-            WHERE u.employee_id = :employee_id
-        ";
+                SELECT u.user_id, u.employee_id, u.username, u.first_name, u.last_name, 
+                       u.password_hash, u.role_id, u.profile_picture, u.is_active,
+                       u.department_id, u.college_id, r.role_name
+                FROM users u
+                JOIN roles r ON u.role_id = r.role_id
+                WHERE u.employee_id = :employee_id
+            ";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':employee_id', $employeeId, PDO::PARAM_STR);
             $stmt->execute();
@@ -41,14 +43,17 @@ class AuthService
                     'first_name' => $user['first_name'],
                     'last_name' => $user['last_name'],
                     'role_id' => $user['role_id'],
-                    'profile_picture' => $user['profile_picture'] ?? null, // Default profile picture
+                    'role_name' => $user['role_name'],
+                    'department_id' => $user['department_id'],
+                    'college_id' => $user['college_id'],
+                    'profile_picture' => $user['profile_picture'] ?? null,
                 ];
             } else {
                 $this->logAuthAction(null, 'login_failed', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $employeeId);
                 return false;
             }
         } catch (PDOException $e) {
-            error_log("Error during login: " . $e->getMessage());
+            error_log("Error during login for employee_id $employeeId: " . $e->getMessage());
             return false;
         }
     }
@@ -57,105 +62,128 @@ class AuthService
      * Register a new user
      * @param array $data
      * @return bool
+     * @throws Exception
      */
     public function register($data)
     {
         try {
-            // Check if email already exists
-            if ($this->userModel->emailExists($data['email'])) {
-                throw new Exception("Email already exists. Please use a different email.");
+            // Validate required fields
+            $required_fields = ['employee_id', 'username', 'password', 'email', 'first_name', 'last_name', 'role_id', 'department_id', 'college_id'];
+            foreach ($required_fields as $field) {
+                if (empty($data[$field])) {
+                    throw new Exception("Missing required field: $field");
+                }
             }
 
-            $data['password_hash'] = password_hash($data['password'], PASSWORD_BCRYPT);
-            $data['is_active'] = 1; // Default to active
+            // Validate role_id
+            $roles = $this->userModel->getRoles();
+            $valid_role_ids = array_column($roles, 'role_id');
+            if (!in_array($data['role_id'], $valid_role_ids)) {
+                throw new Exception("Invalid role_id: {$data['role_id']}");
+            }
+
+            // Check for duplicates
+            if ($this->userModel->employeeIdExists($data['employee_id'])) {
+                throw new Exception("Employee ID {$data['employee_id']} already exists");
+            }
+            if ($this->userModel->emailExists($data['email'])) {
+                throw new Exception("Email {$data['email']} already exists");
+            }
 
             $this->db->beginTransaction();
-            $userId = $this->userModel->createUser($data);
 
-            if ($userId) {
-                // Fetch a program_id if needed (for Program Chair and Faculty roles)
-                $program_id = null;
-                if (in_array($data['role_id'], [5, 6])) { // Program Chair or Faculty
-                    $programs = $this->userModel->getProgramsByDepartment($data['department_id']);
-                    if (!empty($programs)) {
-                        $program_id = $programs[0]['program_id']; // Take the first program as default
-                    } else {
-                        throw new Exception("No programs found for the selected department.");
-                    }
-                }
+            // Insert into users table (pending for faculty and program chairs)
+            $query = "
+                INSERT INTO users (
+                    employee_id, username, password_hash, email, first_name, middle_name,
+                    last_name, suffix, role_id, department_id, college_id, is_active, created_at
+                ) VALUES (
+                    :employee_id, :username, :password_hash, :email, :first_name, :middle_name,
+                    :last_name, :suffix, :role_id, :department_id, :college_id, :is_active, NOW()
+                )";
+            $stmt = $this->db->prepare($query);
+            $is_active = in_array($data['role_id'], [5, 6]) ? 0 : 1; // Pending for faculty (6) and program chairs (5)
+            $stmt->execute([
+                ':employee_id' => $data['employee_id'],
+                ':username' => $data['username'],
+                ':password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
+                ':email' => $data['email'],
+                ':first_name' => $data['first_name'],
+                ':middle_name' => $data['middle_name'] ?? null,
+                ':last_name' => $data['last_name'],
+                ':suffix' => $data['suffix'] ?? null,
+                ':role_id' => $data['role_id'],
+                ':department_id' => $data['department_id'],
+                ':college_id' => $data['college_id'],
+                ':is_active' => $is_active
+            ]);
+            $userId = $this->db->lastInsertId();
+            error_log("register: Inserted user_id=$userId, employee_id={$data['employee_id']}, role_id={$data['role_id']}, is_active=$is_active");
 
-                // Handle role-specific data
-                switch ($data['role_id']) {
-                    case 1: // Admin
-                        // Assuming no specific table for Admin, just log the success
-                        break;
-                    case 2: // VPAA
-                        // Assuming no specific table for VPAA, just log the success
-                        break;
-                    case 3: // Department Instructor (D.I)
-                        $success = $this->userModel->createDepartmentInstructor([
-                            'user_id' => $userId,
-                            'department_id' => $data['department_id'],
-                            'start_date' => date('Y-m-d')
-                        ]);
-                        if (!$success) {
-                            throw new Exception("Failed to create Department Instructor record.");
-                        }
-                        break;
-                    case 4: // Dean
-                        $success = $this->userModel->createDean([
-                            'user_id' => $userId,
-                            'college_id' => $data['college_id'],
-                            'start_date' => date('Y-m-d')
-                        ]);
-                        if (!$success) {
-                            throw new Exception("Failed to create Dean record.");
-                        }
-                        break;
-                    case 5: // Program Chair
-                        if (!$program_id) {
-                            throw new Exception("Program ID is required for Program Chair role.");
-                        }
-                        $success = $this->userModel->createProgramChair([
-                            'user_id' => $userId,
-                            'program_id' => $program_id,
-                            'start_date' => date('Y-m-d')
-                        ]);
-                        if (!$success) {
-                            throw new Exception("Failed to create Program Chair record.");
-                        }
-                        break;
-                    case 6: // Faculty
-                        if (!$program_id) {
-                            throw new Exception("Program ID is required for Faculty role.");
-                        }
-                        $success = $this->userModel->createFaculty([
-                            'user_id' => $userId,
-                            'employee_id' => $data['employee_id'],
-                            'academic_rank' => $data['academic_rank'] ?? 'Instructor',
-                            'employment_type' => $data['employment_type'] ?? 'Regular',
-                            'classification' => $data['classification'] ?? 'TL',
-                            'primary_program_id' => $program_id
-                        ]);
-                        if (!$success) {
-                            throw new Exception("Failed to create Faculty record.");
-                        }
-                        break;
-                }
+            // For Faculty (role_id = 6), insert into faculty and faculty_departments
+            if ($data['role_id'] == 6) {
+                $query = "
+                    INSERT INTO faculty (
+                        user_id, employee_id, academic_rank, employment_type, max_hours
+                    ) VALUES (
+                        :user_id, :employee_id, :academic_rank, :employment_type, :max_hours
+                    )";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':employee_id' => $data['employee_id'],
+                    ':academic_rank' => $data['academic_rank'] ?? 'Instructor',
+                    ':employment_type' => $data['employment_type'] ?? 'Part-time',
+                    ':max_hours' => $data['max_hours'] ?? 18.00
+                ]);
+                $facultyId = $this->db->lastInsertId();
+                error_log("register: Inserted faculty_id=$facultyId for user_id=$userId");
 
-                $this->logAuthAction($userId, 'register_success', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT']);
-                $this->db->commit();
-                return true;
-            } else {
-                throw new Exception("Failed to create user.");
+                $query = "
+                    INSERT INTO faculty_departments (
+                        faculty_id, department_id, is_primary
+                    ) VALUES (
+                        :faculty_id, :department_id, 1
+                    )";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':faculty_id' => $facultyId,
+                    ':department_id' => $data['department_id']
+                ]);
+                error_log("register: Inserted faculty_department for faculty_id=$facultyId, department_id={$data['department_id']}, is_primary=1");
             }
+
+            // For Program Chair (role_id = 5), insert into program_chairs if program_id is provided
+            if ($data['role_id'] == 5 && !empty($data['program_id'])) {
+                $query = "
+                    INSERT INTO program_chairs (
+                        user_id, program_id, is_current
+                    ) VALUES (
+                        :user_id, :program_id, 1
+                    )";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':program_id' => $data['program_id']
+                ]);
+                error_log("register: Inserted program_chair for user_id=$userId, program_id={$data['program_id']}");
+            }
+
+            $this->db->commit();
+            $this->logAuthAction($userId, in_array($data['role_id'], [5, 6]) ? 'request_submitted' : 'register_success', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $data['employee_id']);
+            return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log("Error during registration: " . $e->getMessage());
-            throw $e; // Re-throw to let the controller handle the error
+            error_log("Error during registration for employee_id {$data['employee_id']}: " . $e->getMessage());
+            throw $e;
         }
     }
 
+    /**
+     * Verify CSRF token
+     * @param string $token
+     * @return bool
+     */
     public function verifyCsrfToken($token)
     {
         $expectedToken = $_SESSION['csrf_token'] ?? '';
@@ -164,6 +192,10 @@ class AuthService
         return $isValid;
     }
 
+    /**
+     * Generate CSRF token
+     * @return string
+     */
     public function generateCsrfToken()
     {
         if (empty($_SESSION['csrf_token'])) {
@@ -196,7 +228,7 @@ class AuthService
             $stmt->bindParam(':identifier', $identifier, PDO::PARAM_STR);
             $stmt->execute();
         } catch (PDOException $e) {
-            error_log("Error logging auth action: " . $e->getMessage());
+            error_log("Error logging auth action for user_id " . ($userId ?? 'null') . ": " . $e->getMessage());
         }
     }
 
@@ -211,16 +243,19 @@ class AuthService
             session_start();
         }
 
-        $_SESSION['user_id'] = $user['user_id'];  // Integer
+        $_SESSION['user_id'] = $user['user_id'];
         $_SESSION['employee_id'] = $user['employee_id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['first_name'] = $user['first_name'];
         $_SESSION['last_name'] = $user['last_name'];
-        $_SESSION['role_id'] = $user['role_id'];  // Integer
-        $_SESSION['profile_picture'] = $user['profile_picture'] ?? null; // Default profile picture
+        $_SESSION['role_id'] = $user['role_id'];
+        $_SESSION['role_name'] = $user['role_name'];
+        $_SESSION['department_id'] = $user['department_id'];
+        $_SESSION['college_id'] = $user['college_id'];
+        $_SESSION['profile_picture'] = $user['profile_picture'] ?? null;
         $_SESSION['logged_in'] = true;
 
-        session_regenerate_id(true);  // Prevent session fixation
+        session_regenerate_id(true);
     }
 
     /**
@@ -229,7 +264,9 @@ class AuthService
      */
     public function logout()
     {
-        // session_start() is handled in index.php
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         session_unset();
         session_destroy();
     }
@@ -240,7 +277,9 @@ class AuthService
      */
     public function isLoggedIn()
     {
-        // session_start() is handled in index.php
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         return isset($_SESSION['user_id']);
     }
 }

@@ -20,20 +20,50 @@ class AuthController
     {
         // If already logged in, redirect to appropriate dashboard
         if ($this->authService->isLoggedIn()) {
-            $this->redirectBasedOnRole($_SESSION['role_id']);
+            $this->redirectBasedOnRole();
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $employeeId = $_POST['employee_id'] ?? '';
+            $employeeId = trim($_POST['employee_id'] ?? '');
             $password = $_POST['password'] ?? '';
 
-            $user = $this->authService->login($employeeId, $password);
-            if ($user) {
-                $this->authService->startSession($user);
-                error_log("Login successful for employee_id: $employeeId");
-                $this->redirectBasedOnRole($user['role_id']);
+            if (empty($employeeId) || empty($password)) {
+                error_log("Login failed: Missing employee_id or password");
+                $error = "Employee ID and password are required.";
+                require_once __DIR__ . '/../views/auth/login.php';
+                return;
+            }
+
+            // Check if user exists and get is_active status
+            $query = "
+                SELECT u.user_id, u.password_hash, u.is_active, u.role_id
+                FROM users u
+                WHERE u.employee_id = :employee_id
+            ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':employee_id' => $employeeId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user && password_verify($password, $user['password_hash'])) {
+                if ($user['is_active'] == 0) {
+                    error_log("Login failed for employee_id: $employeeId - Account is pending approval");
+                    $error = "Your account is pending approval. Please contact the Dean.";
+                    require_once __DIR__ . '/../views/auth/login.php';
+                    return;
+                }
+
+                $userData = $this->authService->login($employeeId, $password);
+                if ($userData) {
+                    $this->authService->startSession($userData);
+                    error_log("Login successful for employee_id: $employeeId");
+                    $this->redirectBasedOnRole();
+                } else {
+                    error_log("Login failed for employee_id: $employeeId - Unexpected error");
+                    $error = "An unexpected error occurred. Please try again.";
+                    require_once __DIR__ . '/../views/auth/login.php';
+                }
             } else {
-                error_log("Login failed for employee_id: $employeeId");
+                error_log("Login failed for employee_id: $employeeId - Invalid credentials");
                 $error = "Invalid Employee ID or password.";
                 require_once __DIR__ . '/../views/auth/login.php';
             }
@@ -48,7 +78,7 @@ class AuthController
     public function register()
     {
         if ($this->authService->isLoggedIn()) {
-            $this->redirectBasedOnRole($_SESSION['role_id']);
+            $this->redirectBasedOnRole();
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -57,17 +87,17 @@ class AuthController
                 'username' => trim($_POST['username'] ?? ''),
                 'password' => $_POST['password'] ?? '',
                 'email' => trim($_POST['email'] ?? ''),
-                'phone' => trim($_POST['phone'] ?? ''),
                 'first_name' => trim($_POST['first_name'] ?? ''),
                 'middle_name' => trim($_POST['middle_name'] ?? ''),
                 'last_name' => trim($_POST['last_name'] ?? ''),
                 'suffix' => trim($_POST['suffix'] ?? ''),
-                'role_id' => intval($_POST['role_id']),
-                'college_id' => intval($_POST['college_id']),
-                'department_id' => intval($_POST['department_id']),
-                'classification' => $_POST['classification'] ?? '',
+                'phone' => trim($_POST['phone'] ?? ''),
+                'role_id' => intval($_POST['role_id'] ?? 0),
+                'college_id' => intval($_POST['college_id'] ?? 0),
+                'department_id' => intval($_POST['department_id'] ?? 0),
                 'academic_rank' => $_POST['academic_rank'] ?? 'Instructor',
-                'employment_type' => $_POST['employment_type'] ?? 'Regular'
+                'employment_type' => $_POST['employment_type'] ?? 'Part-time',
+                'program_id' => !empty($_POST['program_id']) ? intval($_POST['program_id']) : null
             ];
 
             $errors = [];
@@ -83,14 +113,20 @@ class AuthController
             if ($data['role_id'] == 6 && (empty($data['academic_rank']) || empty($data['employment_type']))) {
                 $errors[] = "Academic rank and employment type are required for Faculty.";
             }
+            if ($data['role_id'] == 5 && empty($data['program_id'])) {
+                $errors[] = "Program ID is required for Program Chair.";
+            }
 
             if (empty($errors)) {
                 try {
                     if ($this->authService->register($data)) {
-                        header('Location: /login?success=Registration successful. Please login.');
+                        $success = $data['role_id'] == 5 || $data['role_id'] == 6
+                            ? "Registration submitted successfully. Awaiting Dean approval."
+                            : "Registration successful. You can now log in.";
+                        header('Location: /login?success=' . urlencode($success));
                         exit;
                     } else {
-                        $error = "Registration failed. Employee ID or username may already be in use.";
+                        $error = "Registration failed. Employee ID or email may already be in use.";
                         require_once __DIR__ . '/../views/auth/register.php';
                     }
                 } catch (Exception $e) {
@@ -114,7 +150,10 @@ class AuthController
         header('Content-Type: application/json');
 
         try {
-            $collegeId = $_GET['college_id'] ?? 0;
+            $collegeId = intval($_GET['college_id'] ?? 0);
+            if ($collegeId < 1) {
+                throw new Exception("Invalid college ID");
+            }
             $userModel = new UserModel();
             $departments = $userModel->getDepartmentsByCollege($collegeId);
 
@@ -143,13 +182,12 @@ class AuthController
 
     /**
      * Redirect based on user role
-     * @param int $roleId
      */
     private function redirectBasedOnRole()
     {
         if (!isset($_SESSION['role_id'])) {
             $this->logout();
-            exit();
+            exit;
         }
 
         $roleId = (int)$_SESSION['role_id'];
@@ -167,7 +205,7 @@ class AuthController
             case 4: // Dean
                 header('Location: /dean/dashboard');
                 break;
-            case 5: // chair
+            case 5: // Program Chair
                 header('Location: /chair/dashboard');
                 break;
             case 6: // Faculty
@@ -175,8 +213,8 @@ class AuthController
                 break;
             default:
                 $this->logout();
-                exit();
+                exit;
         }
-        exit();
+        exit;
     }
 }

@@ -31,6 +31,23 @@ class UserModel
     }
 
     /**
+     * Check if an employee ID exists
+     * @param string $employee_id
+     * @return bool
+     */
+    public function employeeIdExists($employee_id)
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE employee_id = :employee_id");
+            $stmt->execute([':employee_id' => $employee_id]);
+            return $stmt->fetchColumn() > 0;
+        } catch (PDOException $e) {
+            error_log("Error checking employee ID existence: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Fetch user details by user ID
      * @param int $userId
      * @return array
@@ -97,13 +114,15 @@ class UserModel
         try {
             $query = "
                 SELECT f.faculty_id, f.user_id, f.employee_id, f.academic_rank, f.employment_type, 
-                       f.classification, f.max_hours, d.department_name, 
-                       p1.program_name AS primary_program, p2.program_name AS secondary_program
+                       f.classification, f.max_hours, 
+                       GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names,
+                       p.program_name AS primary_program
                 FROM faculty f
-                JOIN departments d ON f.department_id = d.department_id
-                LEFT JOIN programs p1 ON f.primary_program_id = p1.program_id
-                LEFT JOIN programs p2 ON f.secondary_program_id = p2.program_id
+                LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                LEFT JOIN departments d ON fd.department_id = d.department_id
+                LEFT JOIN programs p ON f.primary_program_id = p.program_id
                 WHERE f.user_id = :userId
+                GROUP BY f.faculty_id
             ";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':userId', $userId, PDO::PARAM_INT);
@@ -111,7 +130,6 @@ class UserModel
             $faculty = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($faculty) {
-                // Fetch specializations
                 $faculty['specializations'] = $this->getFacultySpecializations($faculty['faculty_id']);
             }
 
@@ -131,12 +149,13 @@ class UserModel
     {
         try {
             $query = "
-                SELECT s.specialization_id, s.subject_name, s.expertise_level, 
+                SELECT s.specialization_id, c.course_name, s.expertise_level, 
                        p.program_name, s.is_primary_specialization
                 FROM specializations s
+                LEFT JOIN courses c ON s.course_id = c.course_id
                 LEFT JOIN programs p ON s.program_id = p.program_id
                 WHERE s.faculty_id = :facultyId
-                ORDER BY s.is_primary_specialization DESC, s.subject_name
+                ORDER BY s.is_primary_specialization DESC, c.course_name
             ";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':facultyId', $facultyId, PDO::PARAM_INT);
@@ -149,11 +168,152 @@ class UserModel
     }
 
     /**
+     * Register a user with faculty and role-specific record
+     * @param array $data
+     * @return int|bool User ID on success, false on failure
+     */
+    public function registerUser($data)
+    {
+        try {
+            $this->db->beginTransaction();
+
+            // Validate required fields
+            $required_fields = ['employee_id', 'username', 'password', 'email', 'first_name', 'last_name', 'department_id', 'college_id', 'role_id'];
+            foreach ($required_fields as $field) {
+                if (empty($data[$field])) {
+                    error_log("Error registering user: Missing required field $field");
+                    throw new Exception("Missing required field: $field");
+                }
+            }
+
+            // Check for duplicates
+            if ($this->employeeIdExists($data['employee_id'])) {
+                error_log("Error registering user: Employee ID {$data['employee_id']} already exists");
+                throw new Exception("Employee ID already exists");
+            }
+            if ($this->emailExists($data['email'])) {
+                error_log("Error registering user: Email {$data['email']} already exists");
+                throw new Exception("Email already exists");
+            }
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE username = :username");
+            $stmt->execute([':username' => $data['username']]);
+            if ($stmt->fetchColumn() > 0) {
+                error_log("Error registering user: Username {$data['username']} already exists");
+                throw new Exception("Username already exists");
+            }
+
+            // Create user
+            $user_id = $this->createUser([
+                'employee_id' => $data['employee_id'],
+                'username' => $data['username'],
+                'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
+                'email' => $data['email'],
+                'phone' => $data['phone'] ?? null,
+                'first_name' => $data['first_name'],
+                'middle_name' => $data['middle_name'] ?? null,
+                'last_name' => $data['last_name'],
+                'suffix' => $data['suffix'] ?? null,
+                'profile_picture' => $data['profile_picture'] ?? null,
+                'role_id' => $data['role_id'],
+                'department_id' => $data['department_id'],
+                'college_id' => $data['college_id'],
+                'is_active' => 0
+            ]);
+
+            if (!$user_id) {
+                throw new Exception("Failed to create user");
+            }
+
+            // Create faculty record for all users
+            $faculty_success = $this->createFaculty([
+                'user_id' => $user_id,
+                'employee_id' => $data['employee_id'],
+                'academic_rank' => $data['academic_rank'] ?? 'Instructor',
+                'employment_type' => $data['employment_type'] ?? 'Part-time',
+                'classification' => $data['classification'] ?? null,
+                'primary_program_id' => $data['program_id'] ?? null
+            ]);
+
+            if (!$faculty_success) {
+                throw new Exception("Failed to create faculty record");
+            }
+
+            // Insert into faculty_departments
+            $dept_stmt = $this->db->prepare("
+                INSERT INTO faculty_departments (faculty_id, department_id, is_primary)
+                VALUES ((SELECT faculty_id FROM faculty WHERE user_id = :user_id), :department_id, 1)
+            ");
+            $dept_stmt->execute([
+                ':user_id' => $user_id,
+                ':department_id' => $data['department_id']
+            ]);
+
+            // Handle role-specific tables
+            switch ($data['role_id']) {
+                case 3: // Department Instructor
+                    if (empty($data['department_id'])) {
+                        throw new Exception("Department ID required for Department Instructor");
+                    }
+                    $instructor_success = $this->createDepartmentInstructor([
+                        'user_id' => $user_id,
+                        'department_id' => $data['department_id'],
+                        'start_date' => $data['start_date'] ?? date('Y-m-d')
+                    ]);
+                    if (!$instructor_success) {
+                        throw new Exception("Failed to create department instructor record");
+                    }
+                    break;
+                case 4: // Dean
+                    if (empty($data['college_id'])) {
+                        throw new Exception("College ID required for Dean");
+                    }
+                    $dean_success = $this->createDean([
+                        'user_id' => $user_id,
+                        'college_id' => $data['college_id'],
+                        'start_date' => $data['start_date'] ?? date('Y-m-d')
+                    ]);
+                    if (!$dean_success) {
+                        throw new Exception("Failed to create dean record");
+                    }
+                    break;
+                case 5: // Program Chair
+                    if (empty($data['program_id'])) {
+                        throw new Exception("Program ID required for Program Chair");
+                    }
+                    $chair_success = $this->createProgramChair([
+                        'user_id' => $user_id,
+                        'program_id' => $data['program_id'],
+                        'start_date' => $data['start_date'] ?? date('Y-m-d')
+                    ]);
+                    if (!$chair_success) {
+                        throw new Exception("Failed to create program chair record");
+                    }
+                    break;
+                case 6: // Faculty
+                    // Faculty record already created above
+                    break;
+                
+                default:
+                    // No role-specific table for other roles
+                    break;
+            }
+
+            $this->db->commit();
+            error_log("Successfully registered user: user_id $user_id, role_id {$data['role_id']}");
+            return $user_id;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Error registering user: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Create a new user
      * @param array $data
-     * @return bool
+     * @return int|bool
      */
-    public function createUser($data)
+    private function createUser($data)
     {
         try {
             $query = "
@@ -194,7 +354,7 @@ class UserModel
      * @param array $data
      * @return bool
      */
-    public function createFaculty($data)
+    private function createFaculty($data)
     {
         try {
             $query = "
@@ -208,15 +368,65 @@ class UserModel
             $stmt->execute([
                 ':user_id' => $data['user_id'],
                 ':employee_id' => $data['employee_id'],
-                ':academic_rank' => $data['academic_rank'],
-                ':employment_type' => $data['employment_type'],
-                ':classification' => $data['classification'],
+                ':academic_rank' => $data['academic_rank'] ?? 'Instructor',
+                ':employment_type' => $data['employment_type'] ?? 'Regular',
+                ':classification' => $data['classification'] ?? null,
                 ':primary_program_id' => $data['primary_program_id'] ?? null
             ]);
+            error_log("Faculty record created for user_id {$data['user_id']}");
             return true;
         } catch (PDOException $e) {
             error_log("Error creating faculty: " . $e->getMessage());
-            throw new Exception("Failed to create faculty record: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Create a program chair record
+     * @param array $data
+     * @return bool
+     */
+    private function createProgramChair($data)
+    {
+        try {
+            // Check if program_id exists
+            $stmt = $this->db->prepare("SELECT program_id FROM programs WHERE program_id = :program_id");
+            $stmt->execute([':program_id' => $data['program_id']]);
+            if (!$stmt->fetchColumn()) {
+                error_log("Error creating program chair: Invalid program_id {$data['program_id']}");
+                return false;
+            }
+
+            // Check if faculty_id is required
+            $columns = $this->db->query("SHOW COLUMNS FROM program_chairs LIKE 'faculty_id'")->fetch();
+            $query = "
+                INSERT INTO program_chairs (user_id" . ($columns ? ", faculty_id" : "") . ", program_id, start_date, is_current)
+                VALUES (:user_id" . ($columns ? ", :faculty_id" : "") . ", :program_id, :start_date, 1)
+            ";
+            $params = [
+                ':user_id' => $data['user_id'],
+                ':program_id' => $data['program_id'],
+                ':start_date' => $data['start_date'] ?? date('Y-m-d')
+            ];
+
+            if ($columns) {
+                $stmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                $stmt->execute([':user_id' => $data['user_id']]);
+                $faculty_id = $stmt->fetchColumn();
+                if (!$faculty_id) {
+                    error_log("Error creating program chair: No faculty record for user_id {$data['user_id']}");
+                    return false;
+                }
+                $params[':faculty_id'] = $faculty_id;
+            }
+
+            $stmt = $this->db->prepare($query);
+            $stmt->execute($params);
+            error_log("Program chair created for user_id {$data['user_id']}, program_id {$data['program_id']}");
+            return true;
+        } catch (PDOException $e) {
+            error_log("Error creating program chair: " . $e->getMessage());
+            return false;
         }
     }
 
@@ -225,7 +435,7 @@ class UserModel
      * @param array $data
      * @return bool
      */
-    public function createDean($data)
+    private function createDean($data)
     {
         try {
             $query = "
@@ -238,34 +448,10 @@ class UserModel
                 ':college_id' => $data['college_id'],
                 ':start_date' => $data['start_date']
             ]);
+            error_log("Dean created for user_id {$data['user_id']}, college_id {$data['college_id']}");
             return true;
         } catch (PDOException $e) {
             error_log("Error creating dean: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Create a program chair record
-     * @param array $data
-     * @return bool
-     */
-    public function createProgramChair($data)
-    {
-        try {
-            $query = "
-                INSERT INTO program_chairs (user_id, program_id, start_date, is_current)
-                VALUES (:user_id, :program_id, :start_date, 1)
-            ";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([
-                ':user_id' => $data['user_id'],
-                ':program_id' => $data['program_id'],
-                ':start_date' => $data['start_date']
-            ]);
-            return true;
-        } catch (PDOException $e) {
-            error_log("Error creating program chair: " . $e->getMessage());
             return false;
         }
     }
@@ -275,7 +461,7 @@ class UserModel
      * @param array $data
      * @return bool
      */
-    public function createDepartmentInstructor($data)
+    private function createDepartmentInstructor($data)
     {
         try {
             $query = "
@@ -288,6 +474,7 @@ class UserModel
                 ':department_id' => $data['department_id'],
                 ':start_date' => $data['start_date']
             ]);
+            error_log("Department instructor created for user_id {$data['user_id']}, department_id {$data['department_id']}");
             return true;
         } catch (PDOException $e) {
             error_log("Error creating department instructor: " . $e->getMessage());
@@ -371,14 +558,14 @@ class UserModel
         try {
             $query = "
                 INSERT INTO specializations (
-                    faculty_id, subject_name, expertise_level, program_id, is_primary_specialization
+                    faculty_id, course_id, expertise_level, program_id, is_primary_specialization
                 ) VALUES (
-                    :faculty_id, :subject_name, :expertise_level, :program_id, :is_primary_specialization
+                    :faculty_id, :course_id, :expertise_level, :program_id, :is_primary_specialization
                 )
             ";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':faculty_id', $data['faculty_id'], PDO::PARAM_INT);
-            $stmt->bindParam(':subject_name', $data['subject_name'], PDO::PARAM_STR);
+            $stmt->bindParam(':course_id', $data['course_id'], PDO::PARAM_INT);
             $stmt->bindParam(':expertise_level', $data['expertise_level'], PDO::PARAM_STR);
             $stmt->bindParam(':program_id', $data['program_id'], PDO::PARAM_INT);
             $stmt->bindParam(':is_primary_specialization', $data['is_primary_specialization'], PDO::PARAM_INT);
@@ -432,9 +619,9 @@ class UserModel
     {
         try {
             $query = "SELECT department_id, department_name 
-                  FROM departments 
-                  WHERE college_id = :college_id 
-                  ORDER BY department_name";
+                      FROM departments 
+                      WHERE college_id = :college_id 
+                      ORDER BY department_name";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':college_id', $collegeId, PDO::PARAM_INT);
             $stmt->execute();
@@ -465,12 +652,5 @@ class UserModel
             error_log("Error fetching programs by department: " . $e->getMessage());
             return [];
         }
-    }
-
-    public function employeeIdExists($employee_id)
-    {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM faculty WHERE employee_id = :employee_id");
-        $stmt->execute([':employee_id' => $employee_id]);
-        return $stmt->fetchColumn() > 0;
     }
 }
