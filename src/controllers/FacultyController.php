@@ -339,8 +339,10 @@ class FacultyController
      */
     public function profile()
     {
+        error_log("profile: Starting profile method for user_id: " . ($_SESSION['user_id'] ?? 'unknown'));
         try {
             if (!$this->authService->isLoggedIn()) {
+                error_log("profile: User not logged in");
                 $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view your profile'];
                 header('Location: /login');
                 exit;
@@ -360,6 +362,7 @@ class FacultyController
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                    error_log("profile: Invalid CSRF token for user_id: $userId");
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
                     header('Location: /faculty/profile');
                     exit;
@@ -369,15 +372,29 @@ class FacultyController
                     $firstName = trim($_POST['first_name'] ?? '');
                     $lastName = trim($_POST['last_name'] ?? '');
                     $email = trim($_POST['email'] ?? '');
-                    $phone = trim($_POST['phone'] ?? '');
+                    $phone = trim($_POST['phone'] ?? null);
                     $classification = trim($_POST['classification'] ?? '') ?: null;
+                    $academic_rank = trim($_POST['academic_rank'] ?? '') ?: null;
+                    $employment_type = trim($_POST['employment_type'] ?? '') ?: null;
 
                     $errors = [];
                     if (empty($firstName)) $errors[] = "First name is required.";
                     if (empty($lastName)) $errors[] = "Last name is required.";
                     if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
-                    if (empty($phone)) $errors[] = "Phone number is required.";
                     if (!in_array($classification, [null, 'TL', 'VSL'])) $errors[] = "Invalid classification selected.";
+                    if ($academic_rank && !in_array($academic_rank, ['Instructor', 'Assistant Professor', 'Associate Professor', 'Professor', 'Chair Professor', 'Dean'])) {
+                        $errors[] = "Invalid academic rank selected.";
+                    }
+                    if ($employment_type && !in_array($employment_type, ['Full-time', 'Part-time', 'Adjunct', 'Visiting', 'Emeritus', 'Contractual'])) {
+                        $errors[] = "Invalid employment type selected.";
+                    }
+
+                    // Check for email uniqueness
+                    $stmt = $this->db->prepare("SELECT user_id FROM users WHERE email = :email AND user_id != :user_id");
+                    $stmt->execute([':email' => $email, ':user_id' => $userId]);
+                    if ($stmt->fetch()) {
+                        $errors[] = "Email is already in use by another user.";
+                    }
 
                     $profilePicture = $this->handleProfilePictureUpload($userId);
                     if (is_string($profilePicture) && strpos($profilePicture, 'Error') === 0) {
@@ -386,43 +403,52 @@ class FacultyController
 
                     if (empty($errors)) {
                         $this->db->beginTransaction();
+                        try {
+                            $stmt = $this->db->prepare("
+                                UPDATE users 
+                                SET first_name = :first_name, 
+                                    last_name = :last_name, 
+                                    email = :email, 
+                                    phone = :phone,
+                                    profile_picture = :profile_picture
+                                WHERE user_id = :user_id
+                            ");
+                            $stmt->execute([
+                                ':first_name' => $firstName,
+                                ':last_name' => $lastName,
+                                ':email' => $email,
+                                ':phone' => $phone ?: null,
+                                ':profile_picture' => $profilePicture ?: null,
+                                ':user_id' => $userId
+                            ]);
 
-                        $stmt = $this->db->prepare("
-                            UPDATE users 
-                            SET first_name = :first_name, 
-                                last_name = :last_name, 
-                                email = :email, 
-                                phone = :phone,
-                                profile_picture = :profile_picture
-                            WHERE user_id = :user_id
-                        ");
-                        $stmt->execute([
-                            ':first_name' => $firstName,
-                            ':last_name' => $lastName,
-                            ':email' => $email,
-                            ':phone' => $phone ?: null,
-                            ':profile_picture' => $profilePicture ?: null,
-                            ':user_id' => $userId
-                        ]);
+                            $stmt = $this->db->prepare("
+                                UPDATE faculty 
+                                SET classification = :classification,
+                                    academic_rank = :academic_rank,
+                                    employment_type = :employment_type
+                                WHERE faculty_id = :faculty_id"
+                            );
+                            $stmt->execute([
+                                ':classification' => $classification,
+                                ':academic_rank' => $academic_rank,
+                                ':employment_type' => $employment_type,
+                                ':faculty_id' => $facultyId
+                            ]);
 
-                        $stmt = $this->db->prepare("
-                            UPDATE faculty 
-                            SET classification = :classification
-                            WHERE faculty_id = :faculty_id
-                        ");
-                        $stmt->execute([
-                            ':classification' => $classification,
-                            ':faculty_id' => $facultyId
-                        ]);
+                            $_SESSION['first_name'] = $firstName;
+                            $_SESSION['last_name'] = $lastName;
+                            $_SESSION['email'] = $email;
+                            $_SESSION['phone'] = $phone;
+                            $_SESSION['profile_picture'] = $profilePicture;
 
-                        $_SESSION['first_name'] = $firstName;
-                        $_SESSION['last_name'] = $lastName;
-                        $_SESSION['email'] = $email;
-                        $_SESSION['phone'] = $phone;
-                        $_SESSION['profile_picture'] = $profilePicture;
-
-                        $this->db->commit();
-                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
+                            $this->db->commit();
+                            $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
+                        } catch (PDOException $e) {
+                            $this->db->rollBack();
+                            error_log("profile: Database error during update for user_id: $userId - " . $e->getMessage());
+                            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to update profile: ' . $e->getMessage()];
+                        }
                     } else {
                         $_SESSION['flash'] = ['type' => 'error', 'message' => implode("<br>", $errors)];
                     }
@@ -432,13 +458,18 @@ class FacultyController
                     $currentPicture = $stmt->fetchColumn();
 
                     if ($currentPicture && file_exists($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
-                        unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture);
+                        if (!unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
+                            error_log("profile: Failed to delete profile picture: $currentPicture");
+                            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to remove profile picture'];
+                        } else {
+                            $stmt = $this->db->prepare("UPDATE users SET profile_picture = NULL WHERE user_id = :user_id");
+                            $stmt->execute([':user_id' => $userId]);
+                            $_SESSION['profile_picture'] = null;
+                            $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile picture removed successfully'];
+                        }
+                    } else {
+                        $_SESSION['flash'] = ['type' => 'error', 'message' => 'No profile picture to remove'];
                     }
-
-                    $stmt = $this->db->prepare("UPDATE users SET profile_picture = NULL WHERE user_id = :user_id");
-                    $stmt->execute([':user_id' => $userId]);
-                    $_SESSION['profile_picture'] = null;
-                    $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile picture removed successfully'];
                 } elseif (isset($_POST['add_specialization'])) {
                     $courseId = (int)($_POST['course_id'] ?? 0);
                     $expertiseLevel = $_POST['expertise_level'] ?? 'Intermediate';
@@ -463,8 +494,8 @@ class FacultyController
                             } else {
                                 $stmt = $this->db->prepare("
                                     INSERT INTO specializations (faculty_id, course_id, expertise_level) 
-                                    VALUES (:faculty_id, :course_id, :expertise_level)
-                                ");
+                                    VALUES (:faculty_id, :course_id, :expertise_level)"
+                                );
                                 $stmt->execute([
                                     ':faculty_id' => $facultyId,
                                     ':course_id' => $courseId,
@@ -479,8 +510,8 @@ class FacultyController
                     if ($specializationId > 0) {
                         $stmt = $this->db->prepare("
                             DELETE FROM specializations 
-                            WHERE specialization_id = :specialization_id AND faculty_id = :faculty_id
-                        ");
+                            WHERE specialization_id = :specialization_id AND faculty_id = :faculty_id"
+                        );
                         $stmt->execute([
                             ':specialization_id' => $specializationId,
                             ':faculty_id' => $facultyId
@@ -543,12 +574,14 @@ class FacultyController
 
             require_once __DIR__ . '/../views/faculty/profile.php';
         } catch (Exception $e) {
-            error_log("Profile error: " . $e->getMessage());
+            error_log("profile: Error - " . $e->getMessage());
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'An error occurred'];
             header('Location: /faculty/dashboard');
             exit;
         }
     }
+
+    
 
     private function handleProfilePictureUpload($userId)
     {
@@ -561,10 +594,12 @@ class FacultyController
         $maxSize = 2 * 1024 * 1024; // 2MB
 
         if (!in_array($file['type'], $allowedTypes)) {
+            error_log("profile: Invalid file type for user_id: $userId - " . $file['type']);
             return "Error: Only JPEG and PNG files are allowed.";
         }
 
         if ($file['size'] > $maxSize) {
+            error_log("profile: File size exceeds limit for user_id: $userId - " . $file['size']);
             return "Error: File size exceeds 2MB limit.";
         }
 
@@ -574,7 +609,10 @@ class FacultyController
         $uploadPath = $uploadDir . $filename;
 
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            if (!mkdir($uploadDir, 0755, true)) {
+                error_log("profile: Failed to create upload directory: $uploadDir");
+                return "Error: Failed to create upload directory.";
+            }
         }
 
         // Remove existing profile picture
@@ -582,13 +620,17 @@ class FacultyController
         $stmt->execute([':user_id' => $userId]);
         $currentPicture = $stmt->fetchColumn();
         if ($currentPicture && file_exists($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
-            unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture);
+            if (!unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
+                error_log("profile: Failed to delete existing profile picture: $currentPicture");
+            }
         }
 
         if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
-            return "/../views/uploads/profile_pictures/{$filename}";
+            return "/uploads/profile_pictures/{$filename}";
         } else {
+            error_log("profile: Failed to move uploaded file for user_id: $userId to $uploadPath");
             return "Error: Failed to upload file.";
         }
     }
+
 }

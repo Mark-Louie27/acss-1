@@ -10,6 +10,21 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
 // Fetch profile picture from session or database
 $profilePicture = $_SESSION['profile_picture'] ?? null;
+
+// Fetch profile picture from session or database
+$profilePicture = $_SESSION['profile_picture'] ?? null;
+if (!$profilePicture) {
+    try {
+        $db = (new Database())->connect();
+        $stmt = $db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
+        $stmt->execute([':user_id' => $_SESSION['user_id']]);
+        $profilePicture = $stmt->fetchColumn() ?: '';
+        $_SESSION['profile_picture'] = $profilePicture; // Cache in session
+    } catch (PDOException $e) {
+        error_log("layout: Error fetching profile picture - " . $e->getMessage());
+        $profilePicture = '';
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -140,7 +155,6 @@ $profilePicture = $_SESSION['profile_picture'] ?? null;
             top: 100%;
             left: 0;
             min-width: 200px;
-            z-index: 40;
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
             border-radius: 0.375rem;
             background: #1F2937;
@@ -168,7 +182,6 @@ $profilePicture = $_SESSION['profile_picture'] ?? null;
             height: 100%;
             width: 0;
             background-color: rgba(212, 175, 55, 0.15);
-            z-index: -1;
             transition: width 0.3s ease;
         }
 

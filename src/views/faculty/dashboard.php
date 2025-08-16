@@ -19,7 +19,6 @@ ob_start();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PRMSU Scheduling System - Faculty</title>
     <link rel="stylesheet" href="/css/output.css">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <script>
         tailwind.config = {
@@ -103,22 +102,7 @@ ob_start();
 </head>
 
 <body class="bg-gray-100">
-    <?php
-    $sidebarPath = __DIR__ . '/../partial/faculty/sidebar.php'; // Test this path first
-    if (!file_exists($sidebarPath)) {
-        $sidebarPath = __DIR__ . '/../partial/sidebar.php'; // Fallback path
-    }
-    if (file_exists($sidebarPath)) {
-        include $sidebarPath;
-    } else {
-        echo "<div class='bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded hidden' role='alert'>
-                      <p class='font-bold'>Error</p>
-                      <p>Sidebar file not found at: $sidebarPath</p>
-                    </div>";
-    }
-    ?>
-
-
+   
 
     <!-- Main content -->
     <div class="flex flex-col p-6 bg-gray-100 min-h-screen">
