@@ -4,10 +4,13 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../models/UserModel.php';
 
 class EmailService
 {
     private $mailer;
+    private $userModel;
+    private $db;
 
     public function __construct()
     {
@@ -19,6 +22,9 @@ class EmailService
         $this->mailer->Password = $_ENV['PASSWORD']; // Replace with Gmail App Password
         $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         $this->mailer->Port = 465;
+
+        $this->db;
+        $this->userModel = new UserModel();
     }
 
     /**
@@ -196,5 +202,19 @@ class EmailService
             error_log("Error sending approval email to $toEmail: " . $this->mailer->ErrorInfo);
             return false;
         }
+    }
+
+    public function sendVerificationEmail($userId, $token, $newPassword)
+    {
+        $stmt = $this->db->prepare("SELECT email FROM users WHERE user_id = :user_id");
+        $stmt->execute([':user_id' => $userId]);
+        $email = $stmt->fetchColumn();
+
+        $verificationLink = "http://yourdomain.com/chair/verify-password?token={$token}&user_id={$userId}";
+        $subject = "Verify Your Password Change";
+        $message = "Click the link to verify your password change: {$verificationLink}\n\nNew Password: {$newPassword}\nThis link expires in 1 hour.";
+        $headers = "From: no-reply@yourdomain.com";
+
+        mail($email, $subject, $message, $headers);
     }
 }

@@ -8,8 +8,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['r
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
 
-// Fetch profile picture from session or database
-$profilePicture = $_SESSION['profile_picture'] ?? null;
 
 // Fetch profile picture from session or database
 $profilePicture = $_SESSION['profile_picture'] ?? null;
