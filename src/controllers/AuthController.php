@@ -200,7 +200,7 @@ class AuthController
                 header('Location: /vp/dashboard');
                 break;
             case 3: // DI
-                header('Location: /di/dashboard');
+                header('Location: /director/dashboard');
                 break;
             case 4: // Dean
                 header('Location: /dean/dashboard');

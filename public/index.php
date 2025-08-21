@@ -95,12 +95,46 @@ function handleVpaaRoutes($path)
     exit;
 }
 
-function handleDiRoutes($path)
+function handleDirectorRoutes($path)
 {
+    error_log("Entering handleDirectorRoutes with path: $path");
     AuthMiddleware::handle('di'); // Require di role
-    http_response_code(404);
-    echo "DI routes not implemented";
-    exit;
+
+    require_once __DIR__ . '/../src/controllers/DirectorController.php';
+    $controller = new DirectorController();
+
+    // Normalize path for comparison
+    $normalizedPath = '/' . trim($path, '/');
+    error_log("Normalized path: $normalizedPath");
+
+    switch ($normalizedPath) {
+        case '/director/dashboard':
+            error_log("Routing to DirectorController::dashboard");
+            $controller->dashboard();
+            break;
+        case '/director/monitoring':
+            error_log("Routing to DirectorController::monitoring");
+            $controller->monitor();
+            break;
+        case '/director/profile':
+            error_log("Routing to DirectorController::profile");
+            $controller->profile();
+            break;
+        case '/director/setschedule':
+            error_log("Routing to DirectorController::setSchedule");
+            $controller->setScheduleDeadline();
+            break;
+        case '/director/logout':
+            error_log("Routing to AuthController::logout");
+            require_once __DIR__ . '/../src/controllers/AuthController.php';
+            (new AuthController())->logout();
+            exit;
+        default:
+            http_response_code(404);
+            echo "Page not found";
+            exit;
+    }
+   
 }
 
 function handleDeanRoutes($path)
@@ -374,7 +408,7 @@ switch ($roleId) {
         handleVpaaRoutes($path);
         break;
     case 3: // DI
-        handleDiRoutes($path);
+        handleDirectorRoutes($path);
         break;
     case 4: // Dean
         handleDeanRoutes($path);

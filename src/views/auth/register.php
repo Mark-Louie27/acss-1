@@ -267,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </div>
                                 </div>
                                 <div>
-                                    <label for="phone" class="block text-xs md:text-sm font-medium text-gray-700">(Optional) Phone Number</label>
+                                    <label for="phone" class="block text-xs md:text-sm font-medium text-gray-700">Phone Number (Optional)</label>
                                     <div class="mt-1 relative">
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <svg class="h-4 md:h-5 w-4 md:w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -205,6 +205,7 @@ class UserModel
             // Create user
             $user_id = $this->createUser([
                 'employee_id' => $data['employee_id'],
+                'title' => $data['title'] ?? null,
                 'username' => $data['username'],
                 'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
                 'email' => $data['email'],
@@ -318,10 +319,10 @@ class UserModel
         try {
             $query = "
                 INSERT INTO users (
-                    employee_id, username, password_hash, email, phone, first_name, middle_name,
+                    employee_id, username, password_hash, email, phone, title, first_name, middle_name,
                     last_name, suffix, profile_picture, role_id, department_id, college_id, is_active
                 ) VALUES (
-                    :employee_id, :username, :password_hash, :email, :phone, :first_name, :middle_name,
+                    :employee_id, :username, :password_hash, :email, :title, :phone, :first_name, :middle_name,
                     :last_name, :suffix, :profile_picture, :role_id, :department_id, :college_id, :is_active
                 )
             ";
@@ -332,6 +333,7 @@ class UserModel
                 ':password_hash' => $data['password_hash'],
                 ':email' => $data['email'],
                 ':phone' => $data['phone'] ?? null,
+                ':title' => $data['title'] ?? null,
                 ':first_name' => $data['first_name'],
                 ':middle_name' => $data['middle_name'] ?? null,
                 ':last_name' => $data['last_name'],

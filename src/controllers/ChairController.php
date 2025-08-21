@@ -657,11 +657,6 @@ class ChairController
         return $courses;
     }
 
-    private function getSemesters()
-    {
-        $stmt = $this->db->query("SELECT * FROM semesters");
-        return $stmt->fetchAll();
-    }
 
     private function processManualSchedules($schedulesData, $currentSemester, $departmentId)
     {

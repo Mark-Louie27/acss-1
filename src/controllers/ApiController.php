@@ -42,7 +42,7 @@ class ApiController
         return $stmt->fetchColumn() ?: 0;
     }
 
-    private function getCurrentSemester()
+    public function getCurrentSemester()
     {
         $stmt = $this->db->prepare("
             SELECT semester_id, semester_name
@@ -52,6 +52,13 @@ class ApiController
         ");
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getCurricula($departmentId)
+    {
+        $stmt = $this->db->prepare("SELECT curriculum_id, curriculum_name FROM curricula WHERE department_id = :dept_id AND status = 'Active'");
+        $stmt->execute([':dept_id' => $departmentId]);
+        return $stmt->fetchAll();
     }
 
     public function loadData()

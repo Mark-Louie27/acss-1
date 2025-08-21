@@ -120,6 +120,54 @@ class AuthService
             $userId = $this->db->lastInsertId();
             error_log("register: Inserted user_id=$userId, employee_id={$data['employee_id']}, role_id={$data['role_id']}, is_active=$is_active");
 
+           if ($data['role_id'] == 3) {
+                // For Director, insert into Director table
+                $startDate = $data['start_date'] ?? date('Y-m-d'); // Default to current date if not 
+                $query = "
+                INSERT INTO department_instructors (user_id, department_id, start_date, is_current)
+                VALUES (:user_id, :department_id, :start_date, 1)
+            ";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':department_id' => $data['department_id'],
+                    ':start_date' => $startDate
+                ]);
+                error_log("register: Inserted department_instructor for user_id=$userId, department_id={$data['department_id']}");
+            }
+
+            // For dean (role_id = 4), insert into dean table
+            if ($data['role_id'] == 4) {
+                $startDate = $data['start_date'] ?? date('Y-m-d'); // Default to current date if not 
+                $query = "
+                INSERT INTO deans (user_id, college_id, start_date, is_current)
+                VALUES (:user_id, :college_id, :start_date, 1)
+            ";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':college_id' => $data['college_id'],
+                    ':start_date' => $startDate
+                ]);
+                error_log("register: Inserted dean for user_id=$userId, college_id={$data['college_id']}");
+            }
+
+            // For Program Chair (role_id = 5), insert into program_chairs if program_id is provided
+            if ($data['role_id'] == 5 && !empty($data['program_id'])) {
+                $query = "
+                    INSERT INTO program_chairs (
+                        user_id, program_id, is_current
+                    ) VALUES (
+                        :user_id, :program_id, 1
+                    )";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':program_id' => $data['program_id']
+                ]);
+                error_log("register: Inserted program_chair for user_id=$userId, program_id={$data['program_id']}");
+            }
+
             // For Faculty (role_id = 6), insert into faculty and faculty_departments
             if ($data['role_id'] == 6) {
                 $query = "
@@ -151,22 +199,6 @@ class AuthService
                     ':department_id' => $data['department_id']
                 ]);
                 error_log("register: Inserted faculty_department for faculty_id=$facultyId, department_id={$data['department_id']}, is_primary=1");
-            }
-
-            // For Program Chair (role_id = 5), insert into program_chairs if program_id is provided
-            if ($data['role_id'] == 5 && !empty($data['program_id'])) {
-                $query = "
-                    INSERT INTO program_chairs (
-                        user_id, program_id, is_current
-                    ) VALUES (
-                        :user_id, :program_id, 1
-                    )";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([
-                    ':user_id' => $userId,
-                    ':program_id' => $data['program_id']
-                ]);
-                error_log("register: Inserted program_chair for user_id=$userId, program_id={$data['program_id']}");
             }
 
             $this->db->commit();
