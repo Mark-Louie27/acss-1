@@ -2451,7 +2451,7 @@ class ChairController
             $stmt->execute([':department_id' => $departmentId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($results as &$result) {
-                if ($result['profile_picture'] && $result['profile_picture'] !== '/Uploads/profiles/') {
+                if ($result['profile_picture'] && $result['profile_picture'] !== '/uploads/profiles/') {
                     $result['profile_picture'] = $baseUrl . $result['profile_picture'];
                 }
             }
@@ -2825,7 +2825,7 @@ class ChairController
                     'phone' => trim($_POST['phone'] ?? ''),
                     'username' => trim($_POST['username'] ?? ''),
                     'first_name' => trim($_POST['first_name'] ?? ''),
-                    'middle_name' => trim($_POST['midlle_name'] ?? ''), // Correct typo mapping
+                    'middle_name' => trim($_POST['middle_name'] ?? ''), // Corrected typo mapping
                     'last_name' => trim($_POST['last_name'] ?? ''),
                     'suffix' => trim($_POST['suffix'] ?? ''),
                     'title' => trim($_POST['title'] ?? ''),
@@ -2845,6 +2845,7 @@ class ChairController
                     $errors[] = 'Phone number must be 10-12 digits.';
                 }
 
+                $profilePicture = null;
                 if (!empty($_FILES['profile_picture']['name'])) {
                     $profilePicture = $this->handleProfilePictureUpload($userId);
                     if (is_string($profilePicture) && strpos($profilePicture, 'Error') === 0) {
@@ -2880,22 +2881,21 @@ class ChairController
                             $userStmt->execute($params);
                         }
 
-                        // Update faculty table (optional, only if faculty_id exists)
+                        // Update faculty table with dynamic fields
                         $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
                         $facultyStmt->execute([':user_id' => $userId]);
                         $facultyId = $facultyStmt->fetchColumn();
 
                         if ($facultyId) {
-                            $facultyParams = [
-                                ':faculty_id' => $facultyId,
-                                ':academic_rank' => $data['academic_rank'] ?: null,
-                                ':employment_type' => $data['employment_type'] ?: null,
-                                ':classification' => $data['classification'] ?: null,
-                            ];
+                            $facultyParams = [':faculty_id' => $facultyId];
                             $facultySetClause = [];
-                            if ($data['academic_rank']) $facultySetClause[] = "academic_rank = :academic_rank";
-                            if ($data['employment_type']) $facultySetClause[] = "employment_type = :employment_type";
-                            if ($data['classification']) $facultySetClause[] = "classification = :classification";
+                            $facultyFields = ['academic_rank', 'employment_type', 'classification'];
+                            foreach ($facultyFields as $field) {
+                                if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                                    $facultySetClause[] = "$field = :$field";
+                                    $facultyParams[":$field"] = $data[$field];
+                                }
+                            }
 
                             if (!empty($facultySetClause)) {
                                 $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
@@ -3011,37 +3011,54 @@ class ChairController
 
     private function handleProfilePictureUpload($userId)
     {
+        if (!isset($_FILES['profile_picture']) || $_FILES['profile_picture']['error'] == UPLOAD_ERR_NO_FILE) {
+            error_log("profile: No file uploaded for user_id: $userId");
+            return null;
+        }
+
         $file = $_FILES['profile_picture'];
         $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-        $maxSize = 2 * 1024 * 1024;
-        $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/profiles/';
+        $maxSize = 2 * 1024 * 1024; // 2MB
 
         if (!in_array($file['type'], $allowedTypes)) {
-            return 'Error: Only JPG, PNG, and GIF files are allowed.';
-        }
-        if ($file['size'] > $maxSize) {
-            return 'Error: File size must be less than 2MB.';
-        }
-        if (!getimagesize($file['tmp_name'])) {
-            return 'Error: Invalid image file.';
+            error_log("profile: Invalid file type for user_id: $userId - " . $file['type']);
+            return "Error: Only JPEG, PNG, and GIF files are allowed.";
         }
 
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $filename = "profile_{$userId}_" . time() . ".{$extension}";
-        $targetPath = $uploadDir . $filename;
+        if ($file['size'] > $maxSize) {
+            error_log("profile: File size exceeds limit for user_id: $userId - " . $file['size']);
+            return "Error: File size exceeds 2MB limit.";
+        }
+
+        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $filename = "profile_{$userId}_" . time() . ".{$ext}";
+        $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/profile_pictures/'; // Public-accessible path
+        $uploadPath = $uploadDir . $filename;
 
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            if (!mkdir($uploadDir, 0755, true)) {
+                error_log("profile: Failed to create upload directory: $uploadDir");
+                return "Error: Failed to create upload directory.";
+            }
         }
 
+        // Remove existing profile picture
         $stmt = $this->db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
         $stmt->execute([':user_id' => $userId]);
         $currentPicture = $stmt->fetchColumn();
         if ($currentPicture && file_exists($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
-            unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture);
+            if (!unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
+                error_log("profile: Failed to delete existing profile picture: $currentPicture");
+            }
         }
 
-        return move_uploaded_file($file['tmp_name'], $targetPath) ? "/uploads/profiles/{$filename}" : 'Error: Failed to upload file.';
+        if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+            error_log("profile: Successfully uploaded file to $uploadPath for user_id: $userId");
+            return "/uploads/profile_pictures/{$filename}";
+        } else {
+            error_log("profile: Failed to move uploaded file for user_id: $userId to $uploadPath - Check permissions or disk space");
+            return "Error: Failed to upload file.";
+        }
     }
    
 }

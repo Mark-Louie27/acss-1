@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/UserModel.php';
+require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../controllers/ApiController.php';
 
 class DirectorController
@@ -8,6 +9,7 @@ class DirectorController
     public $db;
     private $userModel;
     public $api;
+    public $authService;
 
     public function __construct()
     {
@@ -19,6 +21,7 @@ class DirectorController
         }
         $this->userModel = new UserModel();
         $this->api = new ApiController();
+        $this->authService = new AuthService($this->db);
         $this->restrictToDi();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
@@ -314,137 +317,271 @@ class DirectorController
     public function profile()
     {
         try {
-            $userData = $this->getUserData();
-            if (!$userData) {
-                error_log("profile: Failed to load user data for user_id: " . $_SESSION['user_id']);
-                header('Location: /login?error=User data not found');
+            if (!$this->authService->isLoggedIn()) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view your profile'];
+                header('Location: /login');
                 exit;
             }
 
-            // Fetch all specializations for the director
-            $specStmt = $this->db->prepare("
-                SELECT s.specialization_id, c.course_name, s.expertise_level
-                FROM specializations s
-                JOIN courses c ON s.course_id = c.course_id
-                WHERE s.faculty_id = :faculty_id 
-                ORDER BY c.course_name
-            ");
-            $specStmt->execute([':faculty_id' => $_SESSION['user_id']]);
-            $specializations = $specStmt->fetchAll(PDO::FETCH_ASSOC);
+            $userId = $_SESSION['user_id'];
+            $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $firstName = trim($_POST['first_name'] ?? '');
-                $lastName = trim($_POST['last_name'] ?? '');
-                $middleName = trim($_POST['middle_name'] ?? '');
-                $suffix = trim($_POST['suffix'] ?? '');
-                $title = trim($_POST['title'] ?? '');
-                $email = trim($_POST['email'] ?? '');
-                $phone = trim($_POST['phone'] ?? null);
-                $academic_rank = trim($_POST['academic_rank'] ?? '') ?: null;
-                $employment_type = trim($_POST['employment_type'] ?? '') ?: null;
-                $course_specialization = trim($_POST['course_specialization'] ?? '') ?: null;
-                $expertise_level = trim($_POST['expertise_level'] ?? 'Intermediate'); // Default to Intermediate
-
-                // Handle profile picture upload
-                $profilePicture = null;
-                if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
-                    $uploadDir = __DIR__ . '/public/uploads/';
-                    if (!file_exists($uploadDir)) {
-                        mkdir($uploadDir, 0777, true);
-                    }
-                    $fileName = uniqid() . '_' . basename($_FILES['profile_picture']['name']);
-                    $targetFile = $uploadDir . $fileName;
-                    if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $targetFile)) {
-                        $profilePicture = '/uploads/' . $fileName;
-                    } else {
-                        error_log("profile: Failed to upload profile picture for user_id: " . $_SESSION['user_id']);
-                    }
+                error_log("profile: Received POST data - " . print_r($_POST, true)); // Debug log
+                if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                    header('Location: /director/profile');
+                    exit;
                 }
 
-                $this->db->beginTransaction();
-
-                // Update users table
-                $fullName = trim("$firstName $middleName $lastName $suffix");
-                $updateData = [
-                    ':name' => $fullName,
-                    ':email' => $email,
-                    ':phone' => $phone,
-                    ':user_id' => $_SESSION['user_id']
+                // Map POST data to correct field names
+                $data = [
+                    'email' => trim($_POST['email'] ?? ''),
+                    'phone' => trim($_POST['phone'] ?? ''),
+                    'first_name' => trim($_POST['first_name'] ?? ''),
+                    'middle_name' => trim($_POST['middle_name'] ?? ''),
+                    'last_name' => trim($_POST['last_name'] ?? ''),
+                    'suffix' => trim($_POST['suffix'] ?? ''),
+                    'title' => trim($_POST['title'] ?? ''),
+                    'academic_rank' => trim($_POST['academic_rank'] ?? ''),
+                    'employment_type' => trim($_POST['employment_type'] ?? ''),
+                    'classification' => trim($_POST['classification'] ?? ''),
+                    'expertise_level' => trim($_POST['expertise_level'] ?? 'Intermediate'), // Default to Intermediate
                 ];
-                $updateQuery = "UPDATE users SET name = :name, email = :email";
-                if ($title) $updateQuery .= ", title = :title";
-                if ($phone) $updateQuery .= ", phone = :phone";
-                if ($profilePicture) $updateQuery .= ", profile_picture = :profile_picture";
-                $stmt = $this->db->prepare($updateQuery);
-                $stmt->execute(array_merge($updateData, [':title' => $title, ':profile_picture' => $profilePicture]));
 
-                // Update faculty table
-                if ($employment_type || $academic_rank) {
-                    $facultyStmt = $this->db->prepare("
-                        INSERT INTO faculty (user_id, employment_type, academic_rank)
-                        VALUES (:user_id, :employment_type, :academic_rank)
-                        ON DUPLICATE KEY UPDATE employment_type = :employment_type, academic_rank = :academic_rank
-                    ");
-                    $facultyStmt->execute([':user_id' => $_SESSION['user_id'], ':employment_type' => $employment_type, ':academic_rank' => $academic_rank]);
+                $errors = [];
+                if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = 'Valid email is required.';
+                }
+                if (empty($data['first_name'])) $errors[] = 'First name is required.';
+                if (empty($data['last_name'])) $errors[] = 'Last name is required.';
+                if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
+                    $errors[] = 'Phone number must be 10-12 digits.';
                 }
 
-                // Update specialization
-                if ($course_specialization) {
-                    $courseStmt = $this->db->prepare("SELECT course_id FROM courses WHERE course_name = :course_name");
-                    $courseStmt->execute([':course_name' => $course_specialization]);
-                    $courseId = $courseStmt->fetchColumn();
-                    if ($courseId) {
-                        // Check if specialization exists for this faculty
-                        $specCheckStmt = $this->db->prepare("
-                            SELECT specialization_id FROM specializations 
-                            WHERE faculty_id = :faculty_id AND course_id = :course_id
-                        ");
-                        $specCheckStmt->execute([':faculty_id' => $_SESSION['user_id'], ':course_id' => $courseId]);
-                        $specializationId = $specCheckStmt->fetchColumn();
-
-                        if ($specializationId) {
-                            $updateSpecStmt = $this->db->prepare("
-                                UPDATE specializations 
-                                SET expertise_level = :expertise_level, is_primary_specialization = 1
-                                WHERE specialization_id = :specialization_id
-                            ");
-                            $updateSpecStmt->execute([':expertise_level' => $expertise_level, ':specialization_id' => $specializationId]);
-                        } else {
-                            $insertSpecStmt = $this->db->prepare("
-                                INSERT INTO specializations (faculty_id, course_id, expertise_level, is_primary_specialization)
-                                VALUES (:faculty_id, :course_id, :expertise_level, 1)
-                            ");
-                            $insertSpecStmt->execute([':faculty_id' => $_SESSION['user_id'], ':course_id' => $courseId, ':expertise_level' => $expertise_level]);
-                        }
-                        // Reset other specializations to non-primary
-                        $resetStmt = $this->db->prepare("
-                            UPDATE specializations 
-                            SET is_primary_specialization = 0 
-                            WHERE faculty_id = :faculty_id AND specialization_id != LAST_INSERT_ID()
-                        ");
-                        $resetStmt->execute([':faculty_id' => $_SESSION['user_id']]);
+                $profilePicture = null;
+                if (!empty($_FILES['profile_picture']['name'])) {
+                    $profilePicture = $this->handleProfilePictureUpload($userId);
+                    if (is_string($profilePicture) && strpos($profilePicture, 'Error') === 0) {
+                        $errors[] = $profilePicture;
+                    } else {
+                        $data['profile_picture'] = $profilePicture;
                     }
                 }
 
-                $this->db->commit();
-                error_log("profile: Updated profile for user_id: " . $_SESSION['user_id']);
-                $_SESSION['success'] = 'Profile updated successfully';
+                if (empty($errors)) {
+                    $this->db->beginTransaction();
+
+                    try {
+                        // Update users table with dynamic fields
+                        $setClause = [];
+                        $params = [':user_id' => $userId];
+                        $validFields = ['email', 'phone', 'first_name', 'middle_name', 'last_name', 'suffix', 'title'];
+                        foreach ($validFields as $field) {
+                            if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                                $setClause[] = "`$field` = :$field";
+                                $params[":$field"] = $data[$field];
+                            }
+                        }
+
+                        if (isset($data['profile_picture'])) {
+                            $setClause[] = "`profile_picture` = :profile_picture";
+                            $params[':profile_picture'] = $data['profile_picture'];
+                        }
+
+                        if (!empty($setClause)) {
+                            $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
+                            error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
+                            $userStmt->execute($params);
+                        }
+
+                        // Update faculty table with dynamic fields
+                        $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyStmt->execute([':user_id' => $userId]);
+                        $facultyId = $facultyStmt->fetchColumn();
+
+                        if ($facultyId) {
+                            $facultyParams = [':faculty_id' => $facultyId];
+                            $facultySetClause = [];
+                            $facultyFields = ['academic_rank', 'employment_type', 'classification'];
+                            foreach ($facultyFields as $field) {
+                                if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                                    $facultySetClause[] = "$field = :$field";
+                                    $facultyParams[":$field"] = $data[$field];
+                                }
+                            }
+
+                            if (!empty($facultySetClause)) {
+                                $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
+                                error_log("profile: Faculty query - " . $updateFacultyStmt->queryString . ", Params: " . print_r($facultyParams, true));
+                                $updateFacultyStmt->execute($facultyParams);
+                            }
+                        }
+
+                        // Update specialization (handle course_specialization as course name)
+                        $courseSpecialization = trim($_POST['course_specialization'] ?? '');
+                        if ($courseSpecialization) {
+                            $courseStmt = $this->db->prepare("SELECT course_id FROM courses WHERE course_name = :course_name");
+                            $courseStmt->execute([':course_name' => $courseSpecialization]);
+                            $courseId = $courseStmt->fetchColumn();
+
+                            if ($courseId) {
+                                $specCheckStmt = $this->db->prepare("
+                                    SELECT specialization_id FROM specializations 
+                                    WHERE faculty_id = :faculty_id AND course_id = :course_id
+                                ");
+                                $specCheckStmt->execute([':faculty_id' => $facultyId, ':course_id' => $courseId]);
+                                $specializationId = $specCheckStmt->fetchColumn();
+
+                                if ($specializationId) {
+                                    $updateSpecStmt = $this->db->prepare("
+                                        UPDATE specializations 
+                                        SET expertise_level = :expertise_level, is_primary_specialization = 1
+                                        WHERE specialization_id = :specialization_id
+                                    ");
+                                    $updateSpecStmt->execute([':expertise_level' => $data['expertise_level'], ':specialization_id' => $specializationId]);
+                                } else {
+                                    $insertSpecStmt = $this->db->prepare("
+                                        INSERT INTO specializations (faculty_id, course_id, expertise_level, is_primary_specialization)
+                                        VALUES (:faculty_id, :course_id, :expertise_level, 1)
+                                    ");
+                                    $insertSpecStmt->execute([':faculty_id' => $facultyId, ':course_id' => $courseId, ':expertise_level' => $data['expertise_level']]);
+                                }
+
+                                // Reset other specializations to non-primary
+                                $resetStmt = $this->db->prepare("
+                                    UPDATE specializations 
+                                    SET is_primary_specialization = 0 
+                                    WHERE faculty_id = :faculty_id AND specialization_id != LAST_INSERT_ID()
+                                ");
+                                $resetStmt->execute([':faculty_id' => $facultyId]);
+                            }
+                        }
+
+                        $this->db->commit();
+
+                        $_SESSION['first_name'] = $data['first_name'];
+                        $_SESSION['email'] = $data['email'];
+                        if (isset($data['profile_picture'])) {
+                            $_SESSION['profile_picture'] = $data['profile_picture'];
+                        }
+                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
+                    } catch (PDOException $e) {
+                        $this->db->rollBack();
+                        error_log("profile: Database error - " . $e->getMessage());
+                        $errors[] = 'Database error occurred. Please try again.';
+                    }
+                }
+
+                if (!empty($errors)) {
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => implode('<br>', $errors)];
+                }
                 header('Location: /director/profile');
                 exit;
             }
 
-            $data = [
-                'user' => $userData,
-                'specializations' => $specializations,
-                'title' => 'Director Profile',
-                'current_time' => date('h:i A T', time()) // e.g., 04:41 PM PST
-            ];
+            // Fetch user data and stats
+            $stmt = $this->db->prepare("
+                SELECT u.*, d.department_name, c.college_name, r.role_name,
+                       f.academic_rank, f.employment_type, f.classification,
+                       (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
+                       (SELECT COUNT(*) FROM courses c2 WHERE c2.department_id = u.department_id AND c2.is_active = 1) as coursesCount,
+                       (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
+                       (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
+                       (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                LEFT JOIN colleges c ON u.college_id = c.college_id
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN faculty f ON u.user_id = f.user_id
+                WHERE u.user_id = :user_id
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user) {
+                throw new Exception('User not found.');
+            }
+
+            // Fetch specializations
+            $specStmt = $this->db->prepare("
+                SELECT s.*, c.course_name 
+                FROM specializations s
+                JOIN courses c ON s.course_id = c.course_id
+                WHERE s.faculty_id = (SELECT faculty_id FROM faculty WHERE user_id = :user_id)
+                ORDER BY c.course_name
+            ");
+            $specStmt->execute([':user_id' => $userId]);
+            $specializations = $specStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Extract stats
+            $facultyCount = $user['facultyCount'] ?? 0;
+            $coursesCount = $user['coursesCount'] ?? 0;
+            $pendingApplicantsCount = $user['pendingApplicantsCount'] ?? 0;
+            $currentSemester = $user['currentSemester'] ?? '2nd';
+            $lastLogin = $user['lastLogin'] ?? 'N/A';
 
             require_once __DIR__ . '/../views/director/profile.php';
-        } catch (PDOException $e) {
-            error_log("profile: Database error - " . $e->getMessage());
-            header('Location: /error?message=Database error');
+        } catch (Exception $e) {
+            if (isset($this->db) && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("profile: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load or update profile. Please try again.'];
+            header('Location: /director/profile');
             exit;
+        }
+    }
+
+    private function handleProfilePictureUpload($userId)
+    {
+        if (!isset($_FILES['profile_picture']) || $_FILES['profile_picture']['error'] == UPLOAD_ERR_NO_FILE) {
+            error_log("profile: No file uploaded for user_id: $userId");
+            return null;
+        }
+
+        $file = $_FILES['profile_picture'];
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        $maxSize = 2 * 1024 * 1024; // 2MB
+
+        if (!in_array($file['type'], $allowedTypes)) {
+            error_log("profile: Invalid file type for user_id: $userId - " . $file['type']);
+            return "Error: Only JPEG, PNG, and GIF files are allowed.";
+        }
+
+        if ($file['size'] > $maxSize) {
+            error_log("profile: File size exceeds limit for user_id: $userId - " . $file['size']);
+            return "Error: File size exceeds 2MB limit.";
+        }
+
+        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $filename = "profile_{$userId}_" . time() . ".{$ext}";
+        $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/profile_pictures/'; // Public-accessible path
+        $uploadPath = $uploadDir . $filename;
+
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0755, true)) {
+                error_log("profile: Failed to create upload directory: $uploadDir");
+                return "Error: Failed to create upload directory.";
+            }
+        }
+
+        // Remove existing profile picture
+        $stmt = $this->db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
+        $stmt->execute([':user_id' => $userId]);
+        $currentPicture = $stmt->fetchColumn();
+        if ($currentPicture && file_exists($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
+            if (!unlink($_SERVER['DOCUMENT_ROOT'] . $currentPicture)) {
+                error_log("profile: Failed to delete existing profile picture: $currentPicture");
+            }
+        }
+
+        if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+            error_log("profile: Successfully uploaded file to $uploadPath for user_id: $userId");
+            return "/uploads/profile_pictures/{$filename}";
+        } else {
+            error_log("profile: Failed to move uploaded file for user_id: $userId to $uploadPath - Check permissions or disk space");
+            return "Error: Failed to upload file.";
         }
     }
 }

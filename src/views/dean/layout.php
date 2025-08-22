@@ -5,6 +5,21 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['r
     exit;
 }
 
+// Fetch profile picture from session or database
+$profilePicture = $_SESSION['profile_picture'] ?? null;
+if (!$profilePicture) {
+    try {
+        $db = (new Database())->connect();
+        $stmt = $db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
+        $stmt->execute([':user_id' => $_SESSION['user_id']]);
+        $profilePicture = $stmt->fetchColumn() ?: '';
+        $_SESSION['profile_picture'] = $profilePicture; // Cache in session
+    } catch (PDOException $e) {
+        error_log("layout: Error fetching profile picture - " . $e->getMessage());
+        $profilePicture = '';
+    }
+}
+
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
 ?>
@@ -338,9 +353,14 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
                     <button class="flex items-center text-gray-600 hover:text-gold-400 focus:outline-none">
-                        <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
-                            src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?>&background=D4A017&color=FFFFFF"
-                            alt="Profile">
+                        <?php if (!empty($profilePicture)): ?>
+                            <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
+                                src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                        <?php else: ?>
+                            <div class="h-8 w-8 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-sm font-bold">
+                                <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                            </div>
+                        <?php endif; ?>
                         <span class="ml-2 hidden sm:inline text-sm font-medium"><?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
@@ -374,14 +394,19 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <!-- User Profile Section -->
         <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
             <div class="flex items-center space-x-3">
-                <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
-                    src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?>&background=D4A017&color=FFFFFF"
-                    alt="Profile">
+                <?php if (!empty($profilePicture)): ?>
+                    <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
+                        src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                <?php else: ?>
+                    <div class="h-12 w-12 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                        <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                    </div>
+                <?php endif; ?>
                 <div>
-                    <p class="font-medium text-white"><?= htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']) ?></p>
+                    <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-gold-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
-                        <span>Dean</span>
+                        <span>Faculty</span>
                     </div>
                 </div>
             </div>
@@ -440,7 +465,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
         <!-- Sidebar Footer -->
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700 hidden md:block">
-            
+
             <div class="flex items-center justify-between text-xs text-gray-400">
                 <div>
                     <p>Dean System</p>
