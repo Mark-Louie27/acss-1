@@ -2812,22 +2812,27 @@ class ChairController
             $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                error_log("profile: Received POST data - " . print_r($_POST, true)); // Debug log
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
                     header('Location: /chair/profile');
                     exit;
                 }
 
+                // Map POST data to correct field names, handling typo
                 $data = [
                     'email' => trim($_POST['email'] ?? ''),
                     'phone' => trim($_POST['phone'] ?? ''),
+                    'username' => trim($_POST['username'] ?? ''),
                     'first_name' => trim($_POST['first_name'] ?? ''),
-                    'middle_name' => trim($_POST['middle_name'] ?? ''),
+                    'middle_name' => trim($_POST['midlle_name'] ?? ''), // Correct typo mapping
                     'last_name' => trim($_POST['last_name'] ?? ''),
                     'suffix' => trim($_POST['suffix'] ?? ''),
+                    'title' => trim($_POST['title'] ?? ''),
                     'classification' => trim($_POST['classification'] ?? ''),
-                    'subject_specialization' => trim($_POST['subject_specialization'] ?? ''),
-                    'user_id' => $userId
+                    'academic_rank' => trim($_POST['academic_rank'] ?? ''),
+                    'employment_type' => trim($_POST['employment_type'] ?? ''),
+                    'expertise_level' => trim($_POST['expertise_level'] ?? ''), // Align with specialization table
                 ];
 
                 $errors = [];
@@ -2849,87 +2854,108 @@ class ChairController
                     }
                 }
 
-                // Handle password update
-                $newPassword = trim($_POST['new_password'] ?? '');
-                $confirmPassword = trim($_POST['confirm_password'] ?? '');
-                if (!empty($newPassword) || !empty($confirmPassword)) {
-                    if ($newPassword !== $confirmPassword) {
-                        $errors[] = 'New passwords do not match.';
-                    } elseif (strlen($newPassword) < 8) {
-                        $errors[] = 'Password must be at least 8 characters long.';
-                    } else {
-                        $token = bin2hex(random_bytes(16));
-                        $stmt = $this->db->prepare("INSERT INTO password_resets (user_id, token, expires_at) VALUES (:user_id, :token, DATE_ADD(NOW(), INTERVAL 1 HOUR)) ON DUPLICATE KEY UPDATE token = :token, expires_at = DATE_ADD(NOW(), INTERVAL 1 HOUR)");
-                        $stmt->execute([':user_id' => $userId, ':token' => $token]);
-                        $this->emailService->sendVerificationEmail($userId, $token, $newPassword);
-                        $_SESSION['flash'] = ['type' => 'info', 'message' => 'Password change requested. Please check your email to verify.'];
-                        header('Location: /chair/profile');
-                        exit;
+                if (empty($errors)) {
+                    $this->db->beginTransaction();
+
+                    try {
+                        // Update users table with dynamic fields
+                        $setClause = [];
+                        $params = [':user_id' => $userId];
+                        $validFields = ['email', 'phone', 'username', 'first_name', 'middle_name', 'last_name', 'suffix', 'title'];
+                        foreach ($validFields as $field) {
+                            if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                                $setClause[] = "`$field` = :$field";
+                                $params[":$field"] = $data[$field];
+                            }
+                        }
+
+                        if (isset($data['profile_picture'])) {
+                            $setClause[] = "`profile_picture` = :profile_picture";
+                            $params[':profile_picture'] = $data['profile_picture'];
+                        }
+
+                        if (!empty($setClause)) {
+                            $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
+                            error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
+                            $userStmt->execute($params);
+                        }
+
+                        // Update faculty table (optional, only if faculty_id exists)
+                        $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyStmt->execute([':user_id' => $userId]);
+                        $facultyId = $facultyStmt->fetchColumn();
+
+                        if ($facultyId) {
+                            $facultyParams = [
+                                ':faculty_id' => $facultyId,
+                                ':academic_rank' => $data['academic_rank'] ?: null,
+                                ':employment_type' => $data['employment_type'] ?: null,
+                                ':classification' => $data['classification'] ?: null,
+                            ];
+                            $facultySetClause = [];
+                            if ($data['academic_rank']) $facultySetClause[] = "academic_rank = :academic_rank";
+                            if ($data['employment_type']) $facultySetClause[] = "employment_type = :employment_type";
+                            if ($data['classification']) $facultySetClause[] = "classification = :classification";
+
+                            if (!empty($facultySetClause)) {
+                                $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
+                                error_log("profile: Faculty query - " . $updateFacultyStmt->queryString . ", Params: " . print_r($facultyParams, true));
+                                $updateFacultyStmt->execute($facultyParams);
+                            }
+
+                            // Update specializations table (optional, only if expertise_level is set)
+                            if ($data['expertise_level']) {
+                                $updateSpecializationStmt = $this->db->prepare("
+                                    INSERT INTO specializations (faculty_id, expertise_level, created_at) 
+                                    VALUES (:faculty_id, :expertise_level, NOW())
+                                    ON DUPLICATE KEY UPDATE expertise_level = :expertise_level
+                                ");
+                                $specializationParams = [
+                                    ':faculty_id' => $facultyId,
+                                    ':expertise_level' => $data['expertise_level'],
+                                ];
+                                error_log("profile: Specialization query - " . $updateSpecializationStmt->queryString . ", Params: " . print_r($specializationParams, true));
+                                $updateSpecializationStmt->execute($specializationParams);
+                            }
+                        }
+
+                        $this->db->commit();
+
+                        $_SESSION['first_name'] = $data['first_name'];
+                        $_SESSION['email'] = $data['email'];
+                        if (isset($data['profile_picture'])) {
+                            $_SESSION['profile_picture'] = $data['profile_picture'];
+                        }
+                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
+                    } catch (PDOException $e) {
+                        $this->db->rollBack();
+                        error_log("profile: Database error - " . $e->getMessage());
+                        $errors[] = 'Database error occurred. Please try again.';
                     }
                 }
 
-                if (empty($errors)) {
-                    // Update users table
-                    $setClause = [];
-                    $params = [];
-                    foreach (['email', 'phone', 'first_name', 'middle_name', 'last_name', 'suffix', 'profile_picture'] as $field) {
-                        if (isset($data[$field])) {
-                            $setClause[] = "$field = :$field";
-                            $params[":$field"] = $data[$field];
-                        }
-                    }
-                    $params[':user_id'] = $userId;
-
-                    $stmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
-                    $stmt->execute($params);
-
-                    // Update specialization table for classification and subject_specialization
-                    // First, get the faculty_id for the user
-                    $stmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
-                    $stmt->execute([':user_id' => $userId]);
-                    $facultyId = $stmt->fetchColumn();
-
-                    if ($facultyId) {
-                        $stmt = $this->db->prepare("INSERT INTO specializations (faculty_id, expertise_level, subject_specialization, created_at) 
-                            VALUES (:faculty_id, :expertise_level, :subject_specialization, NOW())
-                            ON DUPLICATE KEY UPDATE expertise_level = :expertise_level, subject_specialization = :subject_specialization");
-                        $stmt->execute([
-                            ':faculty_id' => $facultyId,
-                            ':expertise_level' => $data['classification'],
-                            ':subject_specialization' => $data['subject_specialization']
-                        ]);
-                    }
-
-                    $_SESSION['first_name'] = $data['first_name'];
-                    $_SESSION['email'] = $data['email'];
-                    if (isset($data['profile_picture'])) {
-                        $_SESSION['profile_picture'] = $data['profile_picture'];
-                    }
-                    $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
-                } else {
+                if (!empty($errors)) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => implode('<br>', $errors)];
                 }
                 header('Location: /chair/profile');
                 exit;
             }
 
-            // Fetch user data and stats
+            // Fetch user data and stats...
             $stmt = $this->db->prepare("
                 SELECT u.*, d.department_name, c.college_name, r.role_name,
-                       f.classification, 
-                       s.expertise_level AS classification, s.course_id, au.created_at,
-                       (SELECT COUNT(*) FROM faculty f JOIN users fu ON f.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
-                       (SELECT COUNT(*) FROM courses c WHERE c.department_id = u.department_id AND c.is_active = 1) as coursesCount,
+                       f.academic_rank, f.employment_type,
+                       s.expertise_level AS classification, 
+                       (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
+                       (SELECT COUNT(*) FROM courses c2 WHERE c2.department_id = u.department_id AND c2.is_active = 1) as coursesCount,
                        (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
                        (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
                        (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
                 FROM users u
-                LEFT JOIN auth_logs au ON u.user_id = au.user_id
                 LEFT JOIN departments d ON u.department_id = d.department_id
                 LEFT JOIN colleges c ON u.college_id = c.college_id
                 LEFT JOIN roles r ON u.role_id = r.role_id
                 LEFT JOIN faculty f ON u.user_id = f.user_id
-                LEFT JOIN program_chairs pc ON f.faculty_id = pc.faculty_id AND pc.is_current = 1
                 LEFT JOIN specializations s ON f.faculty_id = s.faculty_id
                 WHERE u.user_id = :user_id
             ");
@@ -2945,37 +2971,40 @@ class ChairController
             $coursesCount = $user['coursesCount'] ?? 0;
             $pendingApplicantsCount = $user['pendingApplicantsCount'] ?? 0;
             $currentSemester = $user['currentSemester'] ?? '2nd';
-            $lastLogin = $user['lastLogin'] ?? 'January 1, 1970, 1:00 am';
-            $employmentType = $user['employment_type'] ?? 'Part-time';
-
-            // Override with specialization data if available
-            $user['classification'] = $user['classification'] ?? $user['expertise_level'] ?? '';
-            $user['subject_specialization'] = $user['subject_specialization'] ?? '';
+            $lastLogin = $user['lastLogin'] ?? 'N/A';
 
             require_once __DIR__ . '/../views/chair/profile.php';
         } catch (Exception $e) {
+            if (isset($this->db) && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log("profile: Error - " . $e->getMessage());
-            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load profile.'];
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load or update profile. Please try again.'];
+
             $user = [
                 'user_id' => $userId,
+                'username' => '',
                 'first_name' => '',
                 'last_name' => '',
                 'middle_name' => '',
                 'suffix' => '',
                 'email' => '',
                 'phone' => '',
+                'title' => '',
                 'profile_picture' => '',
                 'employee_id' => '',
                 'department_name' => '',
                 'college_name' => '',
                 'role_name' => 'Chair',
+                'academic_rank' => '',
+                'employment_type' => '',
                 'classification' => '',
-                'subject_specialization' => '',
+                'expertise_level' => '',
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             $facultyCount = $coursesCount = $pendingApplicantsCount = 0;
             $currentSemester = '2nd';
-            $lastLogin = 'January 1, 1970, 1:00 am';
+            $lastLogin = 'N/A';
             require_once __DIR__ . '/../views/chair/profile.php';
         }
     }

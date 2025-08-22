@@ -112,7 +112,7 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::dashboard");
             $controller->dashboard();
             break;
-        case '/director/monitoring':
+        case '/director/monitor':
             error_log("Routing to DirectorController::monitoring");
             $controller->monitor();
             break;
@@ -120,7 +120,7 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::profile");
             $controller->profile();
             break;
-        case '/director/setschedule':
+        case '/director/schedule_deadline':
             error_log("Routing to DirectorController::setSchedule");
             $controller->setScheduleDeadline();
             break;

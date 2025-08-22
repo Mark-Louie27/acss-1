@@ -406,10 +406,16 @@ if (!$profilePicture) {
                 <span>Dashboard</span>
             </a>
 
-            <!-- My Schedule Link -->
-            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/schedule') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/schedule') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
-                <span>My Schedule</span>
+            <!-- My set Schedule Link -->
+            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
+                <span>Set Schedule Deadline</span>
+            </a>
+
+            <!-- My set monitor Link -->
+            <a href="/director/monitor" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
+                <i class="fa-solid fa-desktop w-5 mr-3 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
+                <span>Activity Logs</span>
             </a>
 
             <!-- Profile Link -->

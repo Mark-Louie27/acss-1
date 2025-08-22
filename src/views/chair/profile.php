@@ -230,8 +230,16 @@ ob_start();
                             <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                         <div>
+                            <label class="text-sm font-medium text-gray-600">Middle Name</label>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['middle_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        </div>
+                        <div>
                             <label class="text-sm font-medium text-gray-600">Last Name</label>
                             <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">suffix</label>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Email Address</label>
@@ -451,6 +459,17 @@ ob_start();
                                         </div>
                                     </div>
                                     <div>
+                                        <label for="middle_name_modal" class="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-user text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="middle_name_modal" name="middle_name" value="<?php echo htmlspecialchars($user['middle_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
                                         <label for="last_name_modal" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
                                         <div class="relative">
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -458,6 +477,33 @@ ob_start();
                                             </div>
                                             <input type="text" id="last_name_modal" name="last_name" required value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                         </div>
+                                    </div>
+                                    <div>
+                                        <label for="suffix_modal" class="block text-sm font-medium text-gray-700 mb-1">Suffix (ex. Jr. Sr. III)</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-user text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="suffix_modal" name="suffix" value="<?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="title_modal" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-envelope text-gray-400"></i>
+                                        </div>
+                                        <input type="title" id="title_modal" name="title" value="<?php echo htmlspecialchars($user['title'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="username_modal" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-envelope text-gray-400"></i>
+                                        </div>
+                                        <input type="username" id="username_modal" name="username" required value="<?php echo htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                     </div>
                                 </div>
                                 <div>
@@ -517,8 +563,9 @@ ob_start();
                                         </div>
                                         <select id="employment_type" name="employment_type" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                             <option value="">Select Employment Type</option>
-                                            <option value="Full-time" <?php echo $user['employment_type'] === 'Full-time' ? 'selected' : ''; ?>>Full-time</option>
+                                            <option value="Regular" <?php echo $user['employment_type'] === 'Regular' ? 'selected' : ''; ?>>Regular</option>
                                             <option value="Part-time" <?php echo $user['employment_type'] === 'Part-time' ? 'selected' : ''; ?>>Part-time</option>
+                                            <option value="Contractual" <?php echo $user['employment_type'] === 'Contractual' ? 'selected' : ''; ?>>Contractual</option>
                                         </select>
                                     </div>
                                 </div>
@@ -531,7 +578,6 @@ ob_start();
                                         <select id="classification" name="classification" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                             <option value="">Select Classification</option>
                                             <option value="VSL" <?php echo $user['classification'] === 'VSL' ? 'selected' : ''; ?>>VSL</option>
-                                            <option value="VPL" <?php echo $user['classification'] === 'VPL' ? 'selected' : ''; ?>>VPL</option>
                                             <option value="TL" <?php echo $user['classification'] === 'TL' ? 'selected' : ''; ?>>TL</option>
                                         </select>
                                     </div>
@@ -561,7 +607,10 @@ ob_start();
                     </button>
                 </div>
 
-                <form method="POST" class="p-6">
+                <form method="POST" action="/chair/profile/" class="p-6">
+                    <input type="hidden" name="email" value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="first_name" value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="last_name" value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="add_specialization">
 
@@ -582,13 +631,18 @@ ob_start();
                         </div>
 
                         <div>
-                            <label for="specialization_level" class="block text-sm font-medium text-gray-700 mb-1">Proficiency Level</label>
-                            <select id="specialization_level" name="level" required class="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
-                                <option value="">Select proficiency level</option>
-                                <option value="Beginner">Beginner</option>
-                                <option value="Intermediate">Intermediate</option>
-                                <option value="Expert">Expert</option>
-                            </select>
+                            <label for="expertise_level" class="block text-sm font-medium text-gray-700 mb-1">Expertise Level</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="fas fa-star text-gray-400"></i>
+                                </div>
+                                <select id="expertise_level" name="expertise_level" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    <option value="">Select Level</option>
+                                    <option value="Beginner" <?php echo $user['classification'] === 'Beginner' ? 'selected' : ''; ?>>Beginner</option>
+                                    <option value="Intermediate" <?php echo $user['classification'] === 'Intermediate' ? 'selected' : ''; ?>>Intermediate</option>
+                                    <option value="Expert" <?php echo $user['classification'] === 'Expert' ? 'selected' : ''; ?>>Expert</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div>
