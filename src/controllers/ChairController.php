@@ -2891,7 +2891,7 @@ class ChairController
                             $facultySetClause = [];
                             $facultyFields = ['academic_rank', 'employment_type', 'classification'];
                             foreach ($facultyFields as $field) {
-                                if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                                if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== '') {
                                     $facultySetClause[] = "$field = :$field";
                                     $facultyParams[":$field"] = $data[$field];
                                 }
@@ -2906,13 +2906,14 @@ class ChairController
                             // Update specializations table (optional, only if expertise_level is set)
                             if ($data['expertise_level']) {
                                 $updateSpecializationStmt = $this->db->prepare("
-                                    INSERT INTO specializations (faculty_id, expertise_level, created_at) 
-                                    VALUES (:faculty_id, :expertise_level, NOW())
+                                    INSERT INTO specializations (faculty_id, course_id, expertise_level, created_at) 
+                                    VALUES (:faculty_id, :course_id, :expertise_level, NOW())
                                     ON DUPLICATE KEY UPDATE expertise_level = :expertise_level
                                 ");
                                 $specializationParams = [
                                     ':faculty_id' => $facultyId,
                                     ':expertise_level' => $data['expertise_level'],
+                                    ':course_id' => $data['course_id'],
                                 ];
                                 error_log("profile: Specialization query - " . $updateSpecializationStmt->queryString . ", Params: " . print_r($specializationParams, true));
                                 $updateSpecializationStmt->execute($specializationParams);
@@ -2944,8 +2945,8 @@ class ChairController
             // Fetch user data and stats...
             $stmt = $this->db->prepare("
                 SELECT u.*, d.department_name, c.college_name, r.role_name,
-                       f.academic_rank, f.employment_type,
-                       s.expertise_level AS classification, 
+                       f.academic_rank, f.employment_type, f.classification,
+                       s.expertise_level, 
                        (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
                        (SELECT COUNT(*) FROM courses c2 WHERE c2.department_id = u.department_id AND c2.is_active = 1) as coursesCount,
                        (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
@@ -2954,6 +2955,7 @@ class ChairController
                 FROM users u
                 LEFT JOIN departments d ON u.department_id = d.department_id
                 LEFT JOIN colleges c ON u.college_id = c.college_id
+                LEFT JOIN courses c2 ON d.department_id = c2.department_id
                 LEFT JOIN roles r ON u.role_id = r.role_id
                 LEFT JOIN faculty f ON u.user_id = f.user_id
                 LEFT JOIN specializations s ON f.faculty_id = s.faculty_id

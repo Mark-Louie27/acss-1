@@ -358,7 +358,7 @@ class FacultyController
                 exit;
             }
 
-            $csrf_token = $this->authService->generateCsrfToken();
+            $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -370,7 +370,10 @@ class FacultyController
 
                 if (isset($_POST['update_profile'])) {
                     $firstName = trim($_POST['first_name'] ?? '');
+                    $middleName = trim($_POST['middle_name'] ?? null);
                     $lastName = trim($_POST['last_name'] ?? '');
+                    $suffix = trim($_POST['suffix'] ?? null);
+                    $title = trim($_POST['title'] ?? null);
                     $email = trim($_POST['email'] ?? '');
                     $phone = trim($_POST['phone'] ?? null);
                     $classification = trim($_POST['classification'] ?? '') ?: null;
@@ -407,7 +410,10 @@ class FacultyController
                             $stmt = $this->db->prepare("
                                 UPDATE users 
                                 SET first_name = :first_name, 
+                                    middle_name = :middle_name,
                                     last_name = :last_name, 
+                                    suffix = :suffix,
+                                    title = :title,
                                     email = :email, 
                                     phone = :phone,
                                     profile_picture = :profile_picture
@@ -415,7 +421,10 @@ class FacultyController
                             ");
                             $stmt->execute([
                                 ':first_name' => $firstName,
+                                ':middle_name' => $middleName ?: null,
+                                ':suffix' => $suffix ?: null,
                                 ':last_name' => $lastName,
+                                ':title' => $title ?: null,
                                 ':email' => $email,
                                 ':phone' => $phone ?: null,
                                 ':profile_picture' => $profilePicture ?: null,

@@ -1,5 +1,4 @@
 <?php
-$pageTitle = "Faculty Profile";
 ob_start();
 ?>
 
@@ -9,87 +8,19 @@ ob_start();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($pageTitle); ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Profile | ACSS</title>
+    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
     <style>
-        .modal {
-            transition: opacity 0.3s ease;
-        }
-
-        .modal.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .modal-content {
-            transition: transform 0.3s ease;
-        }
-
-        .modal-overlay {
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            position: fixed;
-            inset: 0;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-        }
-
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 0.5rem;
-            width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-            transform: scale(0.95);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            transition: opacity 0.3s ease;
-        }
-
-        .modal-overlay.active .modal-content {
-            transform: scale(1);
-        }
-
-        .input-icon {
-            position: relative;
-        }
-
-        .input-icon i {
-            position: absolute;
-            left: 0.75rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6B7280;
-        }
-
-        .input-icon input,
-        .input-icon select {
-            padding-left: 2.5rem;
-            width: 100%;
-        }
-
-        .btn-gold {
-            background-color: #D4AF37;
-            color: white;
-        }
-
-        .btn-gold:hover {
-            background-color: #b8972e;
+        :root {
+            --gold: #D4AF37;
+            --orange: #E69F54;
+            --white: #FFFFFF;
+            --gray-dark: #4B5563;
+            --gray-light: #E5E7EB;
         }
 
         .fade-in {
-            animation: fadeIn 0.3s ease-in;
+            animation: fadeIn 0.5s ease-in-out;
         }
 
         @keyframes fadeIn {
@@ -104,595 +35,849 @@ ob_start();
             }
         }
 
-        .toast {
-            transition: opacity 0.3s ease, transform 0.3s ease;
+        .slide-in-left {
+            animation: slideInLeft 0.5s ease-in-out;
         }
 
-        .toast-hidden {
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .modal.hidden {
             opacity: 0;
-            transform: translateY(-20px);
+            pointer-events: none;
+        }
+
+        .modal-content {
+            transition: transform 0.3s ease-in-out;
+            transform-origin: center;
+        }
+
+        .input-focus:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+            outline: none;
+        }
+
+        .btn-gold {
+            background-color: var(--gold);
+            color: var(--white);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .btn-gold:hover {
+            background-color: #b8972e;
+            transform: translateY(-1px);
+        }
+
+        .btn-orange {
+            background-color: var(--orange);
+            color: var(--white);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .btn-orange:hover {
+            background-color: #d48a43;
+            transform: translateY(-1px);
+        }
+
+        .file-input-wrapper {
+            border: 1px dashed var(--gray-light);
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #f9fafb;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-wrapper:hover {
+            background-color: #f3f4f6;
+            border-color: var(--gray-dark);
+        }
+
+        .profile-card {
+            background: linear-gradient(135deg, var(--white) 0%, #fafafa 100%);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .specialization-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .specialization-card:hover {
+            border-color: var(--orange);
+            box-shadow: 0 4px 12px rgba(230, 159, 84, 0.15);
+        }
+
+        .quick-stats-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .quick-stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .specialization-level {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+
+        .level-beginner {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .level-intermediate {
+            background-color: #fef3c7;
+            color: #d97706;
+        }
+
+        .level-expert {
+            background-color: #dcfce7;
+            color: #16a34a;
         }
 
         @media (max-width: 640px) {
+            .grid-cols-layout {
+                grid-template-columns: 1fr;
+            }
+
             .modal-content {
-                max-width: 95vw;
+                max-width: 90vw;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .grid-cols-layout {
+                grid-template-columns: 1fr 280px;
             }
         }
     </style>
 </head>
 
-<body class="bg-gray-50 font-sans antialiased">
+<body class="bg-gray-100 font-sans antialiased">
+    <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
     <div class="container mx-auto px-4 py-8 max-w-7xl">
-
-        <!-- Main Content -->
-        <div class="container mx-auto px-4 py-8">
-            <!-- Flash Messages -->
-            <?php if (isset($_SESSION['flash'])): ?>
-                <div id="flashToast" class="toast bg-<?php echo $_SESSION['flash']['type'] === 'success' ? 'green' : 'red'; ?>-100 border-l-4 border-<?php echo $_SESSION['flash']['type'] === 'success' ? 'green' : 'red'; ?>-500 text-<?php echo $_SESSION['flash']['type'] === 'success' ? 'green' : 'red'; ?>-700 p-4 mb-6 rounded-r-lg shadow-md">
-                    <div class="flex items-center">
-                        <i class="fas fa-<?php echo $_SESSION['flash']['type'] === 'success' ? 'check-circle' : 'exclamation-circle'; ?> mr-2"></i>
-                        <span><?php echo htmlspecialchars($_SESSION['flash']['message']); ?></span>
+        <!-- Profile Header -->
+        <header class="bg-gray-800 text-white p-6 mb-8 rounded-xl shadow-lg slide-in-left">
+            <div class="flex flex-col sm:flex-row items-center justify-between">
+                <div class="flex items-center space-x-6 mb-4 sm:mb-0">
+                    <div class="w-20 h-20 bg-white rounded-full overflow-hidden border-4 border-white flex items-center justify-center relative">
+                        <?php if (!empty($faculty['profile_picture'])): ?>
+                            <img src="<?php echo htmlspecialchars($faculty['profile_picture'], ENT_QUOTES, 'UTF-8'); ?>" alt="Profile Picture" class="w-full h-full object-cover">
+                        <?php else: ?>
+                            <i class="fas fa-user text-3xl text-gray-600"></i>
+                        <?php endif; ?>
+                        <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
+                    </div>
+                    <div class="text-center sm:text-left">
+                        <h1 class="text-2xl font-bold text-white"><?php echo htmlspecialchars($faculty['title'] . ' ' . $faculty['first_name'] . ' ' . $faculty['middle_name'] . ' ' . $faculty['last_name'] . ' ' . $faculty['suffix'], ENT_QUOTES, 'UTF-8'); ?></h1>
+                        <p class="text-sm font-medium text-orange-100"><?php echo htmlspecialchars($faculty['department_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-xs text-orange-100 flex items-center mt-1">
+                            <span class="inline-block w-2 h-2 bg-orange-200 rounded-full mr-2"></span>
+                            Faculty
+                        </p>
                     </div>
                 </div>
-                <?php unset($_SESSION['flash']); ?>
-            <?php endif; ?>
-
-            <!-- Profile Section -->
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <!-- Main Profile Display -->
-                <div class="lg:col-span-3">
-                    <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                        <!-- Profile Header -->
-                        <div class="bg-yellow-600 from-amber-400 to-yellow-600 px-6 py-8">
-                            <div class="flex items-center space-x-6">
-                                <div class="relative">
-                                    <div class="h-24 w-24 rounded-full overflow-hidden shadow-lg border-4 border-white">
-                                        <?php if (!empty($faculty['profile_picture'])): ?>
-                                            <img id="profilePicturePreview" src="<?php echo htmlspecialchars($faculty['profile_picture']); ?>" alt="Profile Picture" class="w-full h-full object-cover">
-                                        <?php else: ?>
-                                            <div id="profilePicturePlaceholder" class="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 text-2xl font-bold">
-                                                <?php echo strtoupper(substr($faculty['first_name'], 0, 1) . substr($faculty['last_name'], 0, 1)); ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                    <label for="profile_picture" class="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 cursor-pointer transition-colors">
-                                        <i class="fas fa-camera text-amber-500"></i>
-                                        <span class="sr-only">Upload profile picture</span>
-                                    </label>
-                                </div>
-                                <div class="flex-1">
-                                    <h2 class="text-2xl font-bold text-white"><?php echo htmlspecialchars($faculty['first_name'] . ' ' . $faculty['last_name']); ?></h2>
-                                    <p class="text-amber-100 font-medium"><?php echo htmlspecialchars($faculty['department_name'] ?? 'N/A'); ?></p>
-                                    <div class="flex items-center space-x-4 mt-2">
-                                        <?php if (!empty($faculty['classification'])): ?>
-                                            <span class="inline-flex px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white"><?php echo htmlspecialchars($faculty['classification']); ?></span>
-                                        <?php endif; ?>
-                                        <span class="text-amber-100 text-sm">Faculty Member</span>
-                                    </div>
-                                </div>
-                                <button type="button" onclick="openModal('editProfileModal')" class="px-4 py-2 btn-gold text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 flex items-center">
-                                    <i class="fas fa-edit mr-2"></i>Edit Profile
-                                </button>
-                            </div>
-                            <p id="profile-picture-error" class="text-xs text-red-200 mt-2 hidden"></p>
-                        </div>
-
-                        <!-- Academic Information Form -->
-                        <div class="p-6">
-                            <form id="academicForm" method="POST" action="/faculty/profile" class="space-y-6">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                                <input type="hidden" name="update_academic" value="1">
-
-                                <!-- Personal Information -->
-                                <div>
-                                    <h3 class="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                                        <svg class="w-5 h-5 text-amber-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                        </svg>
-                                        Personal Information
-                                    </h3>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div class="space-y-2">
-                                            <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                    </svg>
-                                                </div>
-                                                <p class=" pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <?php echo htmlspecialchars($faculty['first_name']); ?>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                    </svg>
-                                                </div>
-                                                <p class="pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <?php echo htmlspecialchars($faculty['last_name']); ?>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                    </svg>
-                                                </div>
-                                                <p class="pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <?php echo htmlspecialchars($faculty['email']); ?>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                                    </svg>
-                                                </div>
-                                                <p class="pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <?php echo htmlspecialchars($faculty['phone'] ?? ''); ?>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Academic Information -->
-                                <div>
-                                    <h3 class="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                                        <svg class="w-5 h-5 text-amber-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                        </svg>
-                                        Academic Information
-                                    </h3>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div class="space-y-2">
-                                            <label for="academic_rank" class="block text-sm font-medium text-gray-700">Academic Rank</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                                    </svg>
-                                                </div>
-                                                <select name="academic_rank" id="academic_rank" class="pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <option value="">Select Academic Rank</option>
-                                                    <option value="Instructor" <?php echo $faculty['academic_rank'] == 'Instructor' ? 'selected' : ''; ?>>Instructor</option>
-                                                    <option value="Assistant Professor" <?php echo $faculty['academic_rank'] == 'Assistant Professor' ? 'selected' : ''; ?>>Assistant Professor</option>
-                                                    <option value="Associate Professor" <?php echo $faculty['academic_rank'] == 'Associate Professor' ? 'selected' : ''; ?>>Associate Professor</option>
-                                                    <option value="Professor" <?php echo $faculty['academic_rank'] == 'Professor' ? 'selected' : ''; ?>>Professor</option>
-                                                    <option value="Chair Professor" <?php echo $faculty['academic_rank'] == 'Chair Professor' ? 'selected' : ''; ?>>Chair Professor</option>
-                                                    <option value="Dean" <?php echo $faculty['academic_rank'] == 'Dean' ? 'selected' : ''; ?>>Dean</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="employment_type" class="block text-sm font-medium text-gray-700">Employment Type</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                                                    </svg>
-                                                </div>
-                                                <select name="employment_type" id="employment_type" class="pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <option value="">Select Employment Type</option>
-                                                    <option value="Full-time" <?php echo $faculty['employment_type'] == 'Full-time' ? 'selected' : ''; ?>>Full-time</option>
-                                                    <option value="Part-time" <?php echo $faculty['employment_type'] == 'Part-time' ? 'selected' : ''; ?>>Part-time</option>
-                                                    <option value="Contractual" <?php echo $faculty['employment_type'] == 'Contractual' ? 'selected' : ''; ?>>Contractual</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label for="classification" class="block text-sm font-medium text-gray-700">Classification</label>
-                                            <div class="relative">
-                                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                                                    </svg>
-                                                </div>
-                                                <select name="classification" id="classification" class="pl-11 block w-full rounded-xl border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 transition-colors">
-                                                    <option value="">No Classification</option>
-                                                    <option value="TL" <?php echo $faculty['classification'] == 'TL' ? 'selected' : ''; ?>>TL</option>
-                                                    <option value="VSL" <?php echo $faculty['classification'] == 'VSL' ? 'selected' : ''; ?>>VSL</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Action Buttons -->
-                                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-                                    <button type="button" onclick="window.location.reload()" class="inline-flex items-center px-6 py-3 border border-gray-300 shadow-sm text-sm font-medium rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors">
-                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                        Cancel
-                                    </button>
-                                    <button type="submit" id="saveAcademicButton" class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-xl text-white bg-yellow-500 from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 shadow-lg transform transition-all hover:scale-105">
-                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Save Academic Changes
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Stats Sidebar -->
-                <div class="lg:col-span-1 space-y-6">
-                    <!-- Stats Card -->
-                    <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                            <i class="fas fa-chart-bar text-amber-500 mr-2"></i>Quick Stats
-                        </h3>
-                        <div class="space-y-4">
-                            <div class="bg-blue-50 rounded-md p-4">
-                                <div class="flex items-center">
-                                    <div class="w-10 h-10 bg-blue-500 rounded-md flex items-center justify-center">
-                                        <i class="fas fa-book text-white"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-gray-600">Courses Assigned</p>
-                                        <p class="text-xl font-bold text-gray-900"><?php echo htmlspecialchars($courseCount); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bg-green-50 rounded-md p-4">
-                                <div class="flex items-center">
-                                    <div class="w-10 h-10 bg-green-500 rounded-md flex items-center justify-center">
-                                        <i class="fas fa-clock text-white"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-gray-600">Teaching Hours</p>
-                                        <p class="text-xl font-bold text-gray-900"><?php echo number_format($teachingHours, 1); ?> <span class="text-sm font-normal text-gray-500">hrs/wk</span></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bg-purple-50 rounded-md p-4">
-                                <div class="flex items-center">
-                                    <div class="w-10 h-10 bg-purple-500 rounded-md flex items-center justify-center">
-                                        <i class="fas fa-star text-white"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-gray-600">Specializations</p>
-                                        <p class="text-xl font-bold text-gray-900"><?php echo count($specializations); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Actions Card -->
-                    <div class="bg-white rounded-lg shadow-md p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                            <i class="fas fa-bolt text-amber-500 mr-2"></i>Quick Actions
-                        </h3>
-                        <div class="space-y-3">
-                            <a href="/faculty/schedule" class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 transition-colors">
-                                <div class="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
-                                    <i class="fas fa-calendar text-blue-600"></i>
-                                </div>
-                                <span class="ml-3">View Schedule</span>
-                            </a>
-                            <button type="button" onclick="openModal('addSpecializationModal')" class="flex items-center p-3 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 transition-colors w-full">
-                                <div class="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
-                                    <i class="fas fa-plus text-purple-600"></i>
-                                </div>
-                                <span class="ml-3">Add Specialization</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <button id="editProfileBtn" class="bg-yellow-600 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
+                    <i class="fas fa-edit text-sm"></i>
+                    <span class="text-sm font-medium">Edit Profile</span>
+                </button>
             </div>
+        </header>
 
-            <!-- Specializations Section -->
-            <div class="bg-white rounded-lg shadow-md overflow-hidden mt-6">
-                <div class="bg-gray-50 px-6 py-4 flex justify-between items-center">
-                    <h2 class="text-xl font-semibold text-gray-900 flex items-center">
-                        <i class="fas fa-star text-amber-500 mr-2"></i>Your Specializations
+        <main class="grid grid-cols-layout gap-6">
+            <!-- Main Content -->
+            <div class="space-y-6">
+                <!-- Personal Information -->
+                <section class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-user text-orange-500 mr-2"></i>
+                        Personal Information
                     </h2>
-                    <button type="button" onclick="openModal('addSpecializationModal')" class="px-4 py-2 btn-gold text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 flex items-center">
-                        <i class="fas fa-plus mr-2"></i>Add Specialization
-                    </button>
-                </div>
-                <div class="p-6">
-                    <?php if (empty($specializations)): ?>
-                        <div class="text-center py-12 text-gray-500">
-                            <i class="fas fa-star text-4xl mb-4"></i>
-                            <p class="text-lg font-medium">No specializations yet.</p>
-                            <p class="mt-2">Add your areas of expertise to help with course assignments.</p>
-                            <button type="button" onclick="openModal('addSpecializationModal')" class="mt-4 px-4 py-2 btn-gold text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-                                Add Your First Specialization
-                            </button>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">First Name</label>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($faculty['first_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
-                    <?php else: ?>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <?php foreach ($specializations as $spec): ?>
-                                <div class="bg-gray-50 rounded-md border border-gray-200 p-4 hover:shadow-md transition-all">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium <?php
-                                                                                                                echo $spec['expertise_level'] === 'Expert' ? 'bg-green-100 text-green-800' : ($spec['expertise_level'] === 'Intermediate' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800');
-                                                                                                                ?>">
-                                            <?php echo htmlspecialchars($spec['expertise_level']); ?>
-                                        </span>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Middle Name</label>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($faculty['middle_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Last Name</label>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($faculty['last_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Suffix</label>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($faculty['suffix'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Email Address</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-envelope text-gray-400 mr-2"></i>
+                                <?php echo htmlspecialchars($faculty['email'], ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Phone Number</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-phone text-gray-400 mr-2"></i>
+                                <?php echo htmlspecialchars($faculty['phone'] ?? 'Not provided', ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Academic Information -->
+                <section class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-graduation-cap text-orange-500 mr-2"></i>
+                        Academic Information
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Academic Rank</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-award text-gray-400 mr-2"></i>
+                                <?php echo htmlspecialchars($faculty['academic_rank'] ?? 'Instructor', ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Employment Type</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-briefcase text-gray-400 mr-2"></i>
+                                <?php echo htmlspecialchars($faculty['employment_type'] ?? 'Part-time', ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-sm font-medium text-gray-600">Classification</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-tag text-gray-400 mr-2"></i>
+                                <?php echo htmlspecialchars($faculty['classification'] ?? 'TL', ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Specializations -->
+                <section class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-star text-orange-500 mr-2"></i>
+                            Your Subject Specializations
+                        </h2>
+                        <button id="addSpecializationBtn2" class="btn-orange px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 text-sm">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Subject Specialization</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <?php if (!empty($specializations)): ?>
+                            <?php foreach ($specializations as $specialization): ?>
+                                <div class="specialization-card p-4 rounded-lg">
+                                    <div class="flex items-start justify-between mb-3">
+                                        <div class="flex-1">
+                                            <span class="specialization-level level-<?php echo strtolower($specialization['expertise_level']); ?>">
+                                                <?php echo htmlspecialchars($specialization['expertise_level'], ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </div>
+                                        <div class="flex space-x-1">
+                                            <button class="text-gray-400 hover:text-blue-500 transition-colors" title="Edit">
+                                                <i class="fas fa-edit text-sm"></i>
+                                            </button>
+                                            <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this specialization?');">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="delete_specialization" value="1">
+                                                <input type="hidden" name="specialization_id" value="<?php echo htmlspecialchars($specialization['specialization_id'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <button type="submit" class="text-gray-400 hover:text-red-500 transition-colors" title="Remove">
+                                                    <i class="fas fa-trash text-sm"></i>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </div>
-                                    <h3 class="text-lg font-semibold text-gray-900"><?php echo htmlspecialchars($spec['course_code']); ?></h3>
-                                    <p class="text-gray-600 text-sm"><?php echo htmlspecialchars($spec['course_name']); ?></p>
-                                    <form method="POST" action="/faculty/profile" class="mt-3">
-                                        <input type="hidden" name="specialization_id" value="<?php echo $spec['specialization_id']; ?>">
-                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                                        <button type="submit" name="delete_specialization" onclick="return confirm('Are you sure you want to remove this specialization?')" class="text-red-600 hover:text-red-700 text-sm">
-                                            <i class="fas fa-trash mr-1"></i>Remove
-                                        </button>
-                                    </form>
+                                    <h3 class="font-semibold text-gray-800 mb-2"><?php echo htmlspecialchars($specialization['course_code'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                                    <p class="text-sm text-gray-600"><?php echo htmlspecialchars($specialization['course_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                                 </div>
                             <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="md:col-span-2 lg:col-span-3 text-center py-8">
+                                <i class="fas fa-star text-4xl text-gray-300 mb-4"></i>
+                                <p class="text-gray-500 mb-4">No Subject specializations added yet</p>
+                                <button id="addFirstSpecialization" class="btn-orange px-6 py-3 rounded-lg shadow-md">
+                                    Add Your First Subject Specialization
+                                </button>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="space-y-6">
+                <!-- Quick Stats -->
+                <section class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-chart-line text-orange-500 mr-2"></i>
+                        Quick Stats
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="quick-stats-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-graduation-cap text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-700">Courses Assigned</p>
+                                        <p class="text-2xl font-bold text-blue-600"><?php echo htmlspecialchars($courseCount ?? 0, ENT_QUOTES, 'UTF-8'); ?></p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    <?php endif; ?>
-                </div>
-            </div>
 
-            <!-- Edit Profile Modal -->
-            <div id="editProfileModal" class="modal-overlay fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-                <div class="modal-content">
-                    <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
-                        <h2 class="text-xl font-semibold">Edit Profile</h2>
-                        <button onclick="closeModal('editProfileModal')" class="text-white hover:text-gray-300 text-2xl" aria-label="Close modal">&times;</button>
-                    </div>
-                    <div class="p-6">
-                        <form id="profileForm" method="POST" action="/faculty/profile" enctype="multipart/form-data">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                            <input type="hidden" name="update_profile" value="1">
-                            <div class="space-y-4">
-                                <div class="input-icon">
-                                    <label for="profile_picture" class="block text-sm font-medium text-gray-700">Profile Picture</label>
-                                    <i class="fas fa-camera"></i>
-                                    <input type="file" name="profile_picture" id="profile_picture" accept="image/jpeg,image/png" class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                    <p id="profile-picture-error" class="text-xs text-red-600 mt-1 hidden"></p>
-                                </div>
-                                <div class="input-icon">
-                                    <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
-                                    <i class="fas fa-user"></i>
-                                    <input type="text" name="first_name" id="first_name" value="<?php echo htmlspecialchars($faculty['first_name']); ?>" required
-                                        class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                </div>
-                                <div class="input-icon">
-                                    <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
-                                    <i class="fas fa-user"></i>
-                                    <input type="text" name="last_name" id="last_name" value="<?php echo htmlspecialchars($faculty['last_name']); ?>" required
-                                        class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                </div>
-                                <div class="input-icon">
-                                    <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
-                                    <i class="fas fa-envelope"></i>
-                                    <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($faculty['email']); ?>" required
-                                        class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                </div>
-                                <div class="input-icon">
-                                    <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                                    <i class="fas fa-phone"></i>
-                                    <input type="text" name="phone" id="phone" value="<?php echo htmlspecialchars($faculty['phone'] ?? ''); ?>"
-                                        class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="+63 912 345 6789">
+                        <div class="quick-stats-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-clock text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-700">Teaching Hours</p>
+                                        <p class="text-2xl font-bold text-green-600"><?php echo htmlspecialchars(number_format($teachingHours, 1), ENT_QUOTES, 'UTF-8'); ?> <span class="text-xs font-normal text-gray-500">hrs/wk</span></p>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-6 flex justify-end gap-4">
-                                <button type="button" onclick="closeModal('editProfileModal')" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">
-                                    Cancel
-                                </button>
-                                <button type="submit" id="saveProfileButton" class="px-4 py-2 btn-gold text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-                                    Save Changes
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
+                        </div>
 
-            <!-- Add Specialization Modal -->
-            <div id="addSpecializationModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-                <div class=" bg-white rounded-xl shadow-lg w-full max-w-2xl mx-4 transform modal-content scale-95">
-                    <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
-                        <h2 class="text-xl font-semibold">Add New Specialization</h2>
-                        <button onclick="closeModal('addSpecializationModal')" class="text-white hover:text-gray-300 text-2xl" aria-label="Close modal">&times;</button>
-                    </div>
-                    <div class="p-6">
-                        <form id="specializationForm" method="POST" action="/faculty/profile">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                            <input type="hidden" name="add_specialization" value="1">
-                            <div class="space-y-4">
-                                <div class="input-icon">
-                                    <label for="course_id" class="block text-sm font-medium text-gray-700">Course</label>
-                                    <i class="fas fa-book"></i>
-                                    <select name="course_id" id="course_id" required class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                        <option value="">Select a course</option>
-                                        <?php foreach ($courses as $course): ?>
-                                            <option value="<?php echo $course['course_id']; ?>">
-                                                <?php echo htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="input-icon">
-                                    <label for="expertise_level" class="block text-sm font-medium text-gray-700">Expertise Level</label>
-                                    <i class="fas fa-star"></i>
-                                    <select name="expertise_level" id="expertise_level" class="mt-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                        <option value="Beginner">Beginner - Basic knowledge</option>
-                                        <option value="Intermediate" selected>Intermediate - Solid understanding</option>
-                                        <option value="Expert">Expert - Advanced expertise</option>
-                                    </select>
+                        <div class="quick-stats-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-star text-purple-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-700">Specializations</p>
+                                        <p class="text-2xl font-bold text-purple-600"><?php echo htmlspecialchars(count($specializations), ENT_QUOTES, 'UTF-8'); ?></p>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-6 flex justify-end gap-4">
-                                <button type="button" onclick="closeModal('addSpecializationModal')" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">
-                                    Cancel
-                                </button>
-                                <button type="submit" class="px-4 py-2 btn-gold text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-                                    Add Specialization
-                                </button>
-                            </div>
-                        </form>
+                        </div>
                     </div>
+                </section>
+
+                <!-- Quick Actions -->
+                <section class="bg-white rounded-xl shadow-lg p-6 fade-in">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-bolt text-orange-500 mr-2"></i>
+                        Quick Actions
+                    </h2>
+                    <div class="space-y-3">
+                        <button class="w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
+                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-calendar text-blue-600 text-sm"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-700">View Schedule</span>
+                        </button>
+                        <button id="addSpecializationBtn" class="w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
+                            <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-plus text-purple-600 text-sm"></i>
+                            </div>
+                            <span class="text-sm font-medium text-gray-700">Add Subject Specialization</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Edit Profile Modal -->
+        <div id="editProfileModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-4xl mx-4 transform modal-content scale-95 max-h-[90vh] overflow-y-auto">
+                <div class="bg-yellow-500 text-white p-6 rounded-t-xl flex flex-col sm:flex-row items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-white">
+                            <?php if (!empty($faculty['profile_picture'])): ?>
+                                <img src="<?php echo htmlspecialchars($faculty['profile_picture'], ENT_QUOTES, 'UTF-8'); ?>" alt="Profile Picture" class="w-full h-full object-cover">
+                            <?php else: ?>
+                                <i class="fas fa-user text-3xl text-gray-600 bg-gray-200 w-full h-full flex items-center justify-center"></i>
+                            <?php endif; ?>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold"><?php echo htmlspecialchars($faculty['first_name'] . ' ' . $faculty['last_name'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                            <p class="text-sm font-medium text-orange-100">Faculty | <?php echo htmlspecialchars($faculty['department_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        </div>
+                    </div>
+                    <button id="closeModalBtn" class="text-white hover:text-orange-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200" aria-label="Close modal">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
+
+                <form method="POST" enctype="multipart/form-data" action="/faculty/profile" class="p-6">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="update_profile" value="1">
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Personal Information -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center space-x-2">
+                                <i class="fas fa-user text-orange-500"></i>
+                                <span>Personal Information</span>
+                            </h4>
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="first_name_modal" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-user text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="first_name_modal" name="first_name" required value="<?php echo htmlspecialchars($faculty['first_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label for="middle_name_modal" class="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-user text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="middle_name_modal" name="middle_name" value="<?php echo htmlspecialchars($faculty['middle_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="last_name_modal" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-user text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="last_name_modal" name="last_name" required value="<?php echo htmlspecialchars($faculty['last_name'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label for="suffix_modal" class="block text-sm font-medium text-gray-700 mb-1">Suffix (ex. Jr. Sr. III)</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-user text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="suffix_modal" name="suffix" value="<?php echo htmlspecialchars($faculty['suffix'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="title_modal" class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-user text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="title_modal" name="title" value="<?php echo htmlspecialchars($faculty['title'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="email_modal" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-envelope text-gray-400"></i>
+                                        </div>
+                                        <input type="email" id="email_modal" name="email" required value="<?php echo htmlspecialchars($faculty['email'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="phone_modal" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-phone text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="phone_modal" name="phone" value="<?php echo htmlspecialchars($faculty['phone'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="profile_picture" class="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
+                                    <div class="file-input-wrapper relative">
+                                        <input type="file" name="profile_picture" id="profile_picture" accept="image/jpeg,image/png" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100">
+                                        <p class="text-xs text-gray-600 mt-2">Accepted formats: JPEG, PNG (max 2MB)</p>
+                                    </div>
+                                    <?php if (!empty($faculty['profile_picture'])): ?>
+                                        <button type="submit" name="remove_profile_picture" value="1" class="mt-2 text-red-500 hover:text-red-700 text-sm" onclick="return confirm('Are you sure you want to remove your profile picture?');">Remove Picture</button>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Academic Information -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center space-x-2">
+                                <i class="fas fa-graduation-cap text-orange-500"></i>
+                                <span>Academic Information</span>
+                            </h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="academic_rank" class="block text-sm font-medium text-gray-700 mb-1">Academic Rank</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-graduation-cap text-gray-400"></i>
+                                        </div>
+                                        <select id="academic_rank" name="academic_rank" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                            <option value="">Select Academic Rank</option>
+                                            <option value="Instructor" <?php echo $faculty['academic_rank'] === 'Instructor' ? 'selected' : ''; ?>>Instructor</option>
+                                            <option value="Assistant Professor" <?php echo $faculty['academic_rank'] === 'Assistant Professor' ? 'selected' : ''; ?>>Assistant Professor</option>
+                                            <option value="Associate Professor" <?php echo $faculty['academic_rank'] === 'Associate Professor' ? 'selected' : ''; ?>>Associate Professor</option>
+                                            <option value="Professor" <?php echo $faculty['academic_rank'] === 'Professor' ? 'selected' : ''; ?>>Professor</option>
+                                            <option value="Chair Professor" <?php echo $faculty['academic_rank'] === 'Chair Professor' ? 'selected' : ''; ?>>Chair Professor</option>
+                                            <option value="Dean" <?php echo $faculty['academic_rank'] === 'Dean' ? 'selected' : ''; ?>>Dean</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="employment_type" class="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-briefcase text-gray-400"></i>
+                                        </div>
+                                        <select id="employment_type" name="employment_type" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                            <option value="">Select Employment Type</option>
+                                            <option value="Full-time" <?php echo $faculty['employment_type'] === 'Full-time' ? 'selected' : ''; ?>>Full-time</option>
+                                            <option value="Part-time" <?php echo $faculty['employment_type'] === 'Part-time' ? 'selected' : ''; ?>>Part-time</option>
+                                            <option value="Adjunct" <?php echo $faculty['employment_type'] === 'Adjunct' ? 'selected' : ''; ?>>Adjunct</option>
+                                            <option value="Visiting" <?php echo $faculty['employment_type'] === 'Visiting' ? 'selected' : ''; ?>>Visiting</option>
+                                            <option value="Emeritus" <?php echo $faculty['employment_type'] === 'Emeritus' ? 'selected' : ''; ?>>Emeritus</option>
+                                            <option value="Contractual" <?php echo $faculty['employment_type'] === 'Contractual' ? 'selected' : ''; ?>>Contractual</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="classification" class="block text-sm font-medium text-gray-700 mb-1">Classification</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-tag text-gray-400"></i>
+                                        </div>
+                                        <select id="classification" name="classification" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                            <option value="">Select Classification</option>
+                                            <option value="VSL" <?php echo $faculty['classification'] === 'VSL' ? 'selected' : ''; ?>>VSL</option>
+                                            <option value="TL" <?php echo $faculty['classification'] === 'TL' ? 'selected' : ''; ?>>TL</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-8">
+                        <button type="button" id="cancelModalBtn" class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
+                        <button type="submit" class="btn-orange px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Specialization Modal -->
+        <div id="addSpecializationModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-md mx-4 transform modal-content scale-95">
+                <div class="bg-purple-600 text-white p-6 rounded-t-xl flex items-center justify-between">
+                    <h3 class="text-xl font-bold flex items-center">
+                        <i class="fas fa-plus mr-2"></i>
+                        Add Subject Specialization
+                    </h3>
+                    <button id="closeSpecializationModalBtn" class="text-white hover:text-purple-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <form method="POST" action="/faculty/profile" class="p-6">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="add_specialization" value="1">
+
+                    <div class="space-y-4">
+                        <div>
+                            <label for="course_id" class="block text-sm font-medium text-gray-700 mb-1">Course/Subject</label>
+                            <select id="course_id" name="course_id" required class="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                <option value="">Select a course</option>
+                                <?php
+                                foreach ($courses as $course) {
+                                    echo "<option value=\"{$course['course_id']}\">{$course['course_code']} - {$course['course_name']}</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="expertise_level" class="block text-sm font-medium text-gray-700 mb-1">Expertise Level</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="fas fa-star text-gray-400"></i>
+                                </div>
+                                <select id="expertise_level" name="expertise_level" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    <option value="">Select Level</option>
+                                    <option value="Beginner">Beginner</option>
+                                    <option value="Intermediate" selected>Intermediate</option>
+                                    <option value="Expert">Expert</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="specialization_notes" class="block text-sm font-medium text-gray-700 mb-1">Additional Notes (Optional)</label>
+                            <textarea id="specialization_notes" name="notes" rows="3" class="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white shadow-sm input-focus" placeholder="Any additional information about your specialization..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-6">
+                        <button type="button" id="cancelSpecializationBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
+                        <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-lg shadow-md transition-all duration-200 font-medium">Add Specialization</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
     <script>
-        function openModal(modalId) {
-            const modal = document.getElementById(modalId);
-            modal.classList.remove('hidden');
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-            modal.querySelector('select, input').focus();
-        }
-
-        function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            modal.classList.remove('active');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                document.body.style.overflow = 'auto';
-            }, 300);
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
-            // Modal handling
-            const modals = ['editProfileModal', 'addSpecializationModal'];
-            modals.forEach(modalId => {
-                const modal = document.getElementById(modalId);
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) closeModal(modalId);
+            <?php if (isset($_SESSION['flash'])): ?>
+                showToast('<?php echo htmlspecialchars($_SESSION['flash']['message'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $_SESSION['flash']['type'] === 'success' ? 'bg-green-500' : 'bg-red-500'; ?>');
+                <?php unset($_SESSION['flash']); ?>
+            <?php endif; ?>
+
+            function showToast(message, bgColor) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg flex items-center`;
+                toast.textContent = message;
+                toast.setAttribute('role', 'alert');
+                document.getElementById('toast-container').appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            }
+
+            // Profile Modal Functions
+            function openProfileModal() {
+                const modal = document.getElementById('editProfileModal');
+                const modalContent = modal.querySelector('.modal-content');
+                modal.classList.remove('hidden');
+                setTimeout(() => modalContent.classList.add('scale-100'), 50);
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeProfileModal() {
+                const modal = document.getElementById('editProfileModal');
+                const modalContent = modal.querySelector('.modal-content');
+                modalContent.classList.remove('scale-100');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }, 300);
+            }
+
+            // Specialization Modal Functions
+            function openSpecializationModal() {
+                const modal = document.getElementById('addSpecializationModal');
+                const modalContent = modal.querySelector('.modal-content');
+                modal.classList.remove('hidden');
+                setTimeout(() => modalContent.classList.add('scale-100'), 50);
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSpecializationModal() {
+                const modal = document.getElementById('addSpecializationModal');
+                const modalContent = modal.querySelector('.modal-content');
+                modalContent.classList.remove('scale-100');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                    // Reset form
+                    modal.querySelector('form').reset();
+                }, 300);
+            }
+
+            // Event Listeners
+            document.getElementById('editProfileBtn').addEventListener('click', openProfileModal);
+            document.getElementById('closeModalBtn').addEventListener('click', closeProfileModal);
+            document.getElementById('cancelModalBtn').addEventListener('click', closeProfileModal);
+
+            // Specialization modal event listeners
+            document.getElementById('addSpecializationBtn').addEventListener('click', openSpecializationModal);
+            document.getElementById('addSpecializationBtn2').addEventListener('click', openSpecializationModal);
+            document.getElementById('addFirstSpecialization')?.addEventListener('click', openSpecializationModal);
+            document.getElementById('closeSpecializationModalBtn').addEventListener('click', closeSpecializationModal);
+            document.getElementById('cancelSpecializationBtn').addEventListener('click', closeSpecializationModal);
+
+            // Close modals when clicking outside
+            document.getElementById('editProfileModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('editProfileModal')) closeProfileModal();
+            });
+
+            document.getElementById('addSpecializationModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('addSpecializationModal')) closeSpecializationModal();
+            });
+
+            // Close modals with Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (!document.getElementById('editProfileModal').classList.contains('hidden')) {
+                        closeProfileModal();
+                    }
+                    if (!document.getElementById('addSpecializationModal').classList.contains('hidden')) {
+                        closeSpecializationModal();
+                    }
+                }
+            });
+
+            // Form Validation
+            const profileForm = document.querySelector('#editProfileModal form');
+            profileForm.addEventListener('submit', (e) => {
+                let isValid = true;
+
+                // Validate required fields
+                profileForm.querySelectorAll('input[required]').forEach(input => {
+                    if (!input.value.trim()) {
+                        input.classList.add('border-red-500');
+                        isValid = false;
+                    } else {
+                        input.classList.remove('border-red-500');
+                    }
+                });
+
+                // Email validation
+                const emailInput = document.getElementById('email_modal');
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(emailInput.value.trim())) {
+                    emailInput.classList.add('border-red-500');
+                    isValid = false;
+                } else {
+                    emailInput.classList.remove('border-red-500');
+                }
+
+                // Phone validation (optional but if provided, should be valid)
+                const phoneInput = document.getElementById('phone_modal');
+                const phoneRegex = /^\d{10,12}$/;
+                if (phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
+                    phoneInput.classList.add('border-red-500');
+                    isValid = false;
+                } else {
+                    phoneInput.classList.remove('border-red-500');
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    showToast('Please fill in all required fields correctly.', 'bg-red-500');
+                }
+            });
+
+            // Specialization form validation
+            const specializationForm = document.querySelector('#addSpecializationModal form');
+            specializationForm.addEventListener('submit', (e) => {
+                const courseSelect = document.getElementById('course_id');
+                const levelSelect = document.getElementById('expertise_level');
+                let isValid = true;
+
+                if (!courseSelect.value) {
+                    courseSelect.classList.add('border-red-500');
+                    isValid = false;
+                } else {
+                    courseSelect.classList.remove('border-red-500');
+                }
+
+                if (!levelSelect.value) {
+                    levelSelect.classList.add('border-red-500');
+                    isValid = false;
+                } else {
+                    levelSelect.classList.remove('border-red-500');
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    showToast('Please select both course and expertise level.', 'bg-red-500');
+                }
+            });
+
+            // Real-time validation
+            profileForm.querySelectorAll('input[required]').forEach(input => {
+                input.addEventListener('input', () => {
+                    if (input.value.trim()) {
+                        input.classList.remove('border-red-500');
+                    }
                 });
             });
 
-            // Close modals on Escape key
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    modals.forEach(closeModal);
-                }
-            });
-
-            // Profile picture handling
-            const profilePictureInput = document.getElementById('profile_picture');
-            const profilePicturePreview = document.getElementById('profilePicturePreview');
-            const profilePicturePlaceholder = document.getElementById('profilePicturePlaceholder');
-            const errorElement = document.getElementById('profile-picture-error');
-
-            profilePictureInput.addEventListener('change', function() {
-                const file = this.files[0];
-                errorElement.classList.add('hidden');
-
-                if (file) {
-                    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-                        errorElement.textContent = 'Please select a JPEG or PNG image file.';
-                        errorElement.classList.remove('hidden');
-                        this.value = '';
-                        return;
-                    }
-
-                    if (file.size > 2 * 1024 * 1024) {
-                        errorElement.textContent = 'File size must be less than 2MB.';
-                        errorElement.classList.remove('hidden');
-                        this.value = '';
-                        return;
-                    }
-
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        if (profilePicturePreview) {
-                            profilePicturePreview.src = e.target.result;
-                        } else if (profilePicturePlaceholder) {
-                            profilePicturePlaceholder.outerHTML = `<img id="profilePicturePreview" src="${e.target.result}" alt="Profile Picture" class="w-full h-full object-cover">`;
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            // Profile form validation
-            const profileForm = document.getElementById('profileForm');
-            const saveProfileButton = document.getElementById('saveProfileButton');
-            profileForm.addEventListener('submit', function(e) {
-                const firstName = document.getElementById('first_name').value.trim();
-                const lastName = document.getElementById('last_name').value.trim();
-                const email = document.getElementById('email').value.trim();
+            document.getElementById('email_modal').addEventListener('input', function() {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!firstName || !lastName || !email) {
-                    e.preventDefault();
-                    errorElement.textContent = 'Please fill in all required fields.';
-                    errorElement.classList.remove('hidden');
-                    return;
+                if (emailRegex.test(this.value.trim())) {
+                    this.classList.remove('border-red-500');
                 }
-
-                if (!emailRegex.test(email)) {
-                    e.preventDefault();
-                    errorElement.textContent = 'Please enter a valid email address.';
-                    errorElement.classList.remove('hidden');
-                    return;
-                }
-
-                saveProfileButton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>Saving...`;
-                saveProfileButton.disabled = true;
             });
 
-            // Academic form validation
-            const academicForm = document.getElementById('academicForm');
-            const saveAcademicButton = document.getElementById('saveAcademicButton');
-            academicForm.addEventListener('submit', function(e) {
-                const academicRank = document.getElementById('academic_rank').value;
-                const employmentType = document.getElementById('employment_type').value;
-                const classification = document.getElementById('classification').value;
-
-                if (academicRank && !['Instructor', 'Assistant Professor', 'Associate Professor', 'Professor', 'Chair Professor', 'Dean'].includes(academicRank)) {
-                    e.preventDefault();
-                    errorElement.textContent = 'Invalid academic rank selected.';
-                    errorElement.classList.remove('hidden');
-                    return;
+            document.getElementById('phone_modal').addEventListener('input', function() {
+                const phoneRegex = /^\d{10,12}$/;
+                if (!this.value.trim() || phoneRegex.test(this.value.trim())) {
+                    this.classList.remove('border-red-500');
                 }
-
-                if (employmentType && !['Full-time', 'Part-time', 'Contractual'].includes(employmentType)) {
-                    e.preventDefault();
-                    errorElement.textContent = 'Invalid employment type selected.';
-                    errorElement.classList.remove('hidden');
-                    return;
-                }
-
-                if (classification && !['TL', 'VSL', ''].includes(classification)) {
-                    e.preventDefault();
-                    errorElement.textContent = 'Invalid classification selected.';
-                    errorElement.classList.remove('hidden');
-                    return;
-                }
-
-                saveAcademicButton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>Saving...`;
-                saveAcademicButton.disabled = true;
             });
 
-            // Auto-hide flash messages
-            const flashToast = document.getElementById('flashToast');
-            if (flashToast) {
-                setTimeout(() => {
-                    flashToast.classList.add('toast-hidden');
-                    setTimeout(() => flashToast.remove(), 300);
-                }, 5000);
-            }
+            // File input validation
+            const profileInput = document.getElementById('profile_picture');
+            profileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const validTypes = ['image/jpeg', 'image/png'];
+                    if (!validTypes.includes(file.type)) {
+                        showToast('Only JPEG or PNG files are allowed.', 'bg-red-500');
+                        this.value = '';
+                        return;
+                    }
+                    if (file.size > 2 * 1024 * 1024) {
+                        showToast('File size must be less than 2MB.', 'bg-red-500');
+                        this.value = '';
+                        return;
+                    }
+                }
+            });
+
+            // Specialization select validation
+            document.getElementById('course_id').addEventListener('change', function() {
+                if (this.value) {
+                    this.classList.remove('border-red-500');
+                }
+            });
+
+            document.getElementById('expertise_level').addEventListener('change', function() {
+                if (this.value) {
+                    this.classList.remove('border-red-500');
+                }
+            });
         });
     </script>
 </body>
 
 </html>
+
 <?php
 $content = ob_get_clean();
 require_once __DIR__ . '/layout.php';
