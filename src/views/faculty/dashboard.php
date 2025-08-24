@@ -102,18 +102,42 @@ ob_start();
 </head>
 
 <body class="bg-gray-100">
-   
+
 
     <!-- Main content -->
-    <div class="flex flex-col p-6 bg-gray-100 min-h-screen">
+    <div class="flex flex-col min-h-screen">
         <div class="mb-8">
             <div class="flex justify-between items-center">
-                <div>
-                    <h1 class="text-3xl font-bold text-gray-900">Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h1>
-                    <p class="mt-2 text-lg text-gray-600">Department: <span class="font-semibold text-gold-600"><?php echo htmlspecialchars($departmentName); ?></span></p>
-                </div>
                 <div class="text-sm text-gray-500">
                     <?php echo date('l, F j, Y'); ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Header Section with Gold Accent -->
+        <div class="bg-gray-800 text-white rounded-xl p-6 mb-8 shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
+                    <h3 class="text-2xl font-bold text-white">Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h3>
+                    <?php if (isset($departmentName) && !empty($departmentName)): ?>
+                        <p class="text-gray-300 mt-2"><?php echo htmlspecialchars($departmentName); ?></p>
+                    <?php endif; ?>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <span class="text-sm bg-gray-700 px-3 py-1 rounded-full flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <?php echo htmlspecialchars($semesterInfo, ENT_QUOTES, 'UTF-8'); ?>
+                    </span>
+                    <span class="text-sm bg-yellow-600 px-3 py-1 rounded-full flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Active Term
+                    </span>
                 </div>
             </div>
         </div>

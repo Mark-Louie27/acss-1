@@ -51,6 +51,42 @@ ob_start();
             height: 40px;
             border-radius: 50%;
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .close:hover {
+            color: #000;
+        }
     </style>
 </head>
 
@@ -58,6 +94,17 @@ ob_start();
     <div class="p-6 my-8 min-h-screen flex flex-col">
         <!-- Toast Container -->
         <div id="toast-container" class="toast"></div>
+
+        <!-- Modal -->
+        <div id="userModal" class="modal z-50 fixed inset-0 flex items-center justify-center">
+            <div class="modal-content">
+                <span class="close" onclick="document.getElementById('userModal').style.display='none'">&times;</span>
+                <h2 id="modalTitle" class="text-xl font-bold mb-4">User Information</h2>
+                <div id="modalBody" class="space-y-4">
+                    <!-- Dynamic content will be populated here -->
+                </div>
+            </div>
+        </div>
 
         <!-- Header -->
         <header class="bg-gray-800 text-white shadow-md">
@@ -210,8 +257,12 @@ ob_start();
                                             <tr class="hover:bg-gray-50 table-row"
                                                 data-department="<?php echo $chair['department_id']; ?>"
                                                 data-status="<?php echo $chair['is_active'] ? 'active' : 'inactive'; ?>"
-                                                data-name="<?php echo htmlspecialchars(strtolower($chair['last_name'] . ' ' . $chair['first_name'])); ?>">
-                                                <td class="py-4 px-6">
+                                                data-name="<?php echo htmlspecialchars(strtolower($chair['last_name'] . ' ' . $chair['first_name'])); ?>"
+                                                data-user-id="<?php echo $chair['user_id']; ?>"
+                                                data-email="<?php echo htmlspecialchars($chair['email']); ?>"
+                                                data-program="<?php echo htmlspecialchars($chair['program_name']); ?>"
+                                                data-department-name="<?php echo htmlspecialchars($chair['department_name']); ?>">
+                                                <td class="py-4 px-6 cursor-pointer" onclick="showUserModal(<?php echo $chair['user_id']; ?>, 'chair')">
                                                     <div class="flex items-center">
                                                         <div class="flex-shrink-0 h-10 w-10">
                                                             <?php if (!empty($chair['profile_picture']) && file_exists(__DIR__ . '/../../' . $chair['profile_picture'])): ?>
@@ -296,8 +347,13 @@ ob_start();
                                             <tr class="hover:bg-gray-50 table-row"
                                                 data-department="<?php echo $member['department_id']; ?>"
                                                 data-status="<?php echo $member['is_active'] ? 'active' : 'inactive'; ?>"
-                                                data-name="<?php echo htmlspecialchars(strtolower($member['last_name'] . ' ' . $member['first_name'])); ?>">
-                                                <td class="py-4 px-6">
+                                                data-name="<?php echo htmlspecialchars(strtolower($member['last_name'] . ' ' . $member['first_name'])); ?>"
+                                                data-user-id="<?php echo $member['user_id']; ?>"
+                                                data-email="<?php echo htmlspecialchars($member['email']); ?>"
+                                                data-academic-rank="<?php echo htmlspecialchars($member['academic_rank']); ?>"
+                                                data-employment-type="<?php echo htmlspecialchars($member['employment_type']); ?>"
+                                                data-department-name="<?php echo htmlspecialchars($member['department_name']); ?>">
+                                                <td class="py-4 px-6 cursor-pointer" onclick="showUserModal(<?php echo $member['user_id']; ?>, 'faculty')">
                                                     <div class="flex items-center">
                                                         <div class="flex-shrink-0 h-10 w-10">
                                                             <?php if (!empty($member['profile_picture']) && file_exists(__DIR__ . '/../../' . $member['profile_picture'])): ?>
@@ -382,8 +438,12 @@ ob_start();
                                         </tr>
                                     <?php else: ?>
                                         <?php foreach ($pendingUsers as $user): ?>
-                                            <tr class="hover:bg-gray-50">
-                                                <td class="py-4 px-6">
+                                            <tr class="hover:bg-gray-50"
+                                                data-user-id="<?php echo $user['user_id']; ?>"
+                                                data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                                data-role="<?php echo htmlspecialchars($user['role_name']); ?>"
+                                                data-department-name="<?php echo htmlspecialchars($user['department_name']); ?>">
+                                                <td class="py-4 px-6 cursor-pointer" onclick="showUserModal(<?php echo $user['user_id']; ?>, 'pending')">
                                                     <div class="flex items-center">
                                                         <div class="flex-shrink-0 h-10 w-10 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center">
                                                             <span class="font-medium">
@@ -440,6 +500,73 @@ ob_start();
                 toast.style.transition = 'opacity 1s';
                 setTimeout(() => toast.remove(), 1000);
             }, 5000);
+        }
+
+        function showUserModal(userId, type) {
+            const modal = document.getElementById('userModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            let userData = null;
+
+            // Fetch user data based on type and userId
+            const tables = {
+                'chair': document.getElementById('programChairsTable'),
+                'faculty': document.getElementById('facultyTable'),
+                'pending': document.querySelector('#pending-content table')
+            };
+            const table = tables[type];
+            if (table) {
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    if (row.getAttribute('data-user-id') == userId) {
+                        userData = {
+                            name: row.querySelector('td:first-child .font-medium')?.textContent.trim() || 'Unknown',
+                            email: row.getAttribute('data-email') || 'N/A',
+                            department: row.getAttribute('data-department-name') || 'N/A',
+                            ...(type === 'chair' && {
+                                program: row.getAttribute('data-program') || 'N/A'
+                            }),
+                            ...(type === 'faculty' && {
+                                academicRank: row.getAttribute('data-academic-rank') || 'N/A',
+                                employmentType: row.getAttribute('data-employment-type') || 'N/A'
+                            }),
+                            ...(type === 'pending' && {
+                                role: row.getAttribute('data-role') || 'N/A'
+                            })
+                        };
+                    }
+                });
+            }
+
+            if (!userData) {
+                modalBody.innerHTML = '<p>User data not found.</p>';
+                return;
+            }
+
+            // Populate modal
+            modalTitle.textContent = `${userData.name} - Information`;
+            modalBody.innerHTML = `
+        <div class="flex items-center mb-4">
+            <div class="flex-shrink-0 h-16 w-16 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center mr-4">
+                <span class="font-medium text-xl">
+                    ${userData.name.split(', ').length > 1 ? 
+                        userData.name.split(', ')[1].trim()[0] + userData.name.split(', ')[0].trim()[0] : 
+                        userData.name.trim()[0] || 'U'}
+                </span>
+            </div>
+            <div>
+                <p><strong>Email:</strong> ${userData.email}</p>
+                <p><strong>Department:</strong> ${userData.department}</p>
+                ${type === 'chair' ? `<p><strong>Program:</strong> ${userData.program}</p>` : ''}
+                ${type === 'faculty' ? `
+                    <p><strong>Academic Rank:</strong> ${userData.academicRank}</p>
+                    <p><strong>Employment Type:</strong> ${userData.employmentType}</p>
+                ` : ''}
+                ${type === 'pending' ? `<p><strong>Role:</strong> ${userData.role}</p>` : ''}
+            </div>
+        </div>
+    `;
+            modal.style.display = 'block';
         }
 
         // Tab functionality
@@ -576,6 +703,14 @@ ob_start();
                 }, 5000);
             });
         });
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('userModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
     </script>
 </body>
 

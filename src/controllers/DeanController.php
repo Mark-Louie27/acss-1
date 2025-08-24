@@ -93,9 +93,30 @@ class DeanController
             'pending_approvals' => $this->getPendingApprovals($college['college_id'])
         ];
 
+        $activities = $this->getDepartmentActivities($college['college_id']);
+
         // Pass semester and schedules to the view
         $currentSemester = $currentSemesterDisplay;
         require_once __DIR__ . '/../views/dean/dashboard.php';
+    }
+
+    private function getDepartmentActivities($collegeId)
+    {
+        try {
+            $query = "
+            SELECT al.*, d.department_name
+            FROM activity_logs al
+            JOIN departments d ON al.department_id = d.department_id
+            WHERE d.college_id = :college_id
+            ORDER BY al.created_at DESC
+            LIMIT 10"; // Limit to 10 recent activities
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':college_id' => $collegeId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getDepartmentActivities: Error - " . $e->getMessage());
+            return [];
+        }
     }
 
     private function getCollegeStats($collegeId, $type)
@@ -364,13 +385,13 @@ class DeanController
 
             // Fetch Program Chairs
             $queryChairs = "
-                SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, pc.program_id, p.program_name, d.department_name, d.department_id
-                FROM users u
-                JOIN program_chairs pc ON u.user_id = pc.user_id
-                JOIN programs p ON pc.program_id = p.program_id
-                JOIN departments d ON p.department_id = d.department_id
-                WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
-                ORDER BY u.last_name, u.first_name";
+            SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, pc.program_id, p.program_name, d.department_name, d.department_id
+            FROM users u
+            JOIN program_chairs pc ON u.user_id = pc.user_id
+            JOIN programs p ON pc.program_id = p.program_id
+            JOIN departments d ON p.department_id = d.department_id
+            WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
+            ORDER BY u.last_name, u.first_name";
             $stmtChairs = $this->db->prepare($queryChairs);
             if (!$stmtChairs) {
                 throw new PDOException("Failed to prepare queryChairs: " . implode(', ', $this->db->errorInfo()));
@@ -379,15 +400,15 @@ class DeanController
             $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
             error_log("faculty: Fetched " . count($programChairs) . " program chairs");
 
-            // Fetch Faculty (only those with primary department in Dean's college)
+            // Fetch Faculty
             $queryFaculty = "
-                SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, f.academic_rank, f.employment_type, d.department_name, d.department_id
-                FROM users u
-                JOIN faculty f ON u.user_id = f.user_id
-                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                JOIN departments d ON fd.department_id = d.department_id
-                WHERE d.college_id = :college_id AND u.role_id = 6 AND fd.is_primary = 1
-                ORDER BY u.last_name, u.first_name";
+            SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, f.academic_rank, f.employment_type, d.department_name, d.department_id
+            FROM users u
+            JOIN faculty f ON u.user_id = f.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            WHERE d.college_id = :college_id AND u.role_id = 6 AND fd.is_primary = 1
+            ORDER BY u.last_name, u.first_name";
             $stmtFaculty = $this->db->prepare($queryFaculty);
             if (!$stmtFaculty) {
                 throw new PDOException("Failed to prepare queryFaculty: " . implode(', ', $this->db->errorInfo()));
@@ -398,12 +419,12 @@ class DeanController
 
             // Fetch pending users
             $queryPending = "
-                SELECT u.user_id, u.email, u.first_name, u.last_name, u.role_id, r.role_name, d.department_name, d.department_id
-                FROM users u
-                JOIN roles r ON u.role_id = r.role_id
-                JOIN departments d ON u.department_id = d.department_id
-                WHERE u.college_id = :college_id AND u.is_active = 0 AND u.role_id IN (5, 6)
-                ORDER BY u.created_at";
+            SELECT u.user_id, u.email, u.first_name, u.last_name, u.role_id, r.role_name, d.department_name, d.department_id
+            FROM users u
+            JOIN roles r ON u.role_id = r.role_id
+            JOIN departments d ON u.department_id = d.department_id
+            WHERE u.college_id = :college_id AND u.is_active = 0 AND u.role_id IN (5, 6)
+            ORDER BY u.created_at";
             $stmtPending = $this->db->prepare($queryPending);
             if (!$stmtPending) {
                 throw new PDOException("Failed to prepare queryPending: " . implode(', ', $this->db->errorInfo()));
@@ -414,10 +435,10 @@ class DeanController
 
             // Fetch departments for filter
             $queryDepartments = "
-                SELECT department_id, department_name
-                FROM departments
-                WHERE college_id = :college_id
-                ORDER BY department_name";
+            SELECT department_id, department_name
+            FROM departments
+            WHERE college_id = :college_id
+            ORDER BY department_name";
             $stmtDepartments = $this->db->prepare($queryDepartments);
             if (!$stmtDepartments) {
                 throw new PDOException("Failed to prepare queryDepartments: " . implode(', ', $this->db->errorInfo()));
@@ -428,10 +449,10 @@ class DeanController
 
             // Fetch current semester
             $querySemester = "
-                SELECT semester_name, academic_year
-                FROM semesters
-                WHERE is_current = 1
-                LIMIT 1";
+            SELECT semester_name, academic_year
+            FROM semesters
+            WHERE is_current = 1
+            LIMIT 1";
             $stmtSemester = $this->db->prepare($querySemester);
             if (!$stmtSemester) {
                 throw new PDOException("Failed to prepare querySemester: " . implode(', ', $this->db->errorInfo()));
@@ -478,6 +499,7 @@ class DeanController
         $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
         $action = $data['action'];
         $collegeId = $this->getDeanCollegeId($_SESSION['user_id']);
+        $departmentId = $this->getUserDepartmentId($userId); // Assuming this method exists to get department_id
 
         if (!$userId || !$collegeId) {
             error_log("handleUserAction: Invalid user_id=$userId or college_id=$collegeId");
@@ -493,6 +515,7 @@ class DeanController
                 $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
                 error_log("handleUserAction: Deactivated user_id=$userId");
                 $message = 'User account deactivated successfully';
+                $this->logActivity($_SESSION['user_id'], $departmentId, 'Deactivate User', "Deactivated user ID $userId", 'users', $userId);
             } elseif ($action === 'activate') {
                 $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id AND college_id = :college_id";
                 $stmt = $this->db->prepare($query);
@@ -501,9 +524,9 @@ class DeanController
 
                 // Fetch user details for email
                 $query = "SELECT u.email, u.first_name, u.last_name, u.role_id AS user_role_id, r.role_name 
-                          FROM users u 
-                          JOIN roles r ON u.role_id = r.role_id 
-                          WHERE u.user_id = :user_id";
+                      FROM users u 
+                      JOIN roles r ON u.role_id = r.role_id 
+                      WHERE u.user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 if (!$stmt) {
                     throw new PDOException("Failed to prepare user details query: " . implode(', ', $this->db->errorInfo()));
@@ -521,6 +544,7 @@ class DeanController
                     error_log("handleUserAction: No user found for user_id=$userId");
                 }
                 $message = 'User account activated successfully';
+                $this->logActivity($_SESSION['user_id'], $departmentId, 'Activate User', "Activated user ID $userId", 'users', $userId);
             } else {
                 throw new Exception("Invalid action: $action");
             }
@@ -532,6 +556,41 @@ class DeanController
             error_log("handleUserAction: Error - " . $e->getMessage());
             return ['success' => false, 'error' => 'An error occurred while processing the action: ' . $e->getMessage()];
         }
+    }
+
+    // Assumed logActivity method (add to class if not present)
+    private function logActivity($userId, $departmentId, $actionType, $actionDescription, $entityType, $entityId, $metadataId = null)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            INSERT INTO activity_logs 
+            (user_id, department_id, action_type, action_description, entity_type, entity_id, metadata_id, created_at) 
+            VALUES (:user_id, :department_id, :action_type, :action_description, :entity_type, :entity_id, :metadata_id, NOW())
+        ");
+            $params = [
+                ':user_id' => $userId,
+                ':department_id' => $departmentId,
+                ':action_type' => $actionType,
+                ':action_description' => $actionDescription,
+                ':entity_type' => $entityType,
+                ':entity_id' => $entityId,
+                ':metadata_id' => $metadataId
+            ];
+            error_log("Logging activity: Query = INSERT INTO activity_log ..., Params = " . json_encode($params));
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            error_log("logActivity: Failed to log activity - " . $e->getMessage());
+        }
+    }
+
+    // Assumed helper method to get department_id for a user
+    private function getUserDepartmentId($userId)
+    {
+        $query = "SELECT department_id FROM users WHERE user_id = :user_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':user_id' => $userId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? $result['department_id'] : null;
     }
 
     public function search()

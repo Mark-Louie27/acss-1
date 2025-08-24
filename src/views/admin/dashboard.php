@@ -39,6 +39,33 @@ ob_start();
             </div>
         <?php endif; ?>
 
+        <!-- Main Header Section with Gold Accent -->
+        <div class="bg-gray-800 text-white rounded-xl p-6 mb-8 shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
+                    <?php if (isset($departmentName) && !empty($departmentName)): ?>
+                        <p class="text-gray-300 mt-2">Department of <?php echo htmlspecialchars($departmentName); ?></p>
+                    <?php endif; ?>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <span class="text-sm bg-gray-700 px-3 py-1 rounded-full flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <?php echo htmlspecialchars($semesterInfo, ENT_QUOTES, 'UTF-8'); ?>
+                    </span>
+                    <span class="text-sm bg-yellow-600 px-3 py-1 rounded-full flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Active Term
+                    </span>
+                </div>
+            </div>
+        </div>
+
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
             <!-- Total Users Card -->
@@ -179,6 +206,99 @@ ob_start();
                     </div>
                 </div>
                 <div class="h-1 bg-gradient-to-r from-yellow-400 to-yellow-600"></div>
+            </div>
+        </div>
+
+        <!-- Semester Selection Form -->
+        <div class="bg-white rounded-xl p-6 mb-8 shadow-lg border border-gray-100">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Set Current Semester</h2>
+            <form method="POST" class="flex items-center space-x-4">
+                <div class="flex-1">
+                    <label for="semester_name" class="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                    <select id="semester_name" name="semester_name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                        <option value="1st" <?php echo $currentSemester && $currentSemester['semester_name'] === '1st' ? 'selected' : ''; ?>>1st</option>
+                        <option value="2nd" <?php echo $currentSemester && $currentSemester['semester_name'] === '2nd' ? 'selected' : ''; ?>>2nd</option>
+                        <option value="Summer" <?php echo $currentSemester && $currentSemester['semester_name'] === 'Summer' ? 'selected' : ''; ?>>Summer</option>
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <label for="academic_year" class="block text-sm font-medium text-gray-700 mb-1">Academic Year (YYYY-YYYY)</label>
+                    <input type="text" id="academic_year" name="academic_year" value="<?php echo htmlspecialchars($currentSemester['academic_year'] ?? '2024-2025', ENT_QUOTES, 'UTF-8'); ?>" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="e.g., 2024-2025">
+                </div>
+                <button type="submit" name="set_semester" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors duration-200">
+                    Set Semester
+                </button>
+            </form>
+        </div>
+
+        <!-- My Schedule Section -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-xl shadow-md p-6 h-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-gray-900">My Schedule</h3>
+                    <div class="text-sm text-gray-500 flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2024-2025'); ?>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-yellow-600 text-white">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Course Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Course Code</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Section</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Room</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Day</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <?php if (isset($schedules) && !empty($schedules)): ?>
+                                <?php foreach ($schedules as $schedule): ?>
+                                    <tr class="hover:bg-yellow-50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['course_name'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($schedule['course_code'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full"><?php echo htmlspecialchars($schedule['section_name'] ?? 'N/A'); ?></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['room_name'] ?? 'TBD'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($schedule['day_of_week'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['start_time'] . ' - ' . $schedule['end_time'] ?? 'N/A'); ?></div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($schedule['schedule_type'] ?? 'N/A'); ?></div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">No schedules found for this term.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <a href="/chair/my_schedule" class="text-sm bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-lg transition duration-300 shadow-sm flex items-center">
+                        Full Schedule
+                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </a>
+                </div>
             </div>
         </div>
 

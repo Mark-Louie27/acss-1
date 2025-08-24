@@ -118,6 +118,7 @@ class PublicController
         $currentSemester = $this->getCurrentSemester();
 
         $college_id = $_POST['college_id'] ?? 0;
+        $semester_id = $_POST['semester_id'] ?? $currentSemester['semester_id'];
         $department_id = $_POST['department_id'] ?? 0;
         $year_level = $_POST['year_level'] ?? '';
         $section_id = $_POST['section_id'] ?? 0;

@@ -45,7 +45,7 @@ class ApiController
     public function getCurrentSemester()
     {
         $stmt = $this->db->prepare("
-            SELECT semester_id, semester_name
+            SELECT semester_id, semester_name, academic_year
             FROM semesters
             WHERE is_current = 1
             LIMIT 1

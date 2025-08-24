@@ -402,10 +402,8 @@ $roleId = $_SESSION['role_id'] ?? null;
 // Handle role-specific routes
 switch ($roleId) {
     case 1: // Admin
+    case 2: // Also Admin
         handleAdminRoutes($path);
-        break;
-    case 2: // VPAA
-        handleVpaaRoutes($path);
         break;
     case 3: // DI
         handleDirectorRoutes($path);

@@ -117,35 +117,51 @@ ob_start();
         </div>
     </div>
 
-    <!-- Quick Actions -->
+    <!-- Recent Activities Section -->
     <div class="bg-white rounded-xl shadow-md p-6">
         <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-900 flex items-center">
                 <svg class="w-5 h-5 text-gold-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Quick Actions
+                Recent Activities
             </h3>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <a href="/dean/curriculum" class="bg-gold-400 text-white px-4 py-3 rounded-xl hover:bg-gold-500 transition duration-300 flex items-center justify-center shadow-sm">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Review Curriculum
-            </a>
-            <a href="/dean/faculty" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl hover:bg-gray-50 transition duration-300 flex items-center justify-center shadow-sm">
-                <svg class="w-5 h-5 mr-2 text-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                Manage Faculty
-            </a>
-            <a href="/dean/classroom" class="bg-white border border-gray-200 text-gray-700 px-4 py-3 rounded-xl hover:bg-gray-50 transition duration-300 flex items-center justify-center shadow-sm">
-                <svg class="w-5 h-5 mr-2 text-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Approve Room Reservations
-            </a>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-800 text-white rounded-2xl">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Department</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Action</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Time</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <?php if (empty($activities)): ?>
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-gray-500">No recent activities found.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($activities as $activity): ?>
+                            <tr class="hover:bg-gold-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <?php echo htmlspecialchars($activity['department_name'] ?? 'Unknown'); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars($activity['action_type'] ?? 'Unknown Action'); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars($activity['action_description'] ?? 'No description'); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($activity['created_at']))); ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

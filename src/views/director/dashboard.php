@@ -265,21 +265,39 @@ ob_start();
             </svg>
         </button>
 
-        <!-- Dashboard Header -->
-        <header class="dashboard-header bg-yellow-600 p-8 mb-8">
-            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center">
-                <div class="mb-4 lg:mb-0">
+        <!-- Main Header Section with Gold Accent -->
+        <div class="bg-gray-800 text-white rounded-xl p-6 mb-8 shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
                     <h1 class="text-3xl lg:text-4xl font-bold mb-3 bg-yellow-600 from-white to-yellow-100 bg-clip-text">Director Dashboard</h1>
-                    <p class="text-yellow-100 text-base lg:text-lg opacity-90">Academic Program Management & Oversight</p>
+                    <?php if (isset($departmentName) && !empty($departmentName)): ?>
+                        <p class="text-gray-300 mt-2">Department of <?php echo htmlspecialchars($departmentName); ?></p>
+                    <?php endif; ?>
                 </div>
-                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                    <div class="semester-badge">
-                        <i class="fas fa-calendar-alt action-icon"></i>
-                        Current Semester: <?php echo htmlspecialchars($data['semester']['semester_name'] ?? '2nd 2023-2024'); ?>
-                    </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <span class="text-sm bg-gray-700 px-3 py-1 rounded-full flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <?php
+                        echo htmlspecialchars(
+                            $data['semester']
+                                ? $data['semester']['semester_name'] . ' ' . $data['semester']['academic_year']
+                                : 'Unknown Semester'
+                        );
+                        ?>
+                    </span>
+                    <span class="text-sm bg-yellow-600 px-3 py-1 rounded-full flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Active Term
+                    </span>
                 </div>
             </div>
-        </header>
+        </div>
 
         <!-- Stats Cards Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

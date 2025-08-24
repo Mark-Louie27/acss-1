@@ -52,6 +52,11 @@ class FacultyController
                 return;
             }
 
+            // Get current semester
+            $currentSemesterStmt = $this->db->query("SELECT semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
+            $currentSemester = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
+            $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
+
             $deptStmt = $this->db->prepare("SELECT d.department_name FROM departments d JOIN users u ON d.department_id = u.department_id WHERE u.user_id = :user_id");
             $deptStmt->execute([':user_id' => $userId]);
             $departmentName = $deptStmt->fetchColumn();

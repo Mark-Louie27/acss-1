@@ -136,6 +136,11 @@ class ChairController
             $deptStmt->execute([':department_id' => $departmentId]);
             $departmentName = $deptStmt->fetchColumn();
 
+            // Get current semester
+            $currentSemesterStmt = $this->db->query("SELECT semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
+            $currentSemester = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
+            $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
+
             // Get counts for dashboard
             $schedulesCount = $this->db->query("SELECT COUNT(*) FROM schedules s 
                                                 JOIN courses c ON s.course_id = c.course_id 
@@ -1583,22 +1588,22 @@ class ChairController
                         }
                         try {
                             $stmt = $this->db->prepare("
-                                SELECT 
-                                    c.course_id, 
-                                    c.course_code, 
-                                    c.course_name, 
-                                    c.units, 
-                                    cc.year_level, 
-                                    cc.semester, 
-                                    cc.subject_type,
-                                    cc.is_core,
-                                    cc.prerequisites,
-                                    cc.co_requisites
-                                FROM curriculum_courses cc
-                                JOIN courses c ON cc.course_id = c.course_id
-                                WHERE cc.curriculum_id = :curriculum_id
-                                ORDER BY cc.year_level, cc.semester, c.course_code
-                            ");
+                            SELECT 
+                                c.course_id, 
+                                c.course_code, 
+                                c.course_name, 
+                                c.units, 
+                                cc.year_level, 
+                                cc.semester, 
+                                cc.subject_type,
+                                cc.is_core,
+                                cc.prerequisites,
+                                cc.co_requisites
+                            FROM curriculum_courses cc
+                            JOIN courses c ON cc.course_id = c.course_id
+                            WHERE cc.curriculum_id = :curriculum_id
+                            ORDER BY cc.year_level, cc.semester, c.course_code
+                        ");
                             $stmt->execute([':curriculum_id' => $curriculum_id]);
                             $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             error_log("get_curriculum_courses: curriculum_id=$curriculum_id, courses=" . json_encode($courses));
@@ -1619,9 +1624,9 @@ class ChairController
 
                         if (empty($errors)) {
                             $stmt = $this->db->prepare("
-                                INSERT INTO curricula (curriculum_name, curriculum_code, description, total_units, department_id, effective_year, status) 
-                                VALUES (:name, :code, :desc, 0, :dept, :year, 'Draft')
-                            ");
+                            INSERT INTO curricula (curriculum_name, curriculum_code, description, total_units, department_id, effective_year, status) 
+                            VALUES (:name, :code, :desc, 0, :dept, :year, 'Draft')
+                        ");
                             $stmt->execute([
                                 ':name' => $curriculum_name,
                                 ':code' => $curriculum_code,
@@ -1636,12 +1641,13 @@ class ChairController
                             $program_id = $programStmt->fetchColumn();
                             if ($program_id) {
                                 $this->db->prepare("
-                                    INSERT INTO curriculum_programs (curriculum_id, program_id, is_primary, required) 
-                                    VALUES (:curriculum_id, :program_id, 1, 1)
-                                ")->execute([':curriculum_id' => $curriculum_id, ':program_id' => $program_id]);
+                                INSERT INTO curriculum_programs (curriculum_id, program_id, is_primary, required) 
+                                VALUES (:curriculum_id, :program_id, 1, 1)
+                            ")->execute([':curriculum_id' => $curriculum_id, ':program_id' => $program_id]);
                             }
 
                             $success = "Curriculum added successfully.";
+                            $this->logActivity($chairId, $departmentId, 'Add Curriculum', "Added curriculum ID $curriculum_id", 'curricula', $curriculum_id);
                             $curricula = $this->fetchCurricula($departmentId);
                         } else {
                             $error = implode("<br>", $errors);
@@ -1649,116 +1655,109 @@ class ChairController
                         break;
 
                     case 'get_curriculum_data':
-                    header('Content-Type: application/json');
-                    $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-                    
-                    if ($curriculum_id < 1) {
-                        echo json_encode(['error' => 'Invalid curriculum ID']);
-                        exit;
-                    }
-                    
-                    try {
-                        $stmt = $this->db->prepare("
+                        header('Content-Type: application/json');
+                        $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
+
+                        if ($curriculum_id < 1) {
+                            echo json_encode(['error' => 'Invalid curriculum ID']);
+                            exit;
+                        }
+
+                        try {
+                            $stmt = $this->db->prepare("
                             SELECT curriculum_id, curriculum_name, curriculum_code, description, 
                                 effective_year, status, total_units, created_at, updated_at
                             FROM curricula 
                             WHERE curriculum_id = :curriculum_id AND department_id = :department_id
                         ");
-                        $stmt->execute([
-                            ':curriculum_id' => $curriculum_id, 
-                            ':department_id' => $departmentId
-                        ]);
-                        $curriculum = $stmt->fetch(PDO::FETCH_ASSOC);
-                        
-                        if (!$curriculum) {
-                            echo json_encode(['error' => 'Curriculum not found']);
+                            $stmt->execute([
+                                ':curriculum_id' => $curriculum_id,
+                                ':department_id' => $departmentId
+                            ]);
+                            $curriculum = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                            if (!$curriculum) {
+                                echo json_encode(['error' => 'Curriculum not found']);
+                                exit;
+                            }
+
+                            echo json_encode($curriculum);
+                            exit;
+                        } catch (PDOException $e) {
+                            error_log("get_curriculum_data: Error - " . $e->getMessage());
+                            echo json_encode(['error' => 'Database error occurred']);
                             exit;
                         }
-                        
-                        // Return the curriculum data
-                        echo json_encode($curriculum);
-                        exit;
-                        
-                    } catch (PDOException $e) {
-                        error_log("get_curriculum_data: Error - " . $e->getMessage());
-                        echo json_encode(['error' => 'Database error occurred']);
-                        exit;
-                    }
 
-                // Update your existing 'edit_curriculum' case to handle AJAX properly:
-                case 'edit_curriculum':
-                    $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
-                    $errors = [];
-                    
-                    // Validation
-                    [$curriculum_name, $nameErrors] = $this->validateInput($_POST, 'curriculum_name', ['required', 'string']);
-                    [$curriculum_code, $codeErrors] = $this->validateInput($_POST, 'curriculum_code', ['required', 'string']);
-                    [$effective_year, $yearErrors] = $this->validateInput($_POST, 'effective_year', ['required', 'numeric', 'min' => 2000, 'max' => 2100]);
-                    [$description, $descErrors] = $this->validateInput($_POST, 'description', ['string']);
-                    [$status, $statusErrors] = $this->validateInput($_POST, 'status', ['required', 'in' => ['Draft', 'Active', 'Archived']]);
-                    
-                    $errors = array_merge($errors, $nameErrors, $codeErrors, $yearErrors, $descErrors, $statusErrors);
+                    case 'edit_curriculum':
+                        $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
+                        $errors = [];
 
-                    if ($curriculum_id < 1) {
-                        $errors[] = "Invalid curriculum ID.";
-                    }
+                        [$curriculum_name, $nameErrors] = $this->validateInput($_POST, 'curriculum_name', ['required', 'string']);
+                        [$curriculum_code, $codeErrors] = $this->validateInput($_POST, 'curriculum_code', ['required', 'string']);
+                        [$effective_year, $yearErrors] = $this->validateInput($_POST, 'effective_year', ['required', 'numeric', 'min' => 2000, 'max' => 2100]);
+                        [$description, $descErrors] = $this->validateInput($_POST, 'description', ['string']);
+                        [$status, $statusErrors] = $this->validateInput($_POST, 'status', ['required', 'in' => ['Draft', 'Active', 'Archived']]);
 
-                    // Check if curriculum belongs to this department
-                    if (empty($errors)) {
-                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM curricula WHERE curriculum_id = :curriculum_id AND department_id = :department_id");
-                        $checkStmt->execute([':curriculum_id' => $curriculum_id, ':department_id' => $departmentId]);
-                        if ($checkStmt->fetchColumn() == 0) {
-                            $errors[] = "Curriculum not found or access denied.";
+                        $errors = array_merge($errors, $nameErrors, $codeErrors, $yearErrors, $descErrors, $statusErrors);
+
+                        if ($curriculum_id < 1) {
+                            $errors[] = "Invalid curriculum ID.";
                         }
-                    }
 
-                    if (empty($errors)) {
-                        try {
-                            $stmt = $this->db->prepare("
+                        if (empty($errors)) {
+                            $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM curricula WHERE curriculum_id = :curriculum_id AND department_id = :department_id");
+                            $checkStmt->execute([':curriculum_id' => $curriculum_id, ':department_id' => $departmentId]);
+                            if ($checkStmt->fetchColumn() == 0) {
+                                $errors[] = "Curriculum not found or access denied.";
+                            }
+                        }
+
+                        if (empty($errors)) {
+                            try {
+                                $stmt = $this->db->prepare("
                                 UPDATE curricula 
                                 SET curriculum_name = :name, curriculum_code = :code, description = :desc, 
                                     effective_year = :year, status = :status, updated_at = CURRENT_TIMESTAMP
                                 WHERE curriculum_id = :id AND department_id = :department_id
                             ");
-                            $result = $stmt->execute([
-                                ':name' => $curriculum_name,
-                                ':code' => $curriculum_code,
-                                ':desc' => $description,
-                                ':year' => $effective_year,
-                                ':status' => $status,
-                                ':id' => $curriculum_id,
-                                ':department_id' => $departmentId
-                            ]);
-                            
-                            if ($result && $stmt->rowCount() > 0) {
-                                // Handle AJAX response
-                                if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                                    header('Content-Type: application/json');
-                                    echo json_encode(['success' => 'Curriculum updated successfully.']);
-                                    exit;
-                                }
-                                
-                                $success = "Curriculum updated successfully.";
-                                $curricula = $this->fetchCurricula($departmentId);
-                            } else {
-                                $errors[] = "No changes were made or curriculum not found.";
-                            }
-                            
-                        } catch (PDOException $e) {
-                            error_log("edit_curriculum: Database error - " . $e->getMessage());
-                            $errors[] = "Database error occurred while updating curriculum.";
-                        }
-                    }
+                                $result = $stmt->execute([
+                                    ':name' => $curriculum_name,
+                                    ':code' => $curriculum_code,
+                                    ':desc' => $description,
+                                    ':year' => $effective_year,
+                                    ':status' => $status,
+                                    ':id' => $curriculum_id,
+                                    ':department_id' => $departmentId
+                                ]);
 
-                    if (!empty($errors)) {
-                        if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-                            header('Content-Type: application/json');
-                            echo json_encode(['error' => implode(' ', $errors)]);
-                            exit;
+                                if ($result && $stmt->rowCount() > 0) {
+                                    $this->logActivity($chairId, $departmentId, 'Update Curriculum', "Updated curriculum ID $curriculum_id", 'curricula', $curriculum_id);
+                                    if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                                        header('Content-Type: application/json');
+                                        echo json_encode(['success' => 'Curriculum updated successfully.']);
+                                        exit;
+                                    }
+                                    $success = "Curriculum updated successfully.";
+                                    $curricula = $this->fetchCurricula($departmentId);
+                                } else {
+                                    $errors[] = "No changes were made or curriculum not found.";
+                                }
+                            } catch (PDOException $e) {
+                                error_log("edit_curriculum: Database error - " . $e->getMessage());
+                                $errors[] = "Database error occurred while updating curriculum.";
+                            }
                         }
-                        $error = implode("<br>", $errors);
-                    }
-                    break;
+
+                        if (!empty($errors)) {
+                            if ($_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+                                header('Content-Type: application/json');
+                                echo json_encode(['error' => implode(' ', $errors)]);
+                                exit;
+                            }
+                            $error = implode("<br>", $errors);
+                        }
+                        break;
 
                     case 'add_course':
                         $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
@@ -1766,7 +1765,8 @@ class ChairController
                         $year_level = $_POST['year_level'] ?? '';
                         $semester = $_POST['semester'] ?? '';
                         $subject_type = $_POST['subject_type'] ?? '';
-                        
+
+                        $errors = [];
                         if ($curriculum_id < 1) $errors[] = "Invalid curriculum ID.";
                         if ($course_id < 1) $errors[] = "Invalid course ID.";
                         if (!in_array($year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year'])) $errors[] = "Invalid year level.";
@@ -1794,9 +1794,9 @@ class ChairController
                                 $this->db->beginTransaction();
 
                                 $insertStmt = $this->db->prepare("
-                            INSERT INTO curriculum_courses (curriculum_id, course_id, year_level, semester, subject_type, is_core, created_at)
-                            VALUES (:curriculum_id, :course_id, :year_level, :semester, :subject_type, 1, CURRENT_TIMESTAMP)
-                        ");
+                                INSERT INTO curriculum_courses (curriculum_id, course_id, year_level, semester, subject_type, is_core, created_at)
+                                VALUES (:curriculum_id, :course_id, :year_level, :semester, :subject_type, 1, CURRENT_TIMESTAMP)
+                            ");
                                 $insertResult = $insertStmt->execute([
                                     ':curriculum_id' => $curriculum_id,
                                     ':course_id' => $course_id,
@@ -1810,19 +1810,19 @@ class ChairController
                                 }
 
                                 $unitsStmt = $this->db->prepare("
-                            SELECT COALESCE(SUM(c.units), 0) as total
-                            FROM curriculum_courses cc
-                            JOIN courses c ON cc.course_id = c.course_id
-                            WHERE cc.curriculum_id = :curriculum_id
-                        ");
+                                SELECT COALESCE(SUM(c.units), 0) as total
+                                FROM curriculum_courses cc
+                                JOIN courses c ON cc.course_id = c.course_id
+                                WHERE cc.curriculum_id = :curriculum_id
+                            ");
                                 $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
                                 $total_units = $unitsStmt->fetchColumn() ?: 0;
 
                                 $updateUnitsStmt = $this->db->prepare("
-                            UPDATE curricula
-                            SET total_units = :total_units, updated_at = CURRENT_TIMESTAMP
-                            WHERE curriculum_id = :curriculum_id
-                        ");
+                                UPDATE curricula
+                                SET total_units = :total_units, updated_at = CURRENT_TIMESTAMP
+                                WHERE curriculum_id = :curriculum_id
+                            ");
                                 $updateResult = $updateUnitsStmt->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
 
                                 if (!$updateResult) {
@@ -1830,13 +1830,13 @@ class ChairController
                                 }
 
                                 $this->db->commit();
+                                $this->logActivity($chairId, $departmentId, 'Add Course to Curriculum', "Added course ID $course_id to curriculum ID $curriculum_id", 'curriculum_courses', $curriculum_id, $course_id);
 
                                 ob_clean();
                                 header('Content-Type: application/json');
                                 echo json_encode([
                                     'success' => 'Course added successfully.',
                                     'new_total_units' => $total_units,
-                                
                                 ]);
                                 exit;
                             } catch (Exception $e) {
@@ -1858,9 +1858,8 @@ class ChairController
                     case 'remove_course':
                         $curriculum_id = intval($_POST['curriculum_id'] ?? 0);
                         $course_id = intval($_POST['course_id'] ?? 0);
-                        
 
-                        
+                        $errors = [];
                         if ($curriculum_id < 1) $errors[] = "Invalid curriculum ID.";
                         if ($course_id < 1) $errors[] = "Invalid course ID.";
 
@@ -1875,58 +1874,56 @@ class ChairController
                         if (empty($errors)) {
                             $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
                             $checkStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
-
                             if ($checkStmt->fetchColumn() == 0) {
                                 $errors[] = "Course not found in this curriculum.";
-                            } else {
-                                try {
-                                    $this->db->beginTransaction();
+                            }
+                        }
 
-                                    $deleteStmt = $this->db->prepare("DELETE FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
-                                    $deleteResult = $deleteStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
+                        if (empty($errors)) {
+                            try {
+                                $this->db->beginTransaction();
 
-                                    if (!$deleteResult || $deleteStmt->rowCount() == 0) {
-                                        throw new Exception("Failed to remove course from curriculum.");
-                                    }
+                                $deleteStmt = $this->db->prepare("DELETE FROM curriculum_courses WHERE curriculum_id = :curriculum_id AND course_id = :course_id");
+                                $deleteResult = $deleteStmt->execute([':curriculum_id' => $curriculum_id, ':course_id' => $course_id]);
 
-                                    $unitsStmt = $this->db->prepare("
+                                if (!$deleteResult || $deleteStmt->rowCount() == 0) {
+                                    throw new Exception("Failed to remove course from curriculum.");
+                                }
+
+                                $unitsStmt = $this->db->prepare("
                                 SELECT COALESCE(SUM(c.units), 0) as total 
                                 FROM curriculum_courses cc 
                                 JOIN courses c ON cc.course_id = c.course_id 
                                 WHERE cc.curriculum_id = :curriculum_id
                             ");
-                                    $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
-                                    $total_units = $unitsStmt->fetchColumn() ?: 0;
+                                $unitsStmt->execute([':curriculum_id' => $curriculum_id]);
+                                $total_units = $unitsStmt->fetchColumn() ?: 0;
 
-                                    $updateUnitsStmt = $this->db->prepare("
+                                $updateUnitsStmt = $this->db->prepare("
                                 UPDATE curricula 
                                 SET total_units = :total_units, updated_at = CURRENT_TIMESTAMP 
                                 WHERE curriculum_id = :curriculum_id
                             ");
-                                    $updateResult = $updateUnitsStmt->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
+                                $updateResult = $updateUnitsStmt->execute([':total_units' => $total_units, ':curriculum_id' => $curriculum_id]);
 
-                                    if (!$updateResult) {
-                                        throw new Exception("Failed to update curriculum total units.");
-                                    }
-
-                                    $this->db->commit();
-
-                                   
-
-                                    
-                                    ob_clean();
-                                    header('Content-Type: application/json');
-                                    echo json_encode([
-                                        'success' => 'Course removed successfully.',
-                                        'new_total_units' => $total_units,
-                                        
-                                    ]);
-                                    exit;
-                                } catch (Exception $e) {
-                                    $this->db->rollback();
-                                    error_log("remove_course: Error - " . $e->getMessage());
-                                    $errors[] = "Failed to remove course: " . $e->getMessage();
+                                if (!$updateResult) {
+                                    throw new Exception("Failed to update curriculum total units.");
                                 }
+
+                                $this->db->commit();
+                                $this->logActivity($chairId, $departmentId, 'Remove Course from Curriculum', "Removed course ID $course_id from curriculum ID $curriculum_id", 'curriculum_courses', $curriculum_id, $course_id);
+
+                                ob_clean();
+                                header('Content-Type: application/json');
+                                echo json_encode([
+                                    'success' => 'Course removed successfully.',
+                                    'new_total_units' => $total_units,
+                                ]);
+                                exit;
+                            } catch (Exception $e) {
+                                $this->db->rollback();
+                                error_log("remove_course: Error - " . $e->getMessage());
+                                $errors[] = "Failed to remove course: " . $e->getMessage();
                             }
                         }
 
@@ -1952,6 +1949,7 @@ class ChairController
                         $stmt = $this->db->prepare("UPDATE curricula SET status = :status WHERE curriculum_id = :curriculum_id");
                         $stmt->execute([':status' => $new_status, ':curriculum_id' => $curriculum_id]);
 
+                        $this->logActivity($chairId, $departmentId, 'Toggle Curriculum Status', "Toggled curriculum ID $curriculum_id to $new_status", 'curricula', $curriculum_id);
                         $success = "Curriculum status updated to $new_status.";
                         $curricula = $this->fetchCurricula($departmentId);
                         break;
@@ -2073,6 +2071,7 @@ class ChairController
                             error_log("Updating course: Query = UPDATE courses ..., Params = " . json_encode($updateParams));
                             $stmt->execute($updateParams);
                             $success = "Course updated successfully.";
+                            $this->logActivity($chairId, $departmentId, 'Update Course', "Updated course ID $courseId", 'courses', $courseId);
                         } else {
                             $stmt = $this->db->prepare("
                             INSERT INTO courses 
@@ -2096,7 +2095,9 @@ class ChairController
                             ];
                             error_log("Inserting course: Query = INSERT INTO courses ..., Params = " . json_encode($insertParams));
                             $stmt->execute($insertParams);
+                            $courseId = $this->db->lastInsertId();
                             $success = "Course added successfully.";
+                            $this->logActivity($chairId, $departmentId, 'Add Course', "Added course ID $courseId", 'courses', $courseId);
                         }
                     } else {
                         $error = implode("<br>", $errors);
@@ -2107,10 +2108,14 @@ class ChairController
                 }
             }
 
-            // Handle status toggle
+            // Handle status toggle (including deletion logic)
             if (isset($_GET['toggle_status']) && $_GET['toggle_status'] > 0) {
                 try {
                     $courseId = intval($_GET['toggle_status']);
+                    $currentStatusStmt = $this->db->prepare("SELECT is_active FROM courses WHERE course_id = :course_id AND department_id = :department_id");
+                    $currentStatusStmt->execute(['course_id' => $courseId, 'department_id' => $departmentId]);
+                    $currentStatus = $currentStatusStmt->fetchColumn();
+
                     $toggleStmt = $this->db->prepare("
                     UPDATE courses 
                     SET is_active = NOT is_active 
@@ -2124,6 +2129,10 @@ class ChairController
                     error_log("Toggling status: Query = UPDATE courses ..., Params = " . json_encode($toggleParams));
                     $toggleStmt->execute($toggleParams);
                     if ($toggleStmt->rowCount() > 0) {
+                        $newStatus = !$currentStatus;
+                        $actionType = $newStatus ? 'Activate Course' : 'Delete Course';
+                        $actionDesc = "Toggled course ID $courseId to " . ($newStatus ? 'active' : 'inactive');
+                        $this->logActivity($chairId, $departmentId, $actionType, $actionDesc, 'courses', $courseId);
                         $success = "Course status updated successfully.";
                     } else {
                         $error = "Course not found or you don't have permission to update it.";
@@ -2196,6 +2205,31 @@ class ChairController
             $totalPages = 1;
         }
         require_once __DIR__ . '/../views/chair/courses.php';
+    }
+
+    // New helper method to log activity
+    private function logActivity($userId, $departmentId, $actionType, $actionDescription, $entityType, $entityId, $metadataId = null)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            INSERT INTO activity_logs 
+            (user_id, department_id, action_type, action_description, entity_type, entity_id, metadata_id, created_at) 
+            VALUES (:user_id, :department_id, :action_type, :action_description, :entity_type, :entity_id, :metadata_id, NOW())
+        ");
+            $params = [
+                ':user_id' => $userId,
+                ':department_id' => $departmentId,
+                ':action_type' => $actionType,
+                ':action_description' => $actionDescription,
+                ':entity_type' => $entityType,
+                ':entity_id' => $entityId,
+                ':metadata_id' => $metadataId
+            ];
+            error_log("Logging activity: Query = INSERT INTO activity_log ..., Params = " . json_encode($params));
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            error_log("logActivity: Failed to log activity - " . $e->getMessage());
+        }
     }
 
     public function checkCourseCode()
@@ -3001,6 +3035,7 @@ class ChairController
                 'academic_rank' => '',
                 'employment_type' => '',
                 'classification' => '',
+                'course_id' => '',
                 'expertise_level' => '',
                 'updated_at' => date('Y-m-d H:i:s')
             ];

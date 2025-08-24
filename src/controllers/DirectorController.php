@@ -74,115 +74,155 @@ class DirectorController
 
     public function dashboard()
     {
-        $userData = $this->getUserData();
-        if (!$userData) {
-            error_log("dashboard: Failed to load user data for user_id: " . $_SESSION['user_id']);
-            header('Location: /login?error=User data not found');
-            exit;
-        }
-
-        // Fetch department_id from department_instructors
-        $departmentId = null;
-        $curriculumId = null;
         try {
-            $stmt = $this->db->prepare("
-                SELECT department_id FROM department_instructors 
-                WHERE user_id = :user_id AND is_current = 1
-            ");
-            $stmt->execute([':user_id' => $_SESSION['user_id']]);
-            $department = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($department) {
-                $departmentId = $department['department_id'];
-            } else {
-                error_log("dashboard: No department found for user_id: " . $_SESSION['user_id']);
+            // Fetch user data
+            $userData = $this->getUserData();
+            if (!$userData) {
+                error_log("dashboard: Failed to load user data for user_id: " . ($_SESSION['user_id'] ?? 'unknown'));
+                header('Location: /login?error=User data not found');
+                exit;
+            }
+
+            // Fetch department and curriculum data
+            $departmentId = $this->getDepartmentId($userData['user_id']);
+            if ($departmentId === null) {
+                error_log("dashboard: No department found for user_id: " . $userData['user_id']);
                 header('Location: /login?error=Department not assigned');
                 exit;
             }
-        } catch (PDOException $e) {
-            error_log("dashboard: Failed to fetch department_id - " . $e->getMessage());
-            // Allow partial load with error message
-            $departmentId = null;
-        }
 
+            // Fetch current semester
+            $semester = $this->getCurrentSemester();
+
+            // Fetch pending approvals
+            $pendingCount = $this->getPendingApprovalsCount($departmentId);
+
+            // Fetch schedule deadline
+            $deadline = $this->getScheduleDeadline($departmentId);
+
+            // Fetch class schedules
+            $facultyId = $this->getFacultyId($userData['user_id']);
+            $schedules = $facultyId ? $this->getSchedules($facultyId) : [];
+
+            // Prepare data for view
+            $data = [
+                'user' => $userData,
+                'pending_approvals' => $pendingCount,
+                'deadline' => $deadline ? date('Y-m-d H:i:s', strtotime($deadline)) : null,
+                'semester' => $semester,
+                'schedules' => $schedules,
+                'title' => 'Director Dashboard',
+                'current_time' => date('h:i A T', time()), // e.g., 09:57 PM PST on Aug 24, 2025
+                'has_db_error' => $departmentId === null || $pendingCount === null || $deadline === null || empty($schedules)
+            ];
+
+            require_once __DIR__ . '/../views/director/dashboard.php';
+        } catch (PDOException $e) {
+            error_log("dashboard: Database error - " . $e->getMessage());
+            http_response_code(500);
+            echo "Server error";
+        } catch (Exception $e) {
+            error_log("dashboard: General error - " . $e->getMessage());
+            http_response_code(500);
+            echo "Server error";
+        }
+    }
+
+    // Helper methods to encapsulate database queries
+    private function getDepartmentId($userId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT department_id 
+            FROM department_instructors 
+            WHERE user_id = :user_id AND is_current = 1
+        ");
+            $stmt->execute([':user_id' => $userId]);
+            $department = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $department ? $department['department_id'] : null;
+        } catch (PDOException $e) {
+            error_log("getDepartmentId: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function getCurrentSemester()
+    {
         try {
             $semesterData = $this->api->getCurrentSemester();
-            if (is_array($semesterData) && isset($semesterData['semester_id'], $semesterData['semester_name'])) {
-                $semester = $semesterData;
-            }
+            return is_array($semesterData) && isset($semesterData['semester_id'], $semesterData['semester_name'], $semesterData['academic_year'])
+                ? $semesterData
+                : null;
         } catch (Exception $e) {
-            error_log("dashboard: Failed to fetch semester - " . $e->getMessage());
+            error_log("getCurrentSemester: " . $e->getMessage());
+            return null;
         }
+    }
 
-        // Fetch pending approvals
-        $pendingCount = 0;
+    private function getPendingApprovalsCount($departmentId)
+    {
         try {
-            if ($curriculumId) {
-                $pendingApprovalsStmt = $this->db->prepare("
-                    SELECT COUNT(*) as pending_count
-                    FROM curriculum_approvals
-                    WHERE curriculum_id = :curriculum_id AND status = 'pending'
-                ");
-                $pendingApprovalsStmt->execute([':curriculum_id' => $curriculumId]);
-                $pendingCount = $pendingApprovalsStmt->fetchColumn();
-            }
+            $stmt = $this->db->prepare("
+            SELECT COUNT(*) as pending_count
+            FROM curriculum_approvals
+            WHERE department_id = :department_id AND status = 'pending'
+        ");
+            $stmt->execute([':department_id' => $departmentId]);
+            return $stmt->fetchColumn() ?: 0;
         } catch (PDOException $e) {
-            error_log("dashboard: Failed to fetch pending approvals - " . $e->getMessage());
-            $pendingCount = 0; // Fallback to 0
+            error_log("getPendingApprovalsCount: " . $e->getMessage());
+            return 0;
         }
+    }
 
-        // Fetch current schedule deadline
-        $deadline = null;
+    private function getScheduleDeadline($departmentId)
+    {
         try {
-            if ($departmentId) {
-                $deadlineStmt = $this->db->prepare("
-                    SELECT deadline FROM schedule_deadlines 
-                    WHERE department_id = :department_id 
-                    ORDER BY deadline DESC LIMIT 1
-                ");
-                $deadlineStmt->execute([':department_id' => $departmentId]);
-                $deadline = $deadlineStmt->fetchColumn();
-            }
+            $stmt = $this->db->prepare("
+            SELECT deadline 
+            FROM schedule_deadlines 
+            WHERE department_id = :department_id 
+            ORDER BY deadline DESC LIMIT 1
+        ");
+            $stmt->execute([':department_id' => $departmentId]);
+            return $stmt->fetchColumn();
         } catch (PDOException $e) {
-            error_log("dashboard: Failed to fetch schedule deadline - " . $e->getMessage());
+            error_log("getScheduleDeadline: " . $e->getMessage());
+            return null;
         }
+    }
 
-        // Fetch class schedules
-        $schedules = [];
-        $query = "SELECT faculty_id FROM faculty WHERE user_id = :user_id";
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([':user_id' => $userData['user_id']]);
-        $faculty = $stmt->fetch(PDO::FETCH_ASSOC);
-
+    private function getFacultyId($userId)
+    {
         try {
-        if ($faculty) {
-            $scheduleQuery = "
-                SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year
-                FROM schedules s
-                JOIN courses c ON s.course_id = c.course_id
-                LEFT JOIN classrooms r ON s.room_id = r.room_id
-                JOIN semesters se ON s.semester_id = se.semester_id
-                WHERE s.faculty_id = :faculty_id AND se.is_current = 1
-                ORDER BY s.day_of_week, s.start_time";
-            $scheduleStmt = $this->db->prepare($scheduleQuery);
-            $scheduleStmt->execute([':faculty_id' => $faculty['faculty_id']]);
-            $schedules = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
-        }
+            $stmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+            $stmt->execute([':user_id' => $userId]);
+            $faculty = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $faculty ? $faculty['faculty_id'] : null;
         } catch (PDOException $e) {
-            error_log("dashboard: Failed to fetch schedules - " . $e->getMessage());
+            error_log("getFacultyId: " . $e->getMessage());
+            return null;
         }
+    }
 
-        $data = [
-            'user' => $userData,
-            'pending_approvals' => $pendingCount,
-            'deadline' => $deadline ? date('Y-m-d H:i:s', strtotime($deadline)) : null,
-            'semester' => $semester,
-            'schedules' => $schedules,
-            'title' => 'Director Dashboard',
-            'current_time' => date('h:i A T', time()), // e.g., 11:02 PM PST
-            'has_db_error' => $departmentId === null || $pendingCount === null || $deadline === null || empty($schedules)
-        ];
-
-        require_once __DIR__ . '/../views/director/dashboard.php';
+    private function getSchedules($facultyId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            JOIN semesters se ON s.semester_id = se.semester_id
+            WHERE s.faculty_id = :faculty_id AND se.is_current = 1
+            ORDER BY s.day_of_week, s.start_time
+        ");
+            $stmt->execute([':faculty_id' => $facultyId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getSchedules: " . $e->getMessage());
+            return [];
+        }
     }
 
     public function setScheduleDeadline()

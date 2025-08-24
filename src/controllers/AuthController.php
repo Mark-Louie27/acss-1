@@ -194,10 +194,8 @@ class AuthController
 
         switch ($roleId) {
             case 1: // Admin
+            case 2: // Also Admin
                 header('Location: /admin/dashboard');
-                break;
-            case 2: // VPAA
-                header('Location: /vp/dashboard');
                 break;
             case 3: // DI
                 header('Location: /director/dashboard');
