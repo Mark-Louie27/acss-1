@@ -186,7 +186,7 @@ ob_start();
     <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
     <div class="container mx-auto px-4 py-8 max-w-7xl">
         <!-- Profile Header -->
-        <header class="bg-yellow-500 text-white p-6 mb-8 rounded-xl shadow-lg slide-in-left">
+        <header class="bg-gray-800 text-white p-6 mb-8 rounded-xl shadow-lg slide-in-left">
             <div class="flex flex-col sm:flex-row items-center justify-between">
                 <div class="flex items-center space-x-6 mb-4 sm:mb-0">
                     <div class="w-20 h-20 bg-white rounded-full overflow-hidden border-4 border-white flex items-center justify-center relative">
@@ -199,14 +199,14 @@ ob_start();
                     </div>
                     <div class="text-center sm:text-left">
                         <h1 class="text-2xl font-bold text-white"><?php echo htmlspecialchars($user['title'] . ' ' . $user['first_name'] . ' ' . $user['middle_name'] . ' ' . $user['last_name'] . ' ' . $user['suffix'], ENT_QUOTES, 'UTF-8'); ?></h1>
-                        <p class="text-sm font-medium text-orange-100"><?php echo htmlspecialchars($user['department_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="text-sm font-medium text-orange-100"><?php echo !empty($user['department_name']) ? htmlspecialchars($user['department_name'], ENT_QUOTES, 'UTF-8') : ''; ?></p>
                         <p class="text-xs text-orange-100 flex items-center mt-1">
                             <span class="inline-block w-2 h-2 bg-orange-200 rounded-full mr-2"></span>
                             <?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?>
                         </p>
                     </div>
                 </div>
-                <button id="editProfileBtn" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
+                <button id="editProfileBtn" class="bg-yellow-600 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
                     <i class="fas fa-edit text-sm"></i>
                     <span class="text-sm font-medium">Edit Profile</span>
                 </button>
@@ -607,7 +607,7 @@ ob_start();
                     </button>
                 </div>
 
-                <form method="POST" action="/chair/profile/" class="p-6">
+                <form method="POST" action="/dean/profile/" class="p-6">
                     <input type="hidden" name="email" value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="first_name" value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="last_name" value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>">

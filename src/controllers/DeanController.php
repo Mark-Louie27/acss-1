@@ -36,10 +36,70 @@ class DeanController
         }
     }
 
+    private function logAuthActivity($userId, $action, $ipAddress, $userAgent, $identifier = null)
+    {
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO auth_logs 
+                (user_id, action, ip_address, user_agent, identifier, created_at) 
+                VALUES (:user_id, :action, :ip_address, :user_agent, :identifier, NOW())
+            ");
+            $params = [
+                ':user_id' => $userId,
+                ':action' => $action,
+                ':ip_address' => $ipAddress,
+                ':user_agent' => $userAgent,
+                ':identifier' => $identifier ?: session_id()
+            ];
+            error_log("logAuthActivity: Logging - Action: $action, User: $userId, IP: $ipAddress");
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            error_log("logAuthActivity: Failed to log auth activity - " . $e->getMessage());
+        }
+    }
+
+    private function getDepartmentLogins($collegeId)
+    {
+        try {
+            $query = "
+            SELECT 
+                u.user_id,
+                u.first_name,
+                u.last_name,
+                COALESCE(d.department_name, 'No Department') AS department_name,
+                la.action,
+                la.ip_address,
+                la.user_agent,
+                la.created_at
+            FROM auth_logs la
+            JOIN users u ON la.user_id = u.user_id
+            JOIN faculty f ON u.user_id = f.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            WHERE d.college_id = :college_id AND la.action = 'Login'
+            ORDER BY la.created_at DESC
+            LIMIT 10";
+            $stmt = $this->db->prepare($query);
+            error_log("getDepartmentLogins: Executing query with college_id=$collegeId");
+            $stmt->execute([':college_id' => $collegeId]);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("getDepartmentLogins: Fetched " . count($results) . " login records. First result: " . json_encode($results[0] ?? 'None'));
+            return $results;
+        } catch (PDOException $e) {
+            error_log("getDepartmentLogins: Failed to fetch logins - " . $e->getMessage());
+            return [];
+        }
+    }
+
     public function dashboard()
     {
         $userId = $_SESSION['user_id'];
         $user = $this->userModel->getUserById($userId);
+
+        // Log dashboard access
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+        $this->logAuthActivity($userId, 'Access Dashboard', $ipAddress, $userAgent);
 
         // Get college details for the dean
         $query = "
@@ -94,8 +154,9 @@ class DeanController
         ];
 
         $activities = $this->getDepartmentActivities($college['college_id']);
+        $departmentLogins = $this->getDepartmentLogins($college['college_id']);
 
-        // Pass semester and schedules to the view
+        // Pass semester, schedules, and logins to the view
         $currentSemester = $currentSemesterDisplay;
         require_once __DIR__ . '/../views/dean/dashboard.php';
     }

@@ -2307,6 +2307,9 @@ class ChairController
                 exit;
             }
 
+            // Log the search activity
+            $this->logActivity($chairId, $departmentId, 'Search Faculty', "Searched for name: $name", 'users', null);
+
             // Query for faculty in chair's department
             $query = "
                 SELECT 
@@ -2358,7 +2361,7 @@ class ChairController
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             error_log("search: Found " . count($results) . " results");
 
-            // Query for includable faculty (role_id = 6, not in chair's department, in same college or no department)
+            // Query for includable faculty
             $includableQuery = "
                 SELECT 
                     u.user_id,
@@ -2463,7 +2466,7 @@ class ChairController
                     f.academic_rank, 
                     f.employment_type, 
                     c.course_name AS specialization,
-                    COALESCE(u.profile_picture, '/Uploads/profiles/') AS profile_picture,
+                    COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
                     GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
                     c2.college_name
                 FROM 
@@ -2521,7 +2524,6 @@ class ChairController
                         if ($departmentId && $collegeId) {
                             $this->db->beginTransaction();
 
-                            // Check if user exists and has role_id = 6
                             $checkStmt = $this->db->prepare("SELECT u.role_id, u.department_id, u.employee_id FROM users u WHERE u.user_id = :user_id");
                             $checkStmt->execute([':user_id' => $userId]);
                             $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
@@ -2640,6 +2642,8 @@ class ChairController
 
                                         $this->db->commit();
                                         $success = "Faculty member added successfully.";
+                                        // Log the add faculty activity
+                                        $this->logActivity($chairId, $departmentId, 'Add Faculty', "Added faculty username=" . $_SESSION['username'] . " to department_id=$departmentId", 'faculty_departments', $this->db->lastInsertId());
                                         error_log("faculty: Added user_id=$userId to department_id=$departmentId, faculty_id=$facultyId, is_primary=" . ($hasPrimary ? 0 : 1));
                                         $faculty = $fetchFaculty($collegeId, $departmentId);
                                     }
@@ -2740,6 +2744,8 @@ class ChairController
 
                                     $this->db->commit();
                                     $success = "Faculty member removed successfully.";
+                                    // Log the remove faculty activity
+                                    $this->logActivity($chairId, $departmentId, 'Remove Faculty', "Removed faculty user_id=$userId from department_id=$departmentId", 'faculty_departments', $deptInfo['faculty_department_id']);
                                     error_log("faculty: Removed user_id=$userId from department_id=$departmentId");
                                     $faculty = $fetchFaculty($collegeId, $departmentId);
                                 }
@@ -2767,7 +2773,7 @@ class ChairController
                                 f.academic_rank, 
                                 f.employment_type, 
                                 GROUP_CONCAT(CONCAT(c.course_name, IF(s.expertise_level IS NOT NULL, CONCAT(' (', s.expertise_level, ')'), '')) SEPARATOR ', ') AS specialization,
-                                COALESCE(u.profile_picture, '/Uploads/profiles/') AS profile_picture,
+                                COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
                                 GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
                                 c2.college_name,
                                 u.email
@@ -2794,10 +2800,12 @@ class ChairController
                             exit;
                         }
 
-                        if ($facultyDetails['profile_picture'] && $facultyDetails['profile_picture'] !== '/Uploads/profiles/') {
+                        if ($facultyDetails['profile_picture'] && $facultyDetails['profile_picture'] !== '/uploads/profiles/') {
                             $facultyDetails['profile_picture'] = $this->baseUrl . $facultyDetails['profile_picture'];
                         }
 
+                        // Log the get faculty details activity
+                        $this->logActivity($chairId, $departmentId, 'View Faculty Details', "Viewed details for user_id=$userId", 'users', $userId);
                         error_log("get_faculty_details: Fetched details for user_id=$userId");
                         ob_clean();
                         echo json_encode(['success' => true, 'data' => $facultyDetails]);

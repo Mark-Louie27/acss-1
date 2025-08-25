@@ -118,7 +118,7 @@ ob_start();
     </div>
 
     <!-- Recent Activities Section -->
-    <div class="bg-white rounded-xl shadow-md p-6">
+    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
         <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-900 flex items-center">
                 <svg class="w-5 h-5 text-gold-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,6 +156,58 @@ ob_start();
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($activity['created_at']))); ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Department Login Activity Section -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-bold text-gray-900 flex items-center">
+                <svg class="w-5 h-5 text-gold-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Recent Logins by Department
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-800 text-white rounded-2xl">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Department</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">IP Address</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">User Agent</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Time</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <?php if (empty($departmentLogins)): ?>
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-500">No recent logins found.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($departmentLogins as $login): ?>
+                            <tr class="hover:bg-gold-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <?php echo htmlspecialchars($login['first_name'] . ' ' . $login['last_name']); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars($login['department_name'] ?? 'N/A'); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars($login['ip_address']); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars(substr($login['user_agent'], 0, 50) . (strlen($login['user_agent']) > 50 ? '...' : '')); ?>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($login['created_at']))); ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
