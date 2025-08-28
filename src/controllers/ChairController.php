@@ -245,59 +245,103 @@ class ChairController
         }
     }
 
-    /**
-     * Display Chair's teaching schedule
-     */
     public function mySchedule()
     {
         error_log("mySchedule: Starting mySchedule method");
+        ob_start();
         try {
             $chairId = $_SESSION['user_id'];
-            error_log("my schedule: Starting my Schedule method for user_id: $chairId");
+            error_log("mySchedule: Starting mySchedule method for user_id: $chairId");
 
-            // Get department for the Chair
-            $departmentId = $this->getChairDepartment($chairId);
-            if (!$departmentId) {
-                error_log("mySchedule: No department found for chairId: $chairId");
-                $error = "No department assigned to this chair.";
-                require_once __DIR__ . '/../views/chair/my_schedule.php';
-                return;
-            }
-
-            $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id AND department_id = :department_id");
-            $facultyStmt->execute([':user_id' => $chairId, ':department_id' => $departmentId]);
+            $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+            $facultyStmt->execute([':user_id' => $chairId]);
             $facultyId = $facultyStmt->fetchColumn();
 
             if (!$facultyId) {
-                error_log("mySchedule: No faculty profile found for user_id: $chairId in department_id: $departmentId");
+                error_log("mySchedule: No faculty profile found for user_id: $chairId");
                 $error = "No faculty profile found for this user.";
                 require_once __DIR__ . '/../views/chair/my_schedule.php';
+                $content = ob_get_clean();
+                require_once __DIR__ . '/../views/chair/layout.php';
                 return;
             }
 
-            // Get current semester
-            $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
-            $semesterId = $semesterStmt->fetchColumn();
+            // Get department name directly
+            $departmentName = $this->getChairDepartment($chairId);
 
-            error_log("mySchedule: Fetching schedule for faculty_id: $facultyId, semester_id: $semesterId");
+            $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
+            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
 
-            // Call SchedulingService to get faculty schedule
-            $response = $this->callSchedulingService('GET', 'faculty-schedule', [
-                'facultyId' => $facultyId,
-                'semesterId' => $semesterId
-            ]);
+            if (!$semester) {
+                error_log("mySchedule: No current semester found");
+                $error = "No current semester defined. Please contact the administrator to set the current semester.";
+                require_once __DIR__ . '/../views/chair/my_schedule.php';
+                $content = ob_get_clean();
+                require_once __DIR__ . '/../views/chair/layout.php';
+                return;
+            }
+            $semesterId = $semester['semester_id'];
+            $semesterName = $semester['semester_name'] . ' Semester, AY ' . $semester['academic_year'];
+            error_log("mySchedule: Current semester ID: $semesterId, Name: $semesterName");
 
-            if ($response['code'] !== 200) {
-                error_log("mySchedule: Failed to fetch schedule - " . ($response['data']['error'] ?? 'Unknown error'));
-                throw new Exception("Failed to fetch schedule: " . ($response['data']['error'] ?? 'Unknown error'));
+            $schedulesStmt = $this->db->prepare("
+            SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, 
+                   s.start_time, s.end_time, s.schedule_type, COALESCE(sec.section_name, 'N/A') AS section_name,
+                   TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+            FROM schedules s
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = :faculty_id AND s.semester_id = :semester_id
+            ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
+        ");
+            $schedulesStmt->execute([':faculty_id' => $facultyId, ':semester_id' => $semesterId]);
+            $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("mySchedule: Fetched " . count($schedules) . " schedules for faculty_id $facultyId in semester $semesterId");
+
+            $showAllSchedules = false;
+            if (empty($schedules)) {
+                error_log("mySchedule: No schedules found for current semester, trying to fetch all schedules");
+                $schedulesStmt = $this->db->prepare("
+                SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, 
+                       s.start_time, s.end_time, s.schedule_type, COALESCE(sec.section_name, 'N/A') AS section_name,
+                       TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+                FROM schedules s
+                LEFT JOIN courses c ON s.course_id = c.course_id
+                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                LEFT JOIN classrooms r ON s.room_id = r.room_id
+                WHERE s.faculty_id = :faculty_id
+                ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
+            ");
+                $schedulesStmt->execute([':faculty_id' => $facultyId]);
+                $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+                $showAllSchedules = true;
+                error_log("mySchedule: Fetched " . count($schedules) . " total schedules for faculty_id $facultyId");
             }
 
-            $schedules = $response['data'];
+            if (empty($schedules)) {
+                error_log("mySchedule: No schedules found after fallback. Checking raw data...");
+                $debugStmt = $this->db->prepare("SELECT * FROM schedules WHERE faculty_id = :faculty_id");
+                $debugStmt->execute([':faculty_id' => $facultyId]);
+                $debugSchedules = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
+                error_log("mySchedule: Debug - Found " . count($debugSchedules) . " raw schedules for faculty_id $facultyId");
+            }
+
+            $totalHours = 0;
+            foreach ($schedules as $schedule) {
+                $totalHours += $schedule['duration_hours'];
+            }
+            error_log("mySchedule: Total hours calculated: $totalHours");
+
             require_once __DIR__ . '/../views/chair/my_schedule.php';
+            $content = ob_get_clean();
+            require_once __DIR__ . '/../views/chair/layout.php';
         } catch (Exception $e) {
             error_log("mySchedule: Error - " . $e->getMessage());
-            $error = "Failed to load schedule.";
+            $error = "Failed to load schedule due to an error: " . htmlspecialchars($e->getMessage());
             require_once __DIR__ . '/../views/chair/my_schedule.php';
+            $content = ob_get_clean();
+            require_once __DIR__ . '/../views/chair/layout.php';
         }
     }
 

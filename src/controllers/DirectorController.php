@@ -316,34 +316,23 @@ class DirectorController
                 exit;
             }
 
-            $stmt = $this->db->prepare("
-                SELECT department_id FROM department_instructors 
-                WHERE user_id = :user_id AND is_current = 1
-            ");
-            $stmt->execute([':user_id' => $_SESSION['user_id']]);
-            $department = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$department) {
-                error_log("monitor: No department found for user_id: " . $_SESSION['user_id']);
-                header('Location: /login?error=Department not assigned');
-                exit;
-            }
-            $departmentId = $department['department_id'];
-
-            // Fetch activity log for the department
+            // Fetch activity log for all departments
             $activityStmt = $this->db->prepare("
-                SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name
-                FROM activity_logs al
-                JOIN users u ON al.user_id = u.user_id
-                WHERE al.department_id = :department_id
-                ORDER BY al.created_at DESC
-            ");
-            $activityStmt->execute([':department_id' => $departmentId]);
+            SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name,
+                   d.department_name, col.college_name
+            FROM activity_logs al
+            JOIN users u ON al.user_id = u.user_id
+            JOIN departments d ON al.department_id = d.department_id
+            JOIN colleges col ON d.college_id = col.college_id
+            ORDER BY al.created_at DESC
+        ");
+            $activityStmt->execute();
             $activities = $activityStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $data = [
                 'user' => $userData,
                 'activities' => $activities,
-                'title' => 'Activity Monitor'
+                'title' => 'Activity Monitor - All Departments'
             ];
 
             require_once __DIR__ . '/../views/director/monitor.php';

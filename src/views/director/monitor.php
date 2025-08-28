@@ -73,8 +73,7 @@ ob_start();
 </head>
 
 <body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
-    <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-4 lm:p-6 lg:p-8 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:p-6 lg:p-8 py-8">
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <!-- Total Activities -->
@@ -136,7 +135,9 @@ ob_start();
                         <p class="text-sm font-medium text-gray-500 mb-1">Active Users</p>
                         <p class="text-2xl font-bold text-gray-900" id="activeUsers">
                             <?php
-                            $uniqueUsers = array_unique(array_column($data['activities'], 'user_name'));
+                            $uniqueUsers = array_unique(array_map(function ($activity) {
+                                return $activity['first_name'] . ' ' . $activity['last_name'];
+                            }, $data['activities']));
                             echo count($uniqueUsers);
                             ?>
                         </p>
@@ -213,25 +214,26 @@ ob_start();
                                 <?php foreach (array_slice($data['activities'], 0, 10) as $activity): ?>
                                     <div class="activity-item flex items-start space-x-3 p-4 rounded-lg border border-gray-100 hover:border-gold-primary hover:bg-gold-primary hover:bg-opacity-5">
                                         <div class="flex-shrink-0">
-                                            <div class="w-8 h-8 rounded-full flex items-center justify-center <?php echo getActivityIcon($activity['activity_type'])['bg']; ?>">
-                                                <i class="<?php echo getActivityIcon($activity['activity_type'])['icon']; ?> text-white text-sm"></i>
+                                            <div class="w-8 h-8 rounded-full flex items-center justify-center <?php echo getActivityIcon($activity['action_type'])['bg']; ?>">
+                                                <i class="<?php echo getActivityIcon($activity['action_type'])['icon']; ?> text-white text-sm"></i>
                                             </div>
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center justify-between">
                                                 <p class="text-sm font-medium text-gray-900">
-                                                    <?php echo htmlspecialchars($activity['user_name']); ?>
+                                                    <?php echo htmlspecialchars($activity['first_name'] . ' ' . $activity['last_name']); ?>
                                                 </p>
                                                 <p class="text-xs text-gray-500">
                                                     <?php echo timeAgo($activity['created_at']); ?>
                                                 </p>
                                             </div>
                                             <p class="text-sm text-gray-600 mt-1">
-                                                <?php echo htmlspecialchars($activity['details']); ?>
+                                                <?php echo htmlspecialchars($activity['action_description']); ?>
+                                                <span class="text-gray-400">(<?php echo htmlspecialchars($activity['department_name']); ?>, <?php echo htmlspecialchars($activity['college_name']); ?>)</span>
                                             </p>
                                             <div class="mt-2">
-                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium <?php echo getActivityType($activity['activity_type'])['class']; ?>">
-                                                    <?php echo getActivityType($activity['activity_type'])['label']; ?>
+                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium <?php echo getActivityType($activity['action_type'])['class']; ?>">
+                                                    <?php echo getActivityType($activity['action_type'])['label']; ?>
                                                 </span>
                                             </div>
                                         </div>
@@ -278,7 +280,7 @@ ob_start();
                                 <?php
                                 $scheduleCount = 0;
                                 foreach ($data['activities'] as $activity) {
-                                    if (strpos(strtolower($activity['details']), 'schedule') !== false) {
+                                    if (strpos(strtolower($activity['action_description']), 'schedule') !== false) {
                                         $scheduleCount++;
                                     }
                                 }
@@ -292,7 +294,7 @@ ob_start();
                                 <?php
                                 $loginCount = 0;
                                 foreach ($data['activities'] as $activity) {
-                                    if ($activity['activity_type'] === 'login' || strpos(strtolower($activity['details']), 'login') !== false) {
+                                    if ($activity['action_type'] === 'login' || strpos(strtolower($activity['action_description']), 'login') !== false) {
                                         $loginCount++;
                                     }
                                 }
@@ -306,7 +308,7 @@ ob_start();
                                 <?php
                                 $systemCount = 0;
                                 foreach ($data['activities'] as $activity) {
-                                    if ($activity['activity_type'] === 'system' || strpos(strtolower($activity['details']), 'system') !== false) {
+                                    if ($activity['action_type'] === 'system' || strpos(strtolower($activity['action_description']), 'system') !== false) {
                                         $systemCount++;
                                     }
                                 }
@@ -324,7 +326,7 @@ ob_start();
                         <?php
                         $activityTypes = [];
                         foreach ($data['activities'] as $activity) {
-                            $type = $activity['activity_type'] ?? 'other';
+                            $type = $activity['action_type'] ?? 'other';
                             $activityTypes[$type] = ($activityTypes[$type] ?? 0) + 1;
                         }
                         arsort($activityTypes);
@@ -362,9 +364,39 @@ ob_start();
             const loadMoreBtn = document.getElementById('loadMoreBtn');
             if (loadMoreBtn) {
                 loadMoreBtn.addEventListener('click', function() {
-                    // Implement load more functionality
-                    console.log('Loading more activities...');
+                    fetch('/director/monitor/load-more', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                offset: document.querySelectorAll('#activityFeed .activity-item').length
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            data.activities.forEach(activity => {
+                                const item = createActivityItem(activity);
+                                document.getElementById('activityFeed').appendChild(item);
+                            });
+                            if (data.activities.length < 10) loadMoreBtn.style.display = 'none'; // Hide if no more data
+                        })
+                        .catch(error => console.error('Load more error:', error));
                 });
+
+                function createActivityItem(activity) {
+                    const div = document.createElement('div');
+                    div.className = 'activity-item flex items-start space-x-3 p-4 rounded-lg border border-gray-100 hover:border-gold-primary hover:bg-gold-primary hover:bg-opacity-5';
+                    div.innerHTML = `
+                        <div class="flex-shrink-0"><div class="w-8 h-8 rounded-full flex items-center justify-center ${getActivityIcon(activity.action_type).bg}"><i class="${getActivityIcon(activity.action_type).icon} text-white text-sm"></i></div></div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between"><p class="text-sm font-medium text-gray-900">${activity.first_name} ${activity.last_name}</p><p class="text-xs text-gray-500">${timeAgo(activity.created_at)}</p></div>
+                            <p class="text-sm text-gray-600 mt-1">${activity.action_description} ( ${activity.department_name}, ${activity.college_name} )</p>
+                            <div class="mt-2"><span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getActivityType(activity.action_type).class}">${getActivityType(activity.action_type).label}</span></div>
+                        </div>
+                    `;
+                    return div;
+                }
             }
 
             function initActivityChart() {

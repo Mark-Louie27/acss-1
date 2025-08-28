@@ -22,7 +22,6 @@ class AuthController
      */
     public function login()
     {
-        // If already logged in, redirect to appropriate dashboard
         if ($this->authService->isLoggedIn()) {
             $this->redirectBasedOnRole();
         }
@@ -41,19 +40,14 @@ class AuthController
                 return;
             }
 
-            // Check if user exists and get is_active status
-            $query = "
-                SELECT u.user_id, u.password_hash, u.is_active, u.role_id, u.email
-                FROM users u
-                WHERE u.employee_id = :employee_id
-            ";
+            $query = "SELECT u.user_id, u.password_hash, u.is_active, u.role_id, u.email FROM users u WHERE u.employee_id = :employee_id";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':employee_id' => $employeeId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 if ($user['is_active'] == 0) {
-                    error_log("Login failed for employee_id: $employee_id - Account is pending approval");
+                    error_log("Login failed for employee_id: $employeeId - Account is pending approval");
                     $error = "Your account is pending approval. Please contact the Dean.";
                     require_once __DIR__ . '/../views/auth/login.php';
                     return;
@@ -63,22 +57,24 @@ class AuthController
                 if ($userData) {
                     $this->authService->startSession($userData);
 
-                    // Handle Remember Me
                     if ($rememberMe) {
                         $token = bin2hex(random_bytes(32));
-                        $expiry = time() + (30 * 24 * 60 * 60); // 30 days
-                        setcookie('remember_me', $token, $expiry, '/', '', true, true); // Secure, HttpOnly cookie
+                        $expiry = time() + (30 * 24 * 60 * 60);
+                        setcookie('remember_me', $token, $expiry, '/', '', true, true);
 
-                        // Store token in database (you'll need to add a 'remember_tokens' table or column)
                         $updateQuery = "UPDATE users SET remember_token = :token, remember_token_expiry = :expiry WHERE user_id = :user_id";
                         $stmt = $this->db->prepare($updateQuery);
-                        $stmt->execute([
+                        $result = $stmt->execute([
                             ':token' => $token,
                             ':expiry' => date('Y-m-d H:i:s', $expiry),
                             ':user_id' => $user['user_id']
                         ]);
+                        if (!$result) {
+                            error_log("Failed to update remember_token for user_id: " . $user['user_id'] . " - " . implode(", ", $stmt->errorInfo()));
+                        } else {
+                            error_log("Remember token saved for user_id: " . $user['user_id']);
+                        }
                     } else {
-                        // Clear existing remember me cookie if it exists
                         if (isset($_COOKIE['remember_me'])) {
                             setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                         }
@@ -97,7 +93,6 @@ class AuthController
                 require_once __DIR__ . '/../views/auth/login.php';
             }
         } else {
-            // Check for remember me token on page load
             if (isset($_COOKIE['remember_me'])) {
                 $token = $_COOKIE['remember_me'];
                 $query = "SELECT user_id, employee_id, role_id FROM users WHERE remember_token = :token AND remember_token_expiry > NOW()";
@@ -106,11 +101,17 @@ class AuthController
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($user) {
-                    $userData = $this->authService->login($user['employee_id'], ''); // Password not needed for token-based login
+                    $userData = $this->authService->login($user['employee_id'], '');
                     if ($userData) {
                         $this->authService->startSession($userData);
                         $this->redirectBasedOnRole();
+                    } else {
+                        error_log("Auto-login failed for token: $token - Invalid user data");
+                        setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                     }
+                } else {
+                    error_log("No user found for remember_token: $token");
+                    setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                 }
             }
             require_once __DIR__ . '/../views/auth/login.php';
@@ -207,9 +208,8 @@ class AuthController
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user) {
-                // Generate reset token
                 $token = bin2hex(random_bytes(32));
-                $expiry = time() + (24 * 60 * 60); // 24 hours expiry
+                $expiry = time() + (24 * 60 * 60);
                 $updateQuery = "UPDATE users SET reset_token = :token, reset_token_expiry = :expiry WHERE user_id = :user_id";
                 $stmt = $this->db->prepare($updateQuery);
                 $stmt->execute([
@@ -218,25 +218,25 @@ class AuthController
                     ':user_id' => $user['user_id']
                 ]);
 
-                // Send reset email using PHPMailer
                 $mail = new PHPMailer(true);
-
                 try {
-                    // Server settings
                     $mail->isSMTP();
-                    $mail->Host = $_ENV['SMTP_HOST']; // Replace with your SMTP host
+                    $mail->Host = $_ENV['SMTP_HOST'];
                     $mail->SMTPAuth = true;
-                    $mail->Username = $_ENV['USERNAME']; // Replace with your email
-                    $mail->Password = $_ENV['PASSWORD']; // Replace with your app password
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // TLS
-                    $mail->Port = 587; // TCP port to connect to
+                    $mail->Username = $_ENV['USERNAME'];
+                    $mail->Password = $_ENV['PASSWORD']; // Updated to SMTP_PASSWORD
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port = 587;
 
-                    // Recipients
+                    $mail->SMTPDebug = 2; // Enable verbose debugging
+                    $mail->Debugoutput = function ($str, $level) {
+                        error_log("PHPMailer Debug: $str");
+                    };
+
                     $mail->setFrom('no-reply@yourdomain.com', 'PRMSU Scheduling System');
-                    $mail->addAddress($user['email']); // Add recipient
+                    $mail->addAddress($user['email']);
 
-                    // Content
-                    $resetLink = "http://localhost:8000/login/reset-password?token=" . $token;
+                    $resetLink = "http://localhost:8000/reset-password?token=" . $token; // Matches resetPassword route
                     $mail->isHTML(true);
                     $mail->Subject = 'Password Reset Request';
                     $mail->Body = "Click the link to reset your password: <a href='$resetLink'>$resetLink</a><br>If you did not request this, please ignore this email.";
@@ -246,7 +246,7 @@ class AuthController
                     $success = "A password reset link has been sent to your email.";
                 } catch (Exception $e) {
                     error_log("PHPMailer Error: " . $e->getMessage());
-                    $error = "Failed to send reset email. Please try again or contact support.";
+                    $error = "Failed to send reset email. Please try again or contact support. Check logs for details.";
                 }
             } else {
                 $error = "No active account found with that Employee ID.";

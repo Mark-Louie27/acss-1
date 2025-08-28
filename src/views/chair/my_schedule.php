@@ -1,14 +1,32 @@
-<?php
-ob_start();
-?>
+
 
 <div class="p-6 bg-gray-50 min-h-screen font-sans">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">My Class Schedule</h2>
+
     <?php if (isset($error)): ?>
         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
             <span class="block sm:inline"><?php echo htmlspecialchars($error); ?></span>
         </div>
     <?php endif; ?>
+
+    <!-- Semester and Department Info -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-6">
+            <div>
+                <p class="text-sm text-gray-600">Semester: <span class="font-medium text-gray-900"><?php echo htmlspecialchars($semesterName ?? 'Not Set'); ?></span></p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Department: <span class="font-medium text-gray-900"><?php echo htmlspecialchars($departmentName ?? 'Not Assigned'); ?></span></p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Total Weekly Hours: <span class="font-medium text-gray-900"><?php echo number_format($totalHours ?? 0, 2); ?> hrs</span></p>
+            </div>
+        </div>
+        <?php if (isset($showAllSchedules) && $showAllSchedules): ?>
+            <p class="text-sm text-yellow-600 mt-2">Showing all schedules (no schedules found for the current semester).</p>
+        <?php endif; ?>
+    </div>
+
     <div class="bg-white rounded-xl shadow-md p-6">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -58,18 +76,6 @@ ob_start();
                 </tbody>
             </table>
         </div>
-        <div class="mt-6 flex justify-end">
-            <a href="/chair/schedule" class="text-sm bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-lg transition duration-300 shadow-sm flex items-center">
-                Full Schedule
-                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-            </a>
-        </div>
     </div>
 </div>
 
-<?php
-$content = ob_get_clean();
-require_once __DIR__ . '/layout.php';
-?>

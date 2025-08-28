@@ -327,33 +327,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Features Section -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-            <div class="bg-white p-6 rounded-xl shadow-lg text-center card-shadow gold-border">
-                <div class="w-16 h-16 mx-auto mb-4 bg-gold-light rounded-full flex items-center justify-center">
-                    <i class="fas fa-calendar-alt text-gold-dark text-2xl"></i>
-                </div>
-                <h3 class="text-lg font-semibold mb-2">Real-time Updates</h3>
-                <p class="text-gray-600">Get instant notifications about schedule changes and announcements.</p>
-            </div>
-
-            <div class="bg-white p-6 rounded-xl shadow-lg text-center card-shadow gold-border">
-                <div class="w-16 h-16 mx-auto mb-4 bg-gold-light rounded-full flex items-center justify-center">
-                    <i class="fas fa-mobile-alt text-gold-dark text-2xl"></i>
-                </div>
-                <h3 class="text-lg font-semibold mb-2">Mobile Friendly</h3>
-                <p class="text-gray-600">Access your schedule anytime, anywhere on any device.</p>
-            </div>
-
-            <div class="bg-white p-6 rounded-xl shadow-lg text-center card-shadow gold-border">
-                <div class="w-16 h-16 mx-auto mb-4 bg-gold-light rounded-full flex items-center justify-center">
-                    <i class="fas fa-sync-alt text-gold-dark text-2xl"></i>
-                </div>
-                <h3 class="text-lg font-semibold mb-2">Seamless Integration</h3>
-                <p class="text-gray-600">Easily export to Google Calendar, Outlook, or download as PDF.</p>
-            </div>
-        </div>
     </main>
 
     <!-- Footer -->
