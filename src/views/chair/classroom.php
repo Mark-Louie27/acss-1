@@ -9,6 +9,9 @@ ob_start();
 $searchTerm = $_GET['search'] ?? '';
 $error = $error ?? null;
 $availableClassrooms = $availableClassrooms ?? [];
+$classrooms = $classrooms ?? []; // Add this to ensure it's defined
+$departmentInfo = $departmentInfo ?? null;
+$departments = $departments ?? []; // Ensure departments is defined
 
 // Ensure $this->db is available
 $controller = new ChairController();
@@ -22,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $room_type = $_POST['room_type'] ?? 'lecture';
     $shared = isset($_POST['shared']) ? 1 : 0;
     $availability = $_POST['availability'] ?? 'available';
-    $department_id = $departmentId;
+    $department_id = $departmentId ?? ($departmentInfo['department_id'] ?? null); // Use departmentInfo if available
 
     try {
         if ($action === 'add') {
@@ -66,28 +69,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'search') {
             $search_date = $_POST['search_date'] ?? date('Y-m-d');
             $search_time = $_POST['search_time'] ?? '08:00:00';
-            $search_department = $_POST['search_department'] ?? '%';
+            $search_department = $_POST['search_department'] ?? '%'; // Default to % if not set
             $min_capacity = (int)($_POST['min_capacity'] ?? 0);
             $room_type = $_POST['room_type'] ?? '';
 
+            // Log the input parameters for debugging
+            error_log("Search parameters: search_date=$search_date, search_time=$search_time, search_department=$search_department, min_capacity=$min_capacity, room_type=$room_type");
+
             $query = "
-                SELECT DISTINCT c.*, d.department_name, cl.college_name
-                FROM classrooms c
-                JOIN departments d ON c.department_id = d.department_id
-                JOIN colleges cl ON d.college_id = cl.college_id
-                LEFT JOIN schedules s ON c.room_id = s.room_id 
-                    AND s.schedule_date = :search_date 
-                    AND s.start_time <= :search_time 
-                    AND s.end_time > :search_time
-                WHERE (c.department_id LIKE :search_department OR c.shared = 1)
-                    AND (s.room_id IS NULL OR s.status = 'Rejected')
-                    AND c.availability = 'available'
-            ";
+        SELECT DISTINCT c.*, d.department_name, cl.college_name
+        FROM classrooms c
+        JOIN departments d ON c.department_id = d.department_id
+        JOIN colleges cl ON d.college_id = cl.college_id
+        LEFT JOIN schedules s ON c.room_id = s.room_id 
+            AND s.schedule_type = :search_date 
+            AND s.start_time <= :search_time 
+            AND s.end_time > :search_time
+        WHERE (c.department_id LIKE :search_department OR c.shared = 1)
+            AND (s.room_id IS NULL OR s.status = 'Rejected')
+            AND c.availability = 'available'
+    ";
             $params = [
                 ':search_date' => $search_date,
                 ':search_time' => $search_time,
-                ':search_department' => $search_department
+                ':search_department' => $search_department // Use as-is, but validate below
             ];
+
+            // Validate and adjust search_department
+            if (!is_string($search_department) || (strlen($search_department) > 0 && !preg_match('/^%|[0-9]+$/', $search_department))) {
+                error_log("Invalid search_department value: $search_department");
+                $search_department = '%'; // Fallback to all departments
+                $params[':search_department'] = $search_department;
+            }
 
             if ($min_capacity > 0) {
                 $query .= " AND c.capacity >= :min_capacity";
@@ -100,8 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $query .= " ORDER BY c.room_name";
             $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            $availableClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Log the final query and parameters for debugging
+            error_log("Executing query: $query with params: " . json_encode($params));
+
+            try {
+                $stmt->execute($params);
+                $availableClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                error_log("Search query failed: " . $e->getMessage());
+                $error = "Database error during search: Invalid parameter.";
+                $availableClassrooms = [];
+            }
         }
 
         header("Location: classroom");
@@ -111,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Define modal content
+// Define modal content (unchanged)
 ob_start();
 ?>
 <!-- Add Classroom Modal -->
@@ -392,11 +415,15 @@ ob_start();
                             <select id="search_department" name="search_department"
                                 class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 appearance-none bg-white">
                                 <option value="%">All Departments</option>
-                                <?php foreach ($departments as $dept): ?>
-                                    <option value="<?= htmlspecialchars($dept['department_id']) ?>">
-                                        <?= htmlspecialchars($dept['department_name']) ?>
-                                    </option>
-                                <?php endforeach; ?>
+                                <?php if (!empty($departments)): ?>
+                                    <?php foreach ($departments as $dept): ?>
+                                        <option value="<?= htmlspecialchars($dept['department_id']) ?>">
+                                            <?= htmlspecialchars($dept['department_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="%" disabled>No departments available</option>
+                                <?php endif; ?>
                             </select>
                         </div>
                     </div>
@@ -516,21 +543,13 @@ ob_start();
         <div class="w-full px-4 sm:px-6 lg:px-8 bg-white py-4">
             <!-- The container for the search bar and button - now full width -->
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
-                <!-- Search Form - takes available space -->
-                <form method="GET" class="w-full sm:flex-1 relative">
-                    <div class="relative">
-                        <input
-                            type="text"
-                            name="search"
-                            placeholder="Search classrooms..."
-                            value="<?= htmlspecialchars($searchTerm) ?>"
-                            class="w-full pl-12 pr-4 py-3 rounded-lg border-2 border-black bg-white shadow-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-opacity-50
-                           transition-all duration-300 text-gray-700 placeholder-gray-400">
-                        <!-- Search Icon positioned inside the input field -->
-                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-black"></i>
-                    </div>
-                </form>
+                <!-- Search Button -->
+                <div class="mt-6 text-right">
+                    <button onclick="openModal('searchClassroomModal')" class="px-6 py-3 bg-gray-800 text-white rounded-lg font-medium shadow-lg hover:bg-gray-900 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 flex items-center justify-center gap-2">
+                        <i class="fas fa-search"></i>
+                        <span>Search Available Classrooms</span>
+                    </button>
+                </div>
 
                 <!-- Add Classroom Button - fixed width on larger screens -->
                 <button
@@ -720,7 +739,6 @@ ob_start();
         });
     </script>
 </body>
-
 
 </html>
 <?php

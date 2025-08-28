@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../../vendor/autoload.php'; // Ensure PHPMailer autoload is included
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 
 class AuthController
 {
@@ -23,6 +27,9 @@ class AuthController
             $this->redirectBasedOnRole();
         }
 
+        $rememberMe = isset($_POST['remember-me']) && $_POST['remember-me'] === 'on';
+        $error = $_GET['error'] ?? '';
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $employeeId = trim($_POST['employee_id'] ?? '');
             $password = $_POST['password'] ?? '';
@@ -36,7 +43,7 @@ class AuthController
 
             // Check if user exists and get is_active status
             $query = "
-                SELECT u.user_id, u.password_hash, u.is_active, u.role_id
+                SELECT u.user_id, u.password_hash, u.is_active, u.role_id, u.email
                 FROM users u
                 WHERE u.employee_id = :employee_id
             ";
@@ -46,7 +53,7 @@ class AuthController
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 if ($user['is_active'] == 0) {
-                    error_log("Login failed for employee_id: $employeeId - Account is pending approval");
+                    error_log("Login failed for employee_id: $employee_id - Account is pending approval");
                     $error = "Your account is pending approval. Please contact the Dean.";
                     require_once __DIR__ . '/../views/auth/login.php';
                     return;
@@ -55,6 +62,28 @@ class AuthController
                 $userData = $this->authService->login($employeeId, $password);
                 if ($userData) {
                     $this->authService->startSession($userData);
+
+                    // Handle Remember Me
+                    if ($rememberMe) {
+                        $token = bin2hex(random_bytes(32));
+                        $expiry = time() + (30 * 24 * 60 * 60); // 30 days
+                        setcookie('remember_me', $token, $expiry, '/', '', true, true); // Secure, HttpOnly cookie
+
+                        // Store token in database (you'll need to add a 'remember_tokens' table or column)
+                        $updateQuery = "UPDATE users SET remember_token = :token, remember_token_expiry = :expiry WHERE user_id = :user_id";
+                        $stmt = $this->db->prepare($updateQuery);
+                        $stmt->execute([
+                            ':token' => $token,
+                            ':expiry' => date('Y-m-d H:i:s', $expiry),
+                            ':user_id' => $user['user_id']
+                        ]);
+                    } else {
+                        // Clear existing remember me cookie if it exists
+                        if (isset($_COOKIE['remember_me'])) {
+                            setcookie('remember_me', '', time() - 3600, '/', '', true, true);
+                        }
+                    }
+
                     error_log("Login successful for employee_id: $employeeId");
                     $this->redirectBasedOnRole();
                 } else {
@@ -68,6 +97,22 @@ class AuthController
                 require_once __DIR__ . '/../views/auth/login.php';
             }
         } else {
+            // Check for remember me token on page load
+            if (isset($_COOKIE['remember_me'])) {
+                $token = $_COOKIE['remember_me'];
+                $query = "SELECT user_id, employee_id, role_id FROM users WHERE remember_token = :token AND remember_token_expiry > NOW()";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':token' => $token]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($user) {
+                    $userData = $this->authService->login($user['employee_id'], ''); // Password not needed for token-based login
+                    if ($userData) {
+                        $this->authService->startSession($userData);
+                        $this->redirectBasedOnRole();
+                    }
+                }
+            }
             require_once __DIR__ . '/../views/auth/login.php';
         }
     }
@@ -139,6 +184,120 @@ class AuthController
             }
         } else {
             require_once __DIR__ . '/../views/auth/register.php';
+        }
+    }
+
+    /**
+     * Handle forgot password request
+     */
+    public function forgotPassword()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $employeeId = trim($_POST['employee_id'] ?? '');
+
+            if (empty($employeeId)) {
+                $error = "Employee ID is required.";
+                require_once __DIR__ . '/../views/auth/forgot_password.php';
+                return;
+            }
+
+            $query = "SELECT user_id, email FROM users WHERE employee_id = :employee_id AND is_active = 1";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':employee_id' => $employeeId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                // Generate reset token
+                $token = bin2hex(random_bytes(32));
+                $expiry = time() + (24 * 60 * 60); // 24 hours expiry
+                $updateQuery = "UPDATE users SET reset_token = :token, reset_token_expiry = :expiry WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($updateQuery);
+                $stmt->execute([
+                    ':token' => $token,
+                    ':expiry' => date('Y-m-d H:i:s', $expiry),
+                    ':user_id' => $user['user_id']
+                ]);
+
+                // Send reset email using PHPMailer
+                $mail = new PHPMailer(true);
+
+                try {
+                    // Server settings
+                    $mail->isSMTP();
+                    $mail->Host = $_ENV['SMTP_HOST']; // Replace with your SMTP host
+                    $mail->SMTPAuth = true;
+                    $mail->Username = $_ENV['USERNAME']; // Replace with your email
+                    $mail->Password = $_ENV['PASSWORD']; // Replace with your app password
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // TLS
+                    $mail->Port = 587; // TCP port to connect to
+
+                    // Recipients
+                    $mail->setFrom('no-reply@yourdomain.com', 'PRMSU Scheduling System');
+                    $mail->addAddress($user['email']); // Add recipient
+
+                    // Content
+                    $resetLink = "http://localhost:8000/login/reset-password?token=" . $token;
+                    $mail->isHTML(true);
+                    $mail->Subject = 'Password Reset Request';
+                    $mail->Body = "Click the link to reset your password: <a href='$resetLink'>$resetLink</a><br>If you did not request this, please ignore this email.";
+                    $mail->AltBody = "Click the link to reset your password: $resetLink\nIf you did not request this, please ignore this email.";
+
+                    $mail->send();
+                    $success = "A password reset link has been sent to your email.";
+                } catch (Exception $e) {
+                    error_log("PHPMailer Error: " . $e->getMessage());
+                    $error = "Failed to send reset email. Please try again or contact support.";
+                }
+            } else {
+                $error = "No active account found with that Employee ID.";
+            }
+            require_once __DIR__ . '/../views/auth/forgot_password.php';
+        } else {
+            require_once __DIR__ . '/../views/auth/forgot_password.php';
+        }
+    }
+
+    /**
+     * Handle password reset request
+     */
+    public function resetPassword()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $token = $_POST['token'] ?? '';
+            $newPassword = $_POST['password'] ?? '';
+
+            if (empty($token) || empty($newPassword)) {
+                $error = "Token and new password are required.";
+                require_once __DIR__ . '/../views/auth/reset_password.php';
+                return;
+            }
+
+            $query = "SELECT user_id FROM users WHERE reset_token = :token AND reset_token_expiry > NOW()";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':token' => $token]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+                $updateQuery = "UPDATE users SET password_hash = :password_hash, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($updateQuery);
+                $stmt->execute([
+                    ':password_hash' => $passwordHash,
+                    ':user_id' => $user['user_id']
+                ]);
+                $success = "Password reset successfully. You can now <a href='/login'>login</a>.";
+            } else {
+                $error = "Invalid or expired reset token.";
+            }
+            require_once __DIR__ . '/../views/auth/reset_password.php';
+        } else {
+            $token = $_GET['token'] ?? '';
+            if (empty($token)) {
+                $error = "Invalid reset token.";
+                require_once __DIR__ . '/../views/auth/reset_password.php';
+                return;
+            }
+            require_once __DIR__ . '/../views/auth/reset_password.php';
         }
     }
 

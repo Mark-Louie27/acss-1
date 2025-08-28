@@ -406,7 +406,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
                     <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-gold-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
-                        <span>Faculty</span>
+                        <span>Dean</span>
                     </div>
                 </div>
             </div>

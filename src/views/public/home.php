@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PRMSU Iba Campus Class Schedules - ACSS</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
@@ -189,7 +190,7 @@
         <!-- Search Filters -->
         <div id="search-form" class="bg-white rounded-xl shadow-lg p-8 mb-12 card-shadow gold-border">
             <h3 class="text-xl font-semibold mb-6 gold-gradient-text">Find Your Class Schedule</h3>
-            <form id="searchForm" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <form id="searchForm" class="grid grid-cols-1 md:grid-cols-4 gap-6" method="POST">
                 <!-- College Filter -->
                 <div>
                     <label for="college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
@@ -451,7 +452,10 @@
 
                 if (collegeId) {
                     fetch(`/public/departments?college_id=${collegeId}`)
-                        .then(response => response.json())
+                        .then(response => {
+                            if (!response.ok) throw new Error('Network response was not ok');
+                            return response.json();
+                        })
                         .then(departments => {
                             departmentSelect.innerHTML = '<option value="">All Departments</option>';
                             departments.forEach(dept => {
@@ -474,7 +478,10 @@
 
                 if (deptId) {
                     fetch(`/public/sections?department_id=${deptId}`)
-                        .then(response => response.json())
+                        .then(response => {
+                            if (!response.ok) throw new Error('Network response was not ok');
+                            return response.json();
+                        })
                         .then(sections => {
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
                             sections.forEach(section => {
@@ -503,12 +510,15 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
                         console.error('Error:', data.error);
                         updateScheduleResults([]);
-                        updatePagination(0, 0);
+                        updatePagination(0, 0, 0);
                     } else {
                         updateScheduleResults(data.schedules);
                         updatePagination(data.total, data.page, data.per_page);
@@ -517,7 +527,7 @@
                 .catch(error => {
                     console.error('Fetch error:', error);
                     updateScheduleResults([]);
-                    updatePagination(0, 0);
+                    updatePagination(0, 0, 0);
                 });
         }
 

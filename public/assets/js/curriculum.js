@@ -8,7 +8,7 @@ function openModal(modalId) {
         const modal = document.getElementById(modalId);
         if (!modal) {
             console.error(`Modal ${modalId} not found`);
-            showToast(`Error: Modal ${modalId} not found`, 'error');
+            showToast(`Error: Modal ${modalId} not found`, 'error');    
             return;
         }
 
@@ -36,6 +36,7 @@ function closeModal(modalId) {
         const modal = document.getElementById(modalId);
         if (!modal) {
             console.error(`Modal ${modalId} not found`);
+            showToast(`Error: Modal ${modalId} not found`, 'error');
             return;
         }
 
@@ -51,14 +52,94 @@ function closeModal(modalId) {
                 resetEditForm();
             } else if (modalId === 'manageCoursesModal') {
                 resetManageCoursesForm();
+                const curriculumId = document.getElementById('curriculumIdInput')?.value;
+                if (curriculumId) {
+                    refreshCurriculumData(curriculumId);
+                }
             } else if (modalId === 'removeCourseConfirmModal') {
                 resetRemoveConfirmModal();
+                const confirmButton = document.getElementById('removeConfirmButton');
+                const curriculumId = confirmButton?.dataset.curriculumId;
+                if (curriculumId) {
+                    refreshCurriculumData(curriculumId);
+                }
             }
         }, 300);
         console.log(`Modal ${modalId} closed successfully`);
     } catch (error) {
         console.error(`Error closing modal ${modalId}:`, error);
+        showToast('Failed to close modal', 'error');
     }
+}
+
+// Updated refreshCurriculumData function with null checks and debugging
+function refreshCurriculumData(curriculumId) {
+    console.log(`Refreshing curriculum data for ID: ${curriculumId}`);
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `action=get_curriculum_data&curriculum_id=${encodeURIComponent(curriculumId)}`
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            console.error('Server error:', data.error);
+            showToast(data.error, 'error');
+            return;
+        }
+        // Find the table row
+        const row = document.querySelector(`tr[data-curriculum-id="${curriculumId}"]`);
+        console.log(`Row found for curriculumId ${curriculumId}:`, row);
+        if (row) {
+            const unitsCell = row.querySelector('.total-units');
+            if (unitsCell) {
+                unitsCell.textContent = data.total_units || '0';
+                console.log(`Updated total units to: ${data.total_units}`);
+            } else {
+                console.warn(`Total units cell not found for curriculum ${curriculumId}`);
+            }
+            // Fetch course count
+            fetch(window.location.href, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: `action=get_curriculum_courses&curriculum_id=${encodeURIComponent(curriculumId)}`
+            })
+            .then(response => response.json())
+            .then(coursesData => {
+                if (!coursesData.error) {
+                    const courseCount = coursesData.length;
+                    const coursesCell = row.querySelector('td:nth-child(2)'); // Second column for course count
+                    if (coursesCell) {
+                        coursesCell.textContent = `${courseCount} Courses`;
+                        console.log(`Updated course count to: ${courseCount}`);
+                    } else {
+                        console.warn(`Courses cell not found for curriculum ${curriculumId}`);
+                    }
+                } else {
+                    console.error('Error fetching courses:', coursesData.error);
+                }
+            })
+            .catch(error => console.error('Error fetching course count:', error));
+        } else {
+            console.warn(`No row found for curriculumId ${curriculumId}. Refreshing full table...`);
+            fetchCurriculaTable(curriculumId);
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing curriculum data:', error);
+        showToast('Failed to refresh curriculum data. Please try again.', 'error');
+    });
 }
 
 // Edit curriculum modal (unchanged)
@@ -673,7 +754,6 @@ function confirmRemoveCourse(button) {
     button.innerHTML = `<div class="loading-spinner"></div>`;
     button.disabled = true;
 
-    
     fetch(window.location.href, {
         method: 'POST',
         headers: {
@@ -688,51 +768,48 @@ function confirmRemoveCourse(button) {
                 throw new Error(`HTTP ${response.status}: ${text}`);
             });
         }
-        return response.text();
+        return response.json();
     })
-    .then(text => {
-        console.log('remove_course response:', text);
-        try {
-            const data = JSON.parse(text);
-            button.innerHTML = originalContent;
-            button.disabled = false;
-            if (data.success) {
-                showToast(`${courseCode} removed successfully!`, 'success');
-                closeModal('removeCourseConfirmModal');
-                
-                const row = button.closest('tr');
-                if (row) {
-                    row.style.opacity = '0';
-                    row.style.transform = 'translateX(-10px)';
-                    setTimeout(() => {
-                        row.remove();
-                        const table = row.closest('table');
-                        if (table) {
-                            const tbody = table.querySelector('tbody');
-                            if (tbody && tbody.children.length === 0) {
-                                const tableContainer = table.parentElement;
-                                if (tableContainer) {
-                                    tableContainer.remove();
-                                }
+    .then(data => {
+        button.innerHTML = originalContent;
+        button.disabled = false;
+        if (data.success) {
+            showToast(`${courseCode} removed successfully!`, 'success');
+            closeModal('removeCourseConfirmModal');
+
+            const row = button.closest('tr');
+            if (row) {
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(-10px)';
+                setTimeout(() => {
+                    row.remove();
+                    const table = row.closest('table');
+                    if (table) {
+                        const tbody = table.querySelector('tbody');
+                        if (tbody && tbody.children.length === 0) {
+                            const tableContainer = table.parentElement;
+                            if (tableContainer) {
+                                tableContainer.remove();
                             }
                         }
-                    }, 300);
-                }
-
-                if (data.new_total_units !== undefined) {
-                    updateCurriculumTotalUnits(curriculumId, data.new_total_units);
-                }
-
-                if (!document.getElementById('viewCoursesModal').classList.contains('hidden')) {
-                    const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
-                    fetchCoursesAndRefreshModal(curriculumId, curriculumName);
-                }
-            } else {
-                openErrorModal(data.error || 'Failed to remove course');
+                    }
+                }, 300);
             }
-        } catch (error) {
-            console.error('JSON Parse Error:', error, 'Response Text:', text);
-            openErrorModal('Invalid server response');
+
+            if (data.new_total_units !== undefined) {
+                updateCurriculumTotalUnits(curriculumId, data.new_total_units);
+            }
+
+            // Refresh curriculum data to update total units and course count
+            refreshCurriculumData(curriculumId);
+
+            // Refresh viewCoursesModal if it's open
+            if (!document.getElementById('viewCoursesModal').classList.contains('hidden')) {
+                const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
+                fetchCoursesAndRefreshModal(curriculumId, curriculumName);
+            }
+        } else {
+            throw new Error(data.error || 'Failed to remove course');
         }
     })
     .catch(error => {
@@ -837,19 +914,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const manageCoursesForm = document.getElementById('manageCoursesForm');
     if (manageCoursesForm) {
         manageCoursesForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+            e.preventDefault(); // Prevent default form submission
             const formData = new FormData(this);
             const curriculumId = formData.get('curriculum_id');
-            const courseId = formData.get('course_id');
             const courseSelect = document.getElementById('courseSelect');
             const selectedOption = courseSelect.options[courseSelect.selectedIndex];
             const courseName = selectedOption ? selectedOption.dataset.name : 'Unknown Course';
-            
 
             console.log('Submitting add_course:', {
                 curriculum_id: curriculumId,
-                course_id: courseId,
-                
+                course_id: formData.get('course_id'),
             });
 
             enableAddButton(false);
@@ -868,30 +942,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         throw new Error(`HTTP ${response.status}: ${text}`);
                     });
                 }
-                return response.text();
+                return response.json();
             })
-            .then(text => {
-                console.log('add_course response:', text);
-                try {
-                    const data = JSON.parse(text);
-                    enableAddButton(true);
-                    if (data.success) {
-                        showToast(`${courseName} added successfully!`, 'success');
-                        resetManageCoursesForm();
-                        if (data.new_total_units !== undefined) {
-                            updateCurriculumTotalUnits(curriculumId, data.new_total_units);
-                        }
-                        
-                        if (!document.getElementById('viewCoursesModal').classList.contains('hidden')) {
-                            const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
-                            fetchCoursesAndRefreshModal(curriculumId, curriculumName);
-                        }
-                    } else {
-                        showToast(data.error || 'Failed to add course', 'error');
+            .then(data => {
+                enableAddButton(true);
+                if (data.success) {
+                    showToast(`${courseName} added successfully!`, 'success');
+                    resetManageCoursesForm(); // Reset form but keep modal open
+                    if (data.new_total_units !== undefined) {
+                        updateCurriculumTotalUnits(curriculumId, data.new_total_units);
                     }
-                } catch (error) {
-                    console.error('JSON Parse Error:', error, 'Response Text:', text);
-                    showToast('Invalid server response', 'error');
+                    // Refresh the viewCoursesModal if it's open
+                    if (!document.getElementById('viewCoursesModal').classList.contains('hidden')) {
+                        const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
+                        fetchCoursesAndRefreshModal(curriculumId, curriculumName);
+                    }
+                } else {
+                    showToast(data.error || 'Failed to add course', 'error');
                 }
             })
             .catch(error => {
@@ -899,104 +966,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 enableAddButton(true);
                 showToast(error.message || 'Failed to add course', 'error');
             });
-        });
-    }
-
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.remove-course-btn')) {
-            e.preventDefault();
-            const button = e.target.closest('.remove-course-btn');
-            handleRemoveCourse(button);
-        }
-        if (e.target.id === 'removeConfirmButton') {
-            confirmRemoveCourse(e.target);
-        }
-    });
-
-    function confirmRemoveCourse(button) {
-        const courseId = button.dataset.courseId;
-        const curriculumId = button.dataset.curriculumId;
-        const courseName = button.dataset.courseName;
-        const courseCode = button.dataset.courseCode;
-
-        console.log('Removing course:', { courseId, curriculumId, courseName, courseCode });
-
-        if (!courseId || !curriculumId || parseInt(courseId) < 1) {
-            openErrorModal('Invalid course ID. Cannot proceed with removal.');
-            return;
-        }
-
-        const originalContent = button.innerHTML;
-        button.innerHTML = `<div class="loading-spinner"></div>`;
-        button.disabled = true;
-
-
-        fetch(window.location.href, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `action=remove_course&curriculum_id=${encodeURIComponent(curriculumId)}&course_id=${encodeURIComponent(courseId)}`
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.text().then(text => {
-                    throw new Error(`HTTP ${response.status}: ${text}`);
-                });
-            }
-            return response.text();
-        })
-        .then(text => {
-            try {
-                const data = JSON.parse(text);
-                button.innerHTML = originalContent;
-                button.disabled = false;
-                if (data.success) {
-                    showToast(`${courseCode} removed successfully!`, 'success');
-                    closeModal('removeCourseConfirmModal');
-                    
-                    const row = button.closest('tr');
-                    if (row) {
-                        row.style.opacity = '0';
-                        row.style.transform = 'translateX(-10px)';
-                        setTimeout(() => {
-                            row.remove();
-                            const table = row.closest('table');
-                            if (table) {
-                                const tbody = table.querySelector('tbody');
-                                if (tbody && tbody.children.length === 0) {
-                                    const tableContainer = table.parentElement;
-                                    if (tableContainer) {
-                                        tableContainer.remove();
-                                    }
-                                }
-                            }
-                        }, 300);
-                    }
-
-                    if (data.new_total_units !== undefined) {
-                        updateCurriculumTotalUnits(curriculumId, data.new_total_units);
-                    }
-
-
-                    if (!document.getElementById('viewCoursesModal').classList.contains('hidden')) {
-                        const curriculumName = document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '');
-                        fetchCoursesAndRefreshModal(curriculumId, curriculumName);
-                    }
-                } else {
-                    throw new Error(data.error || 'Failed to remove course');
-                }
-            } catch (error) {
-                console.error('JSON Parse Error:', error, 'Response Text:', text);
-                throw new Error('Invalid server response');
-            }
-        })
-        .catch(error => {
-            console.error('Remove course error:', error);
-            button.innerHTML = originalContent;
-            button.disabled = false;
-            openErrorModal(error.message || 'Failed to remove course');
         });
     }
 

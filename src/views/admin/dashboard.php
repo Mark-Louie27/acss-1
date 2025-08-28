@@ -272,7 +272,7 @@ ob_start();
                     <select id="semester_name" name="semester_name" class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
                         <option value="1st" <?php echo $currentSemester && $currentSemester['semester_name'] === '1st' ? 'selected' : ''; ?>>1st Semester</option>
                         <option value="2nd" <?php echo $currentSemester && $currentSemester['semester_name'] === '2nd' ? 'selected' : ''; ?>>2nd Semester</option>
-                        <option value="Summer" <?php echo $currentSemester && $currentSemester['semester_name'] === 'Summer' ? 'selected' : ''; ?>>Summer</option>
+                        <option value="Summer" <?php echo $currentSemester && $currentSemester['semester_name'] === 'Summer' ? 'selected' : ''; ?>>Mid Year</option>
                     </select>
                 </div>
 

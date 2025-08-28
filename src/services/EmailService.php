@@ -16,7 +16,7 @@ class EmailService
     {
         $this->mailer = new PHPMailer(true);
         $this->mailer->isSMTP();
-        $this->mailer->Host = 'smtp.gmail.com';
+        $this->mailer->Host = $_ENV['SMTP_HOST']; // Replace with your SMTP host
         $this->mailer->SMTPAuth = true;
         $this->mailer->Username = $_ENV['USERNAME']; // Replace with your Gmail address
         $this->mailer->Password = $_ENV['PASSWORD']; // Replace with Gmail App Password

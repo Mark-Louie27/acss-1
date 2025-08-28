@@ -184,7 +184,6 @@ ob_start();
                                 $coursesStmt = $db->prepare("SELECT course_id, course_code, course_name, units, subject_type FROM courses WHERE department_id = :department_id");
                                 $coursesStmt->execute([':department_id' => $departmentId]);
                                 $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
-                                error_log("Fetched courses at " . date('Y-m-d H:i:s') . ": " . print_r($courses, true));
                             }
                             // Generate options with detailed debugging
                             foreach ($courses as $index => $course) {
@@ -351,36 +350,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Error Modal -->
-<div id="errorModal" class="fixed inset-0 hidden z-50">
-    <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4 bg-opacity-50 backdrop-blur-sm">
-        <div class="modal-content bg-white rounded-xl shadow-2xl max-w-md w-full">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-red-50 to-white rounded-t-xl">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <svg class="w-6 h-6 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                    Error
-                </h3>
-                <button onclick="closeModal('errorModal')" class="text-gray-500 hover:text-gray-700 transition-all transform hover:scale-110 focus:outline-none">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            <div class="p-6">
-                <p id="errorModalMessage" class="text-gray-700"></p>
-                <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end">
-                    <button type="button" onclick="closeModal('errorModal')"
-                        class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <?php
 $modal_content = ob_get_clean();
 ob_start();
@@ -498,7 +467,7 @@ ob_start();
                         <tr class="table-row" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
                             <td class="px-4 sm:px-6 py-4 text-sm font-medium text-prmsu-gray-dark"><?= htmlspecialchars($curriculum['curriculum_name']) ?></td>
                             <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($course_count) ?> Courses</td>
-                            <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($curriculum['total_units']) ?> Total Units</td>
+                            <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray total-units"><?= htmlspecialchars($curriculum['total_units']) ?> Total Units</td>
                             <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($curriculum['updated_at']) ?></td>
                             <td class="px-4 sm:px-6 py-4 text-sm">
                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium <?= $curriculum['status'] === 'Active' ? 'bg-[var(--solid-green)] text-green-700' : 'bg-prmsu-gray-light text-prmsu-gray' ?>">

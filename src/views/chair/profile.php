@@ -238,7 +238,7 @@ ob_start();
                             <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-gray-600">suffix</label>
+                            <label class="text-sm font-medium text-gray-600">Suffix</label>
                             <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                         <div>

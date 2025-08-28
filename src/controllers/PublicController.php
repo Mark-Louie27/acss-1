@@ -64,15 +64,21 @@ class PublicController
     // Add these new methods
     public function getDepartmentSections()
     {
+        // Skip authentication check if session is not required
+        if (!isset($_SESSION['user_id']) && session_status() === PHP_SESSION_ACTIVE) {
+            header('Content-Type: application/json');
+            echo json_encode([]);
+            exit;
+        }
         $currentSemester = $this->getCurrentSemester();
         $departmentId = $_GET['department_id'] ?? 0;
 
         $query = "SELECT section_id, section_name 
-                FROM sections 
-                WHERE department_id = :department_id
-                AND semester = :semester
-                AND academic_year = :academic_year
-                ORDER BY section_name";
+            FROM sections 
+            WHERE department_id = :department_id
+            AND semester = :semester
+            AND academic_year = :academic_year
+            ORDER BY section_name";
 
         try {
             $stmt = $this->db->prepare($query);
@@ -93,11 +99,17 @@ class PublicController
 
     public function getCollegeDepartments()
     {
+        // Skip authentication check if session is not required
+        if (!isset($_SESSION['user_id']) && session_status() === PHP_SESSION_ACTIVE) {
+            header('Content-Type: application/json');
+            echo json_encode([]);
+            exit;
+        }
         $collegeId = $_GET['college_id'] ?? 0;
         $query = "SELECT department_id, department_name 
-                FROM departments 
-                WHERE college_id = :college_id
-                ORDER BY department_name";
+            FROM departments 
+            WHERE college_id = :college_id
+            ORDER BY department_name";
 
         try {
             $stmt = $this->db->prepare($query);
@@ -117,64 +129,81 @@ class PublicController
     {
         $currentSemester = $this->getCurrentSemester();
 
-        $college_id = $_POST['college_id'] ?? 0;
-        $semester_id = $_POST['semester_id'] ?? $currentSemester['semester_id'];
-        $department_id = $_POST['department_id'] ?? 0;
-        $year_level = $_POST['year_level'] ?? '';
-        $section_id = $_POST['section_id'] ?? 0;
-        $search = $_POST['search'] ?? '';
+        // Get and sanitize input
+        $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
+        $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : $currentSemester['semester_id'];
+        $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
+        $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
+        $section_id = isset($_POST['section_id']) ? (int)$_POST['section_id'] : 0;
+        $search = isset($_POST['search']) ? trim($_POST['search']) : '';
 
         $query = "
-            SELECT 
-                s.schedule_id, 
-                c.course_code, 
-                c.course_name, 
-                sec.section_name,
-                sec.year_level,
-                r.room_name, 
-                r.building, 
-                s.day_of_week, 
-                s.start_time, 
-                s.end_time, 
-                s.schedule_type, 
-                CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
-                d.department_name,
-                col.college_name
-            FROM schedules s
-            JOIN courses c ON s.course_id = c.course_id
-            JOIN sections sec ON s.section_id = sec.section_id
-            JOIN semesters sem ON s.semester_id = sem.semester_id
-            LEFT JOIN classrooms r ON s.room_id = r.room_id
-            JOIN faculty f ON s.faculty_id = f.faculty_id
-            JOIN users u ON f.user_id = u.user_id
-            JOIN departments d ON sec.department_id = d.department_id
-            JOIN colleges col ON d.college_id = col.college_id
-            WHERE s.is_public = 1
-            AND sem.semester_id = :semester_id
-            AND (col.college_id = :college_id OR :college_id = 0)
-            AND (d.department_id = :department_id OR :department_id = 0)
-            AND (sec.year_level = :year_level OR :year_level = '')
-            AND (sec.section_id = :section_id OR :section_id = 0)
-            AND (c.course_code LIKE :search 
-                OR c.course_name LIKE :search 
-                OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search)
-            ORDER BY s.day_of_week, s.start_time
-        ";
+        SELECT 
+            s.schedule_id, 
+            c.course_code, 
+            c.course_name, 
+            sec.section_name,
+            sec.year_level,
+            r.room_name, 
+            r.building, 
+            s.day_of_week, 
+            s.start_time, 
+            s.end_time, 
+            s.schedule_type, 
+            CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
+            d.department_name,
+            col.college_name
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.course_id
+        JOIN sections sec ON s.section_id = sec.section_id
+        JOIN semesters sem ON s.semester_id = sem.semester_id
+        LEFT JOIN classrooms r ON s.room_id = r.room_id
+        JOIN faculty f ON s.faculty_id = f.faculty_id
+        JOIN users u ON f.user_id = u.user_id
+        JOIN departments d ON sec.department_id = d.department_id
+        JOIN colleges col ON d.college_id = col.college_id
+        WHERE s.is_public = 1
+        AND sem.semester_id = :semester_id
+        AND (col.college_id = :college_id OR :college_id = 0)
+        AND (d.department_id = :department_id OR :department_id = 0)
+        AND (sec.year_level = :year_level OR :year_level = '')
+        AND (sec.section_id = :section_id OR :section_id = 0)
+        AND (c.course_code LIKE :search OR c.course_name LIKE :search OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search)
+        ORDER BY s.day_of_week, s.start_time
+    ";
 
         try {
             $stmt = $this->db->prepare($query);
+
+            // Log the query and parameters for debugging
+            error_log("Search Schedules Query: $query");
+            error_log("Parameters: semester_id=$semester_id, college_id=$college_id, department_id=$department_id, year_level=$year_level, section_id=$section_id, search=%$search%");
+
             $stmt->execute([
-                ':semester_id' => $currentSemester['semester_id'],
+                ':semester_id' => $semester_id,
                 ':college_id' => $college_id,
                 ':department_id' => $department_id,
                 ':year_level' => $year_level,
                 ':section_id' => $section_id,
                 ':search' => '%' . $search . '%'
             ]);
+
             $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // Add pagination (simple implementation for now)
+            $total = count($schedules); // Replace with actual COUNT query for production
+            $perPage = 10;
+            $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
+            $offset = ($page - 1) * $perPage;
+            $pagedSchedules = array_slice($schedules, $offset, $perPage);
+
             header('Content-Type: application/json');
-            echo json_encode(['schedules' => $schedules]);
+            echo json_encode([
+                'schedules' => $pagedSchedules,
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage
+            ]);
         } catch (PDOException $e) {
             error_log("Search Schedules Error: " . $e->getMessage());
             header('Content-Type: application/json');
@@ -182,7 +211,6 @@ class PublicController
         }
         exit;
     }
-
 
     private function getCurrentSemester()
     {

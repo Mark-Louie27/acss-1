@@ -346,7 +346,7 @@ if (in_array($path, $publicRoutes)) {
                 echo "Method Not Allowed";
             }
             break;
-        case 'public/sections':
+        case '/public/sections':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
                 (new PublicController())->getDepartmentSections();
@@ -355,7 +355,7 @@ if (in_array($path, $publicRoutes)) {
                 echo "Method Not Allowed";
             }
             break;
-        case 'public/departments':
+        case '/public/departments':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
                 (new PublicController())->getCollegeDepartments();
