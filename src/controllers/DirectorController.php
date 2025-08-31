@@ -235,74 +235,383 @@ class DirectorController
                 exit;
             }
 
-            // Fetch department_id from department_instructors
+            // Check if user is system admin (can set deadlines for all colleges)
+            $isSystemAdmin = $this->checkSystemAdminRole($_SESSION['user_id']);
+
+            // Fetch department_id and college_id from department_instructors with department join
             $stmt = $this->db->prepare("
-                SELECT department_id FROM department_instructors 
-                WHERE user_id = :user_id AND is_current = 1
-            ");
+            SELECT di.department_id, d.college_id 
+            FROM department_instructors di
+            INNER JOIN departments d ON di.department_id = d.department_id
+            WHERE di.user_id = :user_id AND di.is_current = 1
+        ");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
-            $department = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$department) {
+            $userDepartment = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$userDepartment) {
                 error_log("setScheduleDeadline: No department found for user_id: " . $_SESSION['user_id']);
                 header('Location: /login?error=Department not assigned');
                 exit;
             }
-            $departmentId = $department['department_id'];
+
+            $collegeId = $userDepartment['college_id'];
+            $userDepartmentId = $userDepartment['department_id'];
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $deadline = filter_input(INPUT_POST, 'deadline', FILTER_SANITIZE_STRING);
+                $applyScope = filter_input(INPUT_POST, 'apply_scope', FILTER_SANITIZE_STRING);
+                $selectedColleges = filter_input(INPUT_POST, 'selected_colleges', FILTER_DEFAULT, FILTER_REQUIRE_ARRAY) ?: [];
+                $selectedDepartments = filter_input(INPUT_POST, 'selected_departments', FILTER_DEFAULT, FILTER_REQUIRE_ARRAY) ?: [];
+
                 if (!$deadline) {
                     error_log("setScheduleDeadline: Invalid deadline format");
                     $_SESSION['error'] = 'Please provide a valid deadline date and time.';
-                    header('Location: /director/schedule-deadline');
+                    header('Location: /director/schedule_deadline');
                     exit;
                 }
 
-                $deadlineDate = DateTime::createFromFormat('Y-m-d H:i', $deadline);
-                if (!$deadlineDate || $deadlineDate < new DateTime()) {
-                    error_log("setScheduleDeadline: Deadline is invalid or in the past");
+                // Parse deadline with the correct format from datetime-local input
+                $deadlineDate = DateTime::createFromFormat('Y-m-d\TH:i', $deadline, new DateTimeZone('America/Los_Angeles'));
+                if ($deadlineDate === false) {
+                    error_log("setScheduleDeadline: Failed to parse deadline: $deadline");
+                    $_SESSION['error'] = 'Please provide a valid deadline date and time.';
+                    header('Location: /director/schedule_deadline');
+                    exit;
+                }
+
+                // Compare with current time in the same timezone
+                $currentTime = new DateTime('now', new DateTimeZone('America/Los_Angeles'));
+                if ($deadlineDate < $currentTime) {
+                    error_log("setScheduleDeadline: Deadline is in the past: " . $deadlineDate->format('Y-m-d H:i:s'));
                     $_SESSION['error'] = 'Deadline must be a future date and time.';
-                    header('Location: /director/schedule-deadline');
+                    header('Location: /director/schedule_deadline');
                     exit;
                 }
 
-                // Insert or update schedule deadline
-                $stmt = $this->db->prepare("
-                    INSERT INTO schedule_deadlines (department_id, deadline, created_at)
-                    VALUES (:department_id, :deadline, NOW())
-                    ON DUPLICATE KEY UPDATE deadline = :deadline, created_at = NOW()
-                ");
-                $stmt->execute([
-                    ':department_id' => $departmentId,
-                    ':deadline' => $deadlineDate->format('Y-m-d H:i:s')
-                ]);
+                // Determine scope and get target departments
+                $targetDepartments = [];
+                $successMessage = '';
+                $affectedColleges = [];
 
-                error_log("setScheduleDeadline: Set deadline for department_id: $departmentId to " . $deadlineDate->format('Y-m-d H:i:s'));
-                $_SESSION['success'] = 'Schedule deadline set successfully.';
+                switch ($applyScope) {
+                    case 'all_colleges':
+                        if (!$isSystemAdmin) {
+                            $_SESSION['error'] = 'You do not have permission to set system-wide deadlines.';
+                            header('Location: /director/schedule_deadline');
+                            exit;
+                        }
+
+                        $deptStmt = $this->db->prepare("
+                        SELECT d.department_id, c.college_name
+                        FROM departments d
+                        INNER JOIN colleges c ON d.college_id = c.college_id
+                        ORDER BY c.college_name ASC
+                    ");
+                        $deptStmt->execute();
+                        $deptResults = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+                        $targetDepartments = array_column($deptResults, 'department_id');
+                        $affectedColleges = array_unique(array_column($deptResults, 'college_name'));
+
+                        $successMessage = "Schedule deadline set successfully for all departments across all colleges.";
+                        break;
+
+                    case 'college_wide':
+                        $deptStmt = $this->db->prepare("
+                        SELECT d.department_id, c.college_name
+                        FROM departments d 
+                        INNER JOIN colleges c ON d.college_id = c.college_id
+                        WHERE d.college_id = :college_id
+                    ");
+                        $deptStmt->execute([':college_id' => $collegeId]);
+                        $deptResults = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+                        $targetDepartments = array_column($deptResults, 'department_id');
+                        $affectedColleges = array_unique(array_column($deptResults, 'college_name'));
+
+                        $successMessage = "Schedule deadline set successfully for all departments in your college.";
+                        break;
+
+                    case 'specific_colleges':
+                        if (!$isSystemAdmin) {
+                            $_SESSION['error'] = 'You do not have permission to set deadlines for other colleges.';
+                            header('Location: /director/schedule_deadline');
+                            exit;
+                        }
+
+                        if (empty($selectedColleges)) {
+                            $_SESSION['error'] = 'Please select at least one college.';
+                            header('Location: /director/schedule_deadline');
+                            exit;
+                        }
+
+                        $placeholders = str_repeat('?,', count($selectedColleges) - 1) . '?';
+                        $validateStmt = $this->db->prepare("
+                        SELECT college_id FROM colleges WHERE college_id IN ($placeholders)
+                    ");
+                        $validateStmt->execute($selectedColleges);
+                        $validColleges = $validateStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                        if (count($validColleges) !== count($selectedColleges)) {
+                            $_SESSION['error'] = 'One or more selected colleges are invalid.';
+                            header('Location: /director/schedule_deadline');
+                            exit;
+                        }
+
+                        $deptStmt = $this->db->prepare("
+                        SELECT d.department_id, c.college_name
+                        FROM departments d
+                        INNER JOIN colleges c ON d.college_id = c.college_id
+                        WHERE d.college_id IN ($placeholders)
+                        ORDER BY c.college_name ASC
+                    ");
+                        $deptStmt->execute($selectedColleges);
+                        $deptResults = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+                        $targetDepartments = array_column($deptResults, 'department_id');
+                        $affectedColleges = array_unique(array_column($deptResults, 'college_name'));
+
+                        $collegeCount = count($affectedColleges);
+                        $collegeNames = implode(', ', $affectedColleges);
+                        $successMessage = "Schedule deadline set successfully for all departments in {$collegeCount} college(s): {$collegeNames}.";
+                        break;
+
+                    case 'specific_departments':
+                        if (empty($selectedDepartments)) {
+                            $_SESSION['error'] = 'Please select at least one department.';
+                            header('Location: /director/schedule_deadline');
+                            exit;
+                        }
+
+                        if (!$isSystemAdmin) {
+                            $placeholders = str_repeat('?,', count($selectedDepartments) - 1) . '?';
+                            $validateStmt = $this->db->prepare("
+                            SELECT department_id FROM departments 
+                            WHERE department_id IN ($placeholders) AND college_id = ?
+                        ");
+                            $validateParams = array_merge($selectedDepartments, [$collegeId]);
+                            $validateStmt->execute($validateParams);
+                            $validDepartments = $validateStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                            if (count($validDepartments) !== count($selectedDepartments)) {
+                                $_SESSION['error'] = 'You can only select departments from your college.';
+                                header('Location: /director/schedule_deadline');
+                                exit;
+                            }
+                            $targetDepartments = $validDepartments;
+                        } else {
+                            $placeholders = str_repeat('?,', count($selectedDepartments) - 1) . '?';
+                            $validateStmt = $this->db->prepare("
+                            SELECT d.department_id, c.college_name 
+                            FROM departments d
+                            INNER JOIN colleges c ON d.college_id = c.college_id
+                            WHERE d.department_id IN ($placeholders)
+                        ");
+                            $validateStmt->execute($selectedDepartments);
+                            $deptResults = $validateStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                            if (count($deptResults) !== count($selectedDepartments)) {
+                                $_SESSION['error'] = 'One or more selected departments are invalid.';
+                                header('Location: /director/schedule_deadline');
+                                exit;
+                            }
+
+                            $targetDepartments = array_column($deptResults, 'department_id');
+                            $affectedColleges = array_unique(array_column($deptResults, 'college_name'));
+                        }
+
+                        $deptCount = count($targetDepartments);
+                        $successMessage = "Schedule deadline set successfully for {$deptCount} selected department(s).";
+                        break;
+
+                    case 'department_only':
+                    default:
+                        $targetDepartments = [$userDepartmentId];
+                        $successMessage = 'Schedule deadline set successfully for your department.';
+                        break;
+                }
+
+                if (empty($targetDepartments)) {
+                    $_SESSION['error'] = 'No departments found for the selected scope.';
+                    header('Location: /director/schedule_deadline');
+                    exit;
+                }
+
+                // Begin transaction for batch operations
+                $this->db->beginTransaction();
+
+                try {
+                    // Deactivate existing active deadlines for target departments
+                    $deactivateStmt = $this->db->prepare("
+                    UPDATE schedule_deadlines 
+                    SET is_active = 0 
+                    WHERE department_id IN (" . str_repeat('?,', count($targetDepartments) - 1) . "?) 
+                    AND is_active = 1
+                ");
+                    $deactivateStmt->execute($targetDepartments);
+
+                    // Insert or update deadline for target departments with is_active = 1
+                    $stmt = $this->db->prepare("
+                    INSERT INTO schedule_deadlines (user_id, department_id, deadline, created_at, is_active)
+                    VALUES (:user_id, :department_id, :deadline, NOW(), 1)
+                    ON DUPLICATE KEY UPDATE 
+                        deadline = VALUES(deadline), 
+                        created_at = NOW(),
+                        user_id = VALUES(user_id),
+                        is_active = VALUES(is_active)
+                ");
+
+                    $affectedDepartments = 0;
+                    foreach ($targetDepartments as $deptId) {
+                        $stmt->execute([
+                            ':user_id' => $_SESSION['user_id'],
+                            ':department_id' => $deptId,
+                            ':deadline' => $deadlineDate->format('Y-m-d H:i:s')
+                        ]);
+                        $affectedDepartments++;
+                    }
+
+                    $this->db->commit();
+
+                    error_log("setScheduleDeadline: Set deadline for $affectedDepartments departments (scope: $applyScope) to " . $deadlineDate->format('Y-m-d H:i:s'));
+                    $_SESSION['success'] = $successMessage . " ({$affectedDepartments} departments affected)";
+                } catch (Exception $e) {
+                    $this->db->rollback();
+                    throw $e;
+                }
+
                 header('Location: /director/dashboard');
                 exit;
             }
 
-            // Fetch current deadline
-            $deadlineStmt = $this->db->prepare("
-                SELECT deadline FROM schedule_deadlines 
-                WHERE department_id = :department_id 
-                ORDER BY deadline DESC LIMIT 1
+            // Fetch data for display
+            if ($isSystemAdmin) {
+                $deadlineStmt = $this->db->prepare("
+                SELECT 
+                    sd.department_id,
+                    d.department_name,
+                    c.college_name,
+                    sd.deadline,
+                    sd.user_id,
+                    sd.created_at,
+                    sd.is_active,
+                    CONCAT(u.first_name, ' ', u.last_name) as set_by_name
+                FROM schedule_deadlines sd
+                INNER JOIN departments d ON sd.department_id = d.department_id
+                INNER JOIN colleges c ON d.college_id = c.college_id
+                LEFT JOIN users u ON sd.user_id = u.user_id
+                ORDER BY c.college_name ASC, d.department_name ASC, sd.deadline DESC
             ");
-            $deadlineStmt->execute([':department_id' => $departmentId]);
-            $currentDeadline = $deadlineStmt->fetchColumn();
+                $deadlineStmt->execute();
+
+                $allCollegesStmt = $this->db->prepare("
+                SELECT college_id, college_name, 
+                       (SELECT COUNT(*) FROM departments WHERE college_id = colleges.college_id) as department_count
+                FROM colleges 
+                ORDER BY college_name ASC
+            ");
+                $allCollegesStmt->execute();
+                $allColleges = $allCollegesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $allDeptStmt = $this->db->prepare("
+                SELECT d.department_id, d.department_name, c.college_id, c.college_name
+                FROM departments d
+                INNER JOIN colleges c ON d.college_id = c.college_id
+                ORDER BY c.college_name ASC, d.department_name ASC
+            ");
+                $allDeptStmt->execute();
+                $allDepartments = $allDeptStmt->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                $deadlineStmt = $this->db->prepare("
+                SELECT 
+                    sd.department_id,
+                    d.department_name,
+                    sd.deadline,
+                    sd.user_id,
+                    sd.created_at,
+                    sd.is_active,
+                    CONCAT(u.first_name, ' ', u.last_name) as set_by_name
+                FROM schedule_deadlines sd
+                INNER JOIN departments d ON sd.department_id = d.department_id
+                LEFT JOIN users u ON sd.user_id = u.user_id
+                WHERE d.college_id = :college_id 
+                ORDER BY d.department_name ASC, sd.deadline DESC
+            ");
+                $deadlineStmt->execute([':college_id' => $collegeId]);
+
+                $allDeptStmt = $this->db->prepare("
+                SELECT department_id, department_name, college_id
+                FROM departments 
+                WHERE college_id = :college_id 
+                ORDER BY department_name ASC
+            ");
+                $allDeptStmt->execute([':college_id' => $collegeId]);
+                $allDepartments = $allDeptStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $allColleges = null;
+            }
+
+            $deadlines = $deadlineStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $collegeStmt = $this->db->prepare("
+            SELECT college_name FROM colleges WHERE college_id = :college_id
+        ");
+            $collegeStmt->execute([':college_id' => $collegeId]);
+            $collegeName = $collegeStmt->fetchColumn();
+
+            $departmentsByCollege = [];
+            foreach ($allDepartments as $dept) {
+                $collegeKey = $dept['college_id'] ?? $collegeId;
+                $departmentsByCollege[$collegeKey][] = $dept;
+            }
 
             $data = [
                 'user' => $userData,
                 'title' => 'Set Schedule Deadline',
-                'current_deadline' => $currentDeadline ? date('Y-m-d H:i:s', strtotime($currentDeadline)) : null
+                'deadlines' => $deadlines,
+                'all_departments' => $allDepartments,
+                'departments_by_college' => $departmentsByCollege,
+                'all_colleges' => $allColleges,
+                'college_name' => $collegeName,
+                'college_id' => $collegeId,
+                'user_department_id' => $userDepartmentId,
+                'is_system_admin' => $isSystemAdmin
             ];
 
             require_once __DIR__ . '/../views/director/schedule_deadline.php';
         } catch (PDOException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollback();
+            }
             error_log("setScheduleDeadline: Database error - " . $e->getMessage());
-            header('Location: /error?message=Database error');
+            $_SESSION['error'] = 'A database error occurred. Please try again.';
+            header('Location: /director/schedule_deadline');
             exit;
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollback();
+            }
+            error_log("setScheduleDeadline: General error - " . $e->getMessage());
+            $_SESSION['error'] = 'An unexpected error occurred. Please try again.';
+            header('Location: /director/schedule_deadline');
+            exit;
+        }
+    }
+
+    /**
+     * Check if user has system admin role
+     */
+    private function checkSystemAdminRole($userId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT COUNT(*) 
+            FROM users u
+            INNER JOIN roles r ON u.role_id = r.role_id
+            WHERE u.user_id = :user_id AND r.role_name = 'D.I'
+        ");
+            $stmt->execute([':user_id' => $userId]);
+            return $stmt->fetchColumn() > 0;
+        } catch (PDOException $e) {
+            error_log("checkSystemAdminRole: Database error - " . $e->getMessage());
+            return false;
         }
     }
 

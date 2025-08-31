@@ -1,10 +1,13 @@
 <?php
 require_once __DIR__ . '/../../controllers/ChairController.php';
+require_once __DIR__ . '/../../config/Database.php';
+
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 5) {
     header('Location: /login?error=Unauthorized access');
     exit;
 }
-// Fetch profile picture from session or database
+
+// Fetch profile picture
 $profilePicture = $_SESSION['profile_picture'] ?? null;
 if (!$profilePicture) {
     try {
@@ -12,17 +15,26 @@ if (!$profilePicture) {
         $stmt = $db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
         $stmt->execute([':user_id' => $_SESSION['user_id']]);
         $profilePicture = $stmt->fetchColumn() ?: '';
-        $_SESSION['profile_picture'] = $profilePicture; // Cache in session
+        $_SESSION['profile_picture'] = $profilePicture;
     } catch (PDOException $e) {
         error_log("layout: Error fetching profile picture - " . $e->getMessage());
         $profilePicture = '';
     }
 }
 
-// Determine current page for active navigation highlighting
-$currentUri = $_SERVER['REQUEST_URI'];
+// Get department ID
+$userDepartmentId = $_SESSION['department_id'] ?? null;
+if (!$userDepartmentId) {
+    $chairController = new ChairController();
+    $userDepartmentId = $chairController->getChairDepartment($_SESSION['user_id']);
+    $_SESSION['department_id'] = $userDepartmentId;
+}
 
-// Initialize modal content variable
+$chairController = new ChairController();
+$deadlineStatus = $chairController->checkScheduleDeadlineStatus($userDepartmentId);
+$isScheduleLocked = $deadlineStatus['locked'] ?? false;
+
+$currentUri = $_SERVER['REQUEST_URI'];
 $modal_content = $modal_content ?? '';
 ?>
 
@@ -332,6 +344,31 @@ $modal_content = $modal_content ?? '';
         .modal-overlay {
             z-index: 50 !important;
         }
+
+        /* Additional CSS for hover effects and tooltips */
+        .group:hover .group-hover\:opacity-100 {
+            opacity: 1;
+        }
+
+        .locked-item {
+            position: relative;
+            cursor: not-allowed;
+        }
+
+        .locked-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 255, 255, 0.1) 2px,
+                    rgba(255, 255, 255, 0.1) 4px);
+            pointer-events: none;
+        }
     </style>
 </head>
 
@@ -435,9 +472,67 @@ $modal_content = $modal_content ?? '';
                     <i class="fas fa-chevron-down text-xs transition-transform duration-300 toggle-icon"></i>
                 </button>
                 <div class="dropdown-menu ml-5 mt-1 rounded-md flex-col bg-gray-800/80 overflow-hidden">
-                    <a href="/chair/schedule_management" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gold-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/create') !== false ? 'bg-gray-700 text-gold-300' : '' ?>">
-                        <i class="fas fa-plus-circle w-5 mr-2"></i> Create Schedule
-                    </a>
+                    <!-- Deadline Status Indicator -->
+                    <?php if ($isScheduleLocked): ?>
+                        <div class="ml-5 mb-2 px-3 py-2 bg-red-900/50 rounded-md text-xs">
+                            <div class="flex items-center text-red-300">
+                                <i class="fas fa-lock mr-2"></i>
+                                <span>Schedule Creation Locked</span>
+                            </div>
+                            <div class="text-red-400 mt-1">
+                                <?= htmlspecialchars($deadlineStatus['message'] ?? 'Unknown deadline') ?>
+                            </div>
+                        </div>
+                    <?php elseif (isset($deadlineStatus['deadline'])): ?>
+                        <?php
+                        $timeRemaining = $deadlineStatus['time_remaining'] ?? null;
+                        $totalHours = $deadlineStatus['total_hours'] ?? 0;
+                        $warningClass = ($totalHours <= 24) ? 'deadline-warning text-yellow-400' : (($totalHours <= 48) ? 'text-orange-400' : 'text-blue-400');
+                        ?>
+                        <div class="ml-5 mb-2 px-3 py-2 bg-blue-900/50 rounded-md text-xs">
+                            <div class="flex items-center text-blue-300">
+                                <i class="fas fa-clock mr-2"></i>
+                                <span>Deadline: <?= ($deadlineStatus['deadline'] ?? new DateTime())->format('M j, g:i A') ?></span>
+                            </div>
+                            <div class="text-<?= $warningClass ?> mt-1">
+                                <?php if ($totalHours <= 24): ?>
+                                    <span>⚠️ <?= $totalHours ?> hours remaining</span>
+                                <?php elseif ($totalHours <= 48): ?>
+                                    <span>⏳ <?= $timeRemaining->days ?? 0 ?>d <?= $timeRemaining->h ?? 0 ?>h left</span>
+                                <?php else: ?>
+                                    <span><?= $timeRemaining->days ?? 0 ?>d <?= $timeRemaining->h ?? 0 ?>h remaining</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Create Schedule - Conditional Locking -->
+                    <?php if ($isScheduleLocked): ?>
+                        <div class="locked-item">
+                            <div class="flex items-center px-4 py-3 text-gray-500 bg-gray-900/50 cursor-not-allowed rounded-md opacity-75">
+                                <i class="fas fa-lock w-5 mr-2 text-red-400"></i> Create Schedule
+                                <span class="ml-auto text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Locked</span>
+                            </div>
+                            <div class="absolute left-full top-0 ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                                <?= htmlspecialchars($deadlineStatus['message'] ?? 'Deadline passed') ?>
+                                <div class="absolute top-1/2 left-0 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <a href="/chair/schedule_management" class="group relative flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gold-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/create') !== false ? 'bg-gray-700 text-gold-300' : '' ?>">
+                            <i class="fas fa-plus-circle w-5 mr-2"></i> Create Schedule
+                            <?php if (isset($deadlineStatus['deadline']) && $totalHours <= 48): ?>
+                                <span class="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full <?= ($totalHours <= 24) ? 'deadline-warning' : '' ?>">
+                                    <?= $totalHours ?>h left
+                                </span>
+                                <div class="absolute left-full top-0 ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                                    Deadline: <?= ($deadlineStatus['deadline'] ?? new DateTime())->format('M j, Y g:i A') ?>
+                                    <div class="absolute top-1/2 left-0 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+                                </div>
+                            <?php endif; ?>
+                        </a>
+                    <?php endif; ?>
+
                     <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gold-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule') !== false && strpos($currentUri, '/create') === false && strpos($currentUri, '/history') === false ? 'bg-gray-700 text-gold-300' : '' ?>">
                         <i class="fas fa-list w-5 mr-2"></i> My Schedule
                     </a>

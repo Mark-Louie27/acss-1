@@ -335,6 +335,9 @@ if (in_array($path, $publicRoutes)) {
         case 'register':
             $controller->register();
             break;
+        case 'forgot_password':
+            $controller->forgotPassword();
+            break;
         case '':
         case 'home':
             require_once __DIR__ . '/../src/controllers/PublicController.php';

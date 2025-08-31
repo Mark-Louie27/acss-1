@@ -9,28 +9,12 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($data['title']); ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/output.css">
     <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'gold-primary': '#D4AF37',
-                        'gold-light': '#F7E98E',
-                        'gold-dark': '#B8860B',
-                    }
-                }
-            }
-        }
-    </script>
 </head>
 
 <body class="bg-gray-50">
-    <!-- Main Content Area (accounting for sidebar) -->
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-
-        <!-- Main Content -->
         <div class="container mx-auto px-4 py-8 max-w-7xl">
             <!-- Success/Error Messages -->
             <?php if (isset($_SESSION['success'])): ?>
@@ -53,109 +37,212 @@ ob_start();
                 </div>
             <?php endif; ?>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Current Deadline Card -->
-                <div class="lg:col-span-1">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div class="bg-gradient-to-r from-gold-primary to-gold-dark p-6">
-                            <div class="flex items-center text-white">
-                                <div class="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-4">
-                                    <i class="fas fa-clock text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-lg font-semibold">Current Status</h3>
-                                    <p class="text-sm opacity-90">Schedule Deadline</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="p-6">
-                            <?php if ($data['current_deadline']): ?>
-                                <div class="space-y-4">
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-500 mb-1">Deadline Date</p>
-                                        <p class="text-lg font-semibold text-gray-900">
-                                            <?php echo htmlspecialchars(date('M j, Y', strtotime($data['current_deadline']))); ?>
-                                        </p>
-                                        <p class="text-sm text-gray-600">
-                                            <?php echo htmlspecialchars(date('g:i A', strtotime($data['current_deadline']))); ?>
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-500 mb-2">Time Remaining</p>
-                                        <?php
-                                        $currentTime = new DateTime();
-                                        $deadlineTime = new DateTime($data['current_deadline']);
-                                        $interval = $currentTime->diff($deadlineTime);
-
-                                        if ($deadlineTime > $currentTime): ?>
-                                            <div class="flex items-center space-x-2">
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                    <i class="fas fa-clock mr-1"></i>
-                                                    Active
-                                                </span>
-                                                <span class="text-sm text-gray-600">
-                                                    <?php echo $interval->format('%a days, %h hours'); ?>
-                                                </span>
-                                            </div>
-                                        <?php else: ?>
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                Expired
-                                            </span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php else: ?>
-                                <div class="text-center py-4">
-                                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <i class="fas fa-calendar-times text-2xl text-gray-400"></i>
-                                    </div>
-                                    <h3 class="text-lg font-medium text-gray-900 mb-2">No Deadline Set</h3>
-                                    <p class="text-sm text-gray-500">Faculty can submit schedules without time restrictions</p>
-                                </div>
+            <!-- Header -->
+            <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($data['title']); ?></h1>
+                        <div class="mt-2 flex items-center space-x-4">
+                            <p class="text-lg text-gold-primary font-semibold">
+                                <i class="fas fa-university mr-2"></i>
+                                <?php echo htmlspecialchars($data['college_name'] ?? 'College'); ?>
+                            </p>
+                            <?php if ($data['is_system_admin']): ?>
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    <i class="fas fa-crown mr-1"></i>
+                                    System Admin
+                                </span>
                             <?php endif; ?>
                         </div>
                     </div>
-
-                    <!-- Information Card -->
-                    <div class="mt-6 bg-blue-50 rounded-xl border border-blue-200 p-6">
-                        <h4 class="text-sm font-semibold text-blue-900 mb-3 flex items-center">
-                            <i class="fas fa-info-circle mr-2"></i>
-                            Important Information
-                        </h4>
-                        <ul class="text-xs text-blue-800 space-y-2">
-                            <li class="flex items-start">
-                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
-                                Faculty will receive notifications about the deadline
-                            </li>
-                            <li class="flex items-start">
-                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
-                                Submissions after deadline require director approval
-                            </li>
-                            <li class="flex items-start">
-                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
-                                You can update the deadline anytime
-                            </li>
-                            <li class="flex items-start">
-                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
-                                System sends reminders 24 hours before deadline
-                            </li>
-                        </ul>
-                    </div>
                 </div>
+            </div>
 
+            <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
                 <!-- Form Section -->
-                <div class="lg:col-span-2">
+                <div class="xl:col-span-3">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                         <div class="p-6 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-900 flex items-center">
                                 <i class="fas fa-calendar-alt text-gold-primary mr-3"></i>
-                                Set New Deadline
+                                Set Schedule Deadline
                             </h3>
-                            <p class="mt-1 text-sm text-gray-600">Choose when faculty schedule submissions will close</p>
+                            <p class="mt-1 text-sm text-gray-600">Choose the scope and deadline for schedule submissions</p>
                         </div>
 
                         <form method="POST" id="deadlineForm" class="p-6">
+                            <!-- Application Scope -->
+                            <div class="mb-6">
+                                <label class="text-sm font-medium text-gray-700 mb-4 block">Application Scope</label>
+                                <div class="space-y-4">
+                                    <?php if ($data['is_system_admin']): ?>
+                                        <!-- Specific Colleges -->
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gold-primary transition-colors scope-option">
+                                            <div class="flex items-start space-x-3">
+                                                <input type="radio" id="scope_specific_colleges" name="apply_scope" value="specific_colleges"
+                                                    class="mt-1 h-4 w-4 text-gold-primary focus:ring-gold-primary border-gray-300">
+                                                <div class="flex-1">
+                                                    <label for="scope_specific_colleges" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center">
+                                                        <i class="fas fa-check-square text-purple-500 mr-2"></i>
+                                                        Specific Colleges
+                                                    </label>
+                                                    <p class="text-xs text-gray-600 mt-1 mb-3">Choose specific colleges to apply deadline</p>
+
+                                                    <!-- College Selection -->
+                                                    <div id="college-selection" class="hidden mt-3">
+                                                        <div class="border border-gray-200 rounded p-3 bg-gray-50">
+                                                            <div class="flex items-center justify-between mb-3">
+                                                                <span class="text-sm font-medium text-gray-700">Select Colleges:</span>
+                                                                <button type="button" class="text-xs text-gold-primary hover:text-gold-dark" onclick="toggleAllColleges()">
+                                                                    <span id="toggleCollegesText">Select All</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                                                                <?php if (!empty($data['all_colleges'])): ?>
+                                                                    <?php foreach ($data['all_colleges'] as $college): ?>
+                                                                        <label class="flex items-center space-x-2 text-sm hover:bg-gray-100 p-2 rounded">
+                                                                            <input type="checkbox" name="selected_colleges[]" value="<?php echo $college['college_id']; ?>"
+                                                                                class="rounded text-gold-primary college-checkbox">
+                                                                            <span><?php echo htmlspecialchars($college['college_name']); ?></span>
+                                                                            <span class="text-xs text-gray-500">(<?php echo $college['department_count'] ?? 0; ?> depts)</span>
+                                                                        </label>
+                                                                    <?php endforeach; ?>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Specific Departments -->
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gold-primary transition-colors scope-option">
+                                            <div class="flex items-start space-x-3">
+                                                <input type="radio" id="scope_specific_departments" name="apply_scope" value="specific_departments"
+                                                    class="mt-1 h-4 w-4 text-gold-primary focus:ring-gold-primary border-gray-300">
+                                                <div class="flex-1">
+                                                    <label for="scope_specific_departments" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center">
+                                                        <i class="fas fa-list-check text-orange-500 mr-2"></i>
+                                                        Specific Departments
+                                                    </label>
+                                                    <p class="text-xs text-gray-600 mt-1 mb-3">Choose specific departments to apply deadline</p>
+
+                                                    <!-- Department Selection -->
+                                                    <div id="department-selection" class="hidden mt-3">
+                                                        <div class="border border-gray-200 rounded p-3 bg-gray-50">
+                                                            <div class="flex items-center justify-between mb-3">
+                                                                <span class="text-sm font-medium text-gray-700">Select Departments:</span>
+                                                                <button type="button" class="text-xs text-gold-primary hover:text-gold-dark" onclick="toggleAllDepartments()">
+                                                                    <span id="toggleDepartmentsText">Select All</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="space-y-3 max-h-60 overflow-y-auto">
+                                                                <?php if (!empty($data['departments_by_college'])): ?>
+                                                                    <?php foreach ($data['departments_by_college'] as $college_id => $departments): ?>
+                                                                        <div class="border border-gray-200 rounded p-3 bg-white">
+                                                                            <div class="flex items-center justify-between mb-2">
+                                                                                <h5 class="text-sm font-medium text-gray-700">
+                                                                                    <?php
+                                                                                    // Find college name
+                                                                                    $college_name = 'Unknown College';
+                                                                                    if (!empty($data['all_colleges'])) {
+                                                                                        foreach ($data['all_colleges'] as $college) {
+                                                                                            if ($college['college_id'] == $college_id) {
+                                                                                                $college_name = $college['college_name'];
+                                                                                                break;
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                    echo htmlspecialchars($college_name);
+                                                                                    ?>
+                                                                                </h5>
+                                                                                <button type="button" class="text-xs text-blue-600 hover:text-blue-800"
+                                                                                    onclick="toggleCollegeDepartments(<?php echo $college_id; ?>)">
+                                                                                    <span id="toggleCollege<?php echo $college_id; ?>Text">Select All</span>
+                                                                                </button>
+                                                                            </div>
+                                                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                                <?php foreach ($departments as $department): ?>
+                                                                                    <label class="flex items-center space-x-2 text-sm hover:bg-gray-50 p-1 rounded">
+                                                                                        <input type="checkbox" name="selected_departments[]"
+                                                                                            value="<?php echo $department['department_id']; ?>"
+                                                                                            class="rounded text-gold-primary department-checkbox college-<?php echo $college_id; ?>-dept">
+                                                                                        <span><?php echo htmlspecialchars($department['department_name']); ?></span>
+                                                                                    </label>
+                                                                                <?php endforeach; ?>
+                                                                            </div>
+                                                                        </div>
+                                                                    <?php endforeach; ?>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- All Colleges (System-wide) - Warning Style -->
+                                        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50 hover:border-red-300 transition-colors scope-option">
+                                            <div class="flex items-start space-x-3">
+                                                <input type="radio" id="scope_all_colleges" name="apply_scope" value="all_colleges"
+                                                    class="mt-1 h-4 w-4 text-red-500 focus:ring-red-500 border-gray-300">
+                                                <div class="flex-1">
+                                                    <label for="scope_all_colleges" class="text-sm font-medium text-red-900 cursor-pointer flex items-center">
+                                                        <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                                                        All Colleges (System-wide)
+                                                    </label>
+                                                    <p class="text-xs text-red-700 mt-1">
+                                                        <strong>⚠️ CAUTION:</strong> This will set the deadline for ALL departments across ALL colleges in the system
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php else: ?>
+                                        <!-- For non-system admins, show department selection only within their college -->
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gold-primary transition-colors scope-option">
+                                            <div class="flex items-start space-x-3">
+                                                <input type="radio" id="scope_specific_departments" name="apply_scope" value="specific_departments"
+                                                    class="mt-1 h-4 w-4 text-gold-primary focus:ring-gold-primary border-gray-300">
+                                                <div class="flex-1">
+                                                    <label for="scope_specific_departments" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center">
+                                                        <i class="fas fa-list-check text-orange-500 mr-2"></i>
+                                                        Specific Departments in My College
+                                                    </label>
+                                                    <p class="text-xs text-gray-600 mt-1 mb-3">Choose specific departments in your college</p>
+
+                                                    <!-- Department Selection for Non-System Admin -->
+                                                    <div id="department-selection-regular" class="hidden mt-3">
+                                                        <div class="border border-gray-200 rounded p-3 bg-gray-50">
+                                                            <div class="flex items-center justify-between mb-3">
+                                                                <span class="text-sm font-medium text-gray-700">Select Departments in <?php echo htmlspecialchars($data['college_name']); ?>:</span>
+                                                                <button type="button" class="text-xs text-gold-primary hover:text-gold-dark" onclick="toggleAllDepartments()">
+                                                                    <span id="toggleDepartmentsText">Select All</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                                                                <?php if (!empty($data['all_departments'])): ?>
+                                                                    <?php foreach ($data['all_departments'] as $department): ?>
+                                                                        <label class="flex items-center space-x-2 text-sm hover:bg-gray-100 p-2 rounded">
+                                                                            <input type="checkbox" name="selected_departments[]"
+                                                                                value="<?php echo $department['department_id']; ?>"
+                                                                                class="rounded text-gold-primary department-checkbox">
+                                                                            <span><?php echo htmlspecialchars($department['department_name']); ?></span>
+                                                                        </label>
+                                                                    <?php endforeach; ?>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <!-- Scope Feedback -->
+                            <div id="scope-feedback" class="mb-6 text-sm"></div>
+
                             <!-- Quick Presets -->
                             <div class="mb-6">
                                 <label class="text-sm font-medium text-gray-700 mb-3 block">Quick Presets</label>
@@ -191,8 +278,7 @@ ob_start();
                                         name="deadline"
                                         class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-gold-primary focus:border-gold-primary transition-colors duration-200 text-gray-900"
                                         required
-                                        min="<?php echo date('Y-m-d\TH:i'); ?>"
-                                        value="<?php echo $data['current_deadline'] ? date('Y-m-d\TH:i', strtotime($data['current_deadline'])) : ''; ?>">
+                                        min="<?php echo date('Y-m-d\TH:i'); ?>">
                                     <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                                         <i class="fas fa-calendar-alt text-gold-primary"></i>
                                     </div>
@@ -226,6 +312,100 @@ ob_start();
                         </form>
                     </div>
                 </div>
+
+                <!-- Status Overview -->
+                <div class="xl:col-span-1">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                                <i class="fas fa-list-alt text-gold-primary mr-3"></i>
+                                Current Deadlines
+                            </h3>
+                        </div>
+                        <div class="p-6 max-h-96 overflow-y-auto">
+                            <?php if (!empty($data['deadlines'])): ?>
+                                <div class="space-y-4">
+                                    <?php foreach ($data['deadlines'] as $deadline): ?>
+                                        <div class="border-l-4 <?php echo $deadline['department_id'] == $data['user_department_id'] ? 'border-gold-primary bg-gold-light bg-opacity-10' : 'border-gray-200'; ?> pl-4">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1">
+                                                    <h4 class="font-medium text-gray-900 text-sm">
+                                                        <?php echo htmlspecialchars($deadline['department_name']); ?>
+                                                        <?php if ($deadline['department_id'] == $data['user_department_id']): ?>
+                                                            <span class="text-xs text-gold-primary">(Your Dept)</span>
+                                                        <?php endif; ?>
+                                                    </h4>
+                                                    <?php if ($data['is_system_admin'] && isset($deadline['college_name'])): ?>
+                                                        <p class="text-xs text-gray-500 mb-1">
+                                                            <i class="fas fa-university mr-1"></i>
+                                                            <?php echo htmlspecialchars($deadline['college_name']); ?>
+                                                        </p>
+                                                    <?php endif; ?>
+                                                    <p class="text-sm <?php echo strtotime($deadline['deadline']) < time() ? 'text-red-600' : 'text-green-600'; ?> font-medium">
+                                                        <?php echo date('M j, Y g:i A', strtotime($deadline['deadline'])); ?>
+                                                    </p>
+                                                    <p class="text-xs text-gray-500">
+                                                        Set <?php echo isset($deadline['set_by_name']) ? 'by ' . htmlspecialchars($deadline['set_by_name']) : 'by User #' . $deadline['user_id']; ?>
+                                                    </p>
+                                                </div>
+                                                <div class="ml-2">
+                                                    <?php if (strtotime($deadline['deadline']) < time()): ?>
+                                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                            Expired
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            Active
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-center py-8">
+                                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fas fa-calendar-times text-2xl text-gray-400"></i>
+                                    </div>
+                                    <p class="text-sm text-gray-500">No deadlines set</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Information Card -->
+                    <div class="mt-6 bg-blue-50 rounded-xl border border-blue-200 p-6">
+                        <h4 class="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Important Information
+                        </h4>
+                        <ul class="text-xs text-blue-800 space-y-2">
+                            <li class="flex items-start">
+                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
+                                Faculty receive notifications about deadlines
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
+                                Late submissions require approval
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-check text-blue-600 mt-0.5 mr-2 text-xs"></i>
+                                Deadlines can be updated anytime
+                            </li>
+                            <?php if ($data['is_system_admin']): ?>
+                                <li class="flex items-start">
+                                    <i class="fas fa-crown text-blue-600 mt-0.5 mr-2 text-xs"></i>
+                                    System-wide deadlines affect all colleges
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fas fa-exclamation-triangle text-red-600 mt-0.5 mr-2 text-xs"></i>
+                                    Use system-wide settings with caution
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -238,6 +418,14 @@ ob_start();
         .preset-btn:hover i {
             @apply text-white;
         }
+
+        .scope-option:has(input:checked) {
+            @apply border-gold-primary bg-gold-light bg-opacity-5;
+        }
+
+        .scope-option:has(input:checked) label {
+            @apply text-gold-dark;
+        }
     </style>
 
     <script>
@@ -247,6 +435,101 @@ ob_start();
             const loadingIcon = document.getElementById('loadingIcon');
             const btnText = submitBtn.querySelector('.btn-text');
             const deadlineInput = document.getElementById('deadline');
+            const scopeRadios = document.querySelectorAll('input[name="apply_scope"]');
+
+            // Show/hide selection areas based on scope
+            function handleScopeChange() {
+                const selectedScope = document.querySelector('input[name="apply_scope"]:checked')?.value;
+
+                // Hide all selection areas
+                const collegeSelection = document.getElementById('college-selection');
+                const departmentSelection = document.getElementById('department-selection');
+                const departmentSelectionRegular = document.getElementById('department-selection-regular');
+
+                if (collegeSelection) collegeSelection.classList.add('hidden');
+                if (departmentSelection) departmentSelection.classList.add('hidden');
+                if (departmentSelectionRegular) departmentSelectionRegular.classList.add('hidden');
+
+                // Show appropriate selection area
+                switch (selectedScope) {
+                    case 'specific_colleges':
+                        if (collegeSelection) collegeSelection.classList.remove('hidden');
+                        break;
+                    case 'specific_departments':
+                        if (departmentSelection) departmentSelection.classList.remove('hidden');
+                        if (departmentSelectionRegular) departmentSelectionRegular.classList.remove('hidden');
+                        break;
+                }
+
+                updateScopeFeedback();
+            }
+
+            // Update scope feedback
+            function updateScopeFeedback() {
+                const selectedScope = document.querySelector('input[name="apply_scope"]:checked')?.value;
+                const scopeFeedback = document.getElementById('scope-feedback');
+                let feedbackText = '';
+                let feedbackClass = 'text-gray-600';
+                let buttonText = 'Set Deadline';
+
+                switch (selectedScope) {
+                    case 'department_only':
+                        feedbackText = '<i class="fas fa-building mr-1"></i>Deadline will be set only for your department';
+                        buttonText = 'Set Deadline';
+                        break;
+                    case 'college_wide':
+                        feedbackText = '<i class="fas fa-university mr-1"></i>Deadline will be set for all departments in your college';
+                        feedbackClass = 'text-blue-600';
+                        buttonText = 'Set College-wide Deadline';
+                        break;
+                    case 'specific_colleges':
+                        const selectedColleges = document.querySelectorAll('input[name="selected_colleges[]"]:checked');
+                        if (selectedColleges.length > 0) {
+                            feedbackText = `<i class="fas fa-university mr-1"></i>Deadline will be set for all departments in ${selectedColleges.length} selected college(s)`;
+                            feedbackClass = 'text-purple-600';
+                        } else {
+                            feedbackText = '<i class="fas fa-university mr-1"></i>Please select at least one college above';
+                            feedbackClass = 'text-orange-600';
+                        }
+                        buttonText = 'Set College-wide Deadline';
+                        break;
+                    case 'specific_departments':
+                        const selectedDepartments = document.querySelectorAll('input[name="selected_departments[]"]:checked');
+                        if (selectedDepartments.length > 0) {
+                            feedbackText = `<i class="fas fa-list-check mr-1"></i>Deadline will be set for ${selectedDepartments.length} selected department(s)`;
+                            feedbackClass = 'text-green-600';
+                        } else {
+                            feedbackText = '<i class="fas fa-list-check mr-1"></i>Please select at least one department above';
+                            feedbackClass = 'text-orange-600';
+                        }
+                        buttonText = 'Set Departmental Deadline';
+                        break;
+                    case 'all_colleges':
+                        feedbackText = '<i class="fas fa-exclamation-triangle mr-1"></i><strong>SYSTEM-WIDE:</strong> Deadline will be set for ALL departments across ALL colleges';
+                        feedbackClass = 'text-red-600 font-semibold';
+                        buttonText = 'Set System-wide Deadline';
+                        break;
+                }
+
+                scopeFeedback.innerHTML = feedbackText;
+                scopeFeedback.className = `mb-6 text-sm ${feedbackClass}`;
+                btnText.textContent = buttonText;
+            }
+
+            // Initialize
+            handleScopeChange();
+
+            // Listen for scope changes
+            scopeRadios.forEach(radio => {
+                radio.addEventListener('change', handleScopeChange);
+            });
+
+            // Listen for college/department selection changes
+            document.addEventListener('change', function(e) {
+                if (e.target.name === 'selected_colleges[]' || e.target.name === 'selected_departments[]') {
+                    updateScopeFeedback();
+                }
+            });
 
             // Preset buttons functionality
             document.getElementById('presets').addEventListener('click', function(e) {
@@ -259,10 +542,8 @@ ob_start();
                     const formattedDate = futureDate.toISOString().slice(0, 16);
                     deadlineInput.value = formattedDate;
 
-                    // Trigger validation
                     deadlineInput.dispatchEvent(new Event('change'));
 
-                    // Visual feedback
                     btn.style.transform = 'scale(0.95)';
                     setTimeout(() => {
                         btn.style.transform = '';
@@ -273,11 +554,31 @@ ob_start();
             // Form validation
             form.addEventListener('submit', function(e) {
                 const deadlineValue = deadlineInput.value;
+                const selectedScope = document.querySelector('input[name="apply_scope"]:checked')?.value;
 
                 if (!deadlineValue) {
                     e.preventDefault();
                     showAlert('Please select a deadline date and time.', 'error');
                     return;
+                }
+
+                // Validate selections based on scope
+                if (selectedScope === 'specific_colleges') {
+                    const selectedColleges = document.querySelectorAll('input[name="selected_colleges[]"]:checked');
+                    if (selectedColleges.length === 0) {
+                        e.preventDefault();
+                        showAlert('Please select at least one college.', 'error');
+                        return;
+                    }
+                }
+
+                if (selectedScope === 'specific_departments') {
+                    const selectedDepartments = document.querySelectorAll('input[name="selected_departments[]"]:checked');
+                    if (selectedDepartments.length === 0) {
+                        e.preventDefault();
+                        showAlert('Please select at least one department.', 'error');
+                        return;
+                    }
                 }
 
                 const selectedDate = new Date(deadlineValue);
@@ -289,7 +590,15 @@ ob_start();
                     return;
                 }
 
-                // Show loading state
+                // Special confirmation for system-wide deadlines
+                if (selectedScope === 'all_colleges') {
+                    const confirmed = confirm('⚠️ SYSTEM-WIDE DEADLINE\n\nThis will set the deadline for ALL departments across ALL colleges in the entire system.\n\nAre you absolutely sure you want to proceed?');
+                    if (!confirmed) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+
                 showLoadingState();
             });
 
@@ -343,35 +652,60 @@ ob_start();
                     </div>
                 `;
 
-                const container = document.querySelector('.max-w-4xl');
-                container.insertBefore(alertDiv, container.firstChild);
+                const container = document.querySelector('.container');
+                container.insertBefore(alertDiv, container.querySelector('.grid'));
 
                 setTimeout(() => {
                     alertDiv.remove();
                 }, 5000);
             }
-
-            // Keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    window.history.back();
-                }
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                    form.dispatchEvent(new Event('submit'));
-                }
-            });
-
-            // Auto-hide existing alerts
-            const alerts = document.querySelectorAll('.bg-green-50, .bg-red-50');
-            alerts.forEach(alert => {
-                setTimeout(() => {
-                    alert.style.opacity = '0';
-                    alert.style.transform = 'translateY(-10px)';
-                    setTimeout(() => alert.remove(), 300);
-                }, 5000);
-            });
         });
+
+        // Toggle functions for select all/none
+        function toggleAllColleges() {
+            const checkboxes = document.querySelectorAll('.college-checkbox');
+            const toggleText = document.getElementById('toggleCollegesText');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+            });
+
+            toggleText.textContent = allChecked ? 'Select All' : 'Select None';
+
+            // Trigger feedback update
+            document.querySelector('input[name="apply_scope"]:checked').dispatchEvent(new Event('change'));
+        }
+
+        function toggleAllDepartments() {
+            const checkboxes = document.querySelectorAll('.department-checkbox');
+            const toggleText = document.getElementById('toggleDepartmentsText');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+            });
+
+            toggleText.textContent = allChecked ? 'Select All' : 'Select None';
+
+            // Trigger feedback update
+            document.querySelector('input[name="apply_scope"]:checked').dispatchEvent(new Event('change'));
+        }
+
+        function toggleCollegeDepartments(collegeId) {
+            const checkboxes = document.querySelectorAll(`.college-${collegeId}-dept`);
+            const toggleText = document.getElementById(`toggleCollege${collegeId}Text`);
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+            });
+
+            toggleText.textContent = allChecked ? 'Select All' : 'Select None';
+
+            // Trigger feedback update
+            document.querySelector('input[name="apply_scope"]:checked').dispatchEvent(new Event('change'));
+        }
     </script>
 </body>
 

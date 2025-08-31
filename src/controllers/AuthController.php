@@ -1,10 +1,7 @@
 <?php
 require_once __DIR__ . '/../services/AuthService.php';
+require_once __DIR__ . '/../services/EmailService.php';
 require_once __DIR__ . '/../config/Database.php';
-require_once __DIR__ . '/../../vendor/autoload.php'; // Ensure PHPMailer autoload is included
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 class AuthController
 {
@@ -202,7 +199,7 @@ class AuthController
                 return;
             }
 
-            $query = "SELECT user_id, email FROM users WHERE employee_id = :employee_id AND is_active = 1";
+            $query = "SELECT user_id, email, first_name FROM users WHERE employee_id = :employee_id AND is_active = 1";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':employee_id' => $employeeId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -218,35 +215,12 @@ class AuthController
                     ':user_id' => $user['user_id']
                 ]);
 
-                $mail = new PHPMailer(true);
-                try {
-                    $mail->isSMTP();
-                    $mail->Host = $_ENV['SMTP_HOST'];
-                    $mail->SMTPAuth = true;
-                    $mail->Username = $_ENV['USERNAME'];
-                    $mail->Password = $_ENV['PASSWORD']; // Updated to SMTP_PASSWORD
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port = 587;
-
-                    $mail->SMTPDebug = 2; // Enable verbose debugging
-                    $mail->Debugoutput = function ($str, $level) {
-                        error_log("PHPMailer Debug: $str");
-                    };
-
-                    $mail->setFrom('no-reply@yourdomain.com', 'PRMSU Scheduling System');
-                    $mail->addAddress($user['email']);
-
-                    $resetLink = "http://localhost:8000/reset-password?token=" . $token; // Matches resetPassword route
-                    $mail->isHTML(true);
-                    $mail->Subject = 'Password Reset Request';
-                    $mail->Body = "Click the link to reset your password: <a href='$resetLink'>$resetLink</a><br>If you did not request this, please ignore this email.";
-                    $mail->AltBody = "Click the link to reset your password: $resetLink\nIf you did not request this, please ignore this email.";
-
-                    $mail->send();
+                $emailService = new EmailService();
+                $resetLink = "http://localhost:8000/reset-password?token=" . $token;
+                if ($emailService->sendForgotPasswordEmail($user['email'], $user['first_name'], $token, $resetLink)) {
                     $success = "A password reset link has been sent to your email.";
-                } catch (Exception $e) {
-                    error_log("PHPMailer Error: " . $e->getMessage());
-                    $error = "Failed to send reset email. Please try again or contact support. Check logs for details.";
+                } else {
+                    $error = "Failed to send reset email. Please try again or contact support.";
                 }
             } else {
                 $error = "No active account found with that Employee ID.";

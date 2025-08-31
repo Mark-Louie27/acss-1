@@ -9,7 +9,6 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($data['title']); ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
     <style>
         :root {
@@ -271,7 +270,7 @@ ob_start();
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
-                    <h1 class="text-3xl lg:text-4xl font-bold mb-3 bg-yellow-600 from-white to-yellow-100 bg-clip-text">Director Dashboard</h1>
+                    <p class=" font-bold mb-3 bg-yellow-600 from-white to-yellow-100 bg-clip-text">Director Dashboard</p>
                     <?php if (isset($departmentName) && !empty($departmentName)): ?>
                         <p class="text-gray-300 mt-2">Department of <?php echo htmlspecialchars($departmentName); ?></p>
                     <?php endif; ?>
@@ -374,7 +373,7 @@ ob_start();
                             <p class="text-orange-700">Current deadline: <?php echo htmlspecialchars(date('F j, Y \a\t g:i A', strtotime($data['deadline']))); ?></p>
                         </div>
                     </div>
-                    <a href="/director/set-schedule-deadline" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                    <a href="/director/set-" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
                         Update Deadline
                     </a>
                 </div>

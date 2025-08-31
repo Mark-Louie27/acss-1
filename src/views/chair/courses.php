@@ -18,7 +18,7 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Courses | ACSS</title>
     <link rel="stylesheet" href="/css/output.css">
-    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         :root {
             --gold: #D4AF37;
@@ -686,7 +686,7 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                                         </td>
 
                                         <td class="table-cell">
-                                            <div class="flex flex-col sm:flex-row gap-2">
+                                            <div class="flex flex-col sm:flex-row gap-6">
                                                 <div class="relative group">
                                                     <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
                                                         class="text-gold hover:text-gold-900 action-icon" title="Edit Course">

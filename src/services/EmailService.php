@@ -37,7 +37,7 @@ class EmailService
     public function sendApprovalEmail($toEmail, $name, $role)
     {
         try {
-            $this->mailer->setFrom('mlbausa84@gmail.com','ACSS System');
+            $this->mailer->setFrom('mlbausa84@gmail.com', 'ACSS System');
             $this->mailer->addAddress($toEmail, $name);
             $this->mailer->isHTML(true);
             $this->mailer->Subject = '✅ Welcome to ACSS - Your Account is Now Active';
@@ -204,6 +204,142 @@ class EmailService
         }
     }
 
+    /**
+     * Send password reset email
+     * @param string $toEmail
+     * @param string $name
+     * @param string $token
+     * @param string $resetLink
+     * @return bool
+     */
+    public function sendForgotPasswordEmail($toEmail, $name, $token, $resetLink)
+    {
+        try {
+            $this->mailer->setFrom('mlbausa84@gmail.com', 'ACSS System');
+            $this->mailer->addAddress($toEmail, $name);
+            $this->mailer->isHTML(true);
+            $this->mailer->Subject = '🔒 Password Reset Request';
+
+            $this->mailer->Body = "
+        <!DOCTYPE html>
+        <html lang='en'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>Password Reset</title>
+        </head>
+        <body style='margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f8fafc;'>
+            <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); overflow: hidden;'>
+                <!-- Header -->
+                <div style='background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); padding: 40px 30px; text-align: center;'>
+                    <div style='background-color: rgba(255, 255, 255, 0.2); width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; border: 3px solid rgba(255, 255, 255, 0.3);'>
+                        <span style='font-size: 36px; color: #ffffff;'>🔒</span>
+                    </div>
+                    <h1 style='color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);'>Password Reset</h1>
+                    <p style='color: rgba(255, 255, 255, 0.9); margin: 10px 0 0 0; font-size: 16px; font-weight: 300;'>Reset your ACSS account password</p>
+                </div>
+                
+                <!-- Main Content -->
+                <div style='padding: 40px 30px;'>
+                    <div style='text-align: center; margin-bottom: 30px;'>
+                        <h2 style='color: #2d3748; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;'>Hello, $name! 👋</h2>
+                        <p style='color: #718096; margin: 0; font-size: 16px;'>We received a request to reset your password. Follow the link below to proceed.</p>
+                    </div>
+                    
+                    <!-- Reset Details Card -->
+                    <div style='background-color: #fef0f0; border-left: 4px solid #e53e3e; padding: 20px 25px; margin: 25px 0; border-radius: 8px;'>
+                        <p style='margin: 0 0 15px 0; color: #742a2a; font-size: 16px;'>
+                            <strong>Important:</strong> This link expires in 24 hours.
+                        </p>
+                        <div style='text-align: center; margin: 20px 0;'>
+                            <a href='$resetLink' 
+                               style='display: inline-block; background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(229, 62, 62, 0.4); transition: all 0.3s ease; border: none; cursor: pointer;'>
+                                🔑 Reset Your Password
+                            </a>
+                            <p style='margin: 15px 0 0 0; color: #a0aec0; font-size: 13px;'>
+                                Or copy this link: <br>
+                                <span style='background-color: #edf2f7; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #4a5568;'>$resetLink</span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Warning Section -->
+                    <div style='background-color: #fffaf0; border: 1px solid #fbd38d; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;'>
+                        <p style='margin: 0 0 10px 0; color: #744210; font-weight: 500;'>Didn’t request a reset?</p>
+                        <p style='margin: 0; color: #975a16; font-size: 14px;'>
+                            If you didn’t initiate this request, please ignore this email or contact 
+                            <a href='mailto:support@acss.com' style='color: #c05621; text-decoration: none; font-weight: 500;'>support@acss.com</a> immediately.
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div style='background-color: #2d3748; padding: 30px; text-align: center;'>
+                    <div style='margin-bottom: 20px;'>
+                        <h3 style='color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;'>ACSS System</h3>
+                        <p style='color: #a0aec0; margin: 5px 0 0 0; font-size: 14px;'>Academic Coordination & Support System</p>
+                    </div>
+                    <div style='border-top: 1px solid #4a5568; padding-top: 20px;'>
+                        <p style='color: #a0aec0; margin: 0; font-size: 12px;'>
+                            This email was sent to $toEmail<br>
+                            © 2024 ACSS System. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mobile Responsiveness -->
+            <style>
+                @media only screen and (max-width: 600px) {
+                    .email-container {
+                        margin: 20px auto !important;
+                        border-radius: 8px !important;
+                    }
+                    .email-content {
+                        padding: 25px 20px !important;
+                    }
+                    .cta-button {
+                        padding: 14px 24px !important;
+                        font-size: 15px !important;
+                    }
+                }
+            </style>
+        </body>
+        </html>";
+
+            $this->mailer->AltBody = "
+            🔒 PASSWORD RESET REQUEST - ACSS System
+
+            Hello $name,
+
+            We received a request to reset your password. Click the link below to reset it:
+            $resetLink
+
+            This link expires in 24 hours. If you didn’t request this, please ignore this email or contact support@acss.com immediately.
+
+            Best regards,
+            The ACSS Team
+
+            ---
+            This email was sent to $toEmail
+            © 2024 ACSS System. All rights reserved.
+        ";
+
+            $this->mailer->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Error sending forgot password email to $toEmail: " . $this->mailer->ErrorInfo);
+            return false;
+        }
+    }
+
+    /**
+     * Send verification email (to be replaced with PHPMailer)
+     * @param int $userId
+     * @param string $token
+     * @param string $newPassword
+     * @return void
+     */
     public function sendVerificationEmail($userId, $token, $newPassword)
     {
         $stmt = $this->db->prepare("SELECT email FROM users WHERE user_id = :user_id");
@@ -211,10 +347,22 @@ class EmailService
         $email = $stmt->fetchColumn();
 
         $verificationLink = "http://yourdomain.com/chair/verify-password?token={$token}&user_id={$userId}";
-        $subject = "Verify Your Password Change";
-        $message = "Click the link to verify your password change: {$verificationLink}\n\nNew Password: {$newPassword}\nThis link expires in 1 hour.";
-        $headers = "From: no-reply@yourdomain.com";
+        try {
+            $this->mailer->setFrom('mlbausa84@gmail.com', 'ACSS System');
+            $this->mailer->addAddress($email);
+            $this->mailer->isHTML(true);
+            $this->mailer->Subject = 'Verify Your Password Change';
 
-        mail($email, $subject, $message, $headers);
+            $this->mailer->Body = "
+                <p>Click the link to verify your password change: <a href='$verificationLink'>$verificationLink</a></p>
+                <p>New Password: $newPassword</p>
+                <p>This link expires in 1 hour.</p>
+            ";
+            $this->mailer->AltBody = "Click the link to verify your password change: $verificationLink\nNew Password: $newPassword\nThis link expires in 1 hour.";
+
+            $this->mailer->send();
+        } catch (Exception $e) {
+            error_log("Error sending verification email to $email: " . $this->mailer->ErrorInfo);
+        }
     }
 }

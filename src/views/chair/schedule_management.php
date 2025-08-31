@@ -20,18 +20,7 @@ ob_start();
             </div>
         <?php endif; ?>
 
-        <!-- Debug Schedules -->
-        <?php if (isset($schedules)): ?>
-            <div class="bg-gray-100 p-4 rounded-md mb-6 shadow-md">
-                <p class="text-sm text-gray-700">Debug: Number of schedules = <?php echo count($schedules); ?></p>
-                <pre class="text-xs text-gray-600 overflow-x-auto"><?php echo htmlspecialchars(print_r($schedules, true)); ?></pre>
-            </div>
-        <?php else: ?>
-            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-6 shadow-md">
-                <p class="text-sm">Debug: $schedules is not set or empty.</p>
-            </div>
-        <?php endif; ?>
-
+        
         <!-- Semester Info -->
         <div class="bg-white p-4 rounded-md shadow-md mb-6 flex items-center justify-between">
             <div class="flex items-center">
