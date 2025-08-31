@@ -6,16 +6,32 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ob_start();
 
+// Initialize variables with defaults
 $searchTerm = $_GET['search'] ?? '';
 $error = $error ?? null;
-$availableClassrooms = $availableClassrooms ?? [];
-$classrooms = $classrooms ?? []; // Add this to ensure it's defined
+$classrooms = $classrooms ?? []; // Ensure classrooms is defined
 $departmentInfo = $departmentInfo ?? null;
 $departments = $departments ?? []; // Ensure departments is defined
 
 // Ensure $this->db is available
 $controller = new ChairController();
 $db = $controller->db;
+
+// Fetch all classrooms (no filtering, handled client-side)
+try {
+    $stmt = $db->prepare("
+        SELECT c.*, d.department_name, cl.college_name
+        FROM classrooms c
+        JOIN departments d ON c.department_id = d.department_id
+        JOIN colleges cl ON d.college_id = cl.college_id
+        ORDER BY c.room_name
+    ");
+    $stmt->execute();
+    $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = "Database error: " . $e->getMessage();
+    error_log("Failed to fetch classrooms: " . $e->getMessage());
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -25,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $room_type = $_POST['room_type'] ?? 'lecture';
     $shared = isset($_POST['shared']) ? 1 : 0;
     $availability = $_POST['availability'] ?? 'available';
-    $department_id = $departmentId ?? ($departmentInfo['department_id'] ?? null); // Use departmentInfo if available
+    $department_id = $departmentInfo['department_id'] ?? null;
 
     try {
         if ($action === 'add') {
@@ -66,65 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':availability' => $availability,
                 ':department_id' => $department_id
             ]);
-        } elseif ($action === 'search') {
-            $search_date = $_POST['search_date'] ?? date('Y-m-d');
-            $search_time = $_POST['search_time'] ?? '08:00:00';
-            $search_department = $_POST['search_department'] ?? '%'; // Default to % if not set
-            $min_capacity = (int)($_POST['min_capacity'] ?? 0);
-            $room_type = $_POST['room_type'] ?? '';
-
-            // Log the input parameters for debugging
-            error_log("Search parameters: search_date=$search_date, search_time=$search_time, search_department=$search_department, min_capacity=$min_capacity, room_type=$room_type");
-
-            $query = "
-        SELECT DISTINCT c.*, d.department_name, cl.college_name
-        FROM classrooms c
-        JOIN departments d ON c.department_id = d.department_id
-        JOIN colleges cl ON d.college_id = cl.college_id
-        LEFT JOIN schedules s ON c.room_id = s.room_id 
-            AND s.schedule_type = :search_date 
-            AND s.start_time <= :search_time 
-            AND s.end_time > :search_time
-        WHERE (c.department_id LIKE :search_department OR c.shared = 1)
-            AND (s.room_id IS NULL OR s.status = 'Rejected')
-            AND c.availability = 'available'
-    ";
-            $params = [
-                ':search_date' => $search_date,
-                ':search_time' => $search_time,
-                ':search_department' => $search_department // Use as-is, but validate below
-            ];
-
-            // Validate and adjust search_department
-            if (!is_string($search_department) || (strlen($search_department) > 0 && !preg_match('/^%|[0-9]+$/', $search_department))) {
-                error_log("Invalid search_department value: $search_department");
-                $search_department = '%'; // Fallback to all departments
-                $params[':search_department'] = $search_department;
-            }
-
-            if ($min_capacity > 0) {
-                $query .= " AND c.capacity >= :min_capacity";
-                $params[':min_capacity'] = $min_capacity;
-            }
-            if (!empty($room_type)) {
-                $query .= " AND c.room_type = :room_type";
-                $params[':room_type'] = $room_type;
-            }
-
-            $query .= " ORDER BY c.room_name";
-            $stmt = $db->prepare($query);
-
-            // Log the final query and parameters for debugging
-            error_log("Executing query: $query with params: " . json_encode($params));
-
-            try {
-                $stmt->execute($params);
-                $availableClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            } catch (PDOException $e) {
-                error_log("Search query failed: " . $e->getMessage());
-                $error = "Database error during search: Invalid parameter.";
-                $availableClassrooms = [];
-            }
         }
 
         header("Location: classroom");
@@ -134,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Define modal content (unchanged)
+// Define modal content (unchanged except removing search modal)
 ob_start();
 ?>
 <!-- Add Classroom Modal -->
@@ -364,154 +321,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Search Classroom Modal -->
-<div id="searchClassroomModal" class="modal-overlay hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-    <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <!-- Modal Header -->
-        <div class="bg-gray-800 text-white px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
-            <h5 class="text-xl font-semibold">Search Available Classrooms</h5>
-            <button onclick="closeModal('searchClassroomModal')" class="text-white hover:text-indigo-200 focus:outline-none text-2xl transition-colors" aria-label="Close modal">
-                &times;
-            </button>
-        </div>
-
-        <!-- Modal Body -->
-        <div class="p-6">
-            <form method="POST" class="space-y-6">
-                <input type="hidden" name="action" value="search">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Date -->
-                    <div class="input-group">
-                        <label for="search_date" class="block text-gray-700 font-medium mb-2">Date <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fas fa-calendar"></i>
-                            </div>
-                            <input type="date" id="search_date" name="search_date" required
-                                class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 transition-all">
-                        </div>
-                    </div>
-
-                    <!-- Time -->
-                    <div class="input-group">
-                        <label for="search_time" class="block text-gray-700 font-medium mb-2">Time <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fas fa-clock"></i>
-                            </div>
-                            <input type="time" id="search_time" name="search_time" required
-                                class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 transition-all">
-                        </div>
-                    </div>
-
-                    <!-- Department -->
-                    <div class="input-group">
-                        <label for="search_department" class="block text-gray-700 font-medium mb-2">Department</label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fas fa-university"></i>
-                            </div>
-                            <select id="search_department" name="search_department"
-                                class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 appearance-none bg-white">
-                                <option value="%">All Departments</option>
-                                <?php if (!empty($departments)): ?>
-                                    <?php foreach ($departments as $dept): ?>
-                                        <option value="<?= htmlspecialchars($dept['department_id']) ?>">
-                                            <?= htmlspecialchars($dept['department_name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <option value="%" disabled>No departments available</option>
-                                <?php endif; ?>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Minimum Capacity -->
-                    <div class="input-group">
-                        <label for="min_capacity" class="block text-gray-700 font-medium mb-2">Minimum Capacity</label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fas fa-users"></i>
-                            </div>
-                            <input type="number" id="min_capacity" name="min_capacity" min="0" value="0"
-                                class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 transition-all">
-                        </div>
-                    </div>
-
-                    <!-- Room Type -->
-                    <div class="input-group">
-                        <label for="room_type" class="block text-gray-700 font-medium mb-2">Room Type</label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fas fa-chalkboard"></i>
-                            </div>
-                            <select id="room_type" name="room_type"
-                                class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 appearance-none bg-white">
-                                <option value="">Any Type</option>
-                                <option value="lecture">Lecture Room</option>
-                                <option value="laboratory">Laboratory</option>
-                                <option value="avr">AVR/Multimedia Room</option>
-                                <option value="seminar_room">Seminar Room</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Modal Footer -->
-                <div class="mt-8 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('searchClassroomModal')"
-                        class="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-700 transition-colors">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                        class="px-6 py-2.5 bg-gray-800 text-white rounded-lg font-medium shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-700 transition-colors flex items-center space-x-2">
-                        <i class="fas fa-search"></i>
-                        <span>Search Classrooms</span>
-                    </button>
-                </div>
-            </form>
-
-            <?php if (!empty($availableClassrooms)): ?>
-                <div class="mt-8 border-t border-gray-200 pt-6">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Available Classrooms</h3>
-                    <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Building</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Capacity</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shared</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <?php foreach ($availableClassrooms as $room): ?>
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars($room['room_name']) ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($room['building']) ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($room['capacity']) ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars(ucfirst(str_replace('_', ' ', $room['room_type']))) ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= htmlspecialchars($room['department_name']) ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?= $room['shared'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' ?>">
-                                                <?= $room['shared'] ? 'Yes' : 'No' ?>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
 <?php
 $modal_content = ob_get_clean();
 ob_start();
@@ -541,14 +350,18 @@ ob_start();
 
         <!-- Full width container that stretches edge-to-edge -->
         <div class="w-full px-4 sm:px-6 lg:px-8 bg-white py-4">
-            <!-- The container for the search bar and button - now full width -->
+            <!-- Search Bar and Buttons -->
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
-                <!-- Search Button -->
-                <div class="mt-6 text-right">
-                    <button onclick="openModal('searchClassroomModal')" class="px-6 py-3 bg-gray-800 text-white rounded-lg font-medium shadow-lg hover:bg-gray-900 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 flex items-center justify-center gap-2">
-                        <i class="fas fa-search"></i>
-                        <span>Search Available Classrooms</span>
-                    </button>
+                <!-- Search Bar -->
+                <div class="w-full sm:w-1/2">
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" id="searchInput" name="search" value="<?= htmlspecialchars($searchTerm) ?>"
+                            placeholder="Search by room name, building, or department..."
+                            class="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-700 focus:border-gray-700 transition-all">
+                    </div>
                 </div>
 
                 <!-- Add Classroom Button - fixed width on larger screens -->
@@ -577,7 +390,7 @@ ob_start();
                     </div>
                 <?php else: ?>
                     <div class="overflow-x-auto">
-                        <table class="w-full table-auto">
+                        <table id="classroomsTable" class="w-full table-auto">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-4 py-3 text-left text-sm font-medium text-gray-500">Room Name</th>
@@ -593,7 +406,7 @@ ob_start();
                             </thead>
                             <tbody class="divide-y divide-gray-200">
                                 <?php foreach ($classrooms as $classroom): ?>
-                                    <tr class="hover:bg-gray-50 transition-colors">
+                                    <tr class="hover:bg-gray-50 transition-colors" data-search="<?= htmlspecialchars(strtolower($classroom['room_name'] . ' ' . $classroom['building'] . ' ' . ($classroom['department_name'] ?? ''))) ?>">
                                         <td class="px-4 py-3 text-sm text-gray-900 font-medium">
                                             <?= htmlspecialchars($classroom['room_name']) ?>
                                         </td>
@@ -654,7 +467,6 @@ ob_start();
                 console.log('Sidebar z-index:', computedStyle.zIndex);
                 console.log('Sidebar position:', computedStyle.position);
                 console.log('Sidebar transform:', computedStyle.transform);
-                // Log parent elements
                 let parent = sidebar.parentElement;
                 while (parent && parent !== document.body) {
                     const parentStyle = window.getComputedStyle(parent);
@@ -665,7 +477,6 @@ ob_start();
                 console.warn('No element with ID #sidebar found');
             }
 
-            // Log modal details
             const modalOverlay = modal;
             const modalStyle = window.getComputedStyle(modalOverlay);
             console.log(`Modal (${modalId}) z-index:`, modalStyle.zIndex);
@@ -689,7 +500,6 @@ ob_start();
             setTimeout(() => {
                 modal.classList.add('hidden');
                 document.body.style.overflow = 'auto';
-                // Restore sidebar interaction
                 const sidebar = document.querySelector('#sidebar');
                 if (sidebar) {
                     sidebar.style.pointerEvents = 'auto';
@@ -710,9 +520,25 @@ ob_start();
             openModal('editClassroomModal');
         }
 
+        // Search functionality
         document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            const tableRows = document.querySelectorAll('#classroomsTable tbody tr');
+
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+                tableRows.forEach(row => {
+                    const searchData = row.getAttribute('data-search').toLowerCase();
+                    if (searchData.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+
             // Close modals on click outside
-            ['addClassroomModal', 'editClassroomModal', 'searchClassroomModal'].forEach(modalId => {
+            ['addClassroomModal', 'editClassroomModal'].forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal) {
                     modal.addEventListener('click', (e) => {
@@ -728,7 +554,7 @@ ob_start();
             // Close modals on Escape key
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    ['addClassroomModal', 'editClassroomModal', 'searchClassroomModal'].forEach(modalId => {
+                    ['addClassroomModal', 'editClassroomModal'].forEach(modalId => {
                         const modal = document.getElementById(modalId);
                         if (modal && !modal.classList.contains('hidden')) {
                             closeModal(modalId);

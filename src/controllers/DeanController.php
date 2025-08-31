@@ -161,21 +161,102 @@ class DeanController
         require_once __DIR__ . '/../views/dean/dashboard.php';
     }
 
-    private function getDepartmentActivities($collegeId)
+    public function activities()
+    {
+        try {
+            $userId = $_SESSION['user_id'] ?? null;
+            if (!$userId) {
+                error_log("activities: No user_id in session");
+                throw new Exception('User session not found');
+            }
+
+            $collegeId = $this->getDeanCollegeId($userId);
+            if (!$collegeId) {
+                error_log("activities: No college found for dean user_id: $userId");
+                throw new Exception('No college assigned to this dean');
+            }
+
+            // Get filter parameters
+            $departmentId = $_GET['department_id'] ?? null;
+            $date = $_GET['date'] ?? null;
+            $activities = $this->getDepartmentActivities($collegeId, $departmentId, $date);
+            if ($activities === false) {
+                throw new Exception('Failed to fetch activities');
+            }
+
+            // Load activities view
+            require_once __DIR__ . '/../views/dean/activities.php';
+        } catch (PDOException $e) {
+            error_log("activities: Database error - " . $e->getMessage());
+            $activities = [];
+            $error = "Database error occurred. Please try again.";
+            require_once __DIR__ . '/../views/dean/activities.php';
+        } catch (Exception $e) {
+            error_log("activities: Error - " . $e->getMessage());
+            $activities = [];
+            $error = $e->getMessage();
+            require_once __DIR__ . '/../views/dean/activities.php';
+        }
+    }
+
+    private function getDepartmentActivities($collegeId, $departmentId = null, $date = null)
     {
         try {
             $query = "
             SELECT al.*, d.department_name
             FROM activity_logs al
             JOIN departments d ON al.department_id = d.department_id
-            WHERE d.college_id = :college_id
-            ORDER BY al.created_at DESC
-            LIMIT 10"; // Limit to 10 recent activities
+            WHERE d.college_id = :college_id";
+
+            $params = [':college_id' => $collegeId];
+
+            if ($departmentId) {
+                $query .= " AND al.department_id = :department_id";
+                $params[':department_id'] = $departmentId;
+            }
+            if ($date) {
+                $query .= " AND DATE(al.created_at) = :date";
+                $params[':date'] = $date;
+            }
+
+            $query .= " ORDER BY al.created_at DESC
+                   LIMIT 10"; // Limit to 10 recent activities
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':college_id' => $collegeId]);
+            $stmt->execute($params);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("getDepartmentActivities: Error - " . $e->getMessage());
+            return [];
+        }
+    }
+
+    // Add this for "View All" if not already present
+    public function getAllDepartmentActivities($collegeId, $departmentId = null, $date = null)
+    {
+        try {
+            $query = "
+            SELECT al.*, d.department_name
+            FROM activity_logs al
+            JOIN departments d ON al.department_id = d.department_id
+            WHERE d.college_id = :college_id";
+
+            $params = [':college_id' => $collegeId];
+
+            if ($departmentId) {
+                $query .= " AND al.department_id = :department_id";
+                $params[':department_id'] = $departmentId;
+            }
+            if ($date) {
+                $query .= " AND DATE(al.created_at) = :date";
+                $params[':date'] = $date;
+            }
+
+            $query .= " ORDER BY al.created_at DESC";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getAllDepartmentActivities: Error - " . $e->getMessage());
             return [];
         }
     }
