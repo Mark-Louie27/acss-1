@@ -20,7 +20,7 @@ ob_start();
             </div>
         <?php endif; ?>
 
-        
+
         <!-- Semester Info -->
         <div class="bg-white p-4 rounded-md shadow-md mb-6 flex items-center justify-between">
             <div class="flex items-center">
@@ -122,19 +122,14 @@ ob_start();
 
             <!-- Generate Schedules Tab -->
             <div class="tab-pane <?php echo $activeTab === 'generate' ? 'active' : 'hidden'; ?>" id="generate" role="tabpanel">
+                <!-- Inside the Generate Schedules Tab, after the form -->
                 <div class="bg-white rounded-md shadow-md p-6">
                     <h3 class="text-xl font-semibold text-gray-900 mb-4">Generate Schedules</h3>
-                    <?php
-                    $unassignedWarning = false;
-                    if (isset($schedules) && !empty($schedules)) {
-                        $unassignedWarning = true; // Replace with actual check from generateSchedules
-                    }
-                    ?>
-                    <form method="POST" class="grid grid-cols-1 gap-6">
+                    <form method="POST" action="/chair/schedule_management" class="grid grid-cols-1 gap-6" id="generate-form">
                         <input type="hidden" name="tab" value="generate">
                         <div>
                             <label for="generate_curriculum_id" class="block text-sm font-medium text-gray-700">Curriculum</label>
-                            <select name="curriculum_id" id="generate_curriculum_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                            <select name="curriculum_id" id="generate_curriculum_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required onchange="updateYearLevels()">
                                 <option value="">Select Curriculum</option>
                                 <?php foreach ($curricula as $curriculum): ?>
                                     <option value="<?php echo htmlspecialchars($curriculum['curriculum_id']); ?>">
@@ -149,27 +144,82 @@ ob_start();
                         </div>
                         <div>
                             <label for="year_levels" class="block text-sm font-medium text-gray-700">Year Levels</label>
-                            <select name="year_levels[]" id="year_levels" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" multiple>
-                                <option value="1st Year">1st Year</option>
-                                <option value="2nd Year">2nd Year</option>
-                                <option value="3rd Year">3rd Year</option>
-                                <option value="4th Year">4th Year</option>
+                            <select name="year_levels[]" id="year_levels" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" multiple onchange="updateSections()">
+                                <option value="">Select Year Level</option>
                             </select>
                         </div>
-                        <?php if ($unassignedWarning): ?>
+                        <div>
+                            <label for="sections" class="block text-sm font-medium text-gray-700">Sections</label>
+                            <select name="sections[]" id="sections" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" multiple required>
+                                <option value="">Select Section</option>
+                            </select>
+                        </div>
+                        <?php if (isset($unassignedWarning) && $unassignedWarning): ?>
                             <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md mb-6 shadow-md">
-                                <p class="font-medium">Warning: Some subjects could not be scheduled. Please click "Generate Schedules" again to attempt filling the remaining slots.</p>
-                                <button type="submit" class="mt-2 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors duration-200">
+                                <p class="font-medium">if the subjects are not assigned to curriculums, Manual HAHAHA</p>
+                                <button type="submit" class="mt-2 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500">
                                     Generate Schedules Again
                                 </button>
                             </div>
                         <?php endif; ?>
                         <div>
-                            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
+                            <button type="submit" id="generate-schedules-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
                                 Generate Schedules
                             </button>
                         </div>
                     </form>
+                    <?php if (isset($success)): ?>
+                        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mt-4 shadow-md">
+                            <?php echo htmlspecialchars($success); ?>
+                            <?php if (isset($schedules) && count($schedules) > 0): ?>
+                                <button onclick="window.location.href='/chair/schedule-management?tab=manual'" class="mt-2 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                                    View/Edit Schedule
+                                </button>
+                            <?php endif; ?>
+                            <?php if (isset($unassignedCourses) && empty($unassignedCourses)): ?>
+                                <p class="mt-2 text-sm font-medium">All schedules have been successfully completed!</p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($error)): ?>
+                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mt-4 shadow-md">
+                            <?php echo htmlspecialchars($error); ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($success) && isset($schedules) && count($schedules) > 0): ?>
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-2">Generated Schedules Preview</h4>
+                            <div class="schedule-table-container overflow-x-auto">
+                                <table class="w-full schedule-table border-collapse">
+                                    <thead>
+                                        <tr class="bg-gray-50">
+                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Section</th>
+                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Course</th>
+                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Day</th>
+                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Time</th>
+                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Faculty</th>
+                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Room</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($schedules as $schedule): ?>
+                                            <tr>
+                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['section_name'] ?? 'N/A'); ?></td>
+                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['course_code'] ?? 'N/A') . ' - ' . htmlspecialchars($schedule['course_name'] ?? 'N/A'); ?></td>
+                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['day_of_week'] ?? 'N/A'); ?></td>
+                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['start_time'] ?? 'N/A') . ' - ' . htmlspecialchars($schedule['end_time'] ?? 'N/A'); ?></td>
+                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['faculty_name'] ?? 'N/A'); ?></td>
+                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button onclick="window.location.href='/chair/schedule-management?tab=manual'" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors duration-200">
+                                Edit in Manual Mode
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -388,14 +438,26 @@ ob_start();
     function renderSchedules() {
         document.querySelectorAll('.droppable').forEach(cell => {
             cell.innerHTML = '';
-            const schedule = scheduleData.find(s => s.day_of_week === cell.dataset.day && s.start_time.substring(0, 5) === cell.dataset.time && s.end_time.substring(0, 5) === cell.dataset.endTime);
+            const schedule = scheduleData.find(s =>
+                s.day_of_week === cell.dataset.day &&
+                s.start_time.substring(0, 5) === cell.dataset.time &&
+                s.end_time.substring(0, 5) === cell.dataset.endTime
+            );
             if (schedule) {
-                cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${schedule.schedule_id ?? ''}"><strong class="text-gray-900">${schedule.course_code} - ${schedule.course_name}</strong><br><span class="text-gray-600 text-xs">${schedule.faculty_name}</span><br><span class="text-gray-600 text-xs">${schedule.room_name ?? 'Online'}</span><br><span class="text-gray-600 text-xs">${schedule.section_name} (${schedule.schedule_type})</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
+                cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${schedule.schedule_id ?? ''}"><strong class="text-gray-900">${schedule.course_code ?? 'N/A'} - ${schedule.course_name ?? 'N/A'}</strong><br><span class="text-gray-600 text-xs">${schedule.faculty_name ?? 'N/A'}</span><br><span class="text-gray-600 text-xs">${schedule.room_name ?? 'Online'}</span><br><span class="text-gray-600 text-xs">${schedule.section_name ?? 'N/A'} (${schedule.schedule_type ?? 'N/A'})</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
             } else {
                 cell.innerHTML = `<button class="add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded" onclick="addScheduleInline(this)">Add</button>`;
             }
         });
     }
+
+    // Ensure populateSchedule runs on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        if (document.getElementById('scheduleBody').children.length === 0) {
+            populateSchedule();
+        }
+        renderSchedules();
+    });
 
     function filterSchedules() {
         const yearLevel = document.getElementById('filterYearLevel').value;
@@ -590,6 +652,86 @@ ob_start();
     if (document.getElementById('timetableGrid')) {
         filterSchedules();
     }
+
+    const rawSectionsData = <?php echo json_encode($sections); ?> || [];
+    const currentAcademicYear = "<?php echo htmlspecialchars($currentSemester['academic_year'] ?? ''); ?>";
+    const sectionsData = Array.isArray(rawSectionsData) ? rawSectionsData.map((s, index) => ({
+        section_id: s.section_id ?? (index + 1),
+        section_name: s.section_name ?? '',
+        year_level: s.year_level ?? 'Unknown',
+        curriculum_id: s.curriculum_id ?? null,
+        academic_year: s.academic_year ?? ''
+    })) : [];
+    console.log('Raw Sections Data:', rawSectionsData); // Debug raw data
+    console.log('Transformed Sections Data:', sectionsData); // Debug transformed data
+
+    function updateYearLevels() {
+        const curriculumId = document.getElementById('generate_curriculum_id').value;
+        const yearLevelsSelect = document.getElementById('year_levels');
+        yearLevelsSelect.innerHTML = '<option value="">Select Year Level</option>';
+        console.log('Curriculum ID:', curriculumId, 'Sections Data:', sectionsData);
+
+        if (curriculumId && Array.isArray(sectionsData)) {
+            const yearLevels = sectionsData
+                .filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId)
+                .map(s => s.year_level);
+            console.log('Extracted Year Levels:', yearLevels); // Debug individual year levels
+            const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))];
+            console.log('Unique Years:', uniqueYears);
+            uniqueYears.sort((a, b) => {
+                const order = {
+                    '1': 1,
+                    '2': 2,
+                    '3': 3,
+                    '4': 4
+                };
+                return (order[a[0]] || 99) - (order[b[0]] || 99);
+            });
+            uniqueYears.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearLevelsSelect.appendChild(option);
+            });
+        }
+    }
+
+    function updateSections() {
+        const curriculumId = document.getElementById('generate_curriculum_id').value;
+        const yearLevelsSelect = document.getElementById('year_levels');
+        const selectedYears = Array.from(yearLevelsSelect.selectedOptions).map(opt => opt.value).filter(y => y);
+        const sectionsSelect = document.getElementById('sections');
+        sectionsSelect.innerHTML = '<option value="">Select Section</option>';
+        console.log('Curriculum ID:', curriculumId, 'Selected Years:', selectedYears);
+
+        if (curriculumId && Array.isArray(sectionsData)) {
+            let matchingSections = sectionsData.filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId);
+            console.log('Initial Matching Sections:', matchingSections);
+            if (selectedYears.length > 0) {
+                matchingSections = matchingSections.filter(s => selectedYears.includes(s.year_level));
+                console.log('Filtered Matching Sections:', matchingSections);
+            }
+            matchingSections.forEach(section => {
+                const option = document.createElement('option');
+                option.value = section.section_id;
+                option.textContent = section.section_name;
+                sectionsSelect.appendChild(option);
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const curriculumSelect = document.getElementById('generate_curriculum_id');
+        curriculumSelect.onchange = updateYearLevels;
+        if (curriculumSelect.value) {
+            updateYearLevels();
+        }
+
+        const generateBtn = document.getElementById('generate-schedules-btn');
+        generateBtn.addEventListener('click', () => {
+            document.getElementById('generate-form').submit();
+        });
+    });
 </script>
 
 <style>

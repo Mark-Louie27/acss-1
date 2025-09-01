@@ -46,51 +46,7 @@ $modal_content = $modal_content ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Program Chair Dashboard</title>
     <link rel="stylesheet" href="/css/output.css">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gold: {
-                            50: '#FEF9E8',
-                            100: '#FDF0C4',
-                            200: '#FAE190',
-                            300: '#F7D15C',
-                            400: '#F4C029',
-                            500: '#E5AD0F',
-                            600: '#B98A0C',
-                            700: '#8E6809',
-                            800: '#624605',
-                            900: '#352503',
-                        },
-                        gray: {
-                            50: '#F9FAFB',
-                            100: '#F3F4F6',
-                            200: '#E5E7EB',
-                            300: '#D1D5DB',
-                            400: '#9CA3AF',
-                            500: '#6B7280',
-                            600: '#4B5563',
-                            700: '#374151',
-                            800: '#1F2937',
-                            900: '#111827',
-                        }
-                    },
-                    fontFamily: {
-                        'sans': ['Roboto', 'sans-serif'],
-                        'heading': ['Poppins', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'custom': '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        'hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        'card': '0 10px 20px rgba(0, 0, 0, 0.05), 0 6px 6px rgba(0, 0, 0, 0.03)',
-                    }
-                },
-            },
-        }
-    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -221,7 +177,7 @@ $modal_content = $modal_content ?? '';
         }
 
         /* Gradient and card effects */
-        .gold-gradient {
+        .yellow-gradient {
             background: linear-gradient(135deg, #D4AF37 0%, #F2D675 100%);
         }
 
@@ -381,7 +337,7 @@ $modal_content = $modal_content ?? '';
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <!-- Left: Sidebar Toggle and Logo -->
             <div class="flex items-center">
-                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-gold-500 focus:outline-none mr-4">
+                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-yellow-500 focus:outline-none mr-4">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <a href="/chair/dashboard" class="flex items-center">
@@ -394,12 +350,12 @@ $modal_content = $modal_content ?? '';
             <div class="flex items-center space-x-4">
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
-                    <button class="flex items-center text-gray-600 hover:text-gold-400 focus:outline-none">
+                    <button class="flex items-center text-gray-600 hover:text-yellow-400 focus:outline-none">
                         <?php if (!empty($profilePicture)): ?>
-                            <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
+                            <img class="h-8 w-8 rounded-full border-2 border-yellow-400 object-cover"
                                 src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                         <?php else: ?>
-                            <div class="h-8 w-8 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-sm font-bold">
+                            <div class="h-8 w-8 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-sm font-bold">
                                 <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                             </div>
                         <?php endif; ?>
@@ -407,13 +363,13 @@ $modal_content = $modal_content ?? '';
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
                     <div class="dropdown-menu right-0 mt-2">
-                        <a href="/chair/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/chair/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-user w-5 mr-2"></i> Profile
                         </a>
-                        <a href="/chair/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/chair/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-cog w-5 mr-2"></i> Settings
                         </a>
-                        <a href="/chair/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/chair/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-sign-out-alt w-5 mr-2"></i> Logout
                         </a>
                     </div>
@@ -429,7 +385,7 @@ $modal_content = $modal_content ?? '';
             <div class="flex items-center justify-center mb-3">
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
-            <h2 class="text-xl font-bold text-gold-300 hidden md:block">PRMSU Scheduling System - ACSS</h2>
+            <h2 class="text-xl text-yellow-600 font-bold hidden md:block">PRMSU Scheduling System - ACSS</h2>
             <p class="text-xs text-gray-400 mt-1 hidden md:block">Management System</p>
         </div>
 
@@ -437,16 +393,16 @@ $modal_content = $modal_content ?? '';
         <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
             <div class="flex items-center space-x-3">
                 <?php if (!empty($profilePicture)): ?>
-                    <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
+                    <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md"
                         src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                 <?php else: ?>
-                    <div class="h-12 w-12 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    <div class="h-12 w-12 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
                         <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
                 <div>
                     <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
-                    <div class="flex items-center text-xs text-gold-400">
+                    <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>Program Chair</span>
                     </div>
@@ -457,16 +413,16 @@ $modal_content = $modal_content ?? '';
         <!-- Navigation -->
         <nav class="mt-4 px-2">
             <!-- Dashboard Link -->
-            <a href="/chair/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Dashboard</span>
             </a>
 
             <!-- Schedule Dropdown -->
             <div class="dropdown relative my-1">
-                <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
+                <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                     <div class="flex items-center">
-                        <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+                        <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                         <span>Schedule</span>
                     </div>
                     <i class="fas fa-chevron-down text-xs transition-transform duration-300 toggle-icon"></i>
@@ -519,7 +475,7 @@ $modal_content = $modal_content ?? '';
                             </div>
                         </div>
                     <?php else: ?>
-                        <a href="/chair/schedule_management" class="group relative flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gold-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/create') !== false ? 'bg-gray-700 text-gold-300' : '' ?>">
+                        <a href="/chair/schedule_management" class="group relative flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/create') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                             <i class="fas fa-plus-circle w-5 mr-2"></i> Create Schedule
                             <?php if (isset($deadlineStatus['deadline']) && $totalHours <= 48): ?>
                                 <span class="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full <?= ($totalHours <= 24) ? 'deadline-warning' : '' ?>">
@@ -533,54 +489,54 @@ $modal_content = $modal_content ?? '';
                         </a>
                     <?php endif; ?>
 
-                    <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gold-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule') !== false && strpos($currentUri, '/create') === false && strpos($currentUri, '/history') === false ? 'bg-gray-700 text-gold-300' : '' ?>">
+                    <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule') !== false && strpos($currentUri, '/create') === false && strpos($currentUri, '/history') === false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-list w-5 mr-2"></i> My Schedule
                     </a>
-                    <a href="/chair/schedule/history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-gold-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/history') !== false ? 'bg-gray-700 text-gold-300' : '' ?>">
+                    <a href="/chair/schedule/history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-history w-5 mr-2"></i> Schedule History
                     </a>
                 </div>
             </div>
 
             <!-- Curriculum -->
-            <a href="/chair/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Curriculum</span>
             </a>
 
             <!-- Faculty -->
-            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/faculty') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/chair/faculty') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/faculty') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/chair/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Faculty</span>
             </a>
 
             <!-- Courses -->
-            <a href="/chair/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/courses') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/chair/courses') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/courses') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/chair/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Courses</span>
             </a>
 
             <!-- Sections -->
-            <a href="/chair/sections" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/sections') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-layer-group w-5 mr-3 <?= strpos($currentUri, '/chair/sections') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/sections" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/sections') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-layer-group w-5 mr-3 <?= strpos($currentUri, '/chair/sections') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Sections</span>
             </a>
 
             <!-- Classrooms -->
-            <a href="/chair/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/classroom') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/chair/classroom') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/chair/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Classrooms</span>
             </a>
 
             <!-- Profile -->
-            <a href="/chair/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/profile') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/chair/profile') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/profile') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/chair/profile') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Profile</span>
             </a>
 
             <!-- Reports -->
-            <a href="/chair/reports" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/reports') !== false ? 'active-nav bg-gray-800 text-gold-300' : '' ?>">
-                <i class="fas fa-chart-bar w-5 mr-3 <?= strpos($currentUri, '/chair/reports') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/reports" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/reports') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-chart-bar w-5 mr-3 <?= strpos($currentUri, '/chair/reports') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Reports</span>
             </a>
         </nav>
@@ -592,7 +548,7 @@ $modal_content = $modal_content ?? '';
                     <p>Program Chair System</p>
                     <p>Version 2.1.0</p>
                 </div>
-                <a href="/chair/system/status" class="text-gold-400 hover:text-gold-300 transition-all duration-300">
+                <a href="/chair/system/status" class="text-yellow-400 hover:text-yellow-300 transition-all duration-300">
                     <i class="fas fa-circle text-green-500 mr-1"></i> Online
                 </a>
             </div>
@@ -609,7 +565,7 @@ $modal_content = $modal_content ?? '';
                 <nav class="flex mb-5 text-sm" aria-label="Breadcrumb">
                     <ol class="inline-flex items-center space-x-1 md:space-x-3">
                         <li class="inline-flex items-center">
-                            <a href="/chair/dashboard" class="inline-flex items-center text-gray-500 hover:text-gold-500">
+                            <a href="/chair/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-500">
                                 <i class="fas fa-home mr-2"></i>
                                 Home
                             </a>
@@ -625,9 +581,9 @@ $modal_content = $modal_content ?? '';
                                 <div class="flex items-center">
                                     <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
                                     <?php if ($isLast): ?>
-                                        <span class="text-gold-600 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
+                                        <span class="text-yellow-600 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
                                     <?php else: ?>
-                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-gold-500"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
+                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-yellow-500"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
                                     <?php endif; ?>
                                 </div>
                             </li>

@@ -20,49 +20,6 @@ ob_start();
     <title>PRMSU Scheduling System - Faculty</title>
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gold: {
-                            50: '#FEF9E7',
-                            100: '#FCF3CF',
-                            200: '#F9E79F',
-                            300: '#F7DC6F',
-                            400: '#F5D33F',
-                            500: '#D4AF37',
-                            600: '#B8860B',
-                            700: '#9A7209',
-                            800: '#7C5E08',
-                            900: '#5E4506',
-                        },
-                        gray: {
-                            50: '#F9FAFB',
-                            100: '#F3F4F6',
-                            200: '#E5E7EB',
-                            300: '#D1D5DB',
-                            400: '#9CA3AF',
-                            500: '#6B7280',
-                            600: '#4B5563',
-                            700: '#374151',
-                            800: '#1F2937',
-                            900: '#111827',
-                        }
-                    },
-                    fontFamily: {
-                        'sans': ['Roboto', 'sans-serif'],
-                        'heading': ['Poppins', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'custom': '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        'hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        'card': '0 10px 20px rgba(0, 0, 0, 0.05), 0 6px 6px rgba(0, 0, 0, 0.03)',
-                    }
-                },
-            },
-        }
-    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');

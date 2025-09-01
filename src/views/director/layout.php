@@ -33,51 +33,7 @@ if (!$profilePicture) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Director Dashboard</title>
     <link rel="stylesheet" href="/css/output.css">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gold: {
-                            50: '#FEF9E8',
-                            100: '#FDF0C4',
-                            200: '#FAE190',
-                            300: '#F7D15C',
-                            400: '#F4C029',
-                            500: '#E5AD0F',
-                            600: '#B98A0C',
-                            700: '#8E6809',
-                            800: '#624605',
-                            900: '#352503',
-                        },
-                        gray: {
-                            50: '#F9FAFB',
-                            100: '#F3F4F6',
-                            200: '#E5E7EB',
-                            300: '#D1D5DB',
-                            400: '#9CA3AF',
-                            500: '#6B7280',
-                            600: '#4B5563',
-                            700: '#374151',
-                            800: '#1F2937',
-                            900: '#111827',
-                        }
-                    },
-                    fontFamily: {
-                        'sans': ['Roboto', 'sans-serif'],
-                        'heading': ['Poppins', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'custom': '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        'hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        'card': '0 10px 20px rgba(0, 0, 0, 0.05), 0 6px 6px rgba(0, 0, 0, 0.03)',
-                    }
-                },
-            },
-        }
-    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -201,7 +157,7 @@ if (!$profilePicture) {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
         }
 
-        .gold-gradient {
+        .yellow-gradient {
             background: linear-gradient(135deg, #D4AF37 0%, #F2D675 100%);
         }
 
@@ -325,7 +281,7 @@ if (!$profilePicture) {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <!-- Left: Sidebar Toggle and Logo -->
             <div class="flex items-center">
-                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-gold-400 focus:outline-none mr-4">
+                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-yellow-400 focus:outline-none mr-4">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <a href="/director/dashboard" class="flex items-center">
@@ -338,12 +294,12 @@ if (!$profilePicture) {
             <div class="flex items-center space-x-4">
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
-                    <button class="flex items-center text-gray-600 hover:text-gold-400 focus:outline-none">
+                    <button class="flex items-center text-gray-600 hover:text-yellow-400 focus:outline-none">
                         <?php if (!empty($profilePicture)): ?>
-                            <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
+                            <img class="h-8 w-8 rounded-full border-2 border-yellow-400 object-cover"
                                 src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                         <?php else: ?>
-                            <div class="h-8 w-8 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-sm font-bold">
+                            <div class="h-8 w-8 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-sm font-bold">
                                 <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                             </div>
                         <?php endif; ?>
@@ -351,13 +307,13 @@ if (!$profilePicture) {
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
                     <div class="dropdown-menu right-0 mt-2">
-                        <a href="/director/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/director/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-user w-5 mr-2"></i> Profile
                         </a>
-                        <a href="/director/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/director/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-cog w-5 mr-2"></i> Settings
                         </a>
-                        <a href="/director/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/director/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-sign-out-alt w-5 mr-2"></i> Logout
                         </a>
                     </div>
@@ -373,7 +329,7 @@ if (!$profilePicture) {
             <div class="flex items-center justify-center mb-3">
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
-            <h2 class="text-xl font-bold text-gold-400 hidden md:block">PRMSU Scheduling System - ACSS</h2>
+            <h2 class="text-xl font-bold text-yellow-400 hidden md:block">PRMSU Scheduling System - ACSS</h2>
             <p class="text-xs text-gray-400 mt-1 hidden md:block">director Management System</p>
         </div>
 
@@ -381,16 +337,16 @@ if (!$profilePicture) {
         <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
             <div class="flex items-center space-x-3">
                 <?php if (!empty($profilePicture)): ?>
-                    <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
+                    <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md"
                         src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                 <?php else: ?>
-                    <div class="h-12 w-12 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    <div class="h-12 w-12 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
                         <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
                 <div>
                     <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
-                    <div class="flex items-center text-xs text-gold-400">
+                    <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>director</span>
                     </div>
@@ -401,26 +357,26 @@ if (!$profilePicture) {
         <!-- Navigation -->
         <nav class="mt-4 px-2">
             <!-- Dashboard Link -->
-            <a href="/director/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/dashboard') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
-                <i class="fas fa-tachometer-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/dashboard') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
+            <a href="/director/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-tachometer-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Dashboard</span>
             </a>
 
             <!-- My set Schedule Link -->
-            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
+            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Set Schedule Deadline</span>
             </a>
 
             <!-- My set monitor Link -->
-            <a href="/director/monitor" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
-                <i class="fa-solid fa-desktop w-5 mr-3 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
+            <a href="/director/monitor" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fa-solid fa-desktop w-5 mr-3 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Activity Logs</span>
             </a>
 
             <!-- Profile Link -->
-            <a href="/director/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/profile') !== false ? 'active-nav bg-gray-800 text-gold-400' : ''; ?>">
-                <i class="fas fa-user-circle w-5 mr-3 <?php echo strpos($currentUri, '/director/profile') !== false ? 'text-gold-400' : 'text-gray-400'; ?>"></i>
+            <a href="/director/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/profile') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-user-circle w-5 mr-3 <?php echo strpos($currentUri, '/director/profile') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Profile</span>
             </a>
         </nav>
@@ -432,7 +388,7 @@ if (!$profilePicture) {
                     <p>director System</p>
                     <p>Version 2.1.0</p>
                 </div>
-                <a href="/director/system/status" class="text-gold-400 hover:text-gold-300 transition-all duration-300">
+                <a href="/director/system/status" class="text-yellow-400 hover:text-yellow-300 transition-all duration-300">
                     <i class="fas fa-circle text-green-500 mr-1"></i> Online
                 </a>
             </div>
@@ -450,7 +406,7 @@ if (!$profilePicture) {
                 <nav class="flex mb-5 text-sm" aria-label="Breadcrumb">
                     <ol class="inline-flex items-center space-x-1 md:space-x-3">
                         <li class="inline-flex items-center">
-                            <a href="/director/dashboard" class="inline-flex items-center text-gray-500 hover:text-gold-400">
+                            <a href="/director/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-400">
                                 <i class="fas fa-home mr-2"></i>
                                 Home
                             </a>
@@ -466,9 +422,9 @@ if (!$profilePicture) {
                                 <div class="flex items-center">
                                     <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
                                     <?php if ($isLast): ?>
-                                        <span class="text-gold-400 font-medium"><?php echo ucfirst(str_replace('-', ' ', $segment)); ?></span>
+                                        <span class="text-yellow-400 font-medium"><?php echo ucfirst(str_replace('-', ' ', $segment)); ?></span>
                                     <?php else: ?>
-                                        <a href="<?php echo $path; ?>" class="text-gray-500 hover:text-gold-400"><?php echo ucfirst(str_replace('-', ' ', $segment)); ?></a>
+                                        <a href="<?php echo $path; ?>" class="text-gray-500 hover:text-yellow-400"><?php echo ucfirst(str_replace('-', ' ', $segment)); ?></a>
                                     <?php endif; ?>
                                 </div>
                             </li>

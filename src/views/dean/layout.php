@@ -32,52 +32,10 @@ $currentUri = $_SERVER['REQUEST_URI'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dean Dashboard</title>
     <link rel="stylesheet" href="/css/output.css">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gold: {
-                            50: '#FEF9E8',
-                            100: '#FDF0C4',
-                            200: '#FAE190',
-                            300: '#F7D15C',
-                            400: '#F4C029',
-                            500: '#E5AD0F',
-                            600: '#B98A0C',
-                            700: '#8E6809',
-                            800: '#624605',
-                            900: '#352503',
-                        },
-                        gray: {
-                            50: '#F9FAFB',
-                            100: '#F3F4F6',
-                            200: '#E5E7EB',
-                            300: '#D1D5DB',
-                            400: '#9CA3AF',
-                            500: '#6B7280',
-                            600: '#4B5563',
-                            700: '#374151',
-                            800: '#1F2937',
-                            900: '#111827',
-                        }
-                    },
-                    fontFamily: {
-                        'sans': ['Roboto', 'sans-serif'],
-                        'heading': ['Poppins', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'custom': '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        'hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        'card': '0 10px 20px rgba(0, 0, 0, 0.05), 0 6px 6px rgba(0, 0, 0, 0.03)',
-                    }
-                },
-            },
-        }
-    </script>
     <style>
+        /* Replace the CSS section in your layout.php <style> tags with this updated version */
+
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
@@ -94,7 +52,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
         h6 {
             font-family: 'Poppins', sans-serif;
         }
-
 
         @keyframes slideInLeft {
             from {
@@ -165,11 +122,10 @@ $currentUri = $_SERVER['REQUEST_URI'];
         .dropdown-menu.show {
             display: flex;
             flex-direction: column;
-
             transform: translateY(0);
         }
 
-        /* Navigation items */
+        /* Navigation items - Updated with correct yellow colors */
         .nav-item {
             transition: all 0.3s ease;
             border-radius: 0.375rem;
@@ -184,7 +140,8 @@ $currentUri = $_SERVER['REQUEST_URI'];
             top: 0;
             height: 100%;
             width: 0;
-            background-color: rgba(212, 175, 55, 0.15);
+            background-color: rgba(229, 173, 15, 0.15);
+            /* Using yellow-500 from your config */
             z-index: -1;
             transition: width 0.3s ease;
         }
@@ -194,12 +151,16 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         .nav-item:hover {
-            color: #D4AF37;
+            color: #E5AD0F;
         }
 
+        /* yellow-500 from your config */
+
         .active-nav {
-            border-left: 4px solid #D4AF37;
-            background-color: rgba(212, 175, 55, 0.1);
+            border-left: 4px solid #E5AD0F;
+            /* yellow-500 from your config */
+            background-color: rgba(229, 173, 15, 0.1);
+            /* yellow-500 with opacity */
             font-weight: 500;
         }
 
@@ -208,11 +169,13 @@ $currentUri = $_SERVER['REQUEST_URI'];
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
         }
 
-        /* Gradient and card effects */
-        .gold-gradient {
-            background: linear-gradient(135deg, #D4AF37 0%, #F2D675 100%);
+        /* Gradient using your Tailwind yellow colors */
+        .yellow-gradient {
+            background: linear-gradient(135deg, #E5AD0F 0%, #F4C029 100%);
+            /* yellow-500 to yellow-400 */
         }
 
+        /* Card effects */
         .card {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             overflow: hidden;
@@ -270,7 +233,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
             }
         }
 
-        /* Scrollbar */
+        /* Scrollbar - Updated with correct yellow colors */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -282,13 +245,16 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #D4AF37;
+            background: #E5AD0F;
             border-radius: 10px;
         }
 
+        /* yellow-500 */
         ::-webkit-scrollbar-thumb:hover {
-            background: #B8860B;
+            background: #B98A0C;
         }
+
+        /* yellow-600 */
 
         /* Notifications */
         .notification-badge {
@@ -339,7 +305,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <!-- Left: Sidebar Toggle and Logo -->
             <div class="flex items-center">
-                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-gold-400 focus:outline-none mr-4">
+                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-yellow-400 focus:outline-none mr-4">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <a href="/dean/dashboard" class="flex items-center">
@@ -352,12 +318,12 @@ $currentUri = $_SERVER['REQUEST_URI'];
             <div class="flex items-center space-x-4">
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
-                    <button class="flex items-center text-gray-600 hover:text-gold-400 focus:outline-none">
+                    <button class="flex items-center text-gray-600 hover:text-yellow-400 focus:outline-none">
                         <?php if (!empty($profilePicture)): ?>
-                            <img class="h-8 w-8 rounded-full border-2 border-gold-400 object-cover"
+                            <img class="h-8 w-8 rounded-full border-2 border-yellow-400 object-cover"
                                 src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                         <?php else: ?>
-                            <div class="h-8 w-8 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-sm font-bold">
+                            <div class="h-8 w-8 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-sm font-bold">
                                 <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                             </div>
                         <?php endif; ?>
@@ -365,13 +331,13 @@ $currentUri = $_SERVER['REQUEST_URI'];
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
                     <div class="dropdown-menu right-0 mt-2">
-                        <a href="/dean/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/dean/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-user w-5 mr-2"></i> Profile
                         </a>
-                        <a href="/dean/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/dean/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-cog w-5 mr-2"></i> Settings
                         </a>
-                        <a href="/dean/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-gold-300">
+                        <a href="/dean/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-sign-out-alt w-5 mr-2"></i> Logout
                         </a>
                     </div>
@@ -387,7 +353,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
             <div class="flex items-center justify-center mb-3">
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
-            <h2 class="text-xl font-bold text-gold-400 hidden md:block">PRMSU Scheduling System - ACSS</h2>
+            <h2 class="text-xl font-bold text-yellow-400 hidden md:block">PRMSU Scheduling System - ACSS</h2>
             <p class="text-xs text-gray-400 mt-1 hidden md:block">Dean Management System</p>
         </div>
 
@@ -395,16 +361,16 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
             <div class="flex items-center space-x-3">
                 <?php if (!empty($profilePicture)): ?>
-                    <img class="h-12 w-12 rounded-full border-2 border-gold-400 object-cover shadow-md"
+                    <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md"
                         src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                 <?php else: ?>
-                    <div class="h-12 w-12 rounded-full border-2 border-gold-400 bg-gold-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    <div class="h-12 w-12 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
                         <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
                 <div>
                     <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
-                    <div class="flex items-center text-xs text-gold-400">
+                    <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>Dean</span>
                     </div>
@@ -415,50 +381,50 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <!-- Navigation -->
         <nav class="mt-4 px-2">
             <!-- Dashboard Link -->
-            <a href="/dean/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/dashboard') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/dean/dashboard') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/dean/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Dashboard</span>
             </a>
 
             <!-- Schedule Link -->
-            <a href="/dean/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/schedule') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/dean/schedule') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/dean/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>My Schedule</span>
             </a>
 
             <!-- Classrooms Link -->
-            <a href="/dean/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/classroom') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/dean/classroom') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/dean/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Classrooms</span>
             </a>
 
             <!-- Faculty Link -->
-            <a href="/dean/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Faculty</span>
             </a>
 
             <!-- Courses Link -->
-            <a href="/dean/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/courses') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/dean/courses') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/courses') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/dean/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Courses</span>
             </a>
 
             <!-- Curriculum Link -->
-            <a href="/dean/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Curriculum</span>
             </a>
 
             <!-- Profile Link -->
-            <a href="/dean/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/profile') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/dean/profile') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/profile') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/dean/profile') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Profile</span>
             </a>
 
             <!-- Settings Link -->
-            <a href="/dean/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/settings') !== false ? 'active-nav bg-gray-800 text-gold-400' : '' ?>">
-                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/dean/settings') !== false ? 'text-gold-400' : 'text-gray-400' ?>"></i>
+            <a href="/dean/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/settings') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/dean/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Settings</span>
             </a>
         </nav>
@@ -471,7 +437,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
                     <p>Dean System</p>
                     <p>Version 2.1.0</p>
                 </div>
-                <a href="/dean/system/status" class="text-gold-400 hover:text-gold-300 transition-all duration-300">
+                <a href="/dean/system/status" class="text-yellow-400 hover:text-yellow-300 transition-all duration-300">
                     <i class="fas fa-circle text-green-500 mr-1"></i> Online
                 </a>
             </div>
@@ -489,7 +455,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <nav class="flex mb-5 text-sm" aria-label="Breadcrumb">
                     <ol class="inline-flex items-center space-x-1 md:space-x-3">
                         <li class="inline-flex items-center">
-                            <a href="/dean/dashboard" class="inline-flex items-center text-gray-500 hover:text-gold-400">
+                            <a href="/dean/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-400">
                                 <i class="fas fa-home mr-2"></i>
                                 Home
                             </a>
@@ -505,9 +471,9 @@ $currentUri = $_SERVER['REQUEST_URI'];
                                 <div class="flex items-center">
                                     <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
                                     <?php if ($isLast): ?>
-                                        <span class="text-gold-400 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
+                                        <span class="text-yellow-400 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
                                     <?php else: ?>
-                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-gold-400"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
+                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-yellow-400"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
                                     <?php endif; ?>
                                 </div>
                             </li>
