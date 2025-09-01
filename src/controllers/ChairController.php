@@ -739,12 +739,18 @@ class ChairController
             return $schedules;
         }
 
-        $relevantCourses = array_filter($courses, fn($c) => $c['curriculum_semester'] === $currentSemester['semester_name']);
+        // Filter courses by semester and only the selected year levels
+        $relevantCourses = array_filter(
+            $courses,
+            fn($c) =>
+            $c['curriculum_semester'] === $currentSemester['semester_name'] &&
+                in_array($c['curriculum_year'], $yearLevels)
+        );
         $relevantCourses = array_values($relevantCourses);
-        error_log("Relevant courses for semester {$currentSemester['semester_name']}: " . print_r($relevantCourses, true));
+        error_log("Relevant courses for semester {$currentSemester['semester_name']} and year levels " . implode(', ', $yearLevels) . ": " . print_r($relevantCourses, true));
 
         if (empty($relevantCourses)) {
-            error_log("No courses found for semester {$currentSemester['semester_name']}");
+            error_log("No courses found for semester {$currentSemester['semester_name']} and year levels " . implode(', ', $yearLevels));
             return $schedules;
         }
 
@@ -756,38 +762,47 @@ class ChairController
         ];
         $usedSlots = [];
         $sectionSchedules = [];
-        $assignedCourses = [];
-        $courseFacultyMap = [];
+        $assignedCourses = []; // Track assigned courses per section
 
+        // Initialize data structures for all matching sections
         foreach ($matchingSections as $section) {
             $sectionSchedules[$section['section_id']] = [];
             $assignedCourses[$section['section_id']] = [];
             $usedSlots[$section['section_id']] = [];
-            $courseFacultyMap[$section['section_id']] = [];
+            error_log("Initialized data for section {$section['section_name']} (year {$section['year_level']}, ID {$section['section_id']})");
         }
 
         $maxTriesPerCourse = 10;
         $baseCourses = $relevantCourses; // Preserve base course list
 
         foreach ($matchingSections as $section) {
-            // Create a fresh unassignedCourses for each section, strictly filtered by year level
+            error_log("Processing section {$section['section_name']} (year {$section['year_level']}, ID {$section['section_id']})");
+            // Filter courses strictly for this section's year level
             $unassignedCourses = array_filter($baseCourses, fn($c) => $c['curriculum_year'] === $section['year_level']);
             $unassignedCourses = array_values($unassignedCourses);
-            $sectionCourses = $unassignedCourses;
-            error_log("Processing courses for {$section['section_name']} (year {$section['year_level']}): " . print_r($sectionCourses, true));
+            error_log("Processing courses for {$section['section_name']} (year {$section['year_level']}): " . print_r($unassignedCourses, true));
 
-            foreach ($sectionCourses as $course) {
+            if (empty($unassignedCourses)) {
+                error_log("No courses available for {$section['section_name']} (year {$section['year_level']})");
+                continue;
+            }
+
+            foreach ($unassignedCourses as $course) {
+                if (in_array($course['course_code'], $assignedCourses[$section['section_id']])) {
+                    error_log("Skipping duplicate course {$course['course_code']} for {$section['section_name']}");
+                    continue; // Skip if already assigned to this section
+                }
+
                 $assigned = false;
                 for ($try = 0; $try < $maxTriesPerCourse && !$assigned; $try++) {
-                    // Determine day pattern based on course
                     $isNstpRelated = preg_match('/^(NSTP 1|NSTP II|CWTS|ROTC|LTS)/i', $course['course_code']);
-                    $pattern = $isNstpRelated ? 'SAT' : ($try % 2 == 0 ? 'MWF' : 'TTH'); // Alternate MWF and TTH, NSTP on SAT
+                    $pattern = $isNstpRelated ? 'SAT' : ($try % 2 == 0 ? 'MWF' : 'TTH');
                     $targetDays = $dayPatterns[$pattern];
                     $targetDay = $targetDays[array_rand($targetDays)];
 
                     $timeSlot = $this->getRandomTimeSlot($usedSlots[$section['section_id']], false);
-                    $startTime = $timeSlot['start_time'] ?? '08:00:00'; // Fallback to default if null
-                    $endTime = $timeSlot['end_time'] ?? '09:00:00'; // Fallback to default if null
+                    $startTime = $timeSlot['start_time'] ?? '08:00:00';
+                    $endTime = $timeSlot['end_time'] ?? '09:00:00';
                     if (!$startTime || !$endTime) {
                         error_log("Failed to get valid time slot for {$course['course_code']}, retrying...");
                         continue;
@@ -806,7 +821,6 @@ class ChairController
                         continue;
                     }
 
-                    // Build current schedule data for conflict check
                     $currentScheduleData = [
                         'day_of_week' => $targetDay,
                         'start_time' => $startTime,
@@ -816,9 +830,7 @@ class ChairController
                         'section_id' => $section['section_id']
                     ];
 
-                    // Global conflict detection with hasConflict using current data
-                    $hasConflict = $this->hasConflict($schedules, $currentScheduleData);
-                    if (!$hasConflict) {
+                    if (!$this->hasConflict($schedules, $currentScheduleData)) {
                         $scheduleData = [
                             'course_id' => $course['course_id'],
                             'section_id' => $section['section_id'],
@@ -842,31 +854,17 @@ class ChairController
 
                         $response = $this->saveScheduleToDB($scheduleData, $currentSemester);
                         if ($response['code'] === 200) {
-                            $schedules[] = array_merge($response['data'], [
-                                'day_of_week' => $targetDay,
-                                'start_time' => $startTime,
-                                'end_time' => $endTime,
-                                'course_code' => $course['course_code'],
-                                'course_name' => $course['course_name'],
-                                'faculty_name' => $this->getFacultyName($facultyId),
-                                'room_name' => $roomName,
-                                'section_name' => $section['section_name'],
-                                'year_level' => $section['year_level'],
-                                'schedule_type' => $scheduleType
-                            ]);
+                            $schedules[] = array_merge($response['data'], $scheduleData);
                             $assignedCourses[$section['section_id']][] = $course['course_code'];
                             $sectionSchedules[$section['section_id']][] = $scheduleData;
                             $usedSlots[$section['section_id']][] = "$startTime-$endTime";
-                            $courseFacultyMap[$section['section_id']][$course['course_code']] = $facultyId;
-                            $key = array_search($course, $unassignedCourses);
-                            if ($key !== false) unset($unassignedCourses[$key]);
                             $assigned = true;
                             error_log("Schedule saved for {$section['section_name']} on $targetDay: " . print_r($schedules[count($schedules) - 1], true));
                         } else {
                             error_log("Try $try: Schedule save failed for {$section['section_name']} on $targetDay: " . ($response['error'] ?? 'Unknown error'));
                         }
                     } else {
-                        error_log("Try $try: Global conflict detected for {$course['course_code']} on $targetDay $startTime-$endTime");
+                        error_log("Try $try: Conflict detected for {$course['course_code']} on $targetDay $startTime-$endTime");
                     }
                 }
                 if (!$assigned) {
@@ -875,9 +873,8 @@ class ChairController
             }
         }
 
-        $unassignedCourses = array_values($unassignedCourses);
-        if (!empty($unassignedCourses)) {
-            error_log("Warning: Could not assign all courses: " . print_r($unassignedCourses, true));
+        if (!empty(array_diff(array_column($baseCourses, 'course_code'), array_merge(...array_values($assignedCourses))))) {
+            error_log("Warning: Some courses were not assigned: " . print_r(array_diff(array_column($baseCourses, 'course_code'), array_merge(...array_values($assignedCourses))), true));
         }
 
         return $schedules;
@@ -3364,5 +3361,4 @@ class ChairController
             return "Error: Failed to upload file.";
         }
     }
-   
 }
