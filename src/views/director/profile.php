@@ -186,7 +186,7 @@ ob_start();
     <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
     <div class="container mx-auto px-4 py-8 max-w-7xl">
         <!-- Profile Header -->
-        <header class="bg-yellow-500 text-white p-6 mb-8 rounded-xl shadow-lg slide-in-left">
+        <header class="bg-gray-800 text-white p-6 mb-8 rounded-xl shadow-lg slide-in-left">
             <div class="flex flex-col sm:flex-row items-center justify-between">
                 <div class="flex items-center space-x-6 mb-4 sm:mb-0">
                     <div class="w-20 h-20 bg-white rounded-full overflow-hidden border-4 border-white flex items-center justify-center relative">
@@ -206,7 +206,7 @@ ob_start();
                         </p>
                     </div>
                 </div>
-                <button id="editProfileBtn" class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
+                <button id="editProfileBtn" class="bg-yellow-600 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
                     <i class="fas fa-edit text-sm"></i>
                     <span class="text-sm font-medium">Edit Profile</span>
                 </button>

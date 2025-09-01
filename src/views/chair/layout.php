@@ -489,10 +489,10 @@ $modal_content = $modal_content ?? '';
                         </a>
                     <?php endif; ?>
 
-                    <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule') !== false && strpos($currentUri, '/create') === false && strpos($currentUri, '/history') === false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+                    <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/my_schedule') !==  false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-list w-5 mr-2"></i> My Schedule
                     </a>
-                    <a href="/chair/schedule/history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+                    <a href="/chair/schedule_history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/schedule_history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-history w-5 mr-2"></i> Schedule History
                     </a>
                 </div>

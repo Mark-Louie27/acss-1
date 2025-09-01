@@ -217,6 +217,10 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::createSchedule");
             $controller->manageSchedule();
             exit;
+        case '/chair/schedule_history':
+            error_log("Routing to ChairController::scheduleHistory");
+            $controller->viewScheduleHistory();
+            exit;
         case '/chair/classroom':
             error_log("Routing to ChairController::classroom");
             $controller->classroom();

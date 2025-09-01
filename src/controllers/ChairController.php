@@ -661,7 +661,7 @@ class ChairController
                     if ($curriculumId) {
                         error_log("Generating for curriculum $curriculumId, year levels: " . implode(', ', $yearLevels));
                         $schedules = $this->generateSchedules($curriculumId, $yearLevels, $departmentId, $currentSemester, $classrooms, $faculty);
-                        $this->removeDuplicateSchedules($departmentId, $currentSemester); // Updated call
+                        $this->removeDuplicateSchedules($departmentId, $currentSemester);
                         $schedules = $this->loadSchedules($departmentId, $currentSemester);
                         $success = "Schedules generated: " . count($schedules) . " schedules";
                         error_log("Generated schedules: " . print_r($schedules, true));
@@ -676,7 +676,6 @@ class ChairController
             $error = "No department assigned to chair.";
         }
 
-        // Pass sections and other data to the view
         require_once __DIR__ . '/../views/chair/schedule_management.php';
     }
 
@@ -1208,6 +1207,140 @@ class ChairController
         $_SESSION[$cacheKey] = $status;
         $_SESSION[$cacheKey . '_expiry'] = time() + 300;
         return $status;
+    }
+
+    public function viewScheduleHistory()
+    {
+        $chairId = $_SESSION['user_id'] ?? null;
+        $departmentId = $this->getChairDepartment($chairId);
+        $error = $success = null;
+        $historicalSchedules = [];
+        $allSemesters = [];
+
+        if ($departmentId) {
+            $allSemesters = $this->getPastSemesters($departmentId);
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $semesterId = $_POST['semester_id'] ?? null;
+                $academicYear = $_POST['academic_year'] ?? null;
+                error_log("Form submission - semester_id: $semesterId, academic_year: $academicYear"); // Debug form input
+                if ($semesterId || $academicYear) {
+                    $historicalSchedules = $this->getHistoricalSchedules($departmentId, $semesterId, $academicYear);
+                    $success = "Schedules retrieved: " . count($historicalSchedules) . " schedules";
+                    error_log("Historical schedules retrieved: " . print_r($historicalSchedules, true)); // Debug retrieved schedules
+                } else {
+                    $error = "Please select a semester or academic year.";
+                }
+            }
+        } else {
+            $error = "No department assigned to chair.";
+        }
+
+        require_once __DIR__ . '/../views/chair/schedule_history.php';
+    }
+
+    private function getHistoricalSchedules($departmentId, $semesterId = null, $academicYear = null)
+    {
+        try {
+            $sql = "SELECT s.*, c.course_code, c.course_name, u.first_name, u.last_name, r.room_name, se.section_name, sem.semester_name, sem.academic_year
+                FROM schedules s
+                LEFT JOIN courses c ON s.course_id = c.course_id
+                LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+                LEFT JOIN users u ON f.user_id = u.user_id
+                LEFT JOIN classrooms r ON s.room_id = r.room_id
+                LEFT JOIN sections se ON s.section_id = se.section_id
+                LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
+                WHERE s.department_id = :departmentId";
+            $params = [':departmentId' => $departmentId];
+
+            if ($semesterId) {
+                $sql .= " AND s.semester_id = :semesterId";
+                $params[':semesterId'] = $semesterId;
+            }
+            if ($academicYear) {
+                $sql .= " AND sem.academic_year = :academicYear";
+                $params[':academicYear'] = $academicYear;
+            }
+
+            error_log("Historical schedules SQL: $sql, Params: " . print_r($params, true)); // Debug SQL
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            return array_map(function ($schedule) {
+                return [
+                    'schedule_id' => $schedule['schedule_id'],
+                    'course_code' => $schedule['course_code'],
+                    'course_name' => $schedule['course_name'],
+                    'faculty_name' => trim($schedule['first_name'] . ' ' . $schedule['last_name']) ?: 'Unknown',
+                    'room_name' => $schedule['room_name'] ?? 'Online',
+                    'section_name' => $schedule['section_name'],
+                    'day_of_week' => $schedule['day_of_week'],
+                    'start_time' => $schedule['start_time'],
+                    'end_time' => $schedule['end_time'],
+                    'schedule_type' => $schedule['schedule_type'],
+                    'semester_name' => $schedule['semester_name'],
+                    'academic_year' => $schedule['academic_year']
+                ];
+            }, $schedules);
+        } catch (PDOException $e) {
+            error_log("Error fetching historical schedules: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function getPastSemesters($departmentId)
+    {
+        try {
+            $currentSemester = $_SESSION['current_semester'] ?? $this->getCurrentSemester();
+            $currentSemesterId = $currentSemester['semester_id'] ?? null;
+            $currentAcademicYear = $currentSemester['academic_year'] ?? null;
+
+            // Log all semesters to check total data
+            $allSemestersStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters");
+            $allSemesters = $allSemestersStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("All semesters in database: " . print_r($allSemesters, true));
+
+            // Log schedules to check department linkage
+            $schedulesStmt = $this->db->prepare("SELECT semester_id FROM schedules WHERE department_id = :departmentId");
+            $schedulesStmt->execute([':departmentId' => $departmentId]);
+            $scheduleSemesters = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Schedules for department $departmentId: " . print_r($scheduleSemesters, true));
+
+            // Fetch all semesters
+            $sql = "SELECT semester_id, semester_name, academic_year FROM semesters";
+            $stmt = $this->db->query($sql);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            error_log("All semesters SQL: $sql");
+            error_log("All semesters results: " . print_r($results, true));
+            return $results; // Return all semesters, including current
+        } catch (PDOException $e) {
+            error_log("Error fetching semesters: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function formatScheduleHistory($schedules)
+    {
+        $formatted = [];
+        foreach ($schedules as $schedule) {
+            $key = $schedule['semester_name'] . ' - ' . $schedule['academic_year'];
+            if (!isset($formatted[$key])) {
+                $formatted[$key] = [];
+            }
+            $formatted[$key][] = sprintf(
+                "%s - %s (Section: %s, Faculty: %s, Room: %s, %s %s-%s)",
+                $schedule['course_code'],
+                $schedule['course_name'],
+                $schedule['section_name'],
+                $schedule['faculty_name'],
+                $schedule['room_name'],
+                $schedule['day_of_week'],
+                $schedule['start_time'],
+                $schedule['end_time']
+            );
+        }
+        return $formatted;
     }
 
     /**
