@@ -23,7 +23,7 @@ class AuthController
             $this->redirectBasedOnRole();
         }
 
-        $rememberMe = isset($_POST['remember-me']) && $_POST['remember-me'] === 'on';
+        $rememberMe = isset($_POST['remember-me']) && $_POST['remember-me'] === '1'; // Changed to match checkbox value
         $error = $_GET['error'] ?? '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -53,11 +53,11 @@ class AuthController
                 $userData = $this->authService->login($employeeId, $password);
                 if ($userData) {
                     $this->authService->startSession($userData);
-
+                
                     if ($rememberMe) {
                         $token = bin2hex(random_bytes(32));
-                        $expiry = time() + (30 * 24 * 60 * 60);
-                        setcookie('remember_me', $token, $expiry, '/', '', true, true);
+                        $expiry = time() + (30 * 24 * 60 * 60); // 30 days
+                        setcookie('remember_me', $token, $expiry, '/', '', true, true); // Secure, HttpOnly cookie
 
                         $updateQuery = "UPDATE users SET remember_token = :token, remember_token_expiry = :expiry WHERE user_id = :user_id";
                         $stmt = $this->db->prepare($updateQuery);
@@ -73,17 +73,15 @@ class AuthController
                         }
                     } else {
                         if (isset($_COOKIE['remember_me'])) {
+                            $updateQuery = "UPDATE users SET remember_token = NULL, remember_token_expiry = NULL WHERE user_id = :user_id";
+                            $stmt = $this->db->prepare($updateQuery);
+                            $stmt->execute([':user_id' => $user['user_id']]);
                             setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                         }
                     }
-
-                    error_log("Login successful for employee_id: $employeeId");
-                    $this->redirectBasedOnRole();
-                } else {
-                    error_log("Login failed for employee_id: $employeeId - Unexpected error");
-                    $error = "An unexpected error occurred. Please try again.";
-                    require_once __DIR__ . '/../views/auth/login.php';
                 }
+                error_log("Login successful for employee_id: $employeeId");
+                $this->redirectBasedOnRole();
             } else {
                 error_log("Login failed for employee_id: $employeeId - Invalid credentials");
                 $error = "Invalid Employee ID or password.";
@@ -92,22 +90,19 @@ class AuthController
         } else {
             if (isset($_COOKIE['remember_me'])) {
                 $token = $_COOKIE['remember_me'];
-                $query = "SELECT user_id, employee_id, role_id FROM users WHERE remember_token = :token AND remember_token_expiry > NOW()";
+                $query = "SELECT user_id, employee_id, role_id, is_active FROM users WHERE remember_token = :token AND remember_token_expiry > NOW()";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':token' => $token]);
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                if ($user) {
-                    $userData = $this->authService->login($user['employee_id'], '');
-                    if ($userData) {
-                        $this->authService->startSession($userData);
-                        $this->redirectBasedOnRole();
-                    } else {
-                        error_log("Auto-login failed for token: $token - Invalid user data");
-                        setcookie('remember_me', '', time() - 3600, '/', '', true, true);
-                    }
+                if ($user && $user['is_active'] == 1) {
+                    $_SESSION['user_id'] = $user['user_id'];
+                    $_SESSION['role_id'] = $user['role_id'];
+                    $_SESSION['is_active'] = $user['is_active'];
+                    error_log("Auto-login successful for user_id: " . $user['user_id']);
+                    $this->redirectBasedOnRole();
                 } else {
-                    error_log("No user found for remember_token: $token");
+                    error_log("Auto-login failed for token: $token - Invalid or inactive user");
                     setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                 }
             }
@@ -190,47 +185,55 @@ class AuthController
      */
     public function forgotPassword()
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $employeeId = trim($_POST['employee_id'] ?? '');
+        header('Content-Type: application/json');
+        error_log("Forgot password request received for employee_id: " . ($_POST['employee_id'] ?? 'N/A'));
 
-            if (empty($employeeId)) {
-                $error = "Employee ID is required.";
-                require_once __DIR__ . '/../views/auth/forgot_password.php';
-                return;
-            }
-
-            $query = "SELECT user_id, email, first_name FROM users WHERE employee_id = :employee_id AND is_active = 1";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':employee_id' => $employeeId]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($user) {
-                $token = bin2hex(random_bytes(32));
-                $expiry = time() + (24 * 60 * 60);
-                $updateQuery = "UPDATE users SET reset_token = :token, reset_token_expiry = :expiry WHERE user_id = :user_id";
-                $stmt = $this->db->prepare($updateQuery);
-                $stmt->execute([
-                    ':token' => $token,
-                    ':expiry' => date('Y-m-d H:i:s', $expiry),
-                    ':user_id' => $user['user_id']
-                ]);
-
-                $emailService = new EmailService();
-                $resetLink = "http://localhost:8000/reset-password?token=" . $token;
-                if ($emailService->sendForgotPasswordEmail($user['email'], $user['first_name'], $token, $resetLink)) {
-                    $success = "A password reset link has been sent to your email.";
-                } else {
-                    $error = "Failed to send reset email. Please try again or contact support.";
-                }
-            } else {
-                $error = "No active account found with that Employee ID.";
-            }
-            require_once __DIR__ . '/../views/auth/forgot_password.php';
-        } else {
-            require_once __DIR__ . '/../views/auth/forgot_password.php';
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
+            exit;
         }
-    }
 
+        $employeeId = trim($_POST['employee_id'] ?? '');
+
+        if (empty($employeeId)) {
+            echo json_encode(['success' => false, 'message' => 'Employee ID is required.']);
+            exit;
+        }
+
+        $query = "SELECT user_id, email, first_name FROM users WHERE employee_id = :employee_id AND is_active = 1";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':employee_id' => $employeeId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user) {
+            $token = bin2hex(random_bytes(32));
+            $expiry = time() + (24 * 60 * 60);
+            $updateQuery = "UPDATE users SET reset_token = :token, reset_token_expiry = :expiry WHERE user_id = :user_id";
+            $stmt = $this->db->prepare($updateQuery);
+            $stmt->execute([
+                ':token' => $token,
+                ':expiry' => date('Y-m-d H:i:s', $expiry),
+                ':user_id' => $user['user_id']
+            ]);
+
+            $emailService = new EmailService();
+            $resetLink = "http://localhost:8000/reset-password?token=" . $token;
+            try {
+                if ($emailService->sendForgotPasswordEmail($user['email'], $user['first_name'], $resetLink)) {
+                    echo json_encode(['success' => true, 'message' => 'A password reset link has been sent to your email.']);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Failed to send reset email. Please try again or contact support.']);
+                    error_log("Failed to send forgot password email to " . $user['email'] . " - Email service error");
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => 'Failed to send reset email. Please try again or contact support.']);
+                error_log("Exception in sending forgot password email to " . $user['email'] . ": " . $e->getMessage());
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => 'No active account found with that Employee ID.']);
+        }
+        exit;
+    }
     /**
      * Handle password reset request
      */

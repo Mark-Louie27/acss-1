@@ -12,7 +12,7 @@ $profilePicture = $_SESSION['profile_picture'] ?? null;
 if (!$profilePicture) {
     try {
         $db = (new Database())->connect();
-        $stmt = $db->prepare("SELECT profile_picture FROM users WHERE user_id = :user_id");
+        $stmt = $db->prepare("SELECT title, first_name, middle_name, last_name, suffix, profile_picture FROM users WHERE user_id = :user_id");
         $stmt->execute([':user_id' => $_SESSION['user_id']]);
         $profilePicture = $stmt->fetchColumn() ?: '';
         $_SESSION['profile_picture'] = $profilePicture;
@@ -397,7 +397,7 @@ $modal_content = $modal_content ?? '';
                         src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                 <?php else: ?>
                     <div class="h-12 w-12 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
-                        <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
+                        <?php echo strtoupper(substr($_SESSION['title'], 0, 1) . substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['middle_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1) . substr($_SESSION['suffix'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
                 <div>

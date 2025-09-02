@@ -43,16 +43,7 @@ ob_start();
                     <div>
                         <h1 class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($data['title']); ?></h1>
                         <div class="mt-2 flex items-center space-x-4">
-                            <p class="text-lg text-gold-primary font-semibold">
-                                <i class="fas fa-university mr-2"></i>
-                                <?php echo htmlspecialchars($data['college_name'] ?? 'College'); ?>
-                            </p>
-                            <?php if ($data['is_system_admin']): ?>
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                    <i class="fas fa-crown mr-1"></i>
-                                    System Admin
-                                </span>
-                            <?php endif; ?>
+                            
                         </div>
                     </div>
                 </div>
@@ -64,7 +55,7 @@ ob_start();
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                         <div class="p-6 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-                                <i class="fas fa-calendar-alt text-gold-primary mr-3"></i>
+                                <i class="fas fa-calendar-alt text-yellow-primary mr-3"></i>
                                 Set Schedule Deadline
                             </h3>
                             <p class="mt-1 text-sm text-gray-600">Choose the scope and deadline for schedule submissions</p>
@@ -77,10 +68,10 @@ ob_start();
                                 <div class="space-y-4">
                                     <?php if ($data['is_system_admin']): ?>
                                         <!-- Specific Colleges -->
-                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gold-primary transition-colors scope-option">
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-yellow-primary transition-colors scope-option">
                                             <div class="flex items-start space-x-3">
                                                 <input type="radio" id="scope_specific_colleges" name="apply_scope" value="specific_colleges"
-                                                    class="mt-1 h-4 w-4 text-gold-primary focus:ring-gold-primary border-gray-300">
+                                                    class="mt-1 h-4 w-4 text-yellow-primary focus:ring-yellow-primary border-gray-300">
                                                 <div class="flex-1">
                                                     <label for="scope_specific_colleges" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center">
                                                         <i class="fas fa-check-square text-purple-500 mr-2"></i>
@@ -93,7 +84,7 @@ ob_start();
                                                         <div class="border border-gray-200 rounded p-3 bg-gray-50">
                                                             <div class="flex items-center justify-between mb-3">
                                                                 <span class="text-sm font-medium text-gray-700">Select Colleges:</span>
-                                                                <button type="button" class="text-xs text-gold-primary hover:text-gold-dark" onclick="toggleAllColleges()">
+                                                                <button type="button" class="text-xs text-yellow-primary hover:text-yellow-dark" onclick="toggleAllColleges()">
                                                                     <span id="toggleCollegesText">Select All</span>
                                                                 </button>
                                                             </div>
@@ -102,7 +93,7 @@ ob_start();
                                                                     <?php foreach ($data['all_colleges'] as $college): ?>
                                                                         <label class="flex items-center space-x-2 text-sm hover:bg-gray-100 p-2 rounded">
                                                                             <input type="checkbox" name="selected_colleges[]" value="<?php echo $college['college_id']; ?>"
-                                                                                class="rounded text-gold-primary college-checkbox">
+                                                                                class="rounded text-yellow-primary college-checkbox">
                                                                             <span><?php echo htmlspecialchars($college['college_name']); ?></span>
                                                                             <span class="text-xs text-gray-500">(<?php echo $college['department_count'] ?? 0; ?> depts)</span>
                                                                         </label>
@@ -116,10 +107,10 @@ ob_start();
                                         </div>
 
                                         <!-- Specific Departments -->
-                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gold-primary transition-colors scope-option">
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-yellow-primary transition-colors scope-option">
                                             <div class="flex items-start space-x-3">
                                                 <input type="radio" id="scope_specific_departments" name="apply_scope" value="specific_departments"
-                                                    class="mt-1 h-4 w-4 text-gold-primary focus:ring-gold-primary border-gray-300">
+                                                    class="mt-1 h-4 w-4 text-yellow-primary focus:ring-yellow-primary border-gray-300">
                                                 <div class="flex-1">
                                                     <label for="scope_specific_departments" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center">
                                                         <i class="fas fa-list-check text-orange-500 mr-2"></i>
@@ -132,7 +123,7 @@ ob_start();
                                                         <div class="border border-gray-200 rounded p-3 bg-gray-50">
                                                             <div class="flex items-center justify-between mb-3">
                                                                 <span class="text-sm font-medium text-gray-700">Select Departments:</span>
-                                                                <button type="button" class="text-xs text-gold-primary hover:text-gold-dark" onclick="toggleAllDepartments()">
+                                                                <button type="button" class="text-xs text-yellow-primary hover:text-yellow-dark" onclick="toggleAllDepartments()">
                                                                     <span id="toggleDepartmentsText">Select All</span>
                                                                 </button>
                                                             </div>
@@ -166,7 +157,7 @@ ob_start();
                                                                                     <label class="flex items-center space-x-2 text-sm hover:bg-gray-50 p-1 rounded">
                                                                                         <input type="checkbox" name="selected_departments[]"
                                                                                             value="<?php echo $department['department_id']; ?>"
-                                                                                            class="rounded text-gold-primary department-checkbox college-<?php echo $college_id; ?>-dept">
+                                                                                            class="rounded text-yellow-primary department-checkbox college-<?php echo $college_id; ?>-dept">
                                                                                         <span><?php echo htmlspecialchars($department['department_name']); ?></span>
                                                                                     </label>
                                                                                 <?php endforeach; ?>
@@ -199,10 +190,10 @@ ob_start();
                                         </div>
                                     <?php else: ?>
                                         <!-- For non-system admins, show department selection only within their college -->
-                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-gold-primary transition-colors scope-option">
+                                        <div class="border border-gray-200 rounded-lg p-4 hover:border-yellow-primary transition-colors scope-option">
                                             <div class="flex items-start space-x-3">
                                                 <input type="radio" id="scope_specific_departments" name="apply_scope" value="specific_departments"
-                                                    class="mt-1 h-4 w-4 text-gold-primary focus:ring-gold-primary border-gray-300">
+                                                    class="mt-1 h-4 w-4 text-yellow-primary focus:ring-yellow-primary border-gray-300">
                                                 <div class="flex-1">
                                                     <label for="scope_specific_departments" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center">
                                                         <i class="fas fa-list-check text-orange-500 mr-2"></i>
@@ -215,7 +206,7 @@ ob_start();
                                                         <div class="border border-gray-200 rounded p-3 bg-gray-50">
                                                             <div class="flex items-center justify-between mb-3">
                                                                 <span class="text-sm font-medium text-gray-700">Select Departments in <?php echo htmlspecialchars($data['college_name']); ?>:</span>
-                                                                <button type="button" class="text-xs text-gold-primary hover:text-gold-dark" onclick="toggleAllDepartments()">
+                                                                <button type="button" class="text-xs text-yellow-primary hover:text-yellow-dark" onclick="toggleAllDepartments()">
                                                                     <span id="toggleDepartmentsText">Select All</span>
                                                                 </button>
                                                             </div>
@@ -225,7 +216,7 @@ ob_start();
                                                                         <label class="flex items-center space-x-2 text-sm hover:bg-gray-100 p-2 rounded">
                                                                             <input type="checkbox" name="selected_departments[]"
                                                                                 value="<?php echo $department['department_id']; ?>"
-                                                                                class="rounded text-gold-primary department-checkbox">
+                                                                                class="rounded text-yellow-primary department-checkbox">
                                                                             <span><?php echo htmlspecialchars($department['department_name']); ?></span>
                                                                         </label>
                                                                     <?php endforeach; ?>
@@ -276,11 +267,11 @@ ob_start();
                                         type="datetime-local"
                                         id="deadline"
                                         name="deadline"
-                                        class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-gold-primary focus:border-gold-primary transition-colors duration-200 text-gray-900"
+                                        class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-yellow-primary focus:border-yellow-primary transition-colors duration-200 text-gray-900"
                                         required
                                         min="<?php echo date('Y-m-d\TH:i'); ?>">
                                     <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                        <i class="fas fa-calendar-alt text-gold-primary"></i>
+                                        <i class="fas fa-calendar-alt text-yellow-primary"></i>
                                     </div>
                                 </div>
                                 <p class="mt-2 text-xs text-gray-500 flex items-center">
@@ -300,10 +291,10 @@ ob_start();
 
                             <!-- Action Buttons -->
                             <div class="flex flex-col sm:flex-row gap-3">
-                                <button type="button" onclick="window.history.back()" class="flex-1 sm:flex-none px-6 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gold-primary transition-all duration-200">
+                                <button type="button" onclick="window.history.back()" class="flex-1 sm:flex-none px-6 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-primary transition-all duration-200">
                                     Cancel
                                 </button>
-                                <button type="submit" id="submitBtn" class="flex-1 px-6 py-3 bg-gradient-to-r from-gold-primary to-gold-dark text-white rounded-lg text-sm font-medium hover:from-gold-dark hover:to-gold-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gold-primary transition-all duration-200 flex items-center justify-center">
+                                <button type="submit" id="submitBtn" class="flex-1 px-6 py-3 bg-yellow-600 bg-gradient-to-r from-yellow-primary to-yellow-dark text-white rounded-lg text-sm font-medium hover:from-yellow-dark hover:to-yellow-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-primary transition-all duration-200 flex items-center justify-center">
                                     <i class="fas fa-save mr-2"></i>
                                     <span class="btn-text">Set Deadline</span>
                                     <i class="fas fa-spinner fa-spin hidden ml-2" id="loadingIcon"></i>
@@ -318,7 +309,7 @@ ob_start();
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                         <div class="p-6 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-                                <i class="fas fa-list-alt text-gold-primary mr-3"></i>
+                                <i class="fas fa-list-alt text-yellow-primary mr-3"></i>
                                 Current Deadlines
                             </h3>
                         </div>
@@ -326,13 +317,13 @@ ob_start();
                             <?php if (!empty($data['deadlines'])): ?>
                                 <div class="space-y-4">
                                     <?php foreach ($data['deadlines'] as $deadline): ?>
-                                        <div class="border-l-4 <?php echo $deadline['department_id'] == $data['user_department_id'] ? 'border-gold-primary bg-gold-light bg-opacity-10' : 'border-gray-200'; ?> pl-4">
+                                        <div class="border-l-4 <?php echo $deadline['department_id'] == $data['user_department_id'] ? 'border-yellow-primary bg-yellow-light bg-opacity-10' : 'border-gray-200'; ?> pl-4">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1">
                                                     <h4 class="font-medium text-gray-900 text-sm">
                                                         <?php echo htmlspecialchars($deadline['department_name']); ?>
                                                         <?php if ($deadline['department_id'] == $data['user_department_id']): ?>
-                                                            <span class="text-xs text-gold-primary">(Your Dept)</span>
+                                                            <span class="text-xs text-yellow-primary">(Your Dept)</span>
                                                         <?php endif; ?>
                                                     </h4>
                                                     <?php if ($data['is_system_admin'] && isset($deadline['college_name'])): ?>
@@ -412,7 +403,7 @@ ob_start();
 
     <style>
         .preset-btn {
-            @apply bg-gray-50 border border-gray-200 rounded-lg p-3 text-center hover:bg-gold-primary hover:text-white hover:border-gold-primary transition-all duration-200 cursor-pointer flex flex-col items-center;
+            @apply bg-gray-50 border border-gray-200 rounded-lg p-3 text-center hover:bg-yellow-primary hover:text-white hover:border-yellow-primary transition-all duration-200 cursor-pointer flex flex-col items-center;
         }
 
         .preset-btn:hover i {
@@ -420,11 +411,11 @@ ob_start();
         }
 
         .scope-option:has(input:checked) {
-            @apply border-gold-primary bg-gold-light bg-opacity-5;
+            @apply border-yellow-primary bg-yellow-light bg-opacity-5;
         }
 
         .scope-option:has(input:checked) label {
-            @apply text-gold-dark;
+            @apply text-yellow-dark;
         }
     </style>
 

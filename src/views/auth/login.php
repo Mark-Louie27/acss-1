@@ -94,6 +94,31 @@
                     <p class="text-sm md:text-base text-gray-600">Sign in to access your account</p>
                 </div>
 
+                <?php
+                // Check if session is not already started before starting it
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                $awaitingApproval = false;
+                if (isset($_SESSION['user_id']) && isset($_SESSION['is_active']) && $_SESSION['is_active'] == 0) {
+                    $awaitingApproval = true;
+                }
+                // Check for success message from registration redirect
+                $success = isset($_GET['success']) ? htmlspecialchars(urldecode($_GET['success'])) : '';
+                if ($success === "Registration submitted successfully. Awaiting Dean approval.") {
+                    $awaitingApproval = true;
+                }
+                ?>
+
+                <?php if ($awaitingApproval): ?>
+                    <div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                        <p class="text-sm">Your account is awaiting approval from the Dean's office. You will be notified via email once approved. Please try logging in later.</p>
+                    </div>
+                <?php endif; ?>
+
                 <?php if (isset($email_verification_required) && $email_verification_required): ?>
                     <div class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -135,7 +160,7 @@
                             <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded" value="1">
                             <label for="remember-me" class="ml-2 block text-xs md:text-sm text-gray-900">Remember me</label>
                         </div>
-                        <a href="#" id="forgot-password-link" class="text-xs md:text-sm text-yellow-600 hover:text-yellow-500">Forgot password?</a>
+                        <a id="forgot-password-link" class="text-xs md:text-sm text-yellow-600 hover:text-yellow-500">Forgot password?</a>
                     </div>
                     <button type="submit" class="w-full bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-150 ease-in-out text-sm md:text-base">
                         Sign In
@@ -151,18 +176,12 @@
         </div>
     </div>
 
-    <!-- Forgot Password Modal -->
     <div id="forgot-password-modal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
             <h2 class="text-lg font-bold mb-4 text-center">Forgot Password</h2>
-            <?php if (isset($error)): ?>
-                <div class="mb-4 p-3 bg-red-100 text-red-800 rounded-lg"><?php echo htmlspecialchars($error); ?></div>
-            <?php endif; ?>
-            <?php if (isset($success)): ?>
-                <div class="mb-4 p-3 bg-green-100 text-green-800 rounded-lg"><?php echo htmlspecialchars($success); ?></div>
-            <?php endif; ?>
-            <form method="POST" action="/forgot-password" class="space-y-4">
+            <div id="forgot-password-message"></div>
+            <form id="forgot-password-form" class="space-y-4">
                 <div>
                     <label for="forgot-employee_id" class="block text-xs md:text-sm font-medium text-gray-700">Employee ID</label>
                     <div class="mt-1 relative">
@@ -186,10 +205,13 @@
         const forgotPasswordLink = document.getElementById('forgot-password-link');
         const forgotPasswordModal = document.getElementById('forgot-password-modal');
         const closeModal = forgotPasswordModal.querySelector('.close');
+        const forgotPasswordForm = document.getElementById('forgot-password-form');
+        const forgotPasswordMessage = document.getElementById('forgot-password-message');
 
         forgotPasswordLink.addEventListener('click', (e) => {
             e.preventDefault();
             forgotPasswordModal.style.display = 'block';
+            forgotPasswordMessage.innerHTML = ''; // Clear previous message
         });
 
         closeModal.addEventListener('click', () => {
@@ -199,6 +221,26 @@
         window.addEventListener('click', (e) => {
             if (e.target === forgotPasswordModal) {
                 forgotPasswordModal.style.display = 'none';
+            }
+        });
+
+        forgotPasswordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const employeeId = document.getElementById('forgot-employee_id').value;
+            const response = await fetch('/forgot-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    employee_id: employeeId
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                forgotPasswordMessage.innerHTML = `<div class="p-3 bg-green-100 text-green-800 rounded-lg">${data.message}</div>`;
+            } else {
+                forgotPasswordMessage.innerHTML = `<div class="p-3 bg-red-100 text-red-800 rounded-lg">${data.message}</div>`;
             }
         });
     </script>

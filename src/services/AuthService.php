@@ -1,15 +1,18 @@
 <?php
 require_once __DIR__ . '/../models/UserModel.php';
+require_once __DIR__ . '/../services/EmailService.php';
 
 class AuthService
 {
     private $userModel;
     private $db;
+    private $emailService;
 
     public function __construct($db)
     {
         $this->db = $db;
         $this->userModel = new UserModel();
+        $this->emailService = new EmailService();
     }
 
     /**
@@ -92,17 +95,16 @@ class AuthService
 
             $this->db->beginTransaction();
 
-            // Insert into users table (pending for faculty and program chairs)
+            // Insert into users table (all users pending approval)
             $query = "
-                INSERT INTO users (
-                    employee_id, username, password_hash, email, first_name, middle_name,
-                    last_name, suffix, role_id, department_id, college_id, is_active, created_at
-                ) VALUES (
-                    :employee_id, :username, :password_hash, :email, :first_name, :middle_name,
-                    :last_name, :suffix, :role_id, :department_id, :college_id, :is_active, NOW()
-                )";
+            INSERT INTO users (
+                employee_id, username, password_hash, email, first_name, middle_name,
+                last_name, suffix, role_id, department_id, college_id, is_active, created_at
+            ) VALUES (
+                :employee_id, :username, :password_hash, :email, :first_name, :middle_name,
+                :last_name, :suffix, :role_id, :department_id, :college_id, 0, NOW()
+            )";
             $stmt = $this->db->prepare($query);
-            $is_active = in_array($data['role_id'], [5, 6]) ? 0 : 1; // Pending for faculty (6) and program chairs (5)
             $stmt->execute([
                 ':employee_id' => $data['employee_id'],
                 ':username' => $data['username'],
@@ -115,14 +117,14 @@ class AuthService
                 ':role_id' => $data['role_id'],
                 ':department_id' => $data['department_id'],
                 ':college_id' => $data['college_id'],
-                ':is_active' => $is_active
+                ':is_active' => 0 // All users are inactive until approved
             ]);
             $userId = $this->db->lastInsertId();
-            error_log("register: Inserted user_id=$userId, employee_id={$data['employee_id']}, role_id={$data['role_id']}, is_active=$is_active");
+            error_log("register: Inserted user_id=$userId, employee_id={$data['employee_id']}, role_id={$data['role_id']}, is_active=0");
 
-           if ($data['role_id'] == 3) {
-                // For Director, insert into Director table
-                $startDate = $data['start_date'] ?? date('Y-m-d'); // Default to current date if not 
+            if ($data['role_id'] == 3) {
+                // For Director, insert into department_instructors
+                $startDate = $data['start_date'] ?? date('Y-m-d');
                 $query = "
                 INSERT INTO department_instructors (user_id, department_id, start_date, is_current)
                 VALUES (:user_id, :department_id, :start_date, 1)
@@ -136,9 +138,9 @@ class AuthService
                 error_log("register: Inserted department_instructor for user_id=$userId, department_id={$data['department_id']}");
             }
 
-            // For dean (role_id = 4), insert into dean table
+            // For dean (role_id = 4), insert into deans
             if ($data['role_id'] == 4) {
-                $startDate = $data['start_date'] ?? date('Y-m-d'); // Default to current date if not 
+                $startDate = $data['start_date'] ?? date('Y-m-d');
                 $query = "
                 INSERT INTO deans (user_id, college_id, start_date, is_current)
                 VALUES (:user_id, :college_id, :start_date, 1)
@@ -155,11 +157,11 @@ class AuthService
             // For Program Chair (role_id = 5), insert into program_chairs if program_id is provided
             if ($data['role_id'] == 5 && !empty($data['program_id'])) {
                 $query = "
-                    INSERT INTO program_chairs (
-                        user_id, program_id, is_current
-                    ) VALUES (
-                        :user_id, :program_id, 1
-                    )";
+                INSERT INTO program_chairs (
+                    user_id, program_id, is_current
+                ) VALUES (
+                    :user_id, :program_id, 1
+                )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
@@ -171,11 +173,11 @@ class AuthService
             // For Faculty (role_id = 6), insert into faculty and faculty_departments
             if ($data['role_id'] == 6) {
                 $query = "
-                    INSERT INTO faculty (
-                        user_id, employee_id, academic_rank, employment_type, max_hours
-                    ) VALUES (
-                        :user_id, :employee_id, :academic_rank, :employment_type, :max_hours
-                    )";
+                INSERT INTO faculty (
+                    user_id, employee_id, academic_rank, employment_type, max_hours
+                ) VALUES (
+                    :user_id, :employee_id, :academic_rank, :employment_type, :max_hours
+                )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
@@ -188,11 +190,11 @@ class AuthService
                 error_log("register: Inserted faculty_id=$facultyId for user_id=$userId");
 
                 $query = "
-                    INSERT INTO faculty_departments (
-                        faculty_id, department_id, is_primary
-                    ) VALUES (
-                        :faculty_id, :department_id, 1
-                    )";
+                INSERT INTO faculty_departments (
+                    faculty_id, department_id, is_primary
+                ) VALUES (
+                    :faculty_id, :department_id, 1
+                )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':faculty_id' => $facultyId,
@@ -202,7 +204,13 @@ class AuthService
             }
 
             $this->db->commit();
-            $this->logAuthAction($userId, in_array($data['role_id'], [5, 6]) ? 'request_submitted' : 'register_success', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $data['employee_id']);
+
+            // Send confirmation email to the new user
+            $fullName = "{$data['first_name']} {$data['last_name']}";
+            $roleName = array_column(array_filter($roles, fn($r) => $r['role_id'] == $data['role_id']), 'role_name')[0] ?? 'Unknown Role';
+            $this->emailService->sendConfirmationEmail($data['email'], $fullName, $roleName);
+
+            $this->logAuthAction($userId, 'request_submitted', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $data['employee_id']);
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
@@ -278,8 +286,11 @@ class AuthService
         $_SESSION['user_id'] = $user['user_id'];
         $_SESSION['employee_id'] = $user['employee_id'];
         $_SESSION['username'] = $user['username'];
+        $_SESSION['title'] = $user['title'] ?? null;
         $_SESSION['first_name'] = $user['first_name'];
+        $_SESSION['middle_name'] = $user['middle_name'] ?? null;
         $_SESSION['last_name'] = $user['last_name'];
+        $_SESSION['suffix'] = $user['suffix'] ?? null;
         $_SESSION['role_id'] = $user['role_id'];
         $_SESSION['role_name'] = $user['role_name'];
         $_SESSION['department_id'] = $user['department_id'];

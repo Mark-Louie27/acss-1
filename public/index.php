@@ -38,12 +38,9 @@ function handleAdminRoutes($path)
             $controller->activityLogs();
             break;
         case '/admin/users':
+        case '/admin/edit_user':
             error_log("Routing to AdminController::users");
-            $controller->users();
-            break;
-        case '/admin/users/create':
-            error_log("Routing to AdminController::createUser");
-            $controller->createUser();
+            $controller->manageUsers();
             break;
         case '/admin/colleges':
         case '/admin/departments': // Redirect departments to colleges
@@ -326,7 +323,7 @@ function handleFacultyRoutes($path)
 $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 
 // Public routes that don't require authentication
-$publicRoutes = ['login', 'register', '', 'home', 'public/search', 'api/departments'];
+$publicRoutes = ['login', 'register', '', 'home', 'public/search', 'api/departments', 'forgot-password'];
 
 if (in_array($path, $publicRoutes)) {
     require_once __DIR__ . '/../src/controllers/AuthController.php';
@@ -339,7 +336,7 @@ if (in_array($path, $publicRoutes)) {
         case 'register':
             $controller->register();
             break;
-        case 'forgot_password':
+        case 'forgot-password':
             $controller->forgotPassword();
             break;
         case '':
@@ -387,7 +384,7 @@ if (in_array($path, $publicRoutes)) {
             echo "Page not found";
             break;
     }
-    exit;
+    exit; // Ensure execution stops after handling public routes
 }
 
 // Protected routes - require authentication
@@ -408,6 +405,8 @@ if ($path === 'api/load_data') {
 
 // Get user role from session
 $roleId = $_SESSION['role_id'] ?? null;
+
+// Proceed with role-based routing (e.g., dashboards)
 
 // Handle role-specific routes
 switch ($roleId) {

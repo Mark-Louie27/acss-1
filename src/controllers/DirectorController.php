@@ -665,175 +665,321 @@ class DirectorController
             $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                error_log("profile: Received POST data - " . print_r($_POST, true)); // Debug log
+                error_log("profile: Received POST data - " . print_r($_POST, true));
+
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
                     header('Location: /director/profile');
                     exit;
                 }
 
-                // Map POST data to correct field names
                 $data = [
                     'email' => trim($_POST['email'] ?? ''),
                     'phone' => trim($_POST['phone'] ?? ''),
+                    'username' => trim($_POST['username'] ?? ''),
                     'first_name' => trim($_POST['first_name'] ?? ''),
                     'middle_name' => trim($_POST['middle_name'] ?? ''),
                     'last_name' => trim($_POST['last_name'] ?? ''),
                     'suffix' => trim($_POST['suffix'] ?? ''),
                     'title' => trim($_POST['title'] ?? ''),
+                    'classification' => trim($_POST['classification'] ?? ''),
                     'academic_rank' => trim($_POST['academic_rank'] ?? ''),
                     'employment_type' => trim($_POST['employment_type'] ?? ''),
-                    'classification' => trim($_POST['classification'] ?? ''),
-                    'expertise_level' => trim($_POST['expertise_level'] ?? 'Intermediate'), // Default to Intermediate
+                    'expertise_level' => trim($_POST['expertise_level'] ?? ''),
+                    'course_id' => trim($_POST['course_id'] ?? ''),
+                    'specialization_index' => trim($_POST['specialization_index'] ?? ''),
+                    'action' => trim($_POST['action'] ?? ''),
                 ];
 
                 $errors = [];
-                if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = 'Valid email is required.';
-                }
-                if (empty($data['first_name'])) $errors[] = 'First name is required.';
-                if (empty($data['last_name'])) $errors[] = 'Last name is required.';
-                if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
-                    $errors[] = 'Phone number must be 10-12 digits.';
-                }
 
-                $profilePicture = null;
-                if (!empty($_FILES['profile_picture']['name'])) {
-                    $profilePicture = $this->handleProfilePictureUpload($userId);
-                    if (is_string($profilePicture) && strpos($profilePicture, 'Error') === 0) {
-                        $errors[] = $profilePicture;
-                    } else {
-                        $data['profile_picture'] = $profilePicture;
-                    }
-                }
-
-                if (empty($errors)) {
+                try {
                     $this->db->beginTransaction();
 
-                    try {
-                        // Update users table with dynamic fields
-                        $setClause = [];
-                        $params = [':user_id' => $userId];
-                        $validFields = ['email', 'phone', 'first_name', 'middle_name', 'last_name', 'suffix', 'title'];
-                        foreach ($validFields as $field) {
-                            if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
-                                $setClause[] = "`$field` = :$field";
-                                $params[":$field"] = $data[$field];
-                            }
+                    $profilePictureResult = $this->handleProfilePictureUpload($userId);
+                    $profilePicturePath = null;
+
+                    if ($profilePictureResult !== null) {
+                        if (strpos($profilePictureResult, 'Error:') === 0) {
+                            // It's an error message
+                            $errors[] = $profilePictureResult;
+                            error_log("profile: Profile picture upload error for user_id $userId: $profilePictureResult");
+                        } else {
+                            // It's a successful upload path
+                            $profilePicturePath = $profilePictureResult;
+                            error_log("profile: Profile picture upload successful for user_id $userId: $profilePicturePath");
                         }
-
-                        if (isset($data['profile_picture'])) {
-                            $setClause[] = "`profile_picture` = :profile_picture";
-                            $params[':profile_picture'] = $data['profile_picture'];
-                        }
-
-                        if (!empty($setClause)) {
-                            $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
-                            error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
-                            $userStmt->execute($params);
-                        }
-
-                        // Update faculty table with dynamic fields
-                        $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
-                        $facultyStmt->execute([':user_id' => $userId]);
-                        $facultyId = $facultyStmt->fetchColumn();
-
-                        if ($facultyId) {
-                            $facultyParams = [':faculty_id' => $facultyId];
-                            $facultySetClause = [];
-                            $facultyFields = ['academic_rank', 'employment_type', 'classification'];
-                            foreach ($facultyFields as $field) {
-                                if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
-                                    $facultySetClause[] = "$field = :$field";
-                                    $facultyParams[":$field"] = $data[$field];
-                                }
-                            }
-
-                            if (!empty($facultySetClause)) {
-                                $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
-                                error_log("profile: Faculty query - " . $updateFacultyStmt->queryString . ", Params: " . print_r($facultyParams, true));
-                                $updateFacultyStmt->execute($facultyParams);
-                            }
-                        }
-
-                        // Update specialization (handle course_specialization as course name)
-                        $courseSpecialization = trim($_POST['course_specialization'] ?? '');
-                        if ($courseSpecialization) {
-                            $courseStmt = $this->db->prepare("SELECT course_id FROM courses WHERE course_name = :course_name");
-                            $courseStmt->execute([':course_name' => $courseSpecialization]);
-                            $courseId = $courseStmt->fetchColumn();
-
-                            if ($courseId) {
-                                $specCheckStmt = $this->db->prepare("
-                                    SELECT specialization_id FROM specializations 
-                                    WHERE faculty_id = :faculty_id AND course_id = :course_id
-                                ");
-                                $specCheckStmt->execute([':faculty_id' => $facultyId, ':course_id' => $courseId]);
-                                $specializationId = $specCheckStmt->fetchColumn();
-
-                                if ($specializationId) {
-                                    $updateSpecStmt = $this->db->prepare("
-                                        UPDATE specializations 
-                                        SET expertise_level = :expertise_level, is_primary_specialization = 1
-                                        WHERE specialization_id = :specialization_id
-                                    ");
-                                    $updateSpecStmt->execute([':expertise_level' => $data['expertise_level'], ':specialization_id' => $specializationId]);
-                                } else {
-                                    $insertSpecStmt = $this->db->prepare("
-                                        INSERT INTO specializations (faculty_id, course_id, expertise_level, is_primary_specialization)
-                                        VALUES (:faculty_id, :course_id, :expertise_level, 1)
-                                    ");
-                                    $insertSpecStmt->execute([':faculty_id' => $facultyId, ':course_id' => $courseId, ':expertise_level' => $data['expertise_level']]);
-                                }
-
-                                // Reset other specializations to non-primary
-                                $resetStmt = $this->db->prepare("
-                                    UPDATE specializations 
-                                    SET is_primary_specialization = 0 
-                                    WHERE faculty_id = :faculty_id AND specialization_id != LAST_INSERT_ID()
-                                ");
-                                $resetStmt->execute([':faculty_id' => $facultyId]);
-                            }
-                        }
-
-                        $this->db->commit();
-
-                        $_SESSION['first_name'] = $data['first_name'];
-                        $_SESSION['email'] = $data['email'];
-                        if (isset($data['profile_picture'])) {
-                            $_SESSION['profile_picture'] = $data['profile_picture'];
-                        }
-                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
-                    } catch (PDOException $e) {
-                        $this->db->rollBack();
-                        error_log("profile: Database error - " . $e->getMessage());
-                        $errors[] = 'Database error occurred. Please try again.';
                     }
+
+                    // Handle user profile updates only if fields are provided or profile picture uploaded
+                    if (
+                        !empty($data['email']) || !empty($data['first_name']) || !empty($data['last_name']) ||
+                        !empty($data['phone']) || !empty($data['username']) || !empty($data['suffix']) ||
+                        !empty($data['title']) || $profilePicturePath
+                    ) {
+                        // Validate required fields only if they are being updated
+                        if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                            $errors[] = 'Valid email is required.';
+                        }
+                        if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
+                            $errors[] = 'Phone number must be 10-12 digits.';
+                        }
+                        // And add this after your existing foreach loop for validFields:
+                        if ($profilePicturePath) {
+                            $setClause[] = "`profile_picture` = :profile_picture";
+                            $params[":profile_picture"] = $profilePicturePath;
+                        }
+
+                        if (empty($errors)) {
+                            $setClause = [];
+                            $params = [':user_id' => $userId];
+                            $validFields = ['email', 'phone', 'username', 'first_name', 'middle_name', 'last_name', 'suffix', 'title'];
+
+                            foreach ($validFields as $field) {
+                                if (isset($data[$field]) && $data[$field] !== '') {
+                                    $setClause[] = "`$field` = :$field";
+                                    $params[":$field"] = $data[$field];
+                                }
+                            }
+
+                            // Add profile picture to update if uploaded
+                            if ($profilePicturePath) {
+                                $setClause[] = "`profile_picture` = :profile_picture";
+                                $params[":profile_picture"] = $profilePicturePath;
+                            }
+
+                            if (!empty($setClause)) {
+                                $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
+                                error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
+                                if (!$userStmt->execute($params)) {
+                                    $errorInfo = $userStmt->errorInfo();
+                                    error_log("profile: User update failed - " . print_r($errorInfo, true));
+                                    throw new Exception("Failed to update user profile");
+                                }
+                                error_log("profile: User profile updated successfully");
+                            }
+                        }
+                    }
+
+                    // Get faculty ID
+                    $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                    $facultyStmt->execute([':user_id' => $userId]);
+                    $facultyId = $facultyStmt->fetchColumn();
+                    error_log("profile: Retrieved faculty_id for user_id $userId: $facultyId");
+
+                    if (!$facultyId) {
+                        error_log("profile: No faculty record found for user_id $userId");
+                        throw new Exception("Faculty record not found for this user");
+                    }
+
+                    // Handle faculty updates
+                    if ($facultyId && empty($errors)) {
+                        $facultyParams = [':faculty_id' => $facultyId];
+                        $facultySetClause = [];
+                        $facultyFields = ['academic_rank', 'employment_type', 'classification'];
+                        foreach ($facultyFields as $field) {
+                            if (isset($data[$field]) && $data[$field] !== '') {
+                                $facultySetClause[] = "$field = :$field";
+                                $facultyParams[":$field"] = $data[$field];
+                            }
+                        }
+
+                        if (!empty($facultySetClause)) {
+                            $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
+                            error_log("profile: Faculty query - " . $updateFacultyStmt->queryString . ", Params: " . print_r($facultyParams, true));
+                            if (!$updateFacultyStmt->execute($facultyParams)) {
+                                $errorInfo = $updateFacultyStmt->errorInfo();
+                                error_log("profile: Faculty update failed - " . print_r($errorInfo, true));
+                                throw new Exception("Failed to update faculty information");
+                            }
+                        }
+
+                        // Handle specialization actions
+                        if (!empty($data['action'])) {
+                            switch ($data['action']) {
+                                case 'add_specialization':
+                                    if (!empty($data['expertise_level']) && !empty($data['course_id'])) {
+                                        // Check if specialization already exists
+                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
+                                        $exists = $checkStmt->fetchColumn();
+
+                                        if ($exists > 0) {
+                                            $errors[] = 'You already have this specialization. Use edit to modify it.';
+                                            break;
+                                        }
+
+                                        $insertSpecializationStmt = $this->db->prepare("
+                                        INSERT INTO specializations (faculty_id, course_id, expertise_level, created_at)
+                                        VALUES (:faculty_id, :course_id, :expertise_level, NOW())
+                                    ");
+                                        $specializationParams = [
+                                            ':faculty_id' => $facultyId,
+                                            ':course_id' => $data['course_id'],
+                                            ':expertise_level' => $data['expertise_level'],
+                                        ];
+                                        error_log("profile: Add specialization query - " . $insertSpecializationStmt->queryString . ", Params: " . print_r($specializationParams, true));
+
+                                        if (!$insertSpecializationStmt->execute($specializationParams)) {
+                                            $errorInfo = $insertSpecializationStmt->errorInfo();
+                                            error_log("profile: Add specialization failed - " . print_r($errorInfo, true));
+                                            throw new Exception("Failed to add specialization");
+                                        }
+                                        error_log("profile: Successfully added specialization");
+                                    } else {
+                                        $errors[] = 'Course and expertise level are required to add specialization.';
+                                    }
+                                    break;
+
+                                case 'remove_specialization':
+                                    if (!empty($data['course_id'])) {
+                                        error_log("profile: Attempting to remove specialization with course_id: " . $data['course_id'] . ", faculty_id: $facultyId");
+
+                                        // First, check if the record exists
+                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
+                                        $recordExists = $checkStmt->fetchColumn();
+                                        error_log("profile: Records found for deletion: $recordExists");
+
+                                        if ($recordExists > 0) {
+                                            $deleteStmt = $this->db->prepare("DELETE FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                            $deleteParams = [
+                                                ':faculty_id' => $facultyId,
+                                                ':course_id' => $data['course_id'],
+                                            ];
+                                            error_log("profile: Remove specialization query - " . $deleteStmt->queryString . ", Params: " . print_r($deleteParams, true));
+
+                                            if ($deleteStmt->execute($deleteParams)) {
+                                                $affectedRows = $deleteStmt->rowCount();
+                                                error_log("profile: Successfully deleted $affectedRows rows");
+                                                if ($affectedRows === 0) {
+                                                    error_log("profile: Warning - No rows were affected by delete operation");
+                                                    $errors[] = 'No specialization was removed. It may have already been deleted.';
+                                                }
+                                            } else {
+                                                $errorInfo = $deleteStmt->errorInfo();
+                                                error_log("profile: Delete failed - " . print_r($errorInfo, true));
+                                                throw new Exception("Failed to execute delete query: " . $errorInfo[2]);
+                                            }
+                                        } else {
+                                            error_log("profile: No record found for deletion");
+                                            $errors[] = 'Specialization not found for removal.';
+                                        }
+                                    } else {
+                                        $errors[] = 'Course ID is required to remove specialization.';
+                                    }
+                                    break;
+
+                                case 'update_specialization':
+                                    if (!empty($data['course_id']) && !empty($data['expertise_level'])) {
+                                        error_log("profile: Attempting to update specialization with course_id: " . $data['course_id'] . ", faculty_id: $facultyId");
+
+                                        // Check if the record exists first
+                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
+                                        $recordExists = $checkStmt->fetchColumn();
+
+                                        if ($recordExists > 0) {
+                                            $updateStmt = $this->db->prepare("UPDATE specializations SET expertise_level = :expertise_level, updated_at = NOW() WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                            $updateParams = [
+                                                ':faculty_id' => $facultyId,
+                                                ':course_id' => $data['course_id'],
+                                                ':expertise_level' => $data['expertise_level'],
+                                            ];
+                                            error_log("profile: Update specialization query - " . $updateStmt->queryString . ", Params: " . print_r($updateParams, true));
+
+                                            if ($updateStmt->execute($updateParams)) {
+                                                $affectedRows = $updateStmt->rowCount();
+                                                error_log("profile: Successfully updated $affectedRows rows");
+                                                if ($affectedRows === 0) {
+                                                    error_log("profile: Warning - No rows were affected by update operation");
+                                                    $errors[] = 'No changes were made to the specialization.';
+                                                }
+                                            } else {
+                                                $errorInfo = $updateStmt->errorInfo();
+                                                error_log("profile: Update failed - " . print_r($errorInfo, true));
+                                                throw new Exception("Failed to update specialization: " . $errorInfo[2]);
+                                            }
+                                        } else {
+                                            error_log("profile: No record found for update");
+                                            $errors[] = 'Specialization not found for update.';
+                                        }
+                                    } else {
+                                        $errors[] = 'Course ID and expertise level are required to update specialization.';
+                                    }
+                                    break;
+
+                                case 'edit_specialization':
+                                    if (!empty($data['specialization_index'])) {
+                                        error_log("profile: Edit specialization triggered for index: " . $data['specialization_index']);
+                                        // No database update needed here, just trigger the modal
+                                    }
+                                    break;
+
+                                default:
+                                    error_log("profile: Unknown action: " . $data['action']);
+                                    break;
+                            }
+                        }
+                    }
+
+                    // If there are validation errors, rollback and don't commit
+                    if (!empty($errors)) {
+                        $this->db->rollBack();
+                        error_log("profile: Validation errors found, rolling back transaction: " . implode(', ', $errors));
+                    } else {
+                        $this->db->commit();
+                        error_log("profile: Transaction committed successfully");
+
+                        $_SESSION['username'] = $data['username'] ?: $_SESSION['username'];
+                        $_SESSION['last_name'] = $data['last_name'] ?: $_SESSION['last_name'];
+                        $_SESSION['middle_name'] = $data['middle_name'] ?: $_SESSION['middle_name'];
+                        $_SESSION['suffix'] = $data['suffix'] ?: $_SESSION['suffix'];
+                        $_SESSION['title'] = $data['title'] ?: $_SESSION['title'];
+                        $_SESSION['first_name'] = $data['first_name'] ?: $_SESSION['first_name'];
+                        $_SESSION['email'] = $data['email'] ?: $_SESSION['email'];
+
+                        // Update profile picture in session if it was uploaded
+                        if ($profilePicturePath) {
+                            $_SESSION['profile_picture'] = $profilePicturePath;
+                            error_log("profile: Updated session profile_picture to: " . $profilePicturePath);
+                        }
+
+                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
+                    }
+                } catch (PDOException $e) {
+                    if ($this->db->inTransaction()) {
+                        $this->db->rollBack();
+                    }
+                    error_log("profile: PDO Database error - " . $e->getMessage());
+                    $errors[] = 'Database error occurred: ' . $e->getMessage();
+                } catch (Exception $e) {
+                    if ($this->db->inTransaction()) {
+                        $this->db->rollBack();
+                    }
+                    error_log("profile: General error - " . $e->getMessage());
+                    $errors[] = $e->getMessage();
                 }
 
                 if (!empty($errors)) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => implode('<br>', $errors)];
                 }
+
                 header('Location: /director/profile');
                 exit;
             }
 
-            // Fetch user data and stats
+            // GET request - Display profile
             $stmt = $this->db->prepare("
-                SELECT u.*, d.department_name, c.college_name, r.role_name,
-                       f.academic_rank, f.employment_type, f.classification,
-                       (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
-                       (SELECT COUNT(*) FROM courses c2 WHERE c2.department_id = u.department_id AND c2.is_active = 1) as coursesCount,
-                       (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
-                       (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
-                       (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
-                FROM users u
-                LEFT JOIN departments d ON u.department_id = d.department_id
-                LEFT JOIN colleges c ON u.college_id = c.college_id
-                LEFT JOIN roles r ON u.role_id = r.role_id
-                LEFT JOIN faculty f ON u.user_id = f.user_id
-                WHERE u.user_id = :user_id
-            ");
+            SELECT u.*, d.department_name, c.college_name, r.role_name,
+                   f.academic_rank, f.employment_type, f.classification
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON u.college_id = c.college_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            LEFT JOIN faculty f ON u.user_id = f.user_id
+            WHERE u.user_id = :user_id
+        ");
             $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -841,33 +987,48 @@ class DirectorController
                 throw new Exception('User not found.');
             }
 
-            // Fetch specializations
-            $specStmt = $this->db->prepare("
-                SELECT s.*, c.course_name 
-                FROM specializations s
-                JOIN courses c ON s.course_id = c.course_id
-                WHERE s.faculty_id = (SELECT faculty_id FROM faculty WHERE user_id = :user_id)
-                ORDER BY c.course_name
-            ");
-            $specStmt->execute([':user_id' => $userId]);
-            $specializations = $specStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Extract stats
-            $facultyCount = $user['facultyCount'] ?? 0;
-            $coursesCount = $user['coursesCount'] ?? 0;
-            $pendingApplicantsCount = $user['pendingApplicantsCount'] ?? 0;
-            $currentSemester = $user['currentSemester'] ?? '2nd';
-            $lastLogin = $user['lastLogin'] ?? 'N/A';
+            $specializationStmt = $this->db->prepare("
+            SELECT s.expertise_level AS level, c.course_code, c.course_name, s.course_id
+            FROM specializations s
+            JOIN courses c ON s.course_id = c.course_id
+            WHERE s.faculty_id = (SELECT faculty_id FROM faculty WHERE user_id = :user_id)
+            ORDER BY c.course_code
+        ");
+            $specializationStmt->execute([':user_id' => $userId]);
+            $specializations = $specializationStmt->fetchAll(PDO::FETCH_ASSOC);
 
             require_once __DIR__ . '/../views/director/profile.php';
         } catch (Exception $e) {
             if (isset($this->db) && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+
             error_log("profile: Error - " . $e->getMessage());
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load or update profile. Please try again.'];
-            header('Location: /director/profile');
-            exit;
+
+            // Provide default user data in case of error
+            $user = [
+                'user_id' => $userId ?? 0,
+                'username' => '',
+                'first_name' => '',
+                'last_name' => '',
+                'middle_name' => '',
+                'suffix' => '',
+                'email' => '',
+                'phone' => '',
+                'title' => '',
+                'profile_picture' => '',
+                'employee_id' => '',
+                'department_name' => '',
+                'college_name' => '',
+                'role_name' => 'director',
+                'academic_rank' => '',
+                'employment_type' => '',
+                'classification' => '',
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
+            $specializations = [];
+            require_once __DIR__ . '/../views/director/profile.php';
         }
     }
 

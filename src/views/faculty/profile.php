@@ -498,7 +498,7 @@ ob_start();
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i class="fas fa-user text-gray-400"></i>
                                         </div>
-                                        <input type="text" id="title_modal" name="title" value="<?php echo htmlspecialchars($faculty['title'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        <input type="text" id="title_modal" name="title" value="<?php echo htmlspecialchars($faculty['title'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus" placeholder="e.g., Dr., Prof., Mr., Ms.">
                                     </div>
                                 </div>
                                 <div>

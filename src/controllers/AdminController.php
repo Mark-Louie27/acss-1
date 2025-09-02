@@ -1,11 +1,12 @@
 <?php
-
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
+require_once __DIR__ . '/../services/EmailService.php';
 class AdminController
 {
     public $db;
     private $authService;
+    private $emailService;
 
     public function __construct()  // Remove the $db parameter since we're not using it
     {
@@ -16,6 +17,7 @@ class AdminController
             die("Database connection failed. Please try again later.");
         }
 
+        $this->emailService = new EmailService();
         $this->authService = new AuthService($this->db);
         $this->restrictToAdmin();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -133,12 +135,22 @@ class AdminController
         }
     }
 
-    public function users()
+    public function manageUsers()
     {
         try {
-            // Fetch users with roles, colleges, departments, and status
-            $stmt = $this->db->query("
-            SELECT u.user_id, u.username, u.first_name, u.last_name, u.is_active,
+            if (!$this->authService->isLoggedIn() || $_SESSION['role_id'] !== 1) { // Assuming role_id 1 is admin
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Unauthorized access'];
+                header('Location: /login');
+                exit;
+            }
+
+            $action = $_GET['action'] ?? 'list';
+            $userId = $_GET['user_id'] ?? null;
+            $csrfToken = $this->authService->generateCsrfToken();
+
+            // Fetch common data
+            $usersStmt = $this->db->query("
+            SELECT u.user_id, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email,
                    r.role_name, c.college_name, d.department_name
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
@@ -146,267 +158,190 @@ class AdminController
             LEFT JOIN departments d ON u.department_id = d.department_id
             ORDER BY u.first_name, u.last_name
         ");
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Fetch roles, colleges, departments for form
             $roles = $this->db->query("SELECT role_id, role_name FROM roles ORDER BY role_name")->fetchAll(PDO::FETCH_ASSOC);
             $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
             $departments = $this->db->query("SELECT department_id, department_name FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                    header('Location: /admin/users');
+                    exit;
+                }
+
+                $this->db->beginTransaction();
+
+                try {
+                    if ($action === 'create') {
+                        $username = $_POST['username'] ?? '';
+                        $password = password_hash($_POST['password'] ?? '', PASSWORD_BCRYPT);
+                        $first_name = $_POST['first_name'] ?? '';
+                        $last_name = $_POST['last_name'] ?? '';
+                        $role_id = $_POST['role_id'] ?? null;
+                        $college_id = $_POST['college_id'] ?: null;
+                        $department_id = $_POST['department_id'] ?: null;
+                        $email = $_POST['email'] ?? '';
+
+                        $stmt = $this->db->prepare("
+                        INSERT INTO users (username, password, first_name, last_name, role_id, college_id, department_id, email, is_active, created_at)
+                        VALUES (:username, :password, :first_name, :last_name, :role_id, :college_id, :department_id, :email, 0, NOW())
+                    ");
+                        $stmt->execute([
+                            ':username' => $username,
+                            ':password' => $password,
+                            ':first_name' => $first_name,
+                            ':last_name' => $last_name,
+                            ':role_id' => $role_id,
+                            ':college_id' => $college_id,
+                            ':department_id' => $department_id,
+                            ':email' => $email,
+                            ':is_active' => 0 // All users are inactive until approved
+                        ]);
+
+                        $newUserId = $this->db->lastInsertId();
+                        $fullName = "$first_name $last_name";
+                        $roleName = $roles[$role_id - 1]['role_name'] ?? 'Unknown Role';
+
+                        // Send confirmation email to the new user
+                        $this->emailService->sendConfirmationEmail($email, $fullName, $roleName);
+
+                        $adminEmail = 'admin@example.com'; // Replace with actual admin email
+                        $this->emailService->sendApprovalEmail($adminEmail, $fullName, $roleName);
+                    } elseif ($action === 'update' && $userId) {
+                        $username = $_POST['username'] ?? '';
+                        $first_name = $_POST['first_name'] ?? '';
+                        $last_name = $_POST['last_name'] ?? '';
+                        $role_id = $_POST['role_id'] ?? null;
+                        $college_id = $_POST['college_id'] ?: null;
+                        $department_id = $_POST['department_id'] ?: null;
+                        $email = $_POST['email'] ?? '';
+
+                        $updateFields = [
+                            'username = :username',
+                            'first_name = :first_name',
+                            'last_name = :last_name',
+                            'role_id = :role_id',
+                            'college_id = :college_id',
+                            'department_id = :department_id',
+                            'email = :email',
+                            'updated_at = NOW()'
+                        ];
+                        $params = [
+                            ':user_id' => $userId,
+                            ':username' => $username,
+                            ':first_name' => $first_name,
+                            ':last_name' => $last_name,
+                            ':role_id' => $role_id,
+                            ':college_id' => $college_id,
+                            ':department_id' => $department_id,
+                            ':email' => $email
+                        ];
+
+                        if (!empty($_POST['password'])) {
+                            $updateFields[] = 'password = :password';
+                            $params[':password'] = password_hash($_POST['password'], PASSWORD_BCRYPT);
+                        }
+
+                        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE user_id = :user_id";
+                        $stmt = $this->db->prepare($sql);
+                        $stmt->execute($params);
+                    } elseif ($action === 'approve' && $userId) {
+                        $checkStmt = $this->db->prepare("SELECT email, first_name, last_name, role_id FROM users WHERE user_id = :user_id");
+                        $checkStmt->execute([':user_id' => $userId]);
+                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($user) {
+                            $stmt = $this->db->prepare("UPDATE users SET is_active = 1, updated_at = NOW() WHERE user_id = :user_id");
+                            $stmt->execute([':user_id' => $userId]);
+                            $roleName = $roles[$user['role_id'] - 1]['role_name'] ?? 'Unknown Role';
+                            $this->emailService->sendApprovalEmail($user['email'], $user['first_name'] . ' ' . $user['last_name'], $roleName);
+                            error_log("User approved: ID {$userId}, Email: {$user['email']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
+                        }
+                    } elseif ($action === 'disable' && $userId) {
+                        if ($_SESSION['user_id'] == $userId) {
+                            echo json_encode(['success' => false, 'message' => 'Cannot disable your own account']);
+                            exit;
+                        }
+                        $checkStmt = $this->db->prepare("SELECT user_id, username FROM users WHERE user_id = :user_id");
+                        $checkStmt->execute([':user_id' => $userId]);
+                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($user) {
+                            $stmt = $this->db->prepare("UPDATE users SET is_active = 1, updated_at = NOW() WHERE user_id = :user_id");
+                            $stmt->execute([':user_id' => $userId]);
+                            error_log("User disabled: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
+                        }
+                    } elseif ($action === 'enable' && $userId) {
+                        $checkStmt = $this->db->prepare("SELECT user_id, username FROM users WHERE user_id = :user_id");
+                        $checkStmt->execute([':user_id' => $userId]);
+                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($user) {
+                            $stmt = $this->db->prepare("UPDATE users SET is_active = 0, updated_at = NOW() WHERE user_id = :user_id");
+                            $stmt->execute([':user_id' => $userId]);
+                            error_log("User enabled: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
+                        }
+                    }
+
+                    $this->db->commit();
+                    $_SESSION['flash'] = ['type' => 'success', 'message' => ucfirst($action) . ' user ' . ($action === 'create' ? 'created' : ($action === 'approve' ? 'approved' : 'updated')) . ' successfully'];
+
+                    if (in_array($action, ['disable', 'enable', 'approve'])) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'message' => ucfirst($action) . 'd successfully']);
+                        exit;
+                    }
+                    header('Location: /admin/users');
+                    exit;
+                } catch (PDOException $e) {
+                    $this->db->rollBack();
+                    error_log("User action error ($action): " . $e->getMessage());
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to ' . $action . ' user'];
+                    if (in_array($action, ['disable', 'enable', 'approve'])) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'Database error occurred']);
+                        exit;
+                    }
+                    header('Location: /admin/users');
+                    exit;
+                }
+            }
+
+            $userDetails = null;
+            if (in_array($action, ['view', 'edit']) && $userId) {
+                $stmt = $this->db->prepare("
+                SELECT u.*, r.role_name, c.college_name, d.department_name
+                FROM users u
+                JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN colleges c ON u.college_id = c.college_id
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                WHERE u.user_id = :user_id
+            ");
+                $stmt->execute([':user_id' => $userId]);
+                $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$userDetails) {
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'User not found'];
+                    header('Location: /admin/users');
+                    exit;
+                }
+
+                // Return JSON for view action
+                if ($action === 'view') {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'user' => $userDetails]);
+                    exit;
+                }
+            }
 
             $controller = $this;
             require_once __DIR__ . '/../views/admin/users.php';
         } catch (PDOException $e) {
-            error_log("Users error: " . $e->getMessage());
+            error_log("Manage users error: " . $e->getMessage());
             http_response_code(500);
             echo "Server error";
-        }
-    }
-
-    public function createUser()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            try {
-                $username = $_POST['username'] ?? '';
-                $password = password_hash($_POST['password'] ?? '', PASSWORD_BCRYPT);
-                $first_name = $_POST['first_name'] ?? '';
-                $last_name = $_POST['last_name'] ?? '';
-                $role_id = $_POST['role_id'] ?? null;
-                $college_id = $_POST['college_id'] ?: null;
-                $department_id = $_POST['department_id'] ?: null;
-
-                $stmt = $this->db->prepare("
-                    INSERT INTO users (username, password, first_name, last_name, role_id, college_id, department_id)
-                    VALUES (:username, :password, :first_name, :last_name, :role_id, :college_id, :department_id)
-                ");
-                $stmt->execute([
-                    ':username' => $username,
-                    ':password' => $password,
-                    ':first_name' => $first_name,
-                    ':last_name' => $last_name,
-                    ':role_id' => $role_id,
-                    ':college_id' => $college_id,
-                    ':department_id' => $department_id
-                ]);
-
-                header('Location: /admin/users');
-                exit;
-            } catch (PDOException $e) {
-                error_log("Create user error: " . $e->getMessage());
-                http_response_code(500);
-                echo "Failed to create user";
-            }
-        }
-    }
-
-    /**
-     * Disable a user account
-     */
-    public function disableUser($userId)
-    {
-        header('Content-Type: application/json');
-
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-            return;
-        }
-
-        try {
-            // Check if user exists
-            $checkStmt = $this->db->prepare("SELECT user_id, username FROM users WHERE user_id = :user_id");
-            $checkStmt->execute([':user_id' => $userId]);
-            $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                echo json_encode(['success' => false, 'message' => 'User not found']);
-                return;
-            }
-
-            // Don't allow disabling your own account (optional security check)
-            if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $userId) {
-                echo json_encode(['success' => false, 'message' => 'Cannot disable your own account']);
-                return;
-            }
-
-            // Update user status
-            $stmt = $this->db->prepare("UPDATE users SET is_active = 1, updated_at = NOW() WHERE user_id = :user_id");
-            $result = $stmt->execute([':user_id' => $userId]);
-
-            if ($result) {
-                // Log the action (optional)
-                error_log("User disabled: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-
-                echo json_encode(['success' => true, 'message' => 'User disabled successfully']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to disable user']);
-            }
-        } catch (PDOException $e) {
-            error_log("Disable user error: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'Database error occurred']);
-        }
-    }
-
-    /**
-     * Enable a user account
-     */
-    public function enableUser($userId)
-    {
-        header('Content-Type: application/json');
-
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-            return;
-        }
-
-        try {
-            // Check if user exists
-            $checkStmt = $this->db->prepare("SELECT user_id, username FROM users WHERE user_id = :user_id");
-            $checkStmt->execute([':user_id' => $userId]);
-            $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                echo json_encode(['success' => false, 'message' => 'User not found']);
-                return;
-            }
-
-            // Update user status
-            $stmt = $this->db->prepare("UPDATE users SET is_active = 0, updated_at = NOW() WHERE user_id = :user_id");
-            $result = $stmt->execute([':user_id' => $userId]);
-
-            if ($result) {
-                // Log the action (optional)
-                error_log("User enabled: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-
-                echo json_encode(['success' => true, 'message' => 'User enabled successfully']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to enable user']);
-            }
-        } catch (PDOException $e) {
-            error_log("Enable user error: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'Database error occurred']);
-        }
-    }
-
-    /**
-     * View user details
-     */
-    public function viewUser($userId)
-    {
-        try {
-            $stmt = $this->db->prepare("
-            SELECT u.*, r.role_name, c.college_name, d.department_name
-            FROM users u
-            JOIN roles r ON u.role_id = r.role_id
-            LEFT JOIN colleges c ON u.college_id = c.college_id
-            LEFT JOIN departments d ON u.department_id = d.department_id
-            WHERE u.user_id = :user_id
-        ");
-            $stmt->execute([':user_id' => $userId]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                http_response_code(404);
-                echo "User not found";
-                return;
-            }
-
-            require_once __DIR__ . '/../views/admin/view_user.php';
-        } catch (PDOException $e) {
-            error_log("View user error: " . $e->getMessage());
-            http_response_code(500);
-            echo "Server error";
-        }
-    }
-
-    /**
-     * Edit user form
-     */
-    public function editUser($userId)
-    {
-        try {
-            $stmt = $this->db->prepare("
-            SELECT u.*, r.role_name, c.college_name, d.department_name
-            FROM users u
-            JOIN roles r ON u.role_id = r.role_id
-            LEFT JOIN colleges c ON u.college_id = c.college_id
-            LEFT JOIN departments d ON u.department_id = d.department_id
-            WHERE u.user_id = :user_id
-        ");
-            $stmt->execute([':user_id' => $userId]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$user) {
-                http_response_code(404);
-                echo "User not found";
-                return;
-            }
-
-            // Fetch roles, colleges, departments for form
-            $roles = $this->db->query("SELECT role_id, role_name FROM roles ORDER BY role_name")->fetchAll(PDO::FETCH_ASSOC);
-            $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
-            $departments = $this->db->query("SELECT department_id, department_name FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
-
-            require_once __DIR__ . '/../views/admin/edit_user.php';
-        } catch (PDOException $e) {
-            error_log("Edit user error: " . $e->getMessage());
-            http_response_code(500);
-            echo "Server error";
-        }
-    }
-
-    /**
-     * Update user
-     */
-    public function updateUser($userId)
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            try {
-                $username = $_POST['username'] ?? '';
-                $first_name = $_POST['first_name'] ?? '';
-                $last_name = $_POST['last_name'] ?? '';
-                $role_id = $_POST['role_id'] ?? null;
-                $college_id = $_POST['college_id'] ?: null;
-                $department_id = $_POST['department_id'] ?: null;
-
-                // Build the update query
-                $updateFields = [
-                    'username = :username',
-                    'first_name = :first_name',
-                    'last_name = :last_name',
-                    'role_id = :role_id',
-                    'college_id = :college_id',
-                    'department_id = :department_id',
-                    'updated_at = NOW()'
-                ];
-
-                $params = [
-                    ':user_id' => $userId,
-                    ':username' => $username,
-                    ':first_name' => $first_name,
-                    ':last_name' => $last_name,
-                    ':role_id' => $role_id,
-                    ':college_id' => $college_id,
-                    ':department_id' => $department_id
-                ];
-
-                // Update password if provided
-                if (!empty($_POST['password'])) {
-                    $updateFields[] = 'password = :password';
-                    $params[':password'] = password_hash($_POST['password'], PASSWORD_BCRYPT);
-                }
-
-                $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE user_id = :user_id";
-                $stmt = $this->db->prepare($sql);
-                $stmt->execute($params);
-
-                header('Location: /admin/users');
-                exit;
-            } catch (PDOException $e) {
-                error_log("Update user error: " . $e->getMessage());
-                http_response_code(500);
-                echo "Failed to update user";
-            }
         }
     }
 
@@ -605,155 +540,321 @@ class AdminController
             $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                error_log("profile: Received POST data - " . print_r($_POST, true)); // Debug log
+                error_log("profile: Received POST data - " . print_r($_POST, true));
+
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
                     header('Location: /admin/profile');
                     exit;
                 }
 
-                // Map POST data to correct field names, handling typo
                 $data = [
                     'email' => trim($_POST['email'] ?? ''),
                     'phone' => trim($_POST['phone'] ?? ''),
                     'username' => trim($_POST['username'] ?? ''),
                     'first_name' => trim($_POST['first_name'] ?? ''),
-                    'middle_name' => trim($_POST['middle_name'] ?? ''), // Corrected typo mapping
+                    'middle_name' => trim($_POST['middle_name'] ?? ''),
                     'last_name' => trim($_POST['last_name'] ?? ''),
                     'suffix' => trim($_POST['suffix'] ?? ''),
                     'title' => trim($_POST['title'] ?? ''),
                     'classification' => trim($_POST['classification'] ?? ''),
                     'academic_rank' => trim($_POST['academic_rank'] ?? ''),
                     'employment_type' => trim($_POST['employment_type'] ?? ''),
-                    'expertise_level' => trim($_POST['expertise_level'] ?? ''), // Align with specialization table
+                    'expertise_level' => trim($_POST['expertise_level'] ?? ''),
+                    'course_id' => trim($_POST['course_id'] ?? ''),
+                    'specialization_index' => trim($_POST['specialization_index'] ?? ''),
+                    'action' => trim($_POST['action'] ?? ''),
                 ];
 
                 $errors = [];
-                if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = 'Valid email is required.';
-                }
-                if (empty($data['first_name'])) $errors[] = 'First name is required.';
-                if (empty($data['last_name'])) $errors[] = 'Last name is required.';
-                if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
-                    $errors[] = 'Phone number must be 10-12 digits.';
-                }
 
-                $profilePicture = null;
-                if (!empty($_FILES['profile_picture']['name'])) {
-                    $profilePicture = $this->handleProfilePictureUpload($userId);
-                    if (is_string($profilePicture) && strpos($profilePicture, 'Error') === 0) {
-                        $errors[] = $profilePicture;
-                    } else {
-                        $data['profile_picture'] = $profilePicture;
-                    }
-                }
-
-                if (empty($errors)) {
+                try {
                     $this->db->beginTransaction();
 
-                    try {
-                        // Update users table with dynamic fields
-                        $setClause = [];
-                        $params = [':user_id' => $userId];
-                        $validFields = ['email', 'phone', 'username', 'first_name', 'middle_name', 'last_name', 'suffix', 'title'];
-                        foreach ($validFields as $field) {
-                            if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
-                                $setClause[] = "`$field` = :$field";
-                                $params[":$field"] = $data[$field];
-                            }
-                        }
+                    $profilePictureResult = $this->handleProfilePictureUpload($userId);
+                    $profilePicturePath = null;
 
-                        if (isset($data['profile_picture'])) {
+                    if ($profilePictureResult !== null) {
+                        if (strpos($profilePictureResult, 'Error:') === 0) {
+                            // It's an error message
+                            $errors[] = $profilePictureResult;
+                            error_log("profile: Profile picture upload error for user_id $userId: $profilePictureResult");
+                        } else {
+                            // It's a successful upload path
+                            $profilePicturePath = $profilePictureResult;
+                            error_log("profile: Profile picture upload successful for user_id $userId: $profilePicturePath");
+                        }
+                    }
+
+                    // Handle user profile updates only if fields are provided or profile picture uploaded
+                    if (
+                        !empty($data['email']) || !empty($data['first_name']) || !empty($data['last_name']) ||
+                        !empty($data['phone']) || !empty($data['username']) || !empty($data['suffix']) ||
+                        !empty($data['title']) || $profilePicturePath
+                    ) {
+                        // Validate required fields only if they are being updated
+                        if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                            $errors[] = 'Valid email is required.';
+                        }
+                        if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
+                            $errors[] = 'Phone number must be 10-12 digits.';
+                        }
+                        // And add this after your existing foreach loop for validFields:
+                        if ($profilePicturePath) {
                             $setClause[] = "`profile_picture` = :profile_picture";
-                            $params[':profile_picture'] = $data['profile_picture'];
+                            $params[":profile_picture"] = $profilePicturePath;
                         }
 
-                        if (!empty($setClause)) {
-                            $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
-                            error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
-                            $userStmt->execute($params);
-                        }
+                        if (empty($errors)) {
+                            $setClause = [];
+                            $params = [':user_id' => $userId];
+                            $validFields = ['email', 'phone', 'username', 'first_name', 'middle_name', 'last_name', 'suffix', 'title'];
 
-                        // Update faculty table with dynamic fields
-                        $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
-                        $facultyStmt->execute([':user_id' => $userId]);
-                        $facultyId = $facultyStmt->fetchColumn();
-
-                        if ($facultyId) {
-                            $facultyParams = [':faculty_id' => $facultyId];
-                            $facultySetClause = [];
-                            $facultyFields = ['academic_rank', 'employment_type', 'classification'];
-                            foreach ($facultyFields as $field) {
-                                if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== '') {
-                                    $facultySetClause[] = "$field = :$field";
-                                    $facultyParams[":$field"] = $data[$field];
+                            foreach ($validFields as $field) {
+                                if (isset($data[$field]) && $data[$field] !== '') {
+                                    $setClause[] = "`$field` = :$field";
+                                    $params[":$field"] = $data[$field];
                                 }
                             }
 
-                            if (!empty($facultySetClause)) {
-                                $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
-                                error_log("profile: Faculty query - " . $updateFacultyStmt->queryString . ", Params: " . print_r($facultyParams, true));
-                                $updateFacultyStmt->execute($facultyParams);
+                            // Add profile picture to update if uploaded
+                            if ($profilePicturePath) {
+                                $setClause[] = "`profile_picture` = :profile_picture";
+                                $params[":profile_picture"] = $profilePicturePath;
                             }
 
-                            // Update specializations table (optional, only if expertise_level is set)
-                            if ($data['expertise_level']) {
-                                $updateSpecializationStmt = $this->db->prepare("
-                                    INSERT INTO specializations (faculty_id, course_id, expertise_level, created_at) 
-                                    VALUES (:faculty_id, :course_id, :expertise_level, NOW())
-                                    ON DUPLICATE KEY UPDATE expertise_level = :expertise_level
-                                ");
-                                $specializationParams = [
-                                    ':faculty_id' => $facultyId,
-                                    ':expertise_level' => $data['expertise_level'],
-                                    ':course_id' => $data['course_id'],
-                                ];
-                                error_log("profile: Specialization query - " . $updateSpecializationStmt->queryString . ", Params: " . print_r($specializationParams, true));
-                                $updateSpecializationStmt->execute($specializationParams);
+                            if (!empty($setClause)) {
+                                $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
+                                error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
+                                if (!$userStmt->execute($params)) {
+                                    $errorInfo = $userStmt->errorInfo();
+                                    error_log("profile: User update failed - " . print_r($errorInfo, true));
+                                    throw new Exception("Failed to update user profile");
+                                }
+                                error_log("profile: User profile updated successfully");
                             }
                         }
-
-                        $this->db->commit();
-
-                        $_SESSION['first_name'] = $data['first_name'];
-                        $_SESSION['email'] = $data['email'];
-                        if (isset($data['profile_picture'])) {
-                            $_SESSION['profile_picture'] = $data['profile_picture'];
-                        }
-                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
-                    } catch (PDOException $e) {
-                        $this->db->rollBack();
-                        error_log("profile: Database error - " . $e->getMessage());
-                        $errors[] = 'Database error occurred. Please try again.';
                     }
+
+                    // Get faculty ID
+                    $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                    $facultyStmt->execute([':user_id' => $userId]);
+                    $facultyId = $facultyStmt->fetchColumn();
+                    error_log("profile: Retrieved faculty_id for user_id $userId: $facultyId");
+
+                    if (!$facultyId) {
+                        error_log("profile: No faculty record found for user_id $userId");
+                        throw new Exception("Faculty record not found for this user");
+                    }
+
+                    // Handle faculty updates
+                    if ($facultyId && empty($errors)) {
+                        $facultyParams = [':faculty_id' => $facultyId];
+                        $facultySetClause = [];
+                        $facultyFields = ['academic_rank', 'employment_type', 'classification'];
+                        foreach ($facultyFields as $field) {
+                            if (isset($data[$field]) && $data[$field] !== '') {
+                                $facultySetClause[] = "$field = :$field";
+                                $facultyParams[":$field"] = $data[$field];
+                            }
+                        }
+
+                        if (!empty($facultySetClause)) {
+                            $updateFacultyStmt = $this->db->prepare("UPDATE faculty SET " . implode(', ', $facultySetClause) . ", updated_at = NOW() WHERE faculty_id = :faculty_id");
+                            error_log("profile: Faculty query - " . $updateFacultyStmt->queryString . ", Params: " . print_r($facultyParams, true));
+                            if (!$updateFacultyStmt->execute($facultyParams)) {
+                                $errorInfo = $updateFacultyStmt->errorInfo();
+                                error_log("profile: Faculty update failed - " . print_r($errorInfo, true));
+                                throw new Exception("Failed to update faculty information");
+                            }
+                        }
+
+                        // Handle specialization actions
+                        if (!empty($data['action'])) {
+                            switch ($data['action']) {
+                                case 'add_specialization':
+                                    if (!empty($data['expertise_level']) && !empty($data['course_id'])) {
+                                        // Check if specialization already exists
+                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
+                                        $exists = $checkStmt->fetchColumn();
+
+                                        if ($exists > 0) {
+                                            $errors[] = 'You already have this specialization. Use edit to modify it.';
+                                            break;
+                                        }
+
+                                        $insertSpecializationStmt = $this->db->prepare("
+                                        INSERT INTO specializations (faculty_id, course_id, expertise_level, created_at)
+                                        VALUES (:faculty_id, :course_id, :expertise_level, NOW())
+                                    ");
+                                        $specializationParams = [
+                                            ':faculty_id' => $facultyId,
+                                            ':course_id' => $data['course_id'],
+                                            ':expertise_level' => $data['expertise_level'],
+                                        ];
+                                        error_log("profile: Add specialization query - " . $insertSpecializationStmt->queryString . ", Params: " . print_r($specializationParams, true));
+
+                                        if (!$insertSpecializationStmt->execute($specializationParams)) {
+                                            $errorInfo = $insertSpecializationStmt->errorInfo();
+                                            error_log("profile: Add specialization failed - " . print_r($errorInfo, true));
+                                            throw new Exception("Failed to add specialization");
+                                        }
+                                        error_log("profile: Successfully added specialization");
+                                    } else {
+                                        $errors[] = 'Course and expertise level are required to add specialization.';
+                                    }
+                                    break;
+
+                                case 'remove_specialization':
+                                    if (!empty($data['course_id'])) {
+                                        error_log("profile: Attempting to remove specialization with course_id: " . $data['course_id'] . ", faculty_id: $facultyId");
+
+                                        // First, check if the record exists
+                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
+                                        $recordExists = $checkStmt->fetchColumn();
+                                        error_log("profile: Records found for deletion: $recordExists");
+
+                                        if ($recordExists > 0) {
+                                            $deleteStmt = $this->db->prepare("DELETE FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                            $deleteParams = [
+                                                ':faculty_id' => $facultyId,
+                                                ':course_id' => $data['course_id'],
+                                            ];
+                                            error_log("profile: Remove specialization query - " . $deleteStmt->queryString . ", Params: " . print_r($deleteParams, true));
+
+                                            if ($deleteStmt->execute($deleteParams)) {
+                                                $affectedRows = $deleteStmt->rowCount();
+                                                error_log("profile: Successfully deleted $affectedRows rows");
+                                                if ($affectedRows === 0) {
+                                                    error_log("profile: Warning - No rows were affected by delete operation");
+                                                    $errors[] = 'No specialization was removed. It may have already been deleted.';
+                                                }
+                                            } else {
+                                                $errorInfo = $deleteStmt->errorInfo();
+                                                error_log("profile: Delete failed - " . print_r($errorInfo, true));
+                                                throw new Exception("Failed to execute delete query: " . $errorInfo[2]);
+                                            }
+                                        } else {
+                                            error_log("profile: No record found for deletion");
+                                            $errors[] = 'Specialization not found for removal.';
+                                        }
+                                    } else {
+                                        $errors[] = 'Course ID is required to remove specialization.';
+                                    }
+                                    break;
+
+                                case 'update_specialization':
+                                    if (!empty($data['course_id']) && !empty($data['expertise_level'])) {
+                                        error_log("profile: Attempting to update specialization with course_id: " . $data['course_id'] . ", faculty_id: $facultyId");
+
+                                        // Check if the record exists first
+                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
+                                        $recordExists = $checkStmt->fetchColumn();
+
+                                        if ($recordExists > 0) {
+                                            $updateStmt = $this->db->prepare("UPDATE specializations SET expertise_level = :expertise_level, updated_at = NOW() WHERE faculty_id = :faculty_id AND course_id = :course_id");
+                                            $updateParams = [
+                                                ':faculty_id' => $facultyId,
+                                                ':course_id' => $data['course_id'],
+                                                ':expertise_level' => $data['expertise_level'],
+                                            ];
+                                            error_log("profile: Update specialization query - " . $updateStmt->queryString . ", Params: " . print_r($updateParams, true));
+
+                                            if ($updateStmt->execute($updateParams)) {
+                                                $affectedRows = $updateStmt->rowCount();
+                                                error_log("profile: Successfully updated $affectedRows rows");
+                                                if ($affectedRows === 0) {
+                                                    error_log("profile: Warning - No rows were affected by update operation");
+                                                    $errors[] = 'No changes were made to the specialization.';
+                                                }
+                                            } else {
+                                                $errorInfo = $updateStmt->errorInfo();
+                                                error_log("profile: Update failed - " . print_r($errorInfo, true));
+                                                throw new Exception("Failed to update specialization: " . $errorInfo[2]);
+                                            }
+                                        } else {
+                                            error_log("profile: No record found for update");
+                                            $errors[] = 'Specialization not found for update.';
+                                        }
+                                    } else {
+                                        $errors[] = 'Course ID and expertise level are required to update specialization.';
+                                    }
+                                    break;
+
+                                case 'edit_specialization':
+                                    if (!empty($data['specialization_index'])) {
+                                        error_log("profile: Edit specialization triggered for index: " . $data['specialization_index']);
+                                        // No database update needed here, just trigger the modal
+                                    }
+                                    break;
+
+                                default:
+                                    error_log("profile: Unknown action: " . $data['action']);
+                                    break;
+                            }
+                        }
+                    }
+
+                    // If there are validation errors, rollback and don't commit
+                    if (!empty($errors)) {
+                        $this->db->rollBack();
+                        error_log("profile: Validation errors found, rolling back transaction: " . implode(', ', $errors));
+                    } else {
+                        $this->db->commit();
+                        error_log("profile: Transaction committed successfully");
+
+                        $_SESSION['username'] = $data['username'] ?: $_SESSION['username'];
+                        $_SESSION['last_name'] = $data['last_name'] ?: $_SESSION['last_name'];
+                        $_SESSION['middle_name'] = $data['middle_name'] ?: $_SESSION['middle_name'];
+                        $_SESSION['suffix'] = $data['suffix'] ?: $_SESSION['suffix'];
+                        $_SESSION['title'] = $data['title'] ?: $_SESSION['title'];
+                        $_SESSION['first_name'] = $data['first_name'] ?: $_SESSION['first_name'];
+                        $_SESSION['email'] = $data['email'] ?: $_SESSION['email'];
+
+                        // Update profile picture in session if it was uploaded
+                        if ($profilePicturePath) {
+                            $_SESSION['profile_picture'] = $profilePicturePath;
+                            error_log("profile: Updated session profile_picture to: " . $profilePicturePath);
+                        }
+
+                        $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully'];
+                    }
+                } catch (PDOException $e) {
+                    if ($this->db->inTransaction()) {
+                        $this->db->rollBack();
+                    }
+                    error_log("profile: PDO Database error - " . $e->getMessage());
+                    $errors[] = 'Database error occurred: ' . $e->getMessage();
+                } catch (Exception $e) {
+                    if ($this->db->inTransaction()) {
+                        $this->db->rollBack();
+                    }
+                    error_log("profile: General error - " . $e->getMessage());
+                    $errors[] = $e->getMessage();
                 }
 
                 if (!empty($errors)) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => implode('<br>', $errors)];
                 }
+
                 header('Location: /admin/profile');
                 exit;
             }
 
-            // Fetch user data and stats...
+            // GET request - Display profile
             $stmt = $this->db->prepare("
-                SELECT u.*, d.department_name, c.college_name, r.role_name,
-                       f.academic_rank, f.employment_type, f.classification,
-                       s.expertise_level, 
-                       (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
-                       (SELECT COUNT(*) FROM courses c2 WHERE c2.department_id = u.department_id AND c2.is_active = 1) as coursesCount,
-                       (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
-                       (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
-                       (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
-                FROM users u
-                LEFT JOIN departments d ON u.department_id = d.department_id
-                LEFT JOIN colleges c ON u.college_id = c.college_id
-                LEFT JOIN courses c2 ON d.department_id = c2.department_id
-                LEFT JOIN roles r ON u.role_id = r.role_id
-                LEFT JOIN faculty f ON u.user_id = f.user_id
-                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id
-                WHERE u.user_id = :user_id
-            ");
+            SELECT u.*, d.department_name, c.college_name, r.role_name,
+                   f.academic_rank, f.employment_type, f.classification
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON u.college_id = c.college_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            LEFT JOIN faculty f ON u.user_id = f.user_id
+            WHERE u.user_id = :user_id
+        ");
             $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -761,23 +862,28 @@ class AdminController
                 throw new Exception('User not found.');
             }
 
-            // Extract stats
-            $facultyCount = $user['facultyCount'] ?? 0;
-            $coursesCount = $user['coursesCount'] ?? 0;
-            $pendingApplicantsCount = $user['pendingApplicantsCount'] ?? 0;
-            $currentSemester = $user['currentSemester'] ?? '2nd';
-            $lastLogin = $user['lastLogin'] ?? 'N/A';
+            $specializationStmt = $this->db->prepare("
+            SELECT s.expertise_level AS level, c.course_code, c.course_name, s.course_id
+            FROM specializations s
+            JOIN courses c ON s.course_id = c.course_id
+            WHERE s.faculty_id = (SELECT faculty_id FROM faculty WHERE user_id = :user_id)
+            ORDER BY c.course_code
+        ");
+            $specializationStmt->execute([':user_id' => $userId]);
+            $specializations = $specializationStmt->fetchAll(PDO::FETCH_ASSOC);
 
             require_once __DIR__ . '/../views/admin/profile.php';
         } catch (Exception $e) {
             if (isset($this->db) && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+
             error_log("profile: Error - " . $e->getMessage());
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load or update profile. Please try again.'];
 
+            // Provide default user data in case of error
             $user = [
-                'user_id' => $userId,
+                'user_id' => $userId ?? 0,
                 'username' => '',
                 'first_name' => '',
                 'last_name' => '',
@@ -794,13 +900,9 @@ class AdminController
                 'academic_rank' => '',
                 'employment_type' => '',
                 'classification' => '',
-                'course_id' => '',
-                'expertise_level' => '',
                 'updated_at' => date('Y-m-d H:i:s')
             ];
-            $facultyCount = $coursesCount = $pendingApplicantsCount = 0;
-            $currentSemester = '2nd';
-            $lastLogin = 'N/A';
+            $specializations = [];
             require_once __DIR__ . '/../views/admin/profile.php';
         }
     }
@@ -833,8 +935,8 @@ class AdminController
 
         if (!is_dir($uploadDir)) {
             if (!mkdir($uploadDir, 0755, true)) {
-                error_log("profile: Failed to create upload directory: $uploadDir");
-                return "Error: Failed to create upload directory.";
+                error_log("profile: Failed to create upload adminy: $uploadDir");
+                return "Error: Failed to create upload adminy.";
             }
         }
 

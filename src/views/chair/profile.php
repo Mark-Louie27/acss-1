@@ -294,18 +294,19 @@ ob_start();
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-lg font-semibold text-gray-800 flex items-center">
                             <i class="fas fa-star text-orange-500 mr-2"></i>
-                            Your Specializations
+                            Your Subject Specializations
                         </h2>
                         <button id="addSpecializationBtn2" class="btn-orange px-4 py-2 rounded-lg shadow-md flex items-center space-x-2 text-sm">
                             <i class="fas fa-plus"></i>
-                            <span>Add Specialization</span>
+                            <span>Add Subject Specialization</span>
                         </button>
                     </div>
 
+                    <!-- Inside the Specializations section, update the loop -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <?php if (!empty($specializations)): ?>
-                            <?php foreach ($specializations as $specialization): ?>
-                                <div class="specialization-card p-4 rounded-lg">
+                            <?php foreach ($specializations as $index => $specialization): ?>
+                                <div class="specialization-card p-4 rounded-lg" data-index="<?php echo $index; ?>">
                                     <div class="flex items-start justify-between mb-3">
                                         <div class="flex-1">
                                             <span class="specialization-level level-<?php echo strtolower($specialization['level']); ?>">
@@ -313,10 +314,15 @@ ob_start();
                                             </span>
                                         </div>
                                         <div class="flex space-x-1">
-                                            <button class="text-gray-400 hover:text-blue-500 transition-colors" title="Edit">
-                                                <i class="fas fa-edit text-sm"></i>
-                                            </button>
-                                            <button class="text-gray-400 hover:text-red-500 transition-colors" title="Remove">
+                                            <form method="POST" action="/chair/profile" style="display:inline;" class="edit-form" data-index="<?php echo $index; ?>">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="action" value="edit_specialization">
+                                                <input type="hidden" name="specialization_index" value="<?php echo $index; ?>">
+                                                <button type="submit" class="text-gray-400 hover:text-blue-500 transition-colors" title="Edit">
+                                                    <i class="fas fa-edit text-sm"></i>
+                                                </button>
+                                            </form>
+                                            <button type="button" class="remove-specialization-btn text-gray-400 hover:text-red-500 transition-colors" data-course-id="<?php echo htmlspecialchars($specialization['course_id'], ENT_QUOTES, 'UTF-8'); ?>" title="Remove">
                                                 <i class="fas fa-trash text-sm"></i>
                                             </button>
                                         </div>
@@ -334,6 +340,73 @@ ob_start();
                                 </button>
                             </div>
                         <?php endif; ?>
+                    </div>
+
+                    <!-- Edit Specialization Modal (unchanged) -->
+                    <div id="editSpecializationModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+                        <div class="bg-white rounded-xl shadow-lg w-full max-w-md mx-4 transform modal-content scale-95">
+                            <div class="bg-yellow-600 text-white p-6 rounded-t-xl flex items-center justify-between">
+                                <h3 class="text-xl font-bold flex items-center">
+                                    <i class="fas fa-edit mr-2"></i>
+                                    Edit Subject Specialization
+                                </h3>
+                                <button id="closeEditSpecializationModalBtn" class="text-white hover:text-yellow-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <form method="POST" action="/chair/profile/" class="p-6">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="action" value="update_specialization">
+                                <input type="hidden" name="course_id" id="edit_course_id" value="">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="edit_expertise_level" class="block text-sm font-medium text-gray-700 mb-1">Expertise Level</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i class="fas fa-star text-gray-400"></i>
+                                            </div>
+                                            <select id="edit_expertise_level" name="expertise_level" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus" required>
+                                                <option value="">Select Level</option>
+                                                <option value="Beginner">Beginner</option>
+                                                <option value="Intermediate">Intermediate</option>
+                                                <option value="Expert">Expert</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-6">
+                                    <button type="button" id="cancelEditSpecializationBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
+                                    <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-3 rounded-lg shadow-md transition-all duration-200 font-medium">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Remove Confirmation Modal -->
+                    <div id="removeSpecializationModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+                        <div class="bg-white rounded-xl shadow-lg w-full max-w-md mx-4 transform modal-content scale-95">
+                            <div class="bg-red-600 text-white p-6 rounded-t-xl flex items-center justify-between">
+                                <h3 class="text-xl font-bold flex items-center">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    Confirm Removal
+                                </h3>
+                                <button id="closeRemoveSpecializationModalBtn" class="text-white hover:text-red-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="p-6">
+                                <p class="text-gray-700">Are you sure you want to remove this subject specialization? This action cannot be undone.</p>
+                                <form method="POST" action="/chair/profile/" class="mt-4">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <input type="hidden" name="action" value="remove_specialization">
+                                    <input type="hidden" name="course_id" id="remove_course_id" value="">
+                                    <div class="flex justify-end space-x-3">
+                                        <button type="button" id="cancelRemoveSpecializationBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
+                                        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-lg shadow-md transition-all duration-200 font-medium">Confirm Removal</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -378,12 +451,12 @@ ob_start();
                         <div class="quick-stats-card p-4 rounded-lg">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center space-x-3">
-                                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-star text-purple-600"></i>
+                                    <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-star text-yellow-600"></i>
                                     </div>
                                     <div>
                                         <p class="text-sm font-medium text-gray-700">Specializations</p>
-                                        <p class="text-2xl font-bold text-purple-600">1</p>
+                                        <p class="text-2xl font-bold text-yellow-600">1</p>
                                     </div>
                                 </div>
                             </div>
@@ -405,10 +478,10 @@ ob_start();
                             <span class="text-sm font-medium text-gray-700">View Schedule</span>
                         </button>
                         <button id="addSpecializationBtn" class="w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 rounded-lg transition-colors">
-                            <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-plus text-purple-600 text-sm"></i>
+                            <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-plus text-yellow-600 text-sm"></i>
                             </div>
-                            <span class="text-sm font-medium text-gray-700">Add Specialization</span>
+                            <span class="text-sm font-medium text-gray-700">Add Subject Specialization</span>
                         </button>
                     </div>
                 </section>
@@ -494,7 +567,7 @@ ob_start();
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i class="fas fa-envelope text-gray-400"></i>
                                         </div>
-                                        <input type="title" id="title_modal" name="title" value="<?php echo htmlspecialchars($user['title'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                        <input type="title" id="title_modal" name="title" value="<?php echo htmlspecialchars($user['title'], ENT_QUOTES, 'UTF-8'); ?>" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus" placeholder="e.g., Dr., Prof., Mr., Ms.">
                                     </div>
                                 </div>
                                 <div>
@@ -597,12 +670,12 @@ ob_start();
         <!-- Add Specialization Modal -->
         <div id="addSpecializationModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-lg w-full max-w-md mx-4 transform modal-content scale-95">
-                <div class="bg-purple-600 text-white p-6 rounded-t-xl flex items-center justify-between">
+                <div class="bg-yellow-600 text-white p-6 rounded-t-xl flex items-center justify-between">
                     <h3 class="text-xl font-bold flex items-center">
                         <i class="fas fa-plus mr-2"></i>
                         Add Specialization
                     </h3>
-                    <button id="closeSpecializationModalBtn" class="text-white hover:text-purple-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
+                    <button id="closeSpecializationModalBtn" class="text-white hover:text-yellow-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -644,16 +717,11 @@ ob_start();
                                 </select>
                             </div>
                         </div>
-
-                        <div>
-                            <label for="specialization_notes" class="block text-sm font-medium text-gray-700 mb-1">Additional Notes (Optional)</label>
-                            <textarea id="specialization_notes" name="notes" rows="3" class="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white shadow-sm input-focus" placeholder="Any additional information about your specialization..."></textarea>
-                        </div>
                     </div>
 
                     <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-6">
                         <button type="button" id="cancelSpecializationBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
-                        <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-lg shadow-md transition-all duration-200 font-medium">Add Specialization</button>
+                        <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-3 rounded-lg shadow-md transition-all duration-200 font-medium">Add Specialization</button>
                     </div>
                 </form>
             </div>
@@ -661,6 +729,7 @@ ob_start();
     </div>
 
     <script>
+        // Update the JavaScript block
         document.addEventListener('DOMContentLoaded', () => {
             <?php if (isset($_SESSION['flash'])): ?>
                 showToast('<?php echo htmlspecialchars($_SESSION['flash']['message'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $_SESSION['flash']['type'] === 'success' ? 'bg-green-500' : 'bg-red-500'; ?>');
@@ -682,198 +751,338 @@ ob_start();
             // Profile Modal Functions
             function openProfileModal() {
                 const modal = document.getElementById('editProfileModal');
-                const modalContent = modal.querySelector('.modal-content');
-                modal.classList.remove('hidden');
-                setTimeout(() => modalContent.classList.add('scale-100'), 50);
-                document.body.style.overflow = 'hidden';
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modal && modalContent) {
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modalContent.classList.add('scale-100'), 50);
+                    document.body.style.overflow = 'hidden';
+                }
             }
 
             function closeProfileModal() {
                 const modal = document.getElementById('editProfileModal');
-                const modalContent = modal.querySelector('.modal-content');
-                modalContent.classList.remove('scale-100');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                    document.body.style.overflow = 'auto';
-                }, 300);
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.classList.remove('scale-100');
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        document.body.style.overflow = 'auto';
+                    }, 300);
+                }
             }
 
             // Specialization Modal Functions
             function openSpecializationModal() {
                 const modal = document.getElementById('addSpecializationModal');
-                const modalContent = modal.querySelector('.modal-content');
-                modal.classList.remove('hidden');
-                setTimeout(() => modalContent.classList.add('scale-100'), 50);
-                document.body.style.overflow = 'hidden';
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modal && modalContent) {
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modalContent.classList.add('scale-100'), 50);
+                    document.body.style.overflow = 'hidden';
+                }
             }
 
             function closeSpecializationModal() {
                 const modal = document.getElementById('addSpecializationModal');
-                const modalContent = modal.querySelector('.modal-content');
-                modalContent.classList.remove('scale-100');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                    document.body.style.overflow = 'auto';
-                    // Reset form
-                    modal.querySelector('form').reset();
-                }, 300);
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.classList.remove('scale-100');
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        document.body.style.overflow = 'auto';
+                        const form = modal.querySelector('form');
+                        if (form) form.reset();
+                    }, 300);
+                }
+            }
+
+            // Edit Specialization Modal Functions
+            function openEditSpecializationModal(courseId, currentLevel) {
+                const modal = document.getElementById('editSpecializationModal');
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modal && modalContent) {
+                    document.getElementById('edit_course_id').value = courseId;
+                    const levelSelect = document.getElementById('edit_expertise_level');
+                    levelSelect.value = currentLevel || '';
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modalContent.classList.add('scale-100'), 50);
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            function closeEditSpecializationModal() {
+                const modal = document.getElementById('editSpecializationModal');
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.classList.remove('scale-100');
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        document.body.style.overflow = 'auto';
+                    }, 300);
+                }
+            }
+
+            // Add remove specialization modal functions
+            function openRemoveSpecializationModal(courseId) {
+                const modal = document.getElementById('removeSpecializationModal');
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modal && modalContent) {
+                    document.getElementById('remove_course_id').value = courseId;
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modalContent.classList.add('scale-100'), 50);
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            function closeRemoveSpecializationModal() {
+                const modal = document.getElementById('removeSpecializationModal');
+                const modalContent = modal?.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.classList.remove('scale-100');
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        document.body.style.overflow = 'auto';
+                    }, 300);
+                }
+            }
+
+            document.querySelectorAll('.remove-specialization-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const courseId = button.getAttribute('data-course-id');
+                    console.log('Removing course ID:', courseId); // Debug log
+                    openRemoveSpecializationModal(courseId);
+                });
+            });
+
+            const closeRemoveSpecializationModalBtn = document.getElementById('closeRemoveSpecializationModalBtn');
+            if (closeRemoveSpecializationModalBtn) {
+                closeRemoveSpecializationModalBtn.addEventListener('click', closeRemoveSpecializationModal);
+            }
+
+            const cancelRemoveSpecializationBtn = document.getElementById('cancelRemoveSpecializationBtn');
+            if (cancelRemoveSpecializationBtn) {
+                cancelRemoveSpecializationBtn.addEventListener('click', closeRemoveSpecializationModal);
+            }
+
+            // Existing modal close when clicking outside
+            const removeSpecializationModal = document.getElementById('removeSpecializationModal');
+            if (removeSpecializationModal) {
+                removeSpecializationModal.addEventListener('click', (e) => {
+                    if (e.target === removeSpecializationModal) closeRemoveSpecializationModal();
+                });
             }
 
             // Event Listeners
-            document.getElementById('editProfileBtn').addEventListener('click', openProfileModal);
-            document.getElementById('closeModalBtn').addEventListener('click', closeProfileModal);
-            document.getElementById('cancelModalBtn').addEventListener('click', closeProfileModal);
+            const editProfileBtn = document.getElementById('editProfileBtn');
+            if (editProfileBtn) editProfileBtn.addEventListener('click', openProfileModal);
+
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeProfileModal);
+
+            const cancelModalBtn = document.getElementById('cancelModalBtn');
+            if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeProfileModal);
 
             // Specialization modal event listeners
-            document.getElementById('addSpecializationBtn').addEventListener('click', openSpecializationModal);
-            document.getElementById('addSpecializationBtn2').addEventListener('click', openSpecializationModal);
-            document.getElementById('addFirstSpecialization')?.addEventListener('click', openSpecializationModal);
-            document.getElementById('closeSpecializationModalBtn').addEventListener('click', closeSpecializationModal);
-            document.getElementById('cancelSpecializationBtn').addEventListener('click', closeSpecializationModal);
+            const addSpecializationBtn = document.getElementById('addSpecializationBtn');
+            if (addSpecializationBtn) addSpecializationBtn.addEventListener('click', openSpecializationModal);
+
+            const addSpecializationBtn2 = document.getElementById('addSpecializationBtn2');
+            if (addSpecializationBtn2) addSpecializationBtn2.addEventListener('click', openSpecializationModal);
+
+            const addFirstSpecialization = document.getElementById('addFirstSpecialization');
+            if (addFirstSpecialization) addFirstSpecialization.addEventListener('click', openSpecializationModal);
+
+            const closeSpecializationModalBtn = document.getElementById('closeSpecializationModalBtn');
+            if (closeSpecializationModalBtn) closeSpecializationModalBtn.addEventListener('click', closeSpecializationModal);
+
+            const cancelSpecializationBtn = document.getElementById('cancelSpecializationBtn');
+            if (cancelSpecializationBtn) cancelSpecializationBtn.addEventListener('click', closeSpecializationModal);
+
+            // Edit specialization modal event listeners
+            const closeEditSpecializationModalBtn = document.getElementById('closeEditSpecializationModalBtn');
+            if (closeEditSpecializationModalBtn) closeEditSpecializationModalBtn.addEventListener('click', closeEditSpecializationModal);
+
+            const cancelEditSpecializationBtn = document.getElementById('cancelEditSpecializationBtn');
+            if (cancelEditSpecializationBtn) cancelEditSpecializationBtn.addEventListener('click', closeEditSpecializationModal);
+
+            // Replace the edit form event listener
+            document.querySelectorAll('.edit-form').forEach(form => {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const index = form.querySelector('input[name="specialization_index"]').value;
+                    const specializations = <?php echo json_encode(array_values($specializations)); ?>;
+                    if (specializations[index]) {
+                        openEditSpecializationModal(specializations[index].course_id, specializations[index].level);
+                    } else {
+                        console.log('Specialization not found for index:', index);
+                    }
+                });
+            });
+
+            // Handle remove confirmation (already in HTML with onsubmit)
 
             // Close modals when clicking outside
-            document.getElementById('editProfileModal').addEventListener('click', (e) => {
-                if (e.target === document.getElementById('editProfileModal')) closeProfileModal();
-            });
+            const editProfileModal = document.getElementById('editProfileModal');
+            if (editProfileModal) {
+                editProfileModal.addEventListener('click', (e) => {
+                    if (e.target === editProfileModal) closeProfileModal();
+                });
+            }
 
-            document.getElementById('addSpecializationModal').addEventListener('click', (e) => {
-                if (e.target === document.getElementById('addSpecializationModal')) closeSpecializationModal();
-            });
+            const addSpecializationModal = document.getElementById('addSpecializationModal');
+            if (addSpecializationModal) {
+                addSpecializationModal.addEventListener('click', (e) => {
+                    if (e.target === addSpecializationModal) closeSpecializationModal();
+                });
+            }
+
+            const editSpecializationModal = document.getElementById('editSpecializationModal');
+            if (editSpecializationModal) {
+                editSpecializationModal.addEventListener('click', (e) => {
+                    if (e.target === editSpecializationModal) closeEditSpecializationModal();
+                });
+            }
 
             // Close modals with Escape key
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    if (!document.getElementById('editProfileModal').classList.contains('hidden')) {
+                    if (editProfileModal && !editProfileModal.classList.contains('hidden')) {
                         closeProfileModal();
                     }
-                    if (!document.getElementById('addSpecializationModal').classList.contains('hidden')) {
+                    if (addSpecializationModal && !addSpecializationModal.classList.contains('hidden')) {
                         closeSpecializationModal();
                     }
+                    if (editSpecializationModal && !editSpecializationModal.classList.contains('hidden')) {
+                        closeEditSpecializationModal();
+                    }
                 }
             });
 
-            // Form Validation
+            // Form Validation (unchanged, kept for completeness)
             const profileForm = document.querySelector('#editProfileModal form');
-            profileForm.addEventListener('submit', (e) => {
-                let isValid = true;
-
-                // Validate required fields
-                profileForm.querySelectorAll('input[required]').forEach(input => {
-                    if (!input.value.trim()) {
-                        input.classList.add('border-red-500');
+            if (profileForm) {
+                profileForm.addEventListener('submit', (e) => {
+                    let isValid = true;
+                    profileForm.querySelectorAll('input[required]').forEach(input => {
+                        if (!input.value.trim()) {
+                            input.classList.add('border-red-500');
+                            isValid = false;
+                        } else {
+                            input.classList.remove('border-red-500');
+                        }
+                    });
+                    const emailInput = document.getElementById('email_modal');
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (emailInput && !emailRegex.test(emailInput.value.trim())) {
+                        emailInput.classList.add('border-red-500');
                         isValid = false;
-                    } else {
-                        input.classList.remove('border-red-500');
+                    } else if (emailInput) {
+                        emailInput.classList.remove('border-red-500');
+                    }
+                    const phoneInput = document.getElementById('phone_modal');
+                    const phoneRegex = /^\d{10,12}$/;
+                    if (phoneInput && phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
+                        phoneInput.classList.add('border-red-500');
+                        isValid = false;
+                    } else if (phoneInput) {
+                        phoneInput.classList.remove('border-red-500');
+                    }
+                    if (!isValid) {
+                        e.preventDefault();
+                        showToast('Please fill in all required fields correctly.', 'bg-red-500');
                     }
                 });
+            }
 
-                // Email validation
-                const emailInput = document.getElementById('email_modal');
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(emailInput.value.trim())) {
-                    emailInput.classList.add('border-red-500');
-                    isValid = false;
-                } else {
-                    emailInput.classList.remove('border-red-500');
-                }
-
-                // Phone validation (optional but if provided, should be valid)
-                const phoneInput = document.getElementById('phone_modal');
-                const phoneRegex = /^\d{10,12}$/;
-                if (phoneInput.value.trim() && !phoneRegex.test(phoneInput.value.trim())) {
-                    phoneInput.classList.add('border-red-500');
-                    isValid = false;
-                } else {
-                    phoneInput.classList.remove('border-red-500');
-                }
-
-                if (!isValid) {
-                    e.preventDefault();
-                    showToast('Please fill in all required fields correctly.', 'bg-red-500');
-                }
-            });
-
-            // Specialization form validation
             const specializationForm = document.querySelector('#addSpecializationModal form');
-            specializationForm.addEventListener('submit', (e) => {
-                const courseSelect = document.getElementById('course_id');
-                const levelSelect = document.getElementById('specialization_level');
-                let isValid = true;
-
-                if (!courseSelect.value) {
-                    courseSelect.classList.add('border-red-500');
-                    isValid = false;
-                } else {
-                    courseSelect.classList.remove('border-red-500');
-                }
-
-                if (!levelSelect.value) {
-                    levelSelect.classList.add('border-red-500');
-                    isValid = false;
-                } else {
-                    levelSelect.classList.remove('border-red-500');
-                }
-
-                if (!isValid) {
-                    e.preventDefault();
-                    showToast('Please select both course and proficiency level.', 'bg-red-500');
-                }
-            });
-
-            // Real-time validation
-            profileForm.querySelectorAll('input[required]').forEach(input => {
-                input.addEventListener('input', () => {
-                    if (input.value.trim()) {
-                        input.classList.remove('border-red-500');
+            if (specializationForm) {
+                specializationForm.addEventListener('submit', (e) => {
+                    const courseSelect = document.getElementById('course_id');
+                    const levelSelect = document.getElementById('expertise_level');
+                    let isValid = true;
+                    if (courseSelect && !courseSelect.value) {
+                        courseSelect.classList.add('border-red-500');
+                        isValid = false;
+                    } else if (courseSelect) {
+                        courseSelect.classList.remove('border-red-500');
+                    }
+                    if (levelSelect && !levelSelect.value) {
+                        levelSelect.classList.add('border-red-500');
+                        isValid = false;
+                    } else if (levelSelect) {
+                        levelSelect.classList.remove('border-red-500');
+                    }
+                    if (!isValid) {
+                        e.preventDefault();
+                        showToast('Please select both course and expertise level.', 'bg-red-500');
                     }
                 });
-            });
+            }
 
-            document.getElementById('email_modal').addEventListener('input', function() {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (emailRegex.test(this.value.trim())) {
-                    this.classList.remove('border-red-500');
-                }
-            });
-
-            document.getElementById('phone_modal').addEventListener('input', function() {
-                const phoneRegex = /^\d{10,12}$/;
-                if (!this.value.trim() || phoneRegex.test(this.value.trim())) {
-                    this.classList.remove('border-red-500');
-                }
-            });
-
-            // File input validation
+            // Real-time validation (unchanged, kept for completeness)
+            if (profileForm) {
+                profileForm.querySelectorAll('input[required]').forEach(input => {
+                    input.addEventListener('input', () => {
+                        if (input.value.trim()) {
+                            input.classList.remove('border-red-500');
+                        }
+                    });
+                });
+            }
+            const emailModal = document.getElementById('email_modal');
+            if (emailModal) {
+                emailModal.addEventListener('input', function() {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (emailRegex.test(this.value.trim())) {
+                        this.classList.remove('border-red-500');
+                    }
+                });
+            }
+            const phoneModal = document.getElementById('phone_modal');
+            if (phoneModal) {
+                phoneModal.addEventListener('input', function() {
+                    const phoneRegex = /^\d{10,12}$/;
+                    if (!this.value.trim() || phoneRegex.test(this.value.trim())) {
+                        this.classList.remove('border-red-500');
+                    }
+                });
+            }
             const profileInput = document.getElementById('profile_picture');
-            profileInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-                    if (!validTypes.includes(file.type)) {
-                        showToast('Only JPEG, PNG, or GIF files are allowed.', 'bg-red-500');
-                        this.value = '';
-                        return;
+            if (profileInput) {
+                profileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+                        if (!validTypes.includes(file.type)) {
+                            showToast('Only JPEG, PNG, or GIF files are allowed.', 'bg-red-500');
+                            this.value = '';
+                            return;
+                        }
+                        if (file.size > 2 * 1024 * 1024) {
+                            showToast('File size must be less than 2MB.', 'bg-red-500');
+                            this.value = '';
+                            return;
+                        }
                     }
-                    if (file.size > 2 * 1024 * 1024) {
-                        showToast('File size must be less than 2MB.', 'bg-red-500');
-                        this.value = '';
-                        return;
+                });
+            }
+            const courseIdSelect = document.getElementById('course_id');
+            if (courseIdSelect) {
+                courseIdSelect.addEventListener('change', function() {
+                    if (this.value) {
+                        this.classList.remove('border-red-500');
                     }
-                }
-            });
-
-            // Specialization select validation
-            document.getElementById('course_id').addEventListener('change', function() {
-                if (this.value) {
-                    this.classList.remove('border-red-500');
-                }
-            });
-
-            document.getElementById('specialization_level').addEventListener('change', function() {
-                if (this.value) {
-                    this.classList.remove('border-red-500');
-                }
-            });
+                });
+            }
+            const expertiseLevelSelect = document.getElementById('expertise_level');
+            if (expertiseLevelSelect) {
+                expertiseLevelSelect.addEventListener('change', function() {
+                    if (this.value) {
+                        this.classList.remove('border-red-500');
+                    }
+                });
+            }
         });
     </script>
 </body>
