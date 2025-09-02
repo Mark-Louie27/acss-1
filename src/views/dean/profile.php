@@ -456,7 +456,7 @@ ob_start();
                                     </div>
                                     <div>
                                         <p class="text-sm font-medium text-gray-700">Specializations</p>
-                                        <p class="text-2xl font-bold text-yellow-600">1</p>
+                                        <p class="text-2xl font-bold text-yellow-600"><?php echo htmlspecialchars($specializationsCount ?? 0, ENT_QUOTES, 'UTF-8'); ?></p>
                                     </div>
                                 </div>
                             </div>

@@ -368,6 +368,12 @@ if (!$profilePicture) {
                 <span>Set Schedule Deadline</span>
             </a>
 
+            <!-- Schedule Link -->
+            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/director/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>My Schedule</span>
+            </a>
+
             <!-- My set monitor Link -->
             <a href="/director/monitor" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
                 <i class="fa-solid fa-desktop w-5 mr-3 <?php echo strpos($currentUri, '/director/monitor') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>

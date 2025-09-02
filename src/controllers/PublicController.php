@@ -61,65 +61,65 @@ class PublicController
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Add these new methods
-    public function getDepartmentSections()
+    public function getDepartmentsByCollege()
     {
-        // Skip authentication check if session is not required
-        if (!isset($_SESSION['user_id']) && session_status() === PHP_SESSION_ACTIVE) {
-            header('Content-Type: application/json');
-            echo json_encode([]);
-            exit;
-        }
-        $currentSemester = $this->getCurrentSemester();
-        $departmentId = $_GET['department_id'] ?? 0;
-
-        $query = "SELECT section_id, section_name 
-            FROM sections 
-            WHERE department_id = :department_id
-            AND semester = :semester
-            AND academic_year = :academic_year
-            ORDER BY section_name";
-
         try {
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([
-                ':department_id' => $departmentId,
-                ':semester' => $currentSemester['semester_name'],
-                ':academic_year' => $currentSemester['academic_year']
-            ]);
-            $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $college_id = isset($_GET['college_id']) ? (int)$_GET['college_id'] : 0;
+
+            if ($college_id === 0) {
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                exit;
+            }
+
+            $stmt = $this->db->prepare("
+            SELECT department_id, department_name 
+            FROM departments 
+            WHERE college_id = :college_id 
+            ORDER BY department_name
+        ");
+
+            $stmt->execute([':college_id' => $college_id]);
+            $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             header('Content-Type: application/json');
-            echo json_encode($sections);
+            echo json_encode($departments);
         } catch (PDOException $e) {
-            error_log("Fetch Sections Error: " . $e->getMessage());
-            echo json_encode([]);
+            error_log("Get Departments Error: " . $e->getMessage());
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch departments']);
         }
         exit;
     }
 
-    public function getCollegeDepartments()
+    // Method to get sections by department
+    public function getSectionsByDepartment()
     {
-        // Skip authentication check if session is not required
-        if (!isset($_SESSION['user_id']) && session_status() === PHP_SESSION_ACTIVE) {
-            header('Content-Type: application/json');
-            echo json_encode([]);
-            exit;
-        }
-        $collegeId = $_GET['college_id'] ?? 0;
-        $query = "SELECT department_id, department_name 
-            FROM departments 
-            WHERE college_id = :college_id
-            ORDER BY department_name";
-
         try {
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':college_id' => $collegeId]);
-            $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $department_id = isset($_GET['department_id']) ? (int)$_GET['department_id'] : 0;
+
+            if ($department_id === 0) {
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                exit;
+            }
+
+            $stmt = $this->db->prepare("
+            SELECT section_id, section_name, year_level 
+            FROM sections 
+            WHERE department_id = :department_id 
+            ORDER BY year_level, section_name
+        ");
+
+            $stmt->execute([':department_id' => $department_id]);
+            $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             header('Content-Type: application/json');
-            echo json_encode($departments);
+            echo json_encode($sections);
         } catch (PDOException $e) {
-            error_log("Fetch Departments Error: " . $e->getMessage());
-            echo json_encode([]);
+            error_log("Get Sections Error: " . $e->getMessage());
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch sections']);
         }
         exit;
     }
@@ -138,54 +138,62 @@ class PublicController
         $search = isset($_POST['search']) ? trim($_POST['search']) : '';
 
         $query = "
-        SELECT 
-            s.schedule_id, 
-            c.course_code, 
-            c.course_name, 
-            sec.section_name,
-            sec.year_level,
-            r.room_name, 
-            r.building, 
-            s.day_of_week, 
-            s.start_time, 
-            s.end_time, 
-            s.schedule_type, 
-            CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
-            d.department_name,
-            col.college_name
-        FROM schedules s
-        JOIN courses c ON s.course_id = c.course_id
-        JOIN sections sec ON s.section_id = sec.section_id
-        JOIN semesters sem ON s.semester_id = sem.semester_id
-        LEFT JOIN classrooms r ON s.room_id = r.room_id
-        JOIN faculty f ON s.faculty_id = f.faculty_id
-        JOIN users u ON f.user_id = u.user_id
-        JOIN departments d ON sec.department_id = d.department_id
-        JOIN colleges col ON d.college_id = col.college_id
-        WHERE s.is_public = 1
-        AND sem.semester_id = :semester_id
-        AND (col.college_id = :college_id OR :college_id = 0)
-        AND (d.department_id = :department_id OR :department_id = 0)
-        AND (sec.year_level = :year_level OR :year_level = '')
-        AND (sec.section_id = :section_id OR :section_id = 0)
-        AND (c.course_code LIKE :search OR c.course_name LIKE :search OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search)
-        ORDER BY s.day_of_week, s.start_time
-    ";
+            SELECT 
+                s.schedule_id, 
+                c.course_code, 
+                c.course_name, 
+                sec.section_name,
+                sec.year_level,
+                r.room_name, 
+                r.building, 
+                s.day_of_week, 
+                s.start_time, 
+                s.end_time, 
+                s.schedule_type, 
+                CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
+                d.department_name,
+                col.college_name
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN sections sec ON s.section_id = sec.section_id
+            JOIN semesters sem ON s.semester_id = sem.semester_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            JOIN faculty f ON s.faculty_id = f.faculty_id
+            JOIN users u ON f.user_id = u.user_id
+            JOIN departments d ON sec.department_id = d.department_id
+            JOIN colleges col ON d.college_id = col.college_id
+            WHERE s.is_public = 1
+            AND sem.semester_id = ?
+            AND (? = 0 OR col.college_id = ?)
+            AND (? = 0 OR d.department_id = ?)
+            AND (? = '' OR sec.year_level = ?)
+            AND (? = 0 OR sec.section_id = ?)
+            AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
+            ORDER BY s.day_of_week, s.start_time
+        ";
 
         try {
             $stmt = $this->db->prepare($query);
 
+            $searchPattern = '%' . $search . '%';
+
             // Log the query and parameters for debugging
             error_log("Search Schedules Query: $query");
-            error_log("Parameters: semester_id=$semester_id, college_id=$college_id, department_id=$department_id, year_level=$year_level, section_id=$section_id, search=%$search%");
+            error_log("Parameters: semester_id=$semester_id, college_id=$college_id, department_id=$department_id, year_level=$year_level, section_id=$section_id, search=$searchPattern");
 
             $stmt->execute([
-                ':semester_id' => $semester_id,
-                ':college_id' => $college_id,
-                ':department_id' => $department_id,
-                ':year_level' => $year_level,
-                ':section_id' => $section_id,
-                ':search' => '%' . $search . '%'
+                $semester_id,       // 1st ?
+                $college_id,        // 2nd ?
+                $college_id,        // 3rd ?
+                $department_id,     // 4th ?
+                $department_id,     // 5th ?
+                $year_level,        // 6th ?
+                $year_level,        // 7th ?
+                $section_id,        // 8th ?
+                $section_id,        // 9th ?
+                $searchPattern,     // 10th ?
+                $searchPattern,     // 11th ?
+                $searchPattern      // 12th ?
             ]);
 
             $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);

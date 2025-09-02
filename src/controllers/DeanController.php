@@ -518,7 +518,7 @@ class DeanController
 
         try {
             // Initialize variables for the view
-            $programdeans = [];
+            $programChairs = [];
             $faculty = [];
             $pendingUsers = [];
             $departments = [];
@@ -529,7 +529,7 @@ class DeanController
             $querydeans = "
             SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, pc.program_id, p.program_name, d.department_name, d.department_id
             FROM users u
-            JOIN program_deans pc ON u.user_id = pc.user_id
+            JOIN program_chairs pc ON u.user_id = pc.user_id
             JOIN programs p ON pc.program_id = p.program_id
             JOIN departments d ON p.department_id = d.department_id
             WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
@@ -539,8 +539,8 @@ class DeanController
                 throw new PDOException("Failed to prepare querydeans: " . implode(', ', $this->db->errorInfo()));
             }
             $stmtdeans->execute([':college_id' => $collegeId]);
-            $programdeans = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
-            error_log("faculty: Fetched " . count($programdeans) . " program deans");
+            $programChairs = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($programChairs) . " program deans");
 
             // Fetch Faculty
             $queryFaculty = "
@@ -1350,6 +1350,42 @@ class DeanController
         ");
             $specializationStmt->execute([':user_id' => $userId]);
             $specializations = $specializationStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch user data and stats...
+            $stmt = $this->db->prepare("
+                SELECT u.*, d.department_name, c.college_name, r.role_name,
+                       f.academic_rank, f.employment_type, f.classification,
+                       s.expertise_level, 
+                       (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
+                       (SELECT COUNT(DISTINCT sch.course_id) FROM schedules sch WHERE sch.faculty_id = f.faculty_id) as coursesCount,
+                       (SELECT COUNT(*) FROM specializations s2 WHERE s2.course_id = c2.course_id) as specializationsCount,
+                       (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
+                       (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
+                       (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                LEFT JOIN colleges c ON u.college_id = c.college_id
+                LEFT JOIN courses c2 ON d.department_id = c2.department_id
+                LEFT JOIN schedules sch ON c2.course_id = sch.course_id
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN faculty f ON u.user_id = f.user_id
+                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id
+                WHERE u.user_id = :user_id
+            ");
+            $stmt->execute([':user_id' => $userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user) {
+                throw new Exception('User not found.');
+            }
+
+            // Extract stats
+            $facultyCount = $user['facultyCount'] ?? 0;
+            $coursesCount = $user['coursesCount'] ?? 0;
+            $specializationsCount = $user['specializationsCount'] ?? 0;
+            $pendingApplicantsCount = $user['pendingApplicantsCount'] ?? 0;
+            $currentSemester = $user['currentSemester'] ?? '2nd';
+            $lastLogin = $user['lastLogin'] ?? 'N/A';
 
             require_once __DIR__ . '/../views/dean/profile.php';
         } catch (Exception $e) {

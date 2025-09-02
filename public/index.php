@@ -109,6 +109,10 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::dashboard");
             $controller->dashboard();
             break;
+        case '/director/schedule':
+            error_log("Routing to DirectorController::mySchedule");
+            $controller->mySchedule();
+            break;
         case '/director/monitor':
             error_log("Routing to DirectorController::monitoring");
             $controller->monitor();
@@ -356,7 +360,7 @@ if (in_array($path, $publicRoutes)) {
         case '/public/sections':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
-                (new PublicController())->getDepartmentSections();
+                (new PublicController())->getSectionsByDepartment();
             } else {
                 http_response_code(405);
                 echo "Method Not Allowed";
@@ -365,7 +369,7 @@ if (in_array($path, $publicRoutes)) {
         case '/public/departments':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
-                (new PublicController())->getCollegeDepartments();
+                (new PublicController())->getDepartmentsByCollege();
             } else {
                 http_response_code(405);
                 echo "Method Not Allowed";

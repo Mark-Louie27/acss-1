@@ -167,24 +167,6 @@
 
     <!-- Main Content -->
     <main class="container mx-auto px-6 py-12">
-        <!-- Hero Banner -->
-        <div class="bg-white rounded-2xl shadow-xl mb-12 overflow-hidden card-shadow gold-border">
-            <div class="flex flex-col md:flex-row">
-                <div class="p-8 md:w-3/5 bg-gradient-to-r from-gold-primary to-gold-dark shimmer-effect">
-                    <h2 class="text-3xl font-bold text-white mb-4">Find Your Class Schedule</h2>
-                    <p class="text-white text-opacity-90 mb-8 leading-relaxed">Access comprehensive class schedules for all courses, departments, and instructors at PRMSU. Plan your academic journey efficiently.</p>
-                    <div class="flex space-x-4">
-                        <a href="#search-form" class="bg-white text-gold-700 hover:bg-gray-50 font-medium py-3 px-6 rounded-lg transition shadow-md hover:shadow-lg flex items-center">
-                            <span>Search Now</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="md:w-2/5 bg-white flex items-center justify-center p-8">
-                    <img src="/assets/logo/main_logo/campus.jpg" alt="University Campus" class="rounded-lg shadow-lg object-cover w-full h-64" />
-                </div>
-            </div>
-        </div>
 
         <!-- Search Filters -->
         <div id="search-form" class="bg-white rounded-xl shadow-lg p-8 mb-12 card-shadow gold-border">
@@ -425,18 +407,35 @@
                 if (collegeId) {
                     fetch(`/public/departments?college_id=${collegeId}`)
                         .then(response => {
-                            if (!response.ok) throw new Error('Network response was not ok');
+                            console.log('Response status:', response.status);
+                            console.log('Response headers:', response.headers.get('content-type'));
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+
+                            const contentType = response.headers.get('content-type');
+                            if (!contentType || !contentType.includes('application/json')) {
+                                throw new Error('Response is not JSON');
+                            }
+
                             return response.json();
                         })
                         .then(departments => {
                             departmentSelect.innerHTML = '<option value="">All Departments</option>';
-                            departments.forEach(dept => {
-                                const option = new Option(dept.department_name, dept.department_id);
-                                departmentSelect.add(option);
-                            });
+                            if (Array.isArray(departments)) {
+                                departments.forEach(dept => {
+                                    const option = new Option(dept.department_name, dept.department_id);
+                                    departmentSelect.add(option);
+                                });
+                            }
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
                         })
-                        .catch(error => console.error('Error fetching departments:', error));
+                        .catch(error => {
+                            console.error('Error fetching departments:', error);
+                            departmentSelect.innerHTML = '<option value="">Error loading departments</option>';
+                            sectionSelect.innerHTML = '<option value="">All Sections</option>';
+                        });
                 } else {
                     departmentSelect.innerHTML = '<option value="">All Departments</option>';
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
@@ -451,17 +450,33 @@
                 if (deptId) {
                     fetch(`/public/sections?department_id=${deptId}`)
                         .then(response => {
-                            if (!response.ok) throw new Error('Network response was not ok');
+                            console.log('Response status:', response.status);
+                            console.log('Response headers:', response.headers.get('content-type'));
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+
+                            const contentType = response.headers.get('content-type');
+                            if (!contentType || !contentType.includes('application/json')) {
+                                throw new Error('Response is not JSON');
+                            }
+
                             return response.json();
                         })
                         .then(sections => {
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
-                            sections.forEach(section => {
-                                const option = new Option(section.section_name, section.section_id);
-                                sectionSelect.add(option);
-                            });
+                            if (Array.isArray(sections)) {
+                                sections.forEach(section => {
+                                    const option = new Option(`${section.section_name} (${section.year_level})`, section.section_id);
+                                    sectionSelect.add(option);
+                                });
+                            }
                         })
-                        .catch(error => console.error('Error fetching sections:', error));
+                        .catch(error => {
+                            console.error('Error fetching sections:', error);
+                            sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                        });
                 } else {
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
                 }
@@ -483,7 +498,15 @@
                     body: formData
                 })
                 .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Response is not JSON');
+                    }
+
                     return response.json();
                 })
                 .then(data => {
@@ -492,8 +515,8 @@
                         updateScheduleResults([]);
                         updatePagination(0, 0, 0);
                     } else {
-                        updateScheduleResults(data.schedules);
-                        updatePagination(data.total, data.page, data.per_page);
+                        updateScheduleResults(data.schedules || []);
+                        updatePagination(data.total || 0, data.page || 1, data.per_page || 10);
                     }
                 })
                 .catch(error => {

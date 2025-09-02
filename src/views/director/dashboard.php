@@ -393,7 +393,13 @@ ob_start();
                     </div>
                     <div class="semester-badge">
                         <i class="fas fa-clock action-icon"></i>
-                        <?php echo htmlspecialchars($data['semester']['semester_name'] ?? '2nd 2023-2024'); ?>
+                        <?php
+                        echo htmlspecialchars(
+                            $data['semester']
+                                ? $data['semester']['semester_name'] . ' ' . $data['semester']['academic_year']
+                                : 'Unknown Semester'
+                        );
+                        ?>
                     </div>
                 </div>
             </div>
@@ -447,55 +453,14 @@ ob_start();
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
-
-        <!-- Quick Actions Section -->
-        <div class="content-section">
-            <div class="section-header">
-                <h2 class="text-2xl font-bold text-gray-900 flex items-center">
-                    <i class="fas fa-bolt text-yellow-500 mr-3"></i>
-                    Quick Actions
-                </h2>
-                <p class="text-gray-600 mt-1">Frequently used administrative functions</p>
-            </div>
-
-            <div class="quick-actions-grid">
-                <button class="quick-action-btn group">
-                    <i class="fas fa-file-alt action-icon group-hover:rotate-12 transition-transform"></i>
-                    <span>Review Curriculum</span>
-                </button>
-                <button class="secondary-action-btn group">
-                    <i class="fas fa-users text-yellow-600 action-icon group-hover:scale-110 transition-transform"></i>
-                    <span>Manage Faculty</span>
-                </button>
-                <button class="secondary-action-btn group">
-                    <i class="fas fa-check-circle text-green-600 action-icon group-hover:scale-110 transition-transform"></i>
-                    <span>Approve Room Reservations</span>
-                </button>
-                <?php if (!$data['deadline']): ?>
-                    <a href="/director/schedule_deadline" class="secondary-action-btn group">
-                        <i class="fas fa-clock text-orange-600 action-icon group-hover:scale-110 transition-transform"></i>
-                        <span>Set Schedule Deadline</span>
-                    </a>
-                <?php endif; ?>
+            <div class="flex justify-end mt-4 px-6 pb-4">
+                <a href="/director/schedule" class="text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium px-4 py-2 rounded-lg shadow-sm transition-colors duration-200">
+                    View Full Schedule
+                </a>
             </div>
         </div>
 
-        <!-- System Status Footer -->
-        <div class="mt-8 text-center">
-            <div class="inline-flex items-center space-x-4 bg-white rounded-full px-6 py-3 shadow-sm border">
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 <?php echo ($data['has_db_error']) ? 'bg-red-400' : 'bg-green-400'; ?> rounded-full animate-pulse"></div>
-                    <span class="text-sm text-gray-600"><?php echo ($data['has_db_error']) ? 'System Issues' : 'System Online'; ?></span>
-                </div>
-                <div class="text-sm text-gray-500">
-                    Welcome, <?php echo htmlspecialchars($_SESSION['first_name'] ?? $data['user']['first_name'] ?? 'Director'); ?>
-                </div>
-                <div class="text-sm text-gray-400">
-                    Last Updated: <?php echo htmlspecialchars($data['current_time']); ?>
-                </div>
-            </div>
-        </div>
+        
     </div>
 
     <!-- JavaScript for Interactions -->

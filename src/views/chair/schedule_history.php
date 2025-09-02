@@ -4,15 +4,15 @@ ob_start();
 <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 font-sans text-gray-800">
     <div class="container mx-auto p-6 lg:p-12">
         <!-- Header with enhanced styling -->
-        <div class="bg-white rounded-xl shadow-sm border-l-4 border-amber-500 p-6 mb-8">
+        <div class="bg-white rounded-xl shadow-sm border-l-4 border-yellow-500 p-6 mb-8">
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-2">Schedule History</h1>
                     <p class="text-gray-600 text-lg">View and manage historical schedule records</p>
                 </div>
                 <div class="hidden md:block">
-                    <div class="bg-amber-100 rounded-full p-4">
-                        <svg class="w-12 h-12 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="bg-yellow-100 rounded-full p-4">
+                        <svg class="w-12 h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                         </svg>
                     </div>
@@ -69,7 +69,7 @@ ob_start();
                 <div class="space-y-1">
                     <label for="semester_id" class="block text-sm font-semibold text-gray-700">Semester</label>
                     <div class="relative">
-                        <select name="semester_id" id="semester_id" class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 bg-white hover:border-amber-400" onchange="this.form.submit()">
+                        <select name="semester_id" id="semester_id" class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white hover:border-yellow-400" onchange="this.form.submit()">
                             <option value="">All Semesters</option>
                             <?php foreach ($allSemesters as $semester): ?>
                                 <option value="<?php echo htmlspecialchars($semester['semester_id']); ?>"
@@ -90,7 +90,7 @@ ob_start();
                 <div class="space-y-1">
                     <label for="academic_year" class="block text-sm font-semibold text-gray-700">Academic Year</label>
                     <div class="relative">
-                        <select name="academic_year" id="academic_year" class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 bg-white hover:border-amber-400" onchange="this.form.submit()">
+                        <select name="academic_year" id="academic_year" class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white hover:border-yellow-400" onchange="this.form.submit()">
                             <option value="">All Years</option>
                             <?php
                             $years = array_unique(array_column($allSemesters, 'academic_year'));
@@ -112,7 +112,7 @@ ob_start();
 
                 <!-- Search Button -->
                 <div class="md:col-span-1">
-                    <button type="submit" class="w-full bg-gradient-to-r from-amber-600 to-amber-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:from-amber-700 hover:to-amber-800 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transform hover:scale-105">
+                    <button type="submit" class="w-full bg-gradient-to-r from-yellow-600 to-yellow-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:from-yellow-700 hover:to-yellow-800 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transform hover:scale-105">
                         <div class="flex items-center justify-center">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -195,8 +195,8 @@ ob_start();
                                     <?php if ($showPeriod): ?>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
-                                                <div class="bg-amber-100 rounded-full p-2 mr-3">
-                                                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <div class="bg-yellow-100 rounded-full p-2 mr-3">
+                                                    <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                                                     </svg>
                                                 </div>
@@ -298,7 +298,7 @@ ob_start();
                 </div>
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">No Historical Records Found</h3>
                 <p class="text-gray-600 mb-6">There are no schedule records matching your current filter criteria.</p>
-                <a href="/chair/schedule_history" class="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors duration-200">
+                <a href="/chair/schedule_history" class="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors duration-200">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                     </svg>
