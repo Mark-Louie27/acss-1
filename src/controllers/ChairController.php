@@ -2566,39 +2566,37 @@ class ChairController
             // Log the search activity
             $this->logActivity($chairId, $departmentId, 'Search Faculty', "Searched for name: $name", 'users', null);
 
-            // Query for faculty in chair's department
+            // Query for users already in the chair's department (role_id 5 or 6)
             $query = "
-                SELECT 
-                    u.user_id,
-                    u.employee_id,
-                    u.first_name,
-                    u.last_name,
-                    r.role_name,
-                    f.academic_rank,
-                    f.employment_type,
-                    d.department_name,
-                    c.college_name,
-                    pc.program_id,
-                    p.program_name,
-                    deans.college_id AS dean_college_id
-                FROM 
-                    users u
-                    LEFT JOIN roles r ON u.role_id = r.role_id
-                    LEFT JOIN faculty f ON u.user_id = f.user_id
-                    LEFT JOIN departments d ON u.department_id = d.department_id
-                    LEFT JOIN colleges c ON u.college_id = c.college_id
-                    LEFT JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
-                    LEFT JOIN programs p ON pc.program_id = p.program_id
-                    LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
-                WHERE 
-                    u.role_id IN (2, 3, 4, 5, 6)
-                    AND u.college_id = :college_id
-                    AND u.department_id = :department_id
-                    AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
-                ORDER BY u.last_name, u.first_name
-                LIMIT 10";
+            SELECT 
+                u.user_id,
+                u.employee_id,
+                u.first_name,
+                u.last_name,
+                r.role_name,
+                f.academic_rank,
+                f.employment_type,
+                d.department_name,
+                c.college_name,
+                pc.program_id,
+                p.program_name,
+                deans.college_id AS dean_college_id
+            FROM 
+                users u
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN faculty f ON u.user_id = f.user_id
+                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.department_id = :department_id
+                JOIN departments d ON fd.department_id = d.department_id
+                JOIN colleges c ON d.college_id = c.college_id
+                LEFT JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
+                LEFT JOIN programs p ON pc.program_id = p.program_id
+                LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
+            WHERE 
+                u.role_id IN (1, 2, 3, 4, 5, 6) -- Include Program Chairs (5) and Faculty (6)
+                AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
+            ORDER BY u.last_name, u.first_name
+            LIMIT 10";
             $params = [
-                ':college_id' => $collegeId,
                 ':department_id' => $departmentId,
                 ':name1' => "%$name%",
                 ':name2' => "%$name%",
@@ -2617,33 +2615,49 @@ class ChairController
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             error_log("search: Found " . count($results) . " results");
 
-            // Query for includable faculty
+            // Query for includable users (role_id 5 or 6, not in current department, any college)
             $includableQuery = "
-                SELECT 
-                    u.user_id,
-                    u.employee_id,
-                    u.first_name,
-                    u.last_name,
-                    r.role_name,
-                    f.academic_rank,
-                    f.employment_type,
-                    d.department_name,
-                    c.college_name
-                FROM 
-                    users u
-                    LEFT JOIN roles r ON u.role_id = r.role_id
+            SELECT 
+                u.user_id,
+                u.employee_id,
+                u.first_name,
+                u.last_name,
+                r.role_name,
+                f.academic_rank,
+                f.employment_type,
+                d.department_name,
+                c.college_name,
+                GROUP_CONCAT(d.department_id SEPARATOR ', ') AS department_ids
+            FROM 
+                users u
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                LEFT JOIN faculty f ON u.user_id = f.user_id
+                LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                LEFT JOIN departments d ON fd.department_id = d.department_id
+                LEFT JOIN colleges c ON d.college_id = c.college_id OR u.college_id = c.college_id
+            WHERE 
+                u.role_id IN (1, 2, 3, 4, 5, 6) -- Include Program Chairs (5) and Faculty (6)
+                AND u.user_id NOT IN (
+                    SELECT u.user_id 
+                    FROM users u
                     LEFT JOIN faculty f ON u.user_id = f.user_id
-                    LEFT JOIN departments d ON u.department_id = d.department_id
-                    LEFT JOIN colleges c ON u.college_id = c.college_id
-                WHERE 
-                    u.role_id = 6
-                    AND (u.college_id = :college_id OR u.college_id IS NULL)
-                    AND (u.department_id != :department_id OR u.department_id IS NULL)
-                    AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
-                ORDER BY u.last_name, u.first_name
-                LIMIT 10";
+                    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id 
+                    WHERE fd.department_id = :department_id
+                )
+                AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
+            GROUP BY 
+                u.user_id,
+                u.employee_id,
+                u.first_name,
+                u.last_name,
+                r.role_name,
+                f.academic_rank,
+                f.employment_type,
+                d.department_name,
+                c.college_name
+            ORDER BY u.last_name, u.first_name
+            LIMIT 10";
             $includableParams = [
-                ':college_id' => $collegeId,
                 ':department_id' => $departmentId,
                 ':name1' => "%$name%",
                 ':name2' => "%$name%",
@@ -2714,32 +2728,32 @@ class ChairController
         $fetchFaculty = function ($collegeId, $departmentId) {
             $baseUrl = $this->baseUrl;
             $query = "
-                SELECT 
-                    u.user_id, 
-                    u.employee_id, 
-                    u.first_name, 
-                    u.last_name, 
-                    f.academic_rank, 
-                    f.employment_type, 
-                    c.course_name AS specialization,
-                    COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
-                    GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
-                    c2.college_name
-                FROM 
-                    faculty f 
-                    JOIN users u ON f.user_id = u.user_id 
-                    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                    JOIN departments d ON fd.department_id = d.department_id
-                    JOIN colleges c2 ON d.college_id = c2.college_id
-                    LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
-                    AND s.is_primary_specialization = 1
-                    LEFT JOIN courses c ON s.course_id = c.course_id
-                WHERE 
-                    fd.department_id = :department_id
-                GROUP BY 
-                    u.user_id, f.faculty_id
-                ORDER BY 
-                    u.last_name, u.first_name";
+            SELECT 
+                u.user_id, 
+                u.employee_id, 
+                u.first_name, 
+                u.last_name, 
+                f.academic_rank, 
+                f.employment_type, 
+                c.course_name AS specialization,
+                COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
+                GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
+                c2.college_name
+            FROM 
+                faculty f 
+                JOIN users u ON f.user_id = u.user_id 
+                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                JOIN departments d ON fd.department_id = d.department_id
+                JOIN colleges c2 ON d.college_id = c2.college_id
+                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
+                AND s.is_primary_specialization = 1
+                LEFT JOIN courses c ON s.course_id = c.course_id
+            WHERE 
+                fd.department_id = :department_id
+            GROUP BY 
+                u.user_id, f.faculty_id
+            ORDER BY 
+                u.last_name, u.first_name";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':department_id' => $departmentId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -2777,274 +2791,306 @@ class ChairController
                 case 'add_faculty':
                     try {
                         $userId = intval($_POST['user_id']);
-                        if ($departmentId && $collegeId) {
-                            $this->db->beginTransaction();
-
-                            $checkStmt = $this->db->prepare("SELECT u.role_id, u.department_id, u.employee_id FROM users u WHERE u.user_id = :user_id");
-                            $checkStmt->execute([':user_id' => $userId]);
-                            $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-                            if (!$user) {
-                                $this->db->rollBack();
-                                $error = "User does not exist.";
-                                error_log("faculty: User ID $userId does not exist");
-                            } elseif ($user['role_id'] != 6) {
-                                $this->db->rollBack();
-                                $error = "Only faculty members can be added to the department.";
-                                error_log("faculty: User ID $userId has invalid role_id: {$user['role_id']}");
-                            } else {
-                                $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
-                                $facultyCheckStmt->execute([':user_id' => $userId]);
-                                $facultyId = $facultyCheckStmt->fetchColumn();
-
-                                if ($facultyId) {
-                                    $updateFacultyStmt = $this->db->prepare("
-                                        UPDATE faculty 
-                                        SET 
-                                            academic_rank = :academic_rank,
-                                            employment_type = :employment_type,
-                                            max_hours = :max_hours,
-                                            updated_at = CURRENT_TIMESTAMP
-                                        WHERE user_id = :user_id");
-                                    $updateFacultyStmt->execute([
-                                        ':academic_rank' => 'Instructor',
-                                        ':employment_type' => 'Part-time',
-                                        ':max_hours' => 18.00,
-                                        ':user_id' => $userId
-                                    ]);
-                                } else {
-                                    $insertFacultyStmt = $this->db->prepare("
-                                        INSERT INTO faculty (
-                                            user_id, 
-                                            employee_id, 
-                                            academic_rank, 
-                                            employment_type, 
-                                            max_hours
-                                        ) VALUES (
-                                            :user_id, 
-                                            :employee_id, 
-                                            :academic_rank, 
-                                            :employment_type, 
-                                            :max_hours
-                                        )");
-                                    $insertFacultyStmt->execute([
-                                        ':user_id' => $userId,
-                                        ':employee_id' => $user['employee_id'],
-                                        ':academic_rank' => 'Instructor',
-                                        ':employment_type' => 'Part-time',
-                                        ':max_hours' => 18.00
-                                    ]);
-                                    $facultyId = $this->db->lastInsertId();
-                                }
-
-                                $deptCountStmt = $this->db->prepare("SELECT COUNT(*) FROM faculty_departments WHERE faculty_id = :faculty_id");
-                                $deptCountStmt->execute([':faculty_id' => $facultyId]);
-                                $deptCount = $deptCountStmt->fetchColumn();
-
-                                if ($deptCount >= 5) {
-                                    $this->db->rollBack();
-                                    $error = "Faculty member is already assigned to the maximum of 5 departments.";
-                                    error_log("faculty: User ID $userId already in $deptCount departments");
-                                } else {
-                                    $deptCheckStmt = $this->db->prepare("
-                                        SELECT faculty_department_id 
-                                        FROM faculty_departments 
-                                        WHERE faculty_id = :faculty_id AND department_id = :department_id");
-                                    $deptCheckStmt->execute([
-                                        ':faculty_id' => $facultyId,
-                                        ':department_id' => $departmentId
-                                    ]);
-                                    $existingDept = $deptCheckStmt->fetchColumn();
-
-                                    if ($existingDept) {
-                                        $this->db->rollBack();
-                                        $error = "This faculty member is already in your department.";
-                                        error_log("faculty: User ID $userId already in department_id=$departmentId");
-                                    } else {
-                                        $primaryCheckStmt = $this->db->prepare("
-                                            SELECT COUNT(*) 
-                                            FROM faculty_departments 
-                                            WHERE faculty_id = :faculty_id AND is_primary = 1");
-                                        $primaryCheckStmt->execute([':faculty_id' => $facultyId]);
-                                        $hasPrimary = $primaryCheckStmt->fetchColumn() > 0;
-
-                                        $insertDeptStmt = $this->db->prepare("
-                                            INSERT INTO faculty_departments (
-                                                faculty_id, 
-                                                department_id, 
-                                                is_primary
-                                            ) VALUES (
-                                                :faculty_id, 
-                                                :department_id, 
-                                                :is_primary
-                                            )");
-                                        $insertDeptStmt->execute([
-                                            ':faculty_id' => $facultyId,
-                                            ':department_id' => $departmentId,
-                                            ':is_primary' => $hasPrimary ? 0 : 1
-                                        ]);
-
-                                        if (!$hasPrimary) {
-                                            $updateStmt = $this->db->prepare("
-                                                UPDATE users 
-                                                SET department_id = :department_id, college_id = :college_id 
-                                                WHERE user_id = :user_id");
-                                            $updateStmt->execute([
-                                                ':department_id' => $departmentId,
-                                                ':college_id' => $collegeId,
-                                                ':user_id' => $userId
-                                            ]);
-                                        }
-
-                                        $this->db->commit();
-                                        $success = "Faculty member added successfully.";
-                                        // Log the add faculty activity
-                                        $this->logActivity($chairId, $departmentId, 'Add Faculty', "Added faculty username=" . $_SESSION['username'] . " to department_id=$departmentId", 'faculty_departments', $this->db->lastInsertId());
-                                        error_log("faculty: Added user_id=$userId to department_id=$departmentId, faculty_id=$facultyId, is_primary=" . ($hasPrimary ? 0 : 1));
-                                        $faculty = $fetchFaculty($collegeId, $departmentId);
-                                    }
-                                }
-                            }
-                        } else {
-                            $error = "Cannot add faculty: No department assigned to this chair.";
-                            error_log("faculty: Cannot add faculty, no department_id for chair_id=$chairId");
+                        if (!$departmentId || !$collegeId) {
+                            throw new Exception("Cannot add faculty: Invalid or missing department or college ID.");
                         }
-                    } catch (PDOException $e) {
+
+                        $this->db->beginTransaction();
+
+                        $checkStmt = $this->db->prepare("SELECT u.role_id, u.department_id, u.employee_id FROM users u WHERE u.user_id = :user_id");
+                        $checkStmt->execute([':user_id' => $userId]);
+                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                        error_log("faculty: User check for user_id=$userId: " . print_r($user, true));
+
+                        if (!$user) {
+                            throw new Exception("User does not exist.");
+                        } elseif ($user['role_id'] != 6) {
+                            throw new Exception("Only faculty members can be added to the department.");
+                        }
+
+                        $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyCheckStmt->execute([':user_id' => $userId]);
+                        $facultyId = $facultyCheckStmt->fetchColumn();
+                        error_log("faculty: Faculty check for user_id=$userId, faculty_id=$facultyId");
+
+                        if ($facultyId) {
+                            $updateFacultyStmt = $this->db->prepare("
+                            UPDATE faculty 
+                            SET 
+                                academic_rank = :academic_rank,
+                                employment_type = :employment_type,
+                                max_hours = :max_hours,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = :user_id");
+                            $updateFacultyStmt->execute([
+                                ':academic_rank' => 'Instructor',
+                                ':employment_type' => 'Part-time',
+                                ':max_hours' => 18.00,
+                                ':user_id' => $userId
+                            ]);
+                            error_log("faculty: Updated faculty_id=$facultyId for user_id=$userId");
+                        } else {
+                            $insertFacultyStmt = $this->db->prepare("
+                            INSERT INTO faculty (
+                                user_id, 
+                                employee_id, 
+                                academic_rank, 
+                                employment_type, 
+                                max_hours
+                            ) VALUES (
+                                :user_id, 
+                                :employee_id, 
+                                :academic_rank, 
+                                :employment_type, 
+                                :max_hours
+                            )");
+                            $insertFacultyStmt->execute([
+                                ':user_id' => $userId,
+                                ':employee_id' => $user['employee_id'],
+                                ':academic_rank' => 'Instructor',
+                                ':employment_type' => 'Part-time',
+                                ':max_hours' => 18.00
+                            ]);
+                            $facultyId = $this->db->lastInsertId();
+                            error_log("faculty: Inserted new faculty_id=$facultyId for user_id=$userId");
+                        }
+
+                        $deptCountStmt = $this->db->prepare("SELECT COUNT(*) FROM faculty_departments WHERE faculty_id = :faculty_id");
+                        $deptCountStmt->execute([':faculty_id' => $facultyId]);
+                        $deptCount = $deptCountStmt->fetchColumn();
+                        error_log("faculty: Department count for faculty_id=$facultyId: $deptCount");
+
+                        if ($deptCount >= 5) {
+                            throw new Exception("Faculty member is already assigned to the maximum of 5 departments.");
+                        }
+
+                        $deptCheckStmt = $this->db->prepare("
+                        SELECT faculty_department_id 
+                        FROM faculty_departments 
+                        WHERE faculty_id = :faculty_id AND department_id = :department_id");
+                        $deptCheckStmt->execute([
+                            ':faculty_id' => $facultyId,
+                            ':department_id' => $departmentId
+                        ]);
+                        $existingDept = $deptCheckStmt->fetchColumn();
+                        error_log("faculty: Existing dept check for faculty_id=$facultyId, department_id=$departmentId: " . ($existingDept ? 'Exists' : 'Not found'));
+
+                        if ($existingDept) {
+                            throw new Exception("This faculty member is already in your department.");
+                        }
+
+                        $primaryCheckStmt = $this->db->prepare("
+                        SELECT COUNT(*) 
+                        FROM faculty_departments 
+                        WHERE faculty_id = :faculty_id AND is_primary = 1");
+                        $primaryCheckStmt->execute([':faculty_id' => $facultyId]);
+                        $hasPrimary = $primaryCheckStmt->fetchColumn() > 0;
+                        error_log("faculty: Has primary dept for faculty_id=$facultyId: " . ($hasPrimary ? 'Yes' : 'No'));
+
+                        $insertDeptStmt = $this->db->prepare("
+                        INSERT INTO faculty_departments (
+                            faculty_id, 
+                            department_id, 
+                            is_primary
+                        ) VALUES (
+                            :faculty_id, 
+                            :department_id, 
+                            :is_primary
+                        )");
+                        $insertDeptStmt->execute([
+                            ':faculty_id' => $facultyId,
+                            ':department_id' => $departmentId,
+                            ':is_primary' => $hasPrimary ? 0 : 1
+                        ]);
+                        error_log("faculty: Inserted into faculty_departments for faculty_id=$facultyId, department_id=$departmentId, is_primary=" . ($hasPrimary ? 0 : 1));
+
+                        if (!$hasPrimary) {
+                            $updateStmt = $this->db->prepare("
+                            UPDATE users 
+                            SET department_id = :department_id, college_id = :college_id 
+                            WHERE user_id = :user_id");
+                            $updateStmt->execute([
+                                ':department_id' => $departmentId,
+                                ':college_id' => $collegeId,
+                                ':user_id' => $userId
+                            ]);
+                            error_log("faculty: Updated users for user_id=$userId, department_id=$departmentId, college_id=$collegeId");
+                        }
+
+                        $this->db->commit();
+                        $faculty = $fetchFaculty($collegeId, $departmentId); // Refresh faculty list
+                        $response = [
+                            'success' => true,
+                            'message' => "Faculty member added successfully.",
+                            'faculty' => $faculty
+                        ];
+                        $this->logActivity($chairId, $departmentId, 'Add Faculty', "Added faculty username=" . $_SESSION['username'] . " to department_id=$departmentId", 'faculty_departments', $this->db->lastInsertId());
+                        error_log("faculty: Added user_id=$userId to department_id=$departmentId, faculty_id=$facultyId, is_primary=" . ($hasPrimary ? 0 : 1));
+                    } catch (PDOException | Exception $e) {
                         $this->db->rollBack();
-                        $error = "Failed to add faculty: " . htmlspecialchars($e->getMessage());
-                        error_log("faculty: Add Faculty Error: " . $e->getMessage());
+                        $response = [
+                            'success' => false,
+                            'message' => "Failed to add faculty: " . htmlspecialchars($e->getMessage())
+                        ];
+                        error_log("faculty: Add Faculty Error: " . $e->getMessage() . " at " . ($e instanceof PDOException ? $e->getFile() . ":" . $e->getLine() : ''));
                     }
+                    ob_clean();
+                    echo json_encode($response);
+                    exit;
                     break;
 
                 case 'remove_faculty':
                     try {
                         $userId = intval($_POST['user_id']);
-                        if ($departmentId) {
-                            $this->db->beginTransaction();
+                        if (!$departmentId) {
+                            throw new Exception("Cannot remove faculty: No department assigned to this chair.");
+                        }
 
-                            $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
-                            $facultyCheckStmt->execute([':user_id' => $userId]);
-                            $facultyId = $facultyCheckStmt->fetchColumn();
+                        $this->db->beginTransaction();
 
-                            if (!$facultyId) {
-                                $this->db->rollBack();
-                                $error = "Faculty member not found.";
-                                error_log("faculty: User ID $userId not found in faculty table");
-                            } else {
-                                $deptCheckStmt = $this->db->prepare("
-                                    SELECT faculty_department_id, is_primary 
-                                    FROM faculty_departments 
-                                    WHERE faculty_id = :faculty_id AND department_id = :department_id");
-                                $deptCheckStmt->execute([
+                        $facultyCheckStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyCheckStmt->execute([':user_id' => $userId]);
+                        $facultyId = $facultyCheckStmt->fetchColumn();
+
+                        if (!$facultyId) {
+                            throw new Exception("Faculty member not found.");
+                        }
+
+                        $deptCheckStmt = $this->db->prepare("
+                        SELECT faculty_department_id, is_primary 
+                        FROM faculty_departments 
+                        WHERE faculty_id = :faculty_id AND department_id = :department_id");
+                        $deptCheckStmt->execute([
+                            ':faculty_id' => $facultyId,
+                            ':department_id' => $departmentId
+                        ]);
+                        $deptInfo = $deptCheckStmt->fetch(PDO::FETCH_ASSOC);
+
+                        if (!$deptInfo) {
+                            throw new Exception("This faculty member is not in your department.");
+                        }
+
+                        $deleteDeptStmt = $this->db->prepare("
+                        DELETE FROM faculty_departments 
+                        WHERE faculty_id = :faculty_id AND department_id = :department_id");
+                        $deleteDeptStmt->execute([
+                            ':faculty_id' => $facultyId,
+                            ':department_id' => $departmentId
+                        ]);
+
+                        if ($deptInfo['is_primary']) {
+                            $updateStmt = $this->db->prepare("
+                            UPDATE users 
+                            SET department_id = NULL 
+                            WHERE user_id = :user_id");
+                            $updateStmt->execute([':user_id' => $userId]);
+
+                            $newPrimaryStmt = $this->db->prepare("
+                            SELECT department_id 
+                            FROM faculty_departments 
+                            WHERE faculty_id = :faculty_id 
+                            LIMIT 1");
+                            $newPrimaryStmt->execute([':faculty_id' => $facultyId]);
+                            $newPrimaryDept = $newPrimaryStmt->fetchColumn();
+
+                            if ($newPrimaryDept) {
+                                $updateDeptStmt = $this->db->prepare("
+                                UPDATE faculty_departments 
+                                SET is_primary = 1 
+                                WHERE faculty_id = :faculty_id AND department_id = :department_id");
+                                $updateDeptStmt->execute([
                                     ':faculty_id' => $facultyId,
-                                    ':department_id' => $departmentId
+                                    ':department_id' => $newPrimaryDept
                                 ]);
-                                $deptInfo = $deptCheckStmt->fetch(PDO::FETCH_ASSOC);
 
-                                if (!$deptInfo) {
-                                    $this->db->rollBack();
-                                    $error = "This faculty member is not in your department.";
-                                    error_log("faculty: User ID $userId not in department_id=$departmentId");
-                                } else {
-                                    $deleteDeptStmt = $this->db->prepare("
-                                        DELETE FROM faculty_departments 
-                                        WHERE faculty_id = :faculty_id AND department_id = :department_id");
-                                    $deleteDeptStmt->execute([
-                                        ':faculty_id' => $facultyId,
-                                        ':department_id' => $departmentId
+                                $collegeStmt = $this->db->prepare("
+                                SELECT college_id 
+                                FROM departments 
+                                WHERE department_id = :department_id");
+                                $collegeStmt->execute([':department_id' => $newPrimaryDept]);
+                                $newCollegeId = $collegeStmt->fetchColumn();
+
+                                if ($newCollegeId) {
+                                    $updateUserStmt = $this->db->prepare("
+                                    UPDATE users 
+                                    SET department_id = :department_id, college_id = :college_id 
+                                    WHERE user_id = :user_id");
+                                    $updateUserStmt->execute([
+                                        ':department_id' => $newPrimaryDept,
+                                        ':college_id' => $newCollegeId,
+                                        ':user_id' => $userId
                                     ]);
-
-                                    if ($deptInfo['is_primary']) {
-                                        $updateStmt = $this->db->prepare("
-                                            UPDATE users 
-                                            SET department_id = NULL, college_id = NULL 
-                                            WHERE user_id = :user_id");
-                                        $updateStmt->execute([':user_id' => $userId]);
-
-                                        $newPrimaryStmt = $this->db->prepare("
-                                            SELECT department_id 
-                                            FROM faculty_departments 
-                                            WHERE faculty_id = :faculty_id 
-                                            LIMIT 1");
-                                        $newPrimaryStmt->execute([':faculty_id' => $facultyId]);
-                                        $newPrimaryDept = $newPrimaryStmt->fetchColumn();
-
-                                        if ($newPrimaryDept) {
-                                            $updateDeptStmt = $this->db->prepare("
-                                                UPDATE faculty_departments 
-                                                SET is_primary = 1 
-                                                WHERE faculty_id = :faculty_id AND department_id = :department_id");
-                                            $updateDeptStmt->execute([
-                                                ':faculty_id' => $facultyId,
-                                                ':department_id' => $newPrimaryDept
-                                            ]);
-
-                                            $collegeStmt = $this->db->prepare("
-                                                SELECT college_id 
-                                                FROM departments 
-                                                WHERE department_id = :department_id");
-                                            $collegeStmt->execute([':department_id' => $newPrimaryDept]);
-                                            $newCollegeId = $collegeStmt->fetchColumn();
-
-                                            $updateUserStmt = $this->db->prepare("
-                                                UPDATE users 
-                                                SET department_id = :department_id, college_id = :college_id 
-                                                WHERE user_id = :user_id");
-                                            $updateUserStmt->execute([
-                                                ':department_id' => $newPrimaryDept,
-                                                ':college_id' => $newCollegeId,
-                                                ':user_id' => $userId
-                                            ]);
-                                        }
-                                    }
-
-                                    $this->db->commit();
-                                    $success = "Faculty member removed successfully.";
-                                    // Log the remove faculty activity
-                                    $this->logActivity($chairId, $departmentId, 'Remove Faculty', "Removed faculty user_id=$userId from department_id=$departmentId", 'faculty_departments', $deptInfo['faculty_department_id']);
-                                    error_log("faculty: Removed user_id=$userId from department_id=$departmentId");
-                                    $faculty = $fetchFaculty($collegeId, $departmentId);
+                                } else {
+                                    error_log("faculty: No college_id found for new primary department $newPrimaryDept");
+                                    throw new Exception("Failed to determine new college for faculty.");
+                                }
+                            } else {
+                                error_log("faculty: No new primary department found for faculty_id=$facultyId");
+                                $currentCollegeStmt = $this->db->prepare("SELECT college_id FROM users WHERE user_id = :user_id");
+                                $currentCollegeStmt->execute([':user_id' => $userId]);
+                                $currentCollegeId = $currentCollegeStmt->fetchColumn();
+                                if ($currentCollegeId) {
+                                    $updateUserStmt = $this->db->prepare("
+                                    UPDATE users 
+                                    SET department_id = NULL 
+                                    WHERE user_id = :user_id");
+                                    $updateUserStmt->execute([':user_id' => $userId]);
+                                } else {
+                                    throw new Exception("No current or new college assignment for faculty.");
                                 }
                             }
-                        } else {
-                            $error = "Cannot remove faculty: No department assigned to this chair.";
-                            error_log("faculty: Cannot remove faculty, no department_id for chair_id=$chairId");
                         }
-                    } catch (PDOException $e) {
+
+                        $this->db->commit();
+                        $faculty = $fetchFaculty($collegeId, $departmentId); // Refresh faculty list
+                        $response = [
+                            'success' => true,
+                            'message' => "Faculty member removed successfully.",
+                            'faculty' => $faculty
+                        ];
+                        $this->logActivity($chairId, $departmentId, 'Remove Faculty', "Removed faculty user_id=$userId from department_id=$departmentId", 'faculty_departments', $deptInfo['faculty_department_id']);
+                        error_log("faculty: Removed user_id=$userId from department_id=$departmentId");
+                    } catch (PDOException | Exception $e) {
                         $this->db->rollBack();
-                        $error = "Failed to remove faculty: " . htmlspecialchars($e->getMessage());
-                        error_log("faculty: Remove Faculty Error: " . $e->getMessage());
+                        $response = [
+                            'success' => false,
+                            'message' => "Failed to remove faculty: " . htmlspecialchars($e->getMessage())
+                        ];
+                        error_log("faculty: Remove Faculty Error: " . $e->getMessage() . " at " . ($e instanceof PDOException ? $e->getFile() . ":" . $e->getLine() : ''));
                     }
+                    ob_clean();
+                    echo json_encode($response);
+                    exit;
                     break;
 
                 case 'get_faculty_details':
                     try {
                         $userId = intval($_POST['user_id']);
                         $query = "
-                            SELECT 
-                                u.user_id, 
-                                u.employee_id, 
-                                u.first_name, 
-                                u.last_name, 
-                                f.academic_rank, 
-                                f.employment_type, 
-                                GROUP_CONCAT(CONCAT(c.course_name, IF(s.expertise_level IS NOT NULL, CONCAT(' (', s.expertise_level, ')'), '')) SEPARATOR ', ') AS specialization,
-                                COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
-                                GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
-                                c2.college_name,
-                                u.email
-                            FROM 
-                                faculty f 
-                                JOIN users u ON f.user_id = u.user_id 
-                                LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                                LEFT JOIN departments d ON fd.department_id = d.department_id
-                                LEFT JOIN colleges c2 ON u.college_id = c2.college_id
-                                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
-                                LEFT JOIN courses c ON s.course_id = c.course_id
-                            WHERE 
-                                u.user_id = :user_id
-                            GROUP BY 
-                                u.user_id, f.faculty_id";
+                        SELECT 
+                            u.user_id, 
+                            u.employee_id, 
+                            u.first_name, 
+                            u.last_name, 
+                            f.academic_rank, 
+                            f.employment_type, 
+                            GROUP_CONCAT(CONCAT(c.course_name, IF(s.expertise_level IS NOT NULL, CONCAT(' (', s.expertise_level, ')'), '')) SEPARATOR ', ') AS specialization,
+                            COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
+                            GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
+                            c2.college_name,
+                            u.email
+                        FROM 
+                            faculty f 
+                            JOIN users u ON f.user_id = u.user_id 
+                            LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                            LEFT JOIN departments d ON fd.department_id = d.department_id
+                            LEFT JOIN colleges c2 ON u.college_id = c2.college_id
+                            LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
+                            LEFT JOIN courses c ON s.course_id = c.course_id
+                        WHERE 
+                            u.user_id = :user_id
+                        GROUP BY 
+                            u.user_id, f.faculty_id";
                         $stmt = $this->db->prepare($query);
                         $stmt->execute([':user_id' => $userId]);
                         $facultyDetails = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -3060,7 +3106,6 @@ class ChairController
                             $facultyDetails['profile_picture'] = $this->baseUrl . $facultyDetails['profile_picture'];
                         }
 
-                        // Log the get faculty details activity
                         $this->logActivity($chairId, $departmentId, 'View Faculty Details', "Viewed details for user_id=$userId", 'users', $userId);
                         error_log("get_faculty_details: Fetched details for user_id=$userId");
                         ob_clean();
@@ -3073,6 +3118,8 @@ class ChairController
                         exit;
                     }
                     break;
+
+                default:
             }
         }
 

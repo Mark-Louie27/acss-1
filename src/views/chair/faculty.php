@@ -261,7 +261,7 @@ ob_start();
             </div>
         </div>
 
-        <div id="include-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div id="include-modal" class="modal fixed inset-0 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                     <h3 class="text-xl font-bold text-gray-dark">Include Faculty</h3>
@@ -282,7 +282,7 @@ ob_start();
             </div>
         </div>
 
-        <div id="remove-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div id="remove-modal" class="modal fixed inset-0 bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                     <h3 class="text-xl font-bold text-gray-dark">Remove Faculty</h3>
@@ -304,7 +304,7 @@ ob_start();
         </div>
 
         <!-- Faculty Details Modal -->
-        <div id="faculty-details-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden p-4">
+        <div id="faculty-details-modal" class="modal fixed inset-0 flex items-center justify-center z-50 hidden p-4">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] mx-4 transform modal-content scale-95 flex flex-col">
                 <!-- Header -->
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl flex-shrink-0">

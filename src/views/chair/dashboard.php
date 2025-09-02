@@ -9,7 +9,7 @@ ob_start();
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
-                <p class="text-gray-300 mt-2">Department of <?php echo htmlspecialchars($departmentName ?? 'Computer Science'); ?></p>
+                <p class="text-gray-300 mt-2"><?php echo htmlspecialchars($departmentName ?? 'Computer Science'); ?></p>
             </div>
             <div class="hidden md:flex items-center space-x-4">
                 <span class="text-sm bg-gray-700 px-3 py-1 rounded-full flex items-center">
