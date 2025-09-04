@@ -1,4 +1,6 @@
-
+<?php
+ob_start();
+?>
 
 <div class="p-6 bg-gray-50 min-h-screen font-sans">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">My Class Schedule</h2>
@@ -79,3 +81,7 @@
     </div>
 </div>
 
+<?php
+$content = ob_get_clean();
+require_once __DIR__ . '/layout.php';
+?>

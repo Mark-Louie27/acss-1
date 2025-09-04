@@ -1,4 +1,5 @@
 <?php
+ob_start();
 $schedules = isset($schedules) ? $schedules : [];
 $semesterName = isset($semesterName) ? $semesterName : 'Unknown Semester';
 $departmentName = isset($departmentName) ? $departmentName : 'Unknown Department';
@@ -99,3 +100,8 @@ $showAllSchedules = isset($showAllSchedules) ? $showAllSchedules : false;
         <?php endif; ?>
     </div>
 </div>
+
+<?php
+$content = ob_get_clean();
+require_once __DIR__ . '/layout.php';
+?>

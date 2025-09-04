@@ -114,7 +114,7 @@ class FacultyController
     public function mySchedule()
     {
         error_log("mySchedule: Starting mySchedule method");
-        ob_start();
+        
         try {
             $userId = $_SESSION['user_id'];
             $facultyId = $this->getFacultyId($userId);
@@ -123,8 +123,6 @@ class FacultyController
                 error_log("mySchedule: No faculty profile found for user_id: $userId");
                 $error = "No faculty profile found for this user.";
                 require_once __DIR__ . '/../views/faculty/my_schedule.php';
-                $content = ob_get_clean();
-                require_once __DIR__ . '/../views/faculty/layout.php';
                 return;
             }
 
@@ -135,8 +133,6 @@ class FacultyController
                 error_log("mySchedule: No current semester found");
                 $error = "No current semester defined. Please contact the administrator to set the current semester.";
                 require_once __DIR__ . '/../views/faculty/my_schedule.php';
-                $content = ob_get_clean();
-                require_once __DIR__ . '/../views/faculty/layout.php';
                 return;
             }
             $semesterId = $semester['semester_id'];
@@ -203,14 +199,11 @@ class FacultyController
 
             // Pass data to the view
             require_once __DIR__ . '/../views/faculty/my_schedule.php';
-            $content = ob_get_clean();
-            require_once __DIR__ . '/../views/faculty/layout.php';
         } catch (Exception $e) {
             error_log("mySchedule: Error - " . $e->getMessage());
             $error = "Failed to load schedule due to an error: " . htmlspecialchars($e->getMessage());
             require_once __DIR__ . '/../views/faculty/my_schedule.php';
-            $content = ob_get_clean();
-            require_once __DIR__ . '/../views/faculty/layout.php';
+            return;
         }
     }
     /**

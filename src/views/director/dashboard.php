@@ -373,7 +373,7 @@ ob_start();
                             <p class="text-orange-700">Current deadline: <?php echo htmlspecialchars(date('F j, Y \a\t g:i A', strtotime($data['deadline']))); ?></p>
                         </div>
                     </div>
-                    <a href="/director/set-" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
+                    <a href="/director/schedule_deadline" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200">
                         Update Deadline
                     </a>
                 </div>

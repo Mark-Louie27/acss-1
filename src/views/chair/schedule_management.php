@@ -49,6 +49,14 @@ ob_start();
             </div>
         </div>
 
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p class="text-gray-700">Generating schedules... Please wait.</p>
+            </div>
+        </div>
+
         <!-- Tab Content -->
         <div class="tab-content">
             <!-- Manual Edit Tab -->
@@ -122,7 +130,6 @@ ob_start();
 
             <!-- Generate Schedules Tab -->
             <div class="tab-pane <?php echo $activeTab === 'generate' ? 'active' : 'hidden'; ?>" id="generate" role="tabpanel">
-                <!-- Inside the Generate Schedules Tab, after the form -->
                 <div class="bg-white rounded-md shadow-md p-6">
                     <h3 class="text-xl font-semibold text-gray-900 mb-4">Generate Schedules</h3>
                     <form method="POST" action="/chair/schedule_management" class="grid grid-cols-1 gap-6" id="generate-form">
@@ -138,10 +145,7 @@ ob_start();
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></label>
-                            <input type="hidden" name="semester_id" value="<?php echo htmlspecialchars($currentSemester['semester_id'] ?? ''); ?>">
-                        </div>
+
                         <div>
                             <label for="year_levels" class="block text-sm font-medium text-gray-700">Year Levels</label>
                             <select name="year_levels[]" id="year_levels" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" multiple onchange="updateSections()">
@@ -154,72 +158,17 @@ ob_start();
                                 <option value="">Select Section</option>
                             </select>
                         </div>
-                        <?php if (isset($unassignedWarning) && $unassignedWarning): ?>
-                            <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md mb-6 shadow-md">
-                                <p class="font-medium">if the subjects are not assigned to curriculums, Manual HAHAHA</p>
-                                <button type="submit" class="mt-2 bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-                                    Generate Schedules Again
-                                </button>
-                            </div>
-                        <?php endif; ?>
                         <div>
-                            <button type="submit" id="generate-schedules-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
+                            <label class="block text-sm font-medium text-gray-700">Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></label>
+                            <input type="hidden" name="semester_id" value="<?php echo htmlspecialchars($currentSemester['semester_id'] ?? ''); ?>">
+                        </div>
+                        <div>
+                            <button type="button" id="generate-schedules-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
                                 Generate Schedules
                             </button>
                         </div>
                     </form>
-                    <?php if (isset($success)): ?>
-                        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mt-4 shadow-md">
-                            <?php echo htmlspecialchars($success); ?>
-                            <?php if (isset($schedules) && count($schedules) > 0): ?>
-                                <button onclick="window.location.href='/chair/schedule-management?tab=manual'" class="mt-2 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700">
-                                    View/Edit Schedule
-                                </button>
-                            <?php endif; ?>
-                            <?php if (isset($unassignedCourses) && empty($unassignedCourses)): ?>
-                                <p class="mt-2 text-sm font-medium">All schedules have been successfully completed!</p>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (isset($error)): ?>
-                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mt-4 shadow-md">
-                            <?php echo htmlspecialchars($error); ?>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (isset($success) && isset($schedules) && count($schedules) > 0): ?>
-                        <div class="mt-6">
-                            <h4 class="text-lg font-semibold text-gray-900 mb-2">Generated Schedules Preview</h4>
-                            <div class="schedule-table-container overflow-x-auto">
-                                <table class="w-full schedule-table border-collapse">
-                                    <thead>
-                                        <tr class="bg-gray-50">
-                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Section</th>
-                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Course</th>
-                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Day</th>
-                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Time</th>
-                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Faculty</th>
-                                            <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Room</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($schedules as $schedule): ?>
-                                            <tr>
-                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['section_name'] ?? 'N/A'); ?></td>
-                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['course_code'] ?? 'N/A') . ' - ' . htmlspecialchars($schedule['course_name'] ?? 'N/A'); ?></td>
-                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['day_of_week'] ?? 'N/A'); ?></td>
-                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['start_time'] ?? 'N/A') . ' - ' . htmlspecialchars($schedule['end_time'] ?? 'N/A'); ?></td>
-                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['faculty_name'] ?? 'N/A'); ?></td>
-                                                <td class="border-b border-gray-200 p-3 text-sm text-gray-700"><?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <button onclick="window.location.href='/chair/schedule-management?tab=manual'" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors duration-200">
-                                Edit in Manual Mode
-                            </button>
-                        </div>
-                    <?php endif; ?>
+                    <div id="generation-result"></div>
                 </div>
             </div>
 
@@ -401,15 +350,15 @@ ob_start();
 <script>
     const departmentId = <?php echo json_encode($departmentId); ?>;
     const times = [
-        ['07:30', '08:30'], // 60 minutes
-        ['08:30', '10:00'], // 90 minutes
-        ['10:00', '11:00'], // 60 minutes
-        ['11:00', '12:30'], // 90 minutes
-        ['12:30', '13:30'], // 60 minutes
-        ['13:00', '14:30'], // 90 minutes
-        ['14:30', '15:30'], // 60 minutes
-        ['15:30', '17:00'], // 90 minutes
-        ['17:00', '18:00'] // 60 minutes
+        ['07:30', '08:30'],
+        ['08:30', '10:00'],
+        ['10:00', '11:00'],
+        ['11:00', '12:30'],
+        ['12:30', '13:30'],
+        ['13:00', '14:30'],
+        ['14:30', '15:30'],
+        ['15:30', '17:00'],
+        ['17:00', '18:00']
     ];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     let scheduleData = <?php echo json_encode($schedules); ?> || [];
@@ -729,7 +678,38 @@ ob_start();
 
         const generateBtn = document.getElementById('generate-schedules-btn');
         generateBtn.addEventListener('click', () => {
-            document.getElementById('generate-form').submit();
+            const form = document.getElementById('generate-form');
+            const formData = new FormData(form);
+
+            // Show loading overlay
+            const loadingOverlay = document.getElementById('loading-overlay');
+            loadingOverlay.classList.remove('hidden');
+
+            fetch('/chair/generate-schedules', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingOverlay.classList.add('hidden');
+                    if (data.success) {
+                        scheduleData = data.schedules;
+                        const resultDiv = document.getElementById('generation-result');
+                        resultDiv.innerHTML = `<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mt-4 shadow-md">
+                        ${data.message}
+                        ${data.unassigned ? '<p class="mt-2 text-yellow-700">Warning: Some courses were not assigned. Please check manually.</p>' : '<p class="mt-2 text-sm font-medium">All schedules have been successfully completed!</p>'}
+                        <button onclick="window.location.href='/chair/schedule-management?tab=manual'" class="mt-2 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700">View/Edit Schedule</button>
+                    </div>`;
+                        renderSchedules(); // Update manual tab if visible
+                    } else {
+                        document.getElementById('generation-result').innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mt-4 shadow-md">${data.message}</div>`;
+                    }
+                })
+                .catch(error => {
+                    loadingOverlay.classList.add('hidden');
+                    document.getElementById('generation-result').innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mt-4 shadow-md">Error generating schedules: ${error.message}</div>`;
+                    console.error('Error:', error);
+                });
         });
     });
 </script>
@@ -769,6 +749,8 @@ ob_start();
         align-items: center;
         gap: 0.5rem;
     }
+
+
 
     @media (max-width: 768px) {
         .schedule-table {
@@ -844,6 +826,24 @@ ob_start();
 
         .schedule-item button {
             display: none;
+        }
+
+        #loading-overlay {
+            transition: opacity 0.3s ease;
+        }
+
+        #loading-overlay .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
     }
 </style>

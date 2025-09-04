@@ -23,12 +23,15 @@
             font-family: 'Montserrat', sans-serif;
             background-color: #FAFAFA;
             color: #333;
+            margin: 0;
+            padding: 0;
         }
 
         .hero-pattern {
             background: linear-gradient(135deg, var(--gold-primary), var(--gold-secondary));
             position: relative;
             overflow: hidden;
+            padding: 1rem 0;
         }
 
         .hero-pattern::after {
@@ -45,11 +48,14 @@
 
         .form-input {
             @apply rounded-lg border-gray-300 focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50 transition duration-150;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .btn-primary {
             background: linear-gradient(135deg, var(--gold-dark), var(--gold-primary));
             @apply text-white font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out shadow-md hover:shadow-lg focus:outline-none;
+            width: 100%;
         }
 
         .btn-primary:hover {
@@ -59,6 +65,7 @@
 
         .btn-secondary {
             @apply bg-white text-gold-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg transition shadow-md hover:shadow-lg;
+            width: 100%;
         }
 
         .schedule-card {
@@ -132,6 +139,96 @@
                 left: 150%;
             }
         }
+
+        /* Responsive Adjustments */
+        @media (max-width: 640px) {
+            .hero-pattern .flex {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .hero-pattern nav {
+                margin-top: 1rem;
+                width: 100%;
+            }
+
+            .hero-pattern nav a {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+
+            #search-form {
+                padding: 1rem;
+            }
+
+            #search-form .grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            #search-form .md:col-span-2 {
+                grid-column: span 1;
+            }
+
+            .schedule-table {
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 600px;
+            }
+
+            .pagination-info {
+                font-size: 0.75rem;
+            }
+
+            footer .grid {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            footer .flex-col {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            footer .space-x-4 {
+                justify-content: center;
+            }
+        }
+
+        @media (min-width: 641px) and (max-width: 1024px) {
+            #search-form .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            #search-form .md:col-span-2 {
+                grid-column: span 2;
+            }
+
+            table {
+                min-width: 800px;
+            }
+
+            footer .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1025px) {
+            #search-form .grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            table {
+                min-width: 100%;
+            }
+
+            footer .grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
     </style>
 </head>
 
@@ -152,11 +249,11 @@
                     </div>
                 </div>
                 <nav class="flex space-x-3">
-                    <a href="/auth/login" class="bg-white hover:bg-gray-50 text-gold-700 py-2 px-5 rounded-lg flex items-center transition-all shadow-md hover:shadow-lg">
+                    <a href="/auth/login" class="bg-white hover:bg-gray-50 text-gold-700 py-2 px-5 rounded-lg flex items-center transition-all shadow-md hover:shadow-lg nav-link">
                         <i class="fas fa-sign-in-alt mr-2"></i>
                         <span>Login</span>
                     </a>
-                    <a href="/register" class="btn-primary px-5 flex items-center">
+                    <a href="/register" class="btn-primary px-5 flex items-center nav-link">
                         <i class="fas fa-user-plus mr-2"></i>
                         <span>Register</span>
                     </a>
@@ -166,8 +263,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-6 py-12">
-
+    <main class="container mx-auto px-6 py-12 mt-24">
         <!-- Search Filters -->
         <div id="search-form" class="bg-white rounded-xl shadow-lg p-8 mb-12 card-shadow gold-border">
             <h3 class="text-xl font-semibold mb-6 gold-gradient-text">Find Your Class Schedule</h3>
@@ -176,7 +272,7 @@
                 <div>
                     <label for="college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
                     <div class="relative">
-                        <select id="college" name="college_id" class="w-full form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="college" name="college_id" class="form-input pl-10 py-3 border-2 border-yellow-500">
                             <option value="">All Colleges</option>
                             <?php foreach ($colleges as $college): ?>
                                 <option value="<?= $college['college_id'] ?>"><?= $college['college_name'] ?></option>
@@ -192,7 +288,7 @@
                 <div>
                     <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                     <div class="relative">
-                        <select id="department" name="department_id" class="w-full form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="department" name="department_id" class="form-input pl-10 py-3 border-2 border-yellow-500">
                             <option value="">All Departments</option>
                             <?php foreach ($departments as $department): ?>
                                 <option value="<?= $department['department_id'] ?>"><?= $department['department_name'] ?></option>
@@ -208,7 +304,7 @@
                 <div>
                     <label for="year_level" class="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
                     <div class="relative">
-                        <select id="year_level" name="year_level" class="w-full form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="year_level" name="year_level" class="form-input pl-10 py-3 border-2 border-yellow-500">
                             <option value="">All Levels</option>
                             <option value="1st Year">1st Year</option>
                             <option value="2nd Year">2nd Year</option>
@@ -225,7 +321,7 @@
                 <div>
                     <label for="section" class="block text-sm font-medium text-gray-700 mb-2">Section</label>
                     <div class="relative">
-                        <select id="section" name="section_id" class="w-full form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="section" name="section_id" class="form-input pl-10 py-3 border-2 border-yellow-500">
                             <option value="">All Sections</option>
                         </select>
                         <div class="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -240,7 +336,7 @@
                     <div class="relative">
                         <input type="text" id="global-search" name="search"
                             placeholder="Search courses, instructors..."
-                            class="w-full form-input pl-12 py-3 border-2 border-yellow-500">
+                            class="form-input pl-12 py-3 border-2 border-yellow-500">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-4">
                             <i class="fas fa-search text-yellow-600"></i>
                         </div>
@@ -258,23 +354,23 @@
         </div>
 
         <!-- Schedule Table -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto schedule-table">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Course
                         </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Section
                         </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Schedule
                         </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Room
                         </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Instructor
                         </th>
                     </tr>
@@ -297,7 +393,7 @@
             </div>
             <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                 <div>
-                    <p class="text-sm text-gray-700" id="pagination-info">
+                    <p class="text-sm text-gray-700 pagination-info" id="pagination-info">
                         Showing <span class="font-medium">0</span> to <span class="font-medium">0</span> of <span class="font-medium">0</span> results
                     </p>
                 </div>
@@ -407,18 +503,9 @@
                 if (collegeId) {
                     fetch(`/public/departments?college_id=${collegeId}`)
                         .then(response => {
-                            console.log('Response status:', response.status);
-                            console.log('Response headers:', response.headers.get('content-type'));
-
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const contentType = response.headers.get('content-type');
-                            if (!contentType || !contentType.includes('application/json')) {
-                                throw new Error('Response is not JSON');
-                            }
-
+                            if (!contentType || !contentType.includes('application/json')) throw new Error('Response is not JSON');
                             return response.json();
                         })
                         .then(departments => {
@@ -450,18 +537,9 @@
                 if (deptId) {
                     fetch(`/public/sections?department_id=${deptId}`)
                         .then(response => {
-                            console.log('Response status:', response.status);
-                            console.log('Response headers:', response.headers.get('content-type'));
-
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-
+                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const contentType = response.headers.get('content-type');
-                            if (!contentType || !contentType.includes('application/json')) {
-                                throw new Error('Response is not JSON');
-                            }
-
+                            if (!contentType || !contentType.includes('application/json')) throw new Error('Response is not JSON');
                             return response.json();
                         })
                         .then(sections => {
@@ -498,15 +576,9 @@
                     body: formData
                 })
                 .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) {
-                        throw new Error('Response is not JSON');
-                    }
-
+                    if (!contentType || !contentType.includes('application/json')) throw new Error('Response is not JSON');
                     return response.json();
                 })
                 .then(data => {
@@ -544,22 +616,22 @@
             schedules.forEach(schedule => {
                 const row = `
                     <tr class="hover:bg-yellow-50 transition-colors schedule-card">
-                        <td class="px-6 py-4">
+                        <td class="px-4 py-3">
                             <div class="font-medium text-gold-primary">${schedule.course_code}</div>
                             <div class="text-sm text-gray-500">${schedule.course_name}</div>
                         </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
+                        <td class="px-4 py-3 text-sm text-gray-500">
                             ${schedule.section_name}
                         </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
+                        <td class="px-4 py-3 text-sm text-gray-500">
                             <span class="px-2 py-1 rounded-full bg-gold-light text-gold-dark text-xs">
                                 ${schedule.day_of_week} ${schedule.start_time} - ${schedule.end_time}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
+                        <td class="px-4 py-3 text-sm text-gray-500">
                             ${schedule.room_name ? schedule.room_name + ' (' + schedule.building + ')' : 'TBA'}
                         </td>
-                        <td class="px-6 py-4 text-sm">
+                        <td class="px-4 py-3 text-sm">
                             ${schedule.instructor_name}
                         </td>
                     </tr>
@@ -573,18 +645,13 @@
             const paginationNav = document.getElementById('pagination-nav');
             const totalPages = Math.ceil(total / perPage);
 
-            // Update pagination info
             const start = (currentPage - 1) * perPage + 1;
             const end = Math.min(currentPage * perPage, total);
             paginationInfo.innerHTML = `
                 Showing <span class="font-medium">${start}</span> to <span class="font-medium">${end}</span> of <span class="font-medium">${total}</span> results
             `;
 
-            // Update pagination navigation
-            paginationNav.innerHTML = '';
-
-            // Previous button
-            paginationNav.innerHTML += `
+            paginationNav.innerHTML = `
                 <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === 1 ? 'cursor-not-allowed' : ''}" 
                    ${currentPage > 1 ? `onclick="fetchSchedules(${currentPage - 1})"` : ''}>
                     <span class="sr-only">Previous</span>
@@ -592,7 +659,6 @@
                 </a>
             `;
 
-            // Page numbers
             for (let i = 1; i <= totalPages; i++) {
                 paginationNav.innerHTML += `
                     <a href="#" class="${i === currentPage ? 'z-10 bg-gold-primary text-white border-gold-primary' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'} relative inline-flex items-center px-4 py-2 border text-sm font-medium"
@@ -602,7 +668,6 @@
                 `;
             }
 
-            // Next button
             paginationNav.innerHTML += `
                 <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === totalPages ? 'cursor-not-allowed' : ''}" 
                    ${currentPage < totalPages ? `onclick="fetchSchedules(${currentPage + 1})"` : ''}>
