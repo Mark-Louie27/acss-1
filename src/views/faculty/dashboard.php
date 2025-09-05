@@ -63,14 +63,6 @@ ob_start();
 
     <!-- Main content -->
     <div class="flex flex-col min-h-screen">
-        <div class="mb-8">
-            <div class="flex justify-between items-center">
-                <div class="text-sm text-gray-500">
-                    <?php echo date('l, F j, Y'); ?>
-                </div>
-            </div>
-        </div>
-
         <!-- Main Header Section with Gold Accent -->
         <div class="bg-gray-800 text-white rounded-xl p-6 mb-8 shadow-lg relative overflow-hidden">
             <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>

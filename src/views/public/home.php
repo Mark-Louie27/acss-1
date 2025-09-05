@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PRMSU Iba Campus Class Schedules - ACSS</title>
-    <link href="./css/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
@@ -47,25 +47,55 @@
         }
 
         .form-input {
-            @apply rounded-lg border-gray-300 focus:border-gold-500 focus:ring focus:ring-gold-200 focus:ring-opacity-50 transition duration-150;
+            border-radius: 0.5rem;
+            border: 2px solid #FCC201;
+            padding: 0.75rem 1rem;
             width: 100%;
             box-sizing: border-box;
+            transition: all 0.15s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 0 3px rgba(218, 145, 0, 0.1);
         }
 
         .btn-primary {
             background: linear-gradient(135deg, var(--gold-dark), var(--gold-primary));
-            @apply text-white font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out shadow-md hover:shadow-lg focus:outline-none;
+            color: white;
+            font-weight: 500;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             width: 100%;
+            border: none;
+            cursor: pointer;
         }
 
         .btn-primary:hover {
             filter: brightness(1.1);
             transform: translateY(-1px);
+            box-shadow: 0 6px 8px -2px rgba(0, 0, 0, 0.15);
         }
 
         .btn-secondary {
-            @apply bg-white text-gold-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg transition shadow-md hover:shadow-lg;
+            background: white;
+            color: var(--gold-dark);
+            font-weight: 500;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.15s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             width: 100%;
+            border: 1px solid #e5e5e5;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background: #f9fafb;
+            box-shadow: 0 6px 8px -2px rgba(0, 0, 0, 0.15);
         }
 
         .schedule-card {
@@ -115,50 +145,100 @@
             border: 1px solid rgba(212, 175, 55, 0.3);
         }
 
-        .shimmer-effect {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .shimmer-effect::after {
-            content: '';
-            position: absolute;
+        /* Mobile Sidebar Styles */
+        .mobile-sidebar {
+            position: fixed;
             top: 0;
             left: -100%;
-            width: 50%;
-            height: 100%;
-            background: linear-gradient(90deg,
-                    transparent,
-                    rgba(255, 255, 255, 0.3),
-                    transparent);
-            animation: shimmer 2s infinite;
+            width: 280px;
+            height: 100vh;
+            background: white;
+            z-index: 50;
+            transition: left 0.3s ease-in-out;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
         }
 
-        @keyframes shimmer {
-            100% {
-                left: 150%;
+        .mobile-sidebar.active {
+            left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .hamburger {
+            display: none;
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 25px;
+            height: 3px;
+            background: white;
+            margin: 5px 0;
+            transition: 0.3s;
+            border-radius: 2px;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(-45deg) translate(-5px, 6px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(45deg) translate(-5px, -6px);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .hamburger {
+                display: block;
             }
-        }
 
-        /* Responsive Adjustments */
-        @media (max-width: 640px) {
+            .desktop-nav {
+                display: none;
+            }
+
+            .hero-pattern {
+                padding: 0.75rem 0;
+            }
+
+            .hero-pattern h1 {
+                font-size: 1.25rem;
+                line-height: 1.4;
+            }
+
+            .hero-pattern p {
+                font-size: 0.875rem;
+            }
+
             .hero-pattern .flex {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .hero-pattern nav {
-                margin-top: 1rem;
-                width: 100%;
-            }
-
-            .hero-pattern nav a {
-                width: 100%;
-                margin-bottom: 0.5rem;
+                flex-direction: row;
+                justify-content: space-between;
             }
 
             #search-form {
                 padding: 1rem;
+                margin-bottom: 2rem;
             }
 
             #search-form .grid {
@@ -166,35 +246,64 @@
                 gap: 1rem;
             }
 
-            #search-form .md:col-span-2 {
-                grid-column: span 1;
-            }
-
             .schedule-table {
-                width: 100%;
                 overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
             }
 
-            table {
+            .schedule-table table {
                 min-width: 600px;
+            }
+
+            .schedule-table th,
+            .schedule-table td {
+                padding: 0.5rem;
+                font-size: 0.875rem;
             }
 
             .pagination-info {
                 font-size: 0.75rem;
             }
 
-            footer .grid {
-                grid-template-columns: 1fr;
-                text-align: center;
+            .px-6 {
+                padding-left: 1rem;
+                padding-right: 1rem;
             }
 
-            footer .flex-col {
-                flex-direction: column;
-                align-items: center;
+            main {
+                margin-top: 5rem;
+                padding-top: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-pattern h1 {
+                font-size: 1.125rem;
             }
 
-            footer .space-x-4 {
-                justify-content: center;
+            .hero-pattern .w-14 {
+                width: 2.5rem;
+                height: 2.5rem;
+            }
+
+            .hero-pattern .w-12 {
+                width: 2rem;
+                height: 2rem;
+            }
+
+            .schedule-table th,
+            .schedule-table td {
+                padding: 0.375rem;
+                font-size: 0.8125rem;
+            }
+
+            #search-form {
+                padding: 0.75rem;
+            }
+
+            .px-6 {
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
             }
         }
 
@@ -203,16 +312,8 @@
                 grid-template-columns: repeat(2, 1fr);
             }
 
-            #search-form .md:col-span-2 {
+            #search-form .md\\:col-span-2 {
                 grid-column: span 2;
-            }
-
-            table {
-                min-width: 800px;
-            }
-
-            footer .grid {
-                grid-template-columns: repeat(2, 1fr);
             }
         }
 
@@ -220,40 +321,167 @@
             #search-form .grid {
                 grid-template-columns: repeat(4, 1fr);
             }
+        }
 
-            table {
-                min-width: 100%;
+        /* Footer responsive styles */
+        @media (max-width: 640px) {
+            footer {
+                display: none;
+            }
+        }
+
+        @media (min-width: 641px) and (max-width: 1024px) {
+            footer .grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 2rem;
             }
 
-            footer .grid {
-                grid-template-columns: repeat(3, 1fr);
+            footer .border-t {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
             }
         }
     </style>
 </head>
 
 <body class="bg-white">
-    <!-- Header -->
-    <header class="hero-pattern shadow-lg fixed w-full z-20">
-        <div class="container mx-auto px-6 py-6 relative z-10">
-            <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="flex items-center mb-4 md:mb-0">
-                    <div class="mr-4">
-                        <div class="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-md">
-                            <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
-                        </div>
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- Mobile Sidebar -->
+    <div class="mobile-sidebar" id="mobileSidebar">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center mr-3">
+                        <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
                     </div>
                     <div>
-                        <h1 class="text-2xl md:text-3xl font-bold text-white">President Ramon Magsaysay State University</h1>
-                        <p class="text-white text-sm md:text-base opacity-90">Academic Schedule Management System</p>
+                        <h2 class="text-lg font-bold text-gray-800">PRMSU</h2>
+                        <p class="text-sm text-gray-600">ACSS</p>
                     </div>
                 </div>
-                <nav class="flex space-x-3">
-                    <a href="/auth/login" class="bg-white hover:bg-gray-50 text-gold-700 py-2 px-5 rounded-lg flex items-center transition-all shadow-md hover:shadow-lg nav-link">
+                <button onclick="closeSidebar()" class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <nav class="space-y-4">
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-home mr-3"></i>
+                    <span>Home</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-info-circle mr-3"></i>
+                    <span>About</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-book mr-3"></i>
+                    <span>Courses</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-users mr-3"></i>
+                    <span>Faculty</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-user-graduate mr-3"></i>
+                    <span>Student Portal</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-book-open mr-3"></i>
+                    <span>Library</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-laptop mr-3"></i>
+                    <span>E-Learning</span>
+                </a>
+                <a href="#" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition">
+                    <i class="fas fa-question-circle mr-3"></i>
+                    <span>FAQ</span>
+                </a>
+
+                <div class="border-t pt-4 mt-6">
+                    <a href="/auth/login" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition mb-2">
+                        <i class="fas fa-sign-in-alt mr-3"></i>
+                        <span>Login</span>
+                    </a>
+                    <a href="/register" class="flex items-center p-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition">
+                        <i class="fas fa-user-plus mr-3"></i>
+                        <span>Register</span>
+                    </a>
+                </div>
+
+                <div class="border-t pt-4 mt-6">
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-gray-800 mb-2">Contact Us</h3>
+                        <div class="space-y-2 text-sm text-gray-600">
+                            <div class="flex items-center">
+                                <i class="fas fa-map-marker-alt mr-2 text-yellow-600"></i>
+                                <span>Iba, Zambales, Philippines</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-phone mr-2 text-yellow-600"></i>
+                                <span>+63 (XXX) XXX-XXXX</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-envelope mr-2 text-yellow-600"></i>
+                                <span>info@prmsu.edu.ph</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-3 justify-center">
+                        <a href="#" class="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center hover:bg-yellow-600 transition">
+                            <i class="fab fa-facebook-f text-sm"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center hover:bg-yellow-600 transition">
+                            <i class="fab fa-twitter text-sm"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center hover:bg-yellow-600 transition">
+                            <i class="fab fa-instagram text-sm"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center hover:bg-yellow-600 transition">
+                            <i class="fab fa-youtube text-sm"></i>
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="hero-pattern shadow-lg fixed w-full z-20">
+        <div class="container mx-auto px-4 sm:px-6 py-4 sm:py-6 relative z-10">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center">
+                    <!-- Mobile Hamburger Menu -->
+                    <div class="hamburger mr-4" id="hamburger" onclick="openSidebar()">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+
+                    <div class="flex items-center">
+                        <div class="mr-3 sm:mr-4">
+                            <div class="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-md">
+                                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
+                            </div>
+                        </div>
+                        <div>
+                            <h1 class="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-tight">President Ramon Magsaysay State University</h1>
+                            <p class="text-white text-xs sm:text-sm md:text-base opacity-90">Academic Schedule Management System</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Desktop Navigation -->
+                <nav class="desktop-nav flex space-x-3">
+                    <a href="/auth/login" class="bg-white hover:bg-gray-50 text-yellow-700 py-2 px-4 sm:px-5 rounded-lg flex items-center transition-all shadow-md hover:shadow-lg nav-link text-sm sm:text-base">
                         <i class="fas fa-sign-in-alt mr-2"></i>
                         <span>Login</span>
                     </a>
-                    <a href="/register" class="btn-primary px-5 flex items-center nav-link">
+                    <a href="/register" class="btn-primary px-4 sm:px-5 flex items-center nav-link text-sm sm:text-base">
                         <i class="fas fa-user-plus mr-2"></i>
                         <span>Register</span>
                     </a>
@@ -263,11 +491,11 @@
     </header>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-6 py-12 mt-24">
+    <main class="container mx-auto px-4 sm:px-6 py-6 sm:py-12 mt-16 sm:mt-24">
         <!-- Search Filters -->
-        <div id="search-form" class="bg-white rounded-xl shadow-lg p-8 mb-12 card-shadow gold-border">
-            <h3 class="text-xl font-semibold mb-6 gold-gradient-text">Find Your Class Schedule</h3>
-            <form id="searchForm" class="grid grid-cols-1 md:grid-cols-4 gap-6" method="POST">
+        <div id="search-form" class="bg-white rounded-xl shadow-lg p-4 sm:p-8 mb-8 sm:mb-12 card-shadow gold-border">
+            <h3 class="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 gold-gradient-text">Find Your Class Schedule</h3>
+            <form id="searchForm" class="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6" method="POST">
                 <!-- College Filter -->
                 <div>
                     <label for="college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
@@ -304,7 +532,7 @@
                 <div>
                     <label for="year_level" class="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
                     <div class="relative">
-                        <select id="year_level" name="year_level" class="form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="year_level" name="year_level" class="form-input pl-10 py-3">
                             <option value="">All Levels</option>
                             <option value="1st Year">1st Year</option>
                             <option value="2nd Year">2nd Year</option>
@@ -321,7 +549,7 @@
                 <div>
                     <label for="section" class="block text-sm font-medium text-gray-700 mb-2">Section</label>
                     <div class="relative">
-                        <select id="section" name="section_id" class="form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="section" name="section_id" class="form-input pl-10 py-3">
                             <option value="">All Sections</option>
                         </select>
                         <div class="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -336,7 +564,7 @@
                     <div class="relative">
                         <input type="text" id="global-search" name="search"
                             placeholder="Search courses, instructors..."
-                            class="form-input pl-12 py-3 border-2 border-yellow-500">
+                            class="form-input pl-12 py-3">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-4">
                             <i class="fas fa-search text-yellow-600"></i>
                         </div>
@@ -354,66 +582,82 @@
         </div>
 
         <!-- Schedule Table -->
-        <div class="overflow-x-auto schedule-table">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Course
-                        </th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Section
-                        </th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Schedule
-                        </th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Room
-                        </th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Instructor
-                        </th>
-                    </tr>
-                </thead>
-                <tbody id="schedule-table-body" class="bg-white divide-y divide-gray-200">
-                    <!-- Schedules will be populated dynamically -->
-                </tbody>
-            </table>
-        </div>
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden card-shadow gold-border">
+            <div class="schedule-table overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Course
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Section
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Schedule
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Room
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Instructor
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedule-table-body" class="bg-white divide-y divide-gray-200">
+                        <tr class="hover:bg-yellow-50 transition-colors schedule-card">
 
-        <!-- Pagination -->
-        <div class="px-6 py-4 flex items-center justify-between border-t border-gray-200">
-            <div class="flex-1 flex justify-between sm:hidden">
-                <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Previous
-                </a>
-                <a href="#" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Next
-                </a>
+                        </tr>
+                        <!-- More sample rows can be added here -->
+                    </tbody>
+                </table>
             </div>
-            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-sm text-gray-700 pagination-info" id="pagination-info">
-                        Showing <span class="font-medium">0</span> to <span class="font-medium">0</span> of <span class="font-medium">0</span> results
-                    </p>
+
+            <!-- Pagination -->
+            <div class="px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 space-y-3 sm:space-y-0">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        Previous
+                    </a>
+                    <a href="#" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        Next
+                    </a>
                 </div>
-                <div>
-                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination" id="pagination-nav">
-                        <!-- Pagination links will be populated dynamically -->
-                    </nav>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700 pagination-info" id="pagination-info">
+                            Showing <span class="font-medium">1</span> to <span class="font-medium">1</span> of <span class="font-medium">1</span> results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination" id="pagination-nav">
+                            <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Previous</span>
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                            <a href="#" class="z-10 bg-yellow-500 text-white border-yellow-500 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                                1
+                            </a>
+                            <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Next</span>
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>
     </main>
 
     <!-- Footer -->
-    <footer class="bg-gray-800 text-white mt-16 shadow-inner">
-        <div class="container mx-auto px-6 py-10">
-            <div class="flex flex-col md:flex-row justify-between">
-                <div class="mb-6 md:mb-0">
+    <footer class="bg-gray-800 text-white mt-8 sm:mt-16 shadow-inner">
+        <div class="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+                <!-- Company Info -->
+                <div class="lg:col-span-1">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center mr-3">
-                            <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-8 h-8" />
+                            <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
                         </div>
                         <div>
                             <h2 class="text-xl font-bold">PRMSU</h2>
@@ -426,63 +670,74 @@
                     </p>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-8">
-                    <div>
-                        <h3 class="text-gold-primary font-semibold mb-3">Quick Links</h3>
-                        <ul class="space-y-2">
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">Home</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">About</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">Courses</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">Faculty</a></li>
-                        </ul>
-                    </div>
+                <!-- Quick Links -->
+                <div>
+                    <h3 class="text-yellow-400 font-semibold mb-3">Quick Links</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Home</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">About</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Courses</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Faculty</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Admissions</a></li>
+                    </ul>
+                </div>
 
-                    <div>
-                        <h3 class="text-gold-primary font-semibold mb-3">Resources</h3>
-                        <ul class="space-y-2">
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">Student Portal</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">Library</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">E-Learning</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition">FAQ</a></li>
-                        </ul>
-                    </div>
+                <!-- Resources -->
+                <div>
+                    <h3 class="text-yellow-400 font-semibold mb-3">Resources</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Student Portal</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Library</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">E-Learning</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">Academic Calendar</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition text-sm">FAQ</a></li>
+                    </ul>
+                </div>
 
-                    <div>
-                        <h3 class="text-gold-primary font-semibold mb-3">Contact</h3>
-                        <ul class="space-y-2">
-                            <li class="flex items-center text-gray-400">
-                                <i class="fas fa-map-marker-alt mr-2 text-gold-primary"></i>
-                                Iba, Zambales, Philippines
-                            </li>
-                            <li class="flex items-center text-gray-400">
-                                <i class="fas fa-phone mr-2 text-gold-primary"></i>
-                                +63 (XXX) XXX-XXXX
-                            </li>
-                            <li class="flex items-center text-gray-400">
-                                <i class="fas fa-envelope mr-2 text-gold-primary"></i>
-                                info@prmsu.edu.ph
-                            </li>
-                        </ul>
-                    </div>
+                <!-- Contact Info -->
+                <div>
+                    <h3 class="text-yellow-400 font-semibold mb-3">Contact</h3>
+                    <ul class="space-y-3">
+                        <li class="flex items-start text-gray-400 text-sm">
+                            <i class="fas fa-map-marker-alt mr-3 text-yellow-400 mt-1 flex-shrink-0"></i>
+                            <span>Iba, Zambales, Philippines</span>
+                        </li>
+                        <li class="flex items-center text-gray-400 text-sm">
+                            <i class="fas fa-phone mr-3 text-yellow-400 flex-shrink-0"></i>
+                            <span>+63 (XXX) XXX-XXXX</span>
+                        </li>
+                        <li class="flex items-center text-gray-400 text-sm">
+                            <i class="fas fa-envelope mr-3 text-yellow-400 flex-shrink-0"></i>
+                            <span>info@prmsu.edu.ph</span>
+                        </li>
+                        <li class="flex items-center text-gray-400 text-sm">
+                            <i class="fas fa-globe mr-3 text-yellow-400 flex-shrink-0"></i>
+                            <span>www.prmsu.edu.ph</span>
+                        </li>
+                    </ul>
                 </div>
             </div>
 
-            <div class="border-t border-gray-700 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center">
-                <p class="text-sm text-gray-400">
+            <!-- Bottom Footer -->
+            <div class="border-t border-gray-700 mt-8 pt-6 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+                <p class="text-sm text-gray-400 text-center sm:text-left">
                     © 2025 President Ramon Magsaysay State University. All rights reserved.
                 </p>
-                <div class="flex space-x-4 mt-4 md:mt-0">
-                    <a href="#" class="text-gray-400 hover:text-gold-primary transition">
+                <div class="flex space-x-4 social-links">
+                    <a href="#" class="text-gray-400 hover:text-yellow-400 transition">
                         <i class="fab fa-facebook-f"></i>
                     </a>
-                    <a href="#" class="text-gray-400 hover:text-gold-primary transition">
+                    <a href="#" class="text-gray-400 hover:text-yellow-400 transition">
                         <i class="fab fa-twitter"></i>
                     </a>
-                    <a href="#" class="text-gray-400 hover:text-gold-primary transition">
+                    <a href="#" class="text-gray-400 hover:text-yellow-400 transition">
                         <i class="fab fa-instagram"></i>
                     </a>
-                    <a href="#" class="text-gray-400 hover:text-gold-primary transition">
+                    <a href="#" class="text-gray-400 hover:text-yellow-400 transition">
                         <i class="fab fa-youtube"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-yellow-400 transition">
+                        <i class="fab fa-linkedin-in"></i>
                     </a>
                 </div>
             </div>
@@ -490,18 +745,64 @@
     </footer>
 
     <script>
+        // Sidebar functionality
+        function openSidebar() {
+            document.getElementById('mobileSidebar').classList.add('active');
+            document.getElementById('sidebarOverlay').classList.add('active');
+            document.getElementById('hamburger').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSidebar() {
+            document.getElementById('mobileSidebar').classList.remove('active');
+            document.getElementById('sidebarOverlay').classList.remove('active');
+            document.getElementById('hamburger').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('mobileSidebar');
+            const hamburger = document.getElementById('hamburger');
+            const isClickInsideSidebar = sidebar.contains(event.target);
+            const isClickOnHamburger = hamburger.contains(event.target);
+
+            if (!isClickInsideSidebar && !isClickOnHamburger && sidebar.classList.contains('active')) {
+                closeSidebar();
+            }
+        });
+
+        // Close sidebar on escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeSidebar();
+            }
+        });
+
+        // Responsive adjustments
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 769) {
+                closeSidebar();
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
             // Load initial schedules
             fetchSchedules();
 
-            // College change handler
             document.getElementById('college').addEventListener('change', function() {
                 const collegeId = this.value;
                 const departmentSelect = document.getElementById('department');
                 const sectionSelect = document.getElementById('section');
 
                 if (collegeId) {
-                    fetch(`/public/departments?college_id=${collegeId}`)
+                    const formData = new FormData();
+                    formData.append('college_id', collegeId);
+
+                    fetch('/public/departments', {
+                            method: 'POST',
+                            body: formData
+                        })
                         .then(response => {
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const contentType = response.headers.get('content-type');
@@ -529,13 +830,18 @@
                 }
             });
 
-            // Department change handler
             document.getElementById('department').addEventListener('change', function() {
                 const deptId = this.value;
                 const sectionSelect = document.getElementById('section');
 
                 if (deptId) {
-                    fetch(`/public/sections?department_id=${deptId}`)
+                    const formData = new FormData();
+                    formData.append('department_id', deptId);
+
+                    fetch('/public/sections', {
+                            method: 'POST',
+                            body: formData
+                        })
                         .then(response => {
                             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                             const contentType = response.headers.get('content-type');
@@ -652,16 +958,25 @@
             `;
 
             paginationNav.innerHTML = `
-                <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === 1 ? 'cursor-not-allowed' : ''}" 
-                   ${currentPage > 1 ? `onclick="fetchSchedules(${currentPage - 1})"` : ''}>
+                <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === 1 ? 'cursor-not-allowed opacity-50' : ''}" 
+                   ${currentPage > 1 ? `onclick="fetchSchedules(${currentPage - 1})"` : 'onclick="return false;"'}>
                     <span class="sr-only">Previous</span>
                     <i class="fas fa-chevron-left"></i>
                 </a>
             `;
 
-            for (let i = 1; i <= totalPages; i++) {
+            // Show page numbers (limit to show max 5 pages)
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
                 paginationNav.innerHTML += `
-                    <a href="#" class="${i === currentPage ? 'z-10 bg-gold-primary text-white border-gold-primary' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'} relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+                    <a href="#" class="${i === currentPage ? 'z-10 bg-yellow-500 text-white border-yellow-500' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'} relative inline-flex items-center px-4 py-2 border text-sm font-medium"
                        onclick="fetchSchedules(${i})">
                         ${i}
                     </a>
@@ -669,13 +984,41 @@
             }
 
             paginationNav.innerHTML += `
-                <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === totalPages ? 'cursor-not-allowed' : ''}" 
-                   ${currentPage < totalPages ? `onclick="fetchSchedules(${currentPage + 1})"` : ''}>
+                <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === totalPages ? 'cursor-not-allowed opacity-50' : ''}" 
+                   ${currentPage < totalPages ? `onclick="fetchSchedules(${currentPage + 1})"` : 'onclick="return false;"'}>
                     <span class="sr-only">Next</span>
                     <i class="fas fa-chevron-right"></i>
                 </a>
             `;
         }
+
+        // Smooth scrolling for anchor links (excluding pagination and action links)
+        document.querySelectorAll('a[href^="#"]:not([href="#"])').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    e.preventDefault();
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add loading state to search button
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>Searching...</span>';
+            submitBtn.disabled = true;
+
+            setTimeout(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }, 1000);
+        });
     </script>
 </body>
 

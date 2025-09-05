@@ -64,7 +64,7 @@ class PublicController
     public function getDepartmentsByCollege()
     {
         try {
-            $college_id = isset($_GET['college_id']) ? (int)$_GET['college_id'] : 0;
+            $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
 
             if ($college_id === 0) {
                 header('Content-Type: application/json');
@@ -92,11 +92,10 @@ class PublicController
         exit;
     }
 
-    // Method to get sections by department
     public function getSectionsByDepartment()
     {
         try {
-            $department_id = isset($_GET['department_id']) ? (int)$_GET['department_id'] : 0;
+            $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
 
             if ($department_id === 0) {
                 header('Content-Type: application/json');
@@ -104,14 +103,24 @@ class PublicController
                 exit;
             }
 
+            // Get the current semester
+            $currentSemester = $this->getCurrentSemester();
+            $semester_id = $currentSemester['semester_id'];
+
+            // Query to get sections for the current semester
             $stmt = $this->db->prepare("
-            SELECT section_id, section_name, year_level 
-            FROM sections 
-            WHERE department_id = :department_id 
-            ORDER BY year_level, section_name
+            SELECT DISTINCT s.section_id, s.section_name, s.year_level 
+            FROM sections s
+            JOIN schedules sch ON s.section_id = sch.section_id
+            WHERE s.department_id = :department_id 
+            AND sch.semester_id = :semester_id
+            ORDER BY s.year_level, s.section_name
         ");
 
-            $stmt->execute([':department_id' => $department_id]);
+            $stmt->execute([
+                ':department_id' => $department_id,
+                ':semester_id' => $semester_id
+            ]);
             $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             header('Content-Type: application/json');

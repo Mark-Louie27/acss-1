@@ -106,11 +106,95 @@ $modal_content = $modal_content ?? '';
             background: linear-gradient(to bottom, #1F2937, #111827);
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
-            z-index: 20;
+            z-index: 40;
         }
 
-        .sidebar-hidden {
-            transform: translateX(-100%);
+        /* Mobile Sidebar States */
+        @media (max-width: 767px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+        }
+
+        /* Desktop Sidebar */
+        @media (min-width: 768px) {
+            .sidebar {
+                transform: translateX(0) !important;
+            }
+        }
+
+        /* Mobile Overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 35;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Responsive Header */
+        .header-desktop {
+            left: 16rem;
+            /* 256px - sidebar width */
+        }
+
+        .header-mobile {
+            left: 0;
+        }
+
+        @media (max-width: 767px) {
+            .header-desktop {
+                left: 0;
+            }
+        }
+
+        /* Mobile Hamburger Menu */
+        .hamburger {
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .hamburger-line {
+            width: 24px;
+            height: 2px;
+            background-color: #374151;
+            margin: 2px 0;
+            transition: 0.3s;
+            border-radius: 1px;
+        }
+
+        /* Hamburger Animation */
+        .hamburger.active .hamburger-line:nth-child(1) {
+            transform: rotate(-45deg) translate(-5px, 6px);
+        }
+
+        .hamburger.active .hamburger-line:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active .hamburger-line:nth-child(3) {
+            transform: rotate(45deg) translate(-5px, -6px);
         }
 
         /* Dropdown */
@@ -124,7 +208,7 @@ $modal_content = $modal_content ?? '';
             top: 100%;
             left: 0;
             min-width: 200px;
-            z-index: 40;
+            z-index: 50;
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
             border-radius: 0.375rem;
             background: #1F2937;
@@ -135,6 +219,15 @@ $modal_content = $modal_content ?? '';
             display: flex;
             flex-direction: column;
             transform: translateY(0);
+        }
+
+        /* Header Profile Dropdown - Mobile Responsive */
+        @media (max-width: 640px) {
+            .dropdown-menu {
+                right: 0;
+                left: auto;
+                min-width: 180px;
+            }
         }
 
         /* Navigation items */
@@ -176,6 +269,31 @@ $modal_content = $modal_content ?? '';
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
         }
 
+        /* Responsive Main Content */
+        .main-content {
+            transition: margin-left 0.3s ease;
+        }
+
+        @media (min-width: 768px) {
+            .main-content {
+                margin-left: 16rem;
+                /* 256px - sidebar width */
+            }
+        }
+
+        @media (max-width: 767px) {
+            .main-content {
+                margin-left: 0;
+            }
+        }
+
+        /* Responsive Padding */
+        @media (max-width: 640px) {
+            .main-content {
+                padding: 1rem;
+            }
+        }
+
         /* Gradient and card effects */
         .yellow-gradient {
             background: linear-gradient(135deg, #D4AF37 0%, #F2D675 100%);
@@ -199,6 +317,13 @@ $modal_content = $modal_content ?? '';
 
         .university-logo:hover {
             transform: scale(1.05);
+        }
+
+        /* Mobile Logo Size */
+        @media (max-width: 640px) {
+            .university-logo {
+                height: 32px;
+            }
         }
 
         /* Buttons */
@@ -298,7 +423,7 @@ $modal_content = $modal_content ?? '';
 
         /* Ensure modals are above all elements */
         .modal-overlay {
-            z-index: 50 !important;
+            z-index: 60 !important;
         }
 
         /* Additional CSS for hover effects and tooltips */
@@ -325,6 +450,24 @@ $modal_content = $modal_content ?? '';
                     rgba(255, 255, 255, 0.1) 4px);
             pointer-events: none;
         }
+
+        /* Mobile Text Size Adjustments */
+        @media (max-width: 640px) {
+            .breadcrumb-text {
+                font-size: 0.75rem;
+            }
+
+            .mobile-text-sm {
+                font-size: 0.875rem;
+            }
+        }
+
+        /* Hide elements on mobile */
+        @media (max-width: 640px) {
+            .hidden-mobile {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 
@@ -332,22 +475,30 @@ $modal_content = $modal_content ?? '';
     <!-- Toast notifications container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-4"></div>
 
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay md:hidden"></div>
+
     <!-- Header -->
-    <header class="fixed top-0 left-55 right-0 bg-white header-shadow z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-            <!-- Left: Sidebar Toggle and Logo -->
+    <header class="fixed top-0 header-desktop right-0 bg-white header-shadow z-30">
+        <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+            <!-- Left: Mobile Hamburger and Desktop Logo -->
             <div class="flex items-center">
-                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-yellow-500 focus:outline-none mr-4">
-                    <i class="fas fa-bars text-xl"></i>
+                <!-- Mobile Hamburger Menu -->
+                <button id="hamburger-menu" class="hamburger md:hidden mr-4" aria-label="Toggle menu">
+                    <div class="hamburger-line"></div>
+                    <div class="hamburger-line"></div>
+                    <div class="hamburger-line"></div>
                 </button>
+
+                <!-- Logo - Always visible -->
                 <a href="/chair/dashboard" class="flex items-center">
                     <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
-                    <span class="text-lg font-heading text-gray-800">ACSS</span>
+                    <span class="text-lg font-heading text-gray-800 ml-2 hidden-mobile sm:inline">ACSS</span>
                 </a>
             </div>
 
             <!-- Right: User Profile and Notifications -->
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 sm:space-x-4">
                 <!-- User Profile Dropdown -->
                 <div class="dropdown relative">
                     <button class="flex items-center text-gray-600 hover:text-yellow-400 focus:outline-none">
@@ -362,7 +513,7 @@ $modal_content = $modal_content ?? '';
                         <span class="ml-2 hidden sm:inline text-sm font-medium"><?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
                         <i class="fas fa-chevron-down ml-2 text-xs"></i>
                     </button>
-                    <div class="dropdown-menu right-0 mt-2">
+                    <div class="dropdown-menu mt-2">
                         <a href="/chair/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
                             <i class="fas fa-user w-5 mr-2"></i> Profile
                         </a>
@@ -379,18 +530,18 @@ $modal_content = $modal_content ?? '';
     </header>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar w-64 text-white fixed h-full overflow-y-auto transition-all duration-300 transform -translate-x-full md:translate-x-0 top-0 mt-16 md:mt-0">
+    <aside id="sidebar" class="sidebar w-64 text-white fixed h-full overflow-y-auto top-0">
         <!-- Sidebar Header -->
-        <div class="py-6 px-6 flex flex-col items-center justify-center border-b border-gray-700 bg-gray-900 md:block">
+        <div class="py-6 px-6 flex flex-col items-center justify-center border-b border-gray-700 bg-gray-900">
             <div class="flex items-center justify-center mb-3">
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
-            <h2 class="text-xl text-yellow-600 font-bold hidden md:block">PRMSU Scheduling System - ACSS</h2>
-            <p class="text-xs text-gray-400 mt-1 hidden md:block">Management System</p>
+            <h2 class="text-xl text-yellow-600 font-bold text-center">PRMSU Scheduling System - ACSS</h2>
+            <p class="text-xs text-gray-400 mt-1 text-center">Management System</p>
         </div>
 
         <!-- User Profile Section -->
-        <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
+        <div class="p-4 border-b border-gray-700 bg-gray-800/70">
             <div class="flex items-center space-x-3">
                 <?php if (!empty($profilePicture)): ?>
                     <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md"
@@ -400,8 +551,8 @@ $modal_content = $modal_content ?? '';
                         <?php echo strtoupper(substr($_SESSION['title'], 0, 1) . substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['middle_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1) . substr($_SESSION['suffix'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
-                <div>
-                    <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
+                <div class="min-w-0 flex-1">
+                    <p class="font-medium text-white truncate"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>Program Chair</span>
@@ -411,7 +562,7 @@ $modal_content = $modal_content ?? '';
         </div>
 
         <!-- Navigation -->
-        <nav class="mt-4 px-2">
+        <nav class="mt-4 px-2 pb-20">
             <!-- Dashboard Link -->
             <a href="/chair/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                 <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
@@ -542,7 +693,7 @@ $modal_content = $modal_content ?? '';
         </nav>
 
         <!-- Sidebar Footer -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700 hidden md:block">
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700">
             <div class="flex items-center justify-between text-xs text-gray-400">
                 <div>
                     <p>Program Chair System</p>
@@ -555,19 +706,19 @@ $modal_content = $modal_content ?? '';
         </div>
     </aside>
 
-    <main class="md:ml-64 pt-20 md:pt-16 p-4 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-50 relative">
+    <main class="main-content pt-20 p-4 md:pt-16 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-50 relative">
         <div class="max-w-7xl mx-auto">
             <!-- Breadcrumb -->
             <?php
             $segments = explode('/', trim($currentUri, '/'));
             if (count($segments) > 1):
             ?>
-                <nav class="flex mb-5 text-sm" aria-label="Breadcrumb">
+                <nav class="flex mb-5 text-sm breadcrumb-text" aria-label="Breadcrumb">
                     <ol class="inline-flex items-center space-x-1 md:space-x-3">
                         <li class="inline-flex items-center">
                             <a href="/chair/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-500">
                                 <i class="fas fa-home mr-2"></i>
-                                Home
+                                <span class="hidden sm:inline">Home</span>
                             </a>
                         </li>
                         <?php
@@ -581,9 +732,9 @@ $modal_content = $modal_content ?? '';
                                 <div class="flex items-center">
                                     <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
                                     <?php if ($isLast): ?>
-                                        <span class="text-yellow-600 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
+                                        <span class="text-yellow-600 font-medium mobile-text-sm"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
                                     <?php else: ?>
-                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-yellow-500"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
+                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-yellow-500 mobile-text-sm"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
                                     <?php endif; ?>
                                 </div>
                             </li>
@@ -605,23 +756,75 @@ $modal_content = $modal_content ?? '';
     </div>
 
     <script>
-        // Sidebar toggle
-        const toggleSidebar = document.getElementById('toggleSidebar');
+        // Mobile Hamburger Menu and Sidebar Control
+        const hamburgerMenu = document.getElementById('hamburger-menu');
         const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
 
-        toggleSidebar.addEventListener('click', () => {
-            sidebar.classList.toggle('sidebar-hidden');
+        // Toggle sidebar for mobile
+        function toggleSidebar() {
+            const isSmallScreen = window.innerWidth < 768;
+
+            if (isSmallScreen) {
+            sidebar.classList.toggle('show');
+            sidebarOverlay.classList.toggle('show');
+            hamburgerMenu.classList.toggle('active');
+
+            // Prevent body scroll when sidebar is open on mobile
+            if (sidebar.classList.contains('show')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+            }
+        }
+
+        // Hide hamburger menu on desktop
+        function updateHamburgerVisibility() {
+            if (window.innerWidth >= 768) {
+            hamburgerMenu.style.display = 'none';
+            } else {
+            hamburgerMenu.style.display = 'flex';
+            }
+        }
+
+        // Initial check
+        updateHamburgerVisibility();
+
+        // Update on window resize
+        window.addEventListener('resize', updateHamburgerVisibility);
+
+        // Close sidebar when clicking overlay
+        function closeSidebar() {
+            sidebar.classList.remove('show');
+            sidebarOverlay.classList.remove('show');
+            hamburgerMenu.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Event listeners
+        hamburgerMenu.addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', closeSidebar);
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) {
+                // Desktop view - ensure sidebar is visible and overlay is hidden
+                sidebar.classList.remove('show');
+                sidebarOverlay.classList.remove('show');
+                hamburgerMenu.classList.remove('active');
+                document.body.style.overflow = '';
+            }
         });
 
-        // Close sidebar on outside click (mobile)
-        document.addEventListener('click', (event) => {
-            const isSmallScreen = window.innerWidth < 768;
-            const isSidebar = sidebar.contains(event.target);
-            const isToggleButton = toggleSidebar.contains(event.target);
-
-            if (isSmallScreen && !isSidebar && !isToggleButton && !sidebar.classList.contains('sidebar-hidden')) {
-                sidebar.classList.add('sidebar-hidden');
-            }
+        // Close sidebar when clicking on a link (mobile only)
+        const sidebarLinks = sidebar.querySelectorAll('a');
+        sidebarLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth < 768) {
+                    closeSidebar();
+                }
+            });
         });
 
         // Dropdown functionality
@@ -636,12 +839,14 @@ $modal_content = $modal_content ?? '';
                 trigger.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const isOpen = menu.classList.contains('show');
+
                     // Close all dropdowns
                     dropdowns.forEach(d => {
                         d.querySelector('.dropdown-menu').classList.remove('show');
                         const icon = d.querySelector('.toggle-icon');
                         if (icon) icon.classList.remove('rotate-icon');
                     });
+
                     // Toggle current dropdown
                     if (!isOpen) {
                         menu.classList.add('show');
@@ -657,19 +862,24 @@ $modal_content = $modal_content ?? '';
                     }
                 });
             });
+        });
 
-            // Log stacking context for debugging
-            console.log('Sidebar z-index:', window.getComputedStyle(sidebar).zIndex);
-            console.log('Sidebar position:', window.getComputedStyle(sidebar).position);
-            console.log('Sidebar transform:', window.getComputedStyle(sidebar).transform);
-            let parent = sidebar.parentElement;
-            while (parent && parent !== document.body) {
-                const parentStyle = window.getComputedStyle(parent);
-                console.log(`Sidebar parent <${parent.tagName.toLowerCase()}>: z-index=${parentStyle.zIndex}, transform=${parentStyle.transform}, opacity=${parentStyle.opacity}, position=${parentStyle.position}`);
-                parent = parent.parentElement;
-            }
-            const modalContainer = document.getElementById('modal-container');
-            console.log('Modal container z-index:', window.getComputedStyle(modalContainer).zIndex);
+        // Prevent sidebar from interfering with modals
+        const modalContainer = document.getElementById('modal-container');
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    const hasModal = modalContainer.querySelector('.modal-overlay');
+                    if (hasModal && window.innerWidth < 768) {
+                        closeSidebar();
+                    }
+                }
+            });
+        });
+
+        observer.observe(modalContainer, {
+            childList: true,
+            subtree: true
         });
     </script>
 </body>

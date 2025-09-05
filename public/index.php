@@ -331,7 +331,7 @@ function handleFacultyRoutes($path)
 $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 
 // Public routes that don't require authentication
-$publicRoutes = ['login', 'register', '', 'home', 'public/search', 'api/departments', 'forgot-password'];
+$publicRoutes = ['login', 'register', '', 'home', 'public/search', 'public/departments', 'public/sections', 'forgot-password'];
 
 if (in_array($path, $publicRoutes)) {
     require_once __DIR__ . '/../src/controllers/AuthController.php';
@@ -361,19 +361,19 @@ if (in_array($path, $publicRoutes)) {
                 echo "Method Not Allowed";
             }
             break;
-        case '/public/sections':
+        case 'public/departments':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
-                (new PublicController())->getSectionsByDepartment();
+                (new PublicController())->getDepartmentsByCollege();
             } else {
                 http_response_code(405);
                 echo "Method Not Allowed";
             }
             break;
-        case '/public/departments':
+        case 'public/sections':
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
-                (new PublicController())->getDepartmentsByCollege();
+                (new PublicController())->getSectionsByDepartment();
             } else {
                 http_response_code(405);
                 echo "Method Not Allowed";
@@ -392,7 +392,7 @@ if (in_array($path, $publicRoutes)) {
             echo "Page not found";
             break;
     }
-    exit; // Ensure execution stops after handling public routes
+    exit;
 }
 
 // Protected routes - require authentication
