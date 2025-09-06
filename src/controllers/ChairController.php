@@ -810,7 +810,7 @@ class ChairController
                             continue;
                         }
 
-                        $forceF2F = ($subjectType === 'General Education');
+                        $forceF2F = ($subjectType === 'Professional Course' || $subjectType === 'Major Course');
                         $roomAssignments = $this->getRoomAssignments($departmentId, $section['max_students'], $targetDays, $startTime, $endTime, $schedules, $forceF2F);
                         if ($forceF2F && empty(array_filter(array_column($roomAssignments, 'room_id')))) {
                             error_log("No F2F room available for {$course['course_code']} in section {$section['section_name']} at $startTime-$endTime");
@@ -1230,6 +1230,7 @@ class ChairController
             '08:30:00',
             '09:00:00',
             '10:30:00',
+            '12:30:00',
             '13:00:00',
             '14:30:00',
             '16:00:00'
@@ -1433,109 +1434,386 @@ class ChairController
 
     private function findBestFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $departmentId, $schedules, $facultyAssignments, $courseCode, $sectionId = null)
     {
-        $bestFacultyId = null;
-        $bestMatchScore = -1;
+        error_log("🎯 SMART SCHEDULING for $courseCode (ID: $courseId)");
 
-        if (empty($facultySpecializations)) {
-            error_log("No faculty specializations available for department $departmentId, using default assignment");
-        }
+        // Step 1: Find Expert faculty for this course
+        $expertFaculty = $this->findExpertFacultyForCourse($facultySpecializations, $courseId);
 
-        // First pass: Find best specialized faculty
-        foreach ($facultySpecializations as $facultySpec) {
-            $facultyId = $facultySpec['faculty_id'];
-            $isAvailable = true;
+        if (!empty($expertFaculty)) {
+            error_log("🏆 Found " . count($expertFaculty) . " EXPERT faculty for course $courseId");
 
-            foreach ($facultyAssignments as $assignment) {
-                if ($assignment['faculty_id'] == $facultyId) {
-                    foreach ($targetDays as $day) {
-                        if (
-                            in_array($day, (array)$assignment['days']) &&
-                            $this->hasTimeConflict($startTime, $endTime, $assignment['start_time'], $assignment['end_time'])
-                        ) {
-                            $isAvailable = false;
-                            break 2;
-                        }
+            foreach ($expertFaculty as $expert) {
+                $facultyId = $expert['faculty_id'];
+
+                // Step 2: Check if expert is available
+                if ($this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                    error_log("✅ EXPERT faculty $facultyId is available - INSTANT ASSIGNMENT!");
+                    return $facultyId;
+                } else {
+                    error_log("⚡ EXPERT faculty $facultyId is busy - attempting SMART REASSIGNMENT");
+
+                    // Step 3: Try to free up the expert faculty
+                    if ($this->freeUpExpertFaculty($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments, $facultySpecializations, $departmentId, $schedules, $courseId)) {
+                        error_log("🎯 Successfully freed up EXPERT faculty $facultyId!");
+                        return $facultyId;
                     }
                 }
             }
+        }
 
-            if (!$isAvailable) continue;
+        // Step 4: No expert available or reassignment failed, try intermediate/advanced
+        error_log("⚠️ No Expert faculty available or reassignment failed, trying Intermediate/Advanced...");
+        return $this->findBestNonExpertFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $departmentId, $schedules, $facultyAssignments);
+    }
 
-            $matchScore = $this->calculateFacultyMatchScore($facultySpec, $courseId, $courseCode);
-            error_log("Checking faculty ID {$facultySpec['faculty_id']} for course $courseId ($courseCode), match score: $matchScore");
-            if ($matchScore > $bestMatchScore) {
-                $bestMatchScore = $matchScore;
-                $bestFacultyId = $facultyId;
+    private function findExpertFacultyForCourse($facultySpecializations, $courseId)
+    {
+        $experts = array_filter($facultySpecializations, function ($spec) use ($courseId) {
+            return $spec['course_id'] == $courseId && strtolower($spec['expertise_level']) === 'expert';
+        });
+
+        usort($experts, function ($a, $b) {
+            return $b['is_primary_specialization'] - $a['is_primary_specialization'];
+        });
+
+        return array_values($experts); // Ensure indexed array
+    }
+
+    private function freeUpExpertFaculty($expertFacultyId, $targetDays, $startTime, $endTime, &$facultyAssignments, $facultySpecializations, $departmentId, $schedules, $expertCourseId)
+    {
+        error_log("🔄 Attempting to free up EXPERT faculty $expertFacultyId");
+
+        // Find conflicting assignments
+        $conflictingAssignments = $this->findConflictingAssignments($expertFacultyId, $targetDays, $startTime, $endTime, $facultyAssignments);
+
+        if (empty($conflictingAssignments)) {
+            return true; // Already free
+        }
+
+        error_log("📋 Found " . count($conflictingAssignments) . " conflicting assignments to reassign");
+
+        foreach ($conflictingAssignments as $assignment) {
+            if (!isset($assignment['course_id']) || !isset($assignment['day_of_week']) || !isset($assignment['schedule_id'])) {
+                error_log("⚠️ Missing required keys in assignment: " . print_r($assignment, true));
+                continue;
+            }
+
+            $conflictCourseId = $assignment['course_id'];
+
+            // Skip if expert in both courses
+            if ($this->isExpertInCourse($expertFacultyId, $conflictCourseId, $facultySpecializations)) {
+                error_log("⚠️ Cannot reassign course $conflictCourseId - faculty $expertFacultyId is EXPERT in both");
+                continue;
+            }
+
+            error_log("🔄 Trying to reassign course $conflictCourseId from expert faculty $expertFacultyId");
+
+            // Find alternative faculty
+            $alternativeFaculty = $this->findAlternativeFacultyForReassignment(
+                $conflictCourseId,
+                $assignment['day_of_week'],
+                $assignment['start_time'],
+                $assignment['end_time'],
+                $facultySpecializations,
+                $facultyAssignments,
+                $departmentId,
+                $expertFacultyId
+            );
+
+            if ($alternativeFaculty) {
+                error_log("✅ Found alternative faculty $alternativeFaculty for course $conflictCourseId");
+                if ($this->reassignCourse($assignment, $alternativeFaculty, $facultyAssignments, $schedules)) {
+                    error_log("🎯 Successfully reassigned course $conflictCourseId to faculty $alternativeFaculty");
+                } else {
+                    error_log("❌ Failed to reassign course $conflictCourseId");
+                    return false;
+                }
+            } else {
+                // Try rescheduling
+                if ($this->rescheduleConflictingCourse($assignment, $facultyAssignments, $schedules, $departmentId)) {
+                    error_log("⏰ Successfully rescheduled conflicting course $conflictCourseId");
+                } else {
+                    error_log("❌ Could not find alternative for course $conflictCourseId");
+                    return false;
+                }
             }
         }
 
-        // Second pass: Assign random available faculty if no specialization found
-        if (!$bestFacultyId) {
-            error_log("No specialized faculty found for course $courseId ($courseCode), attempting random assignment");
-            $availableFaculty = array_filter($this->getFaculty($departmentId), function ($faculty) use ($facultyAssignments, $targetDays, $startTime, $endTime) {
-                $facultyId = $faculty['faculty_id'];
-                $isAvailable = true;
-                foreach ($facultyAssignments as $assignment) {
-                    if ($assignment['faculty_id'] == $facultyId) {
-                        foreach ($targetDays as $day) {
-                            if (
-                                in_array($day, (array)$assignment['days']) &&
-                                $this->hasTimeConflict($startTime, $endTime, $assignment['start_time'], $assignment['end_time'])
-                            ) {
-                                $isAvailable = false;
-                                break 2;
+        return true;
+    }
+
+    // Check if faculty is expert in a specific course
+    private function isExpertInCourse($facultyId, $courseId, $facultySpecializations)
+    {
+        foreach ($facultySpecializations as $spec) {
+            if (
+                $spec['faculty_id'] == $facultyId &&
+                $spec['course_id'] == $courseId &&
+                strtolower($spec['expertise_level']) === 'expert'
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function findConflictingAssignments($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)
+    {
+        $conflicts = [];
+
+        foreach ($facultyAssignments as $assignment) {
+            if (isset($assignment['faculty_id']) && $assignment['faculty_id'] == $facultyId) {
+                $assignmentDays = isset($assignment['day_of_week']) ? (array)$assignment['day_of_week'] : [];
+                $dayOverlap = array_intersect($targetDays, $assignmentDays);
+
+                if (
+                    !empty($dayOverlap) &&
+                    $this->hasTimeConflict($startTime, $endTime, $assignment['start_time'], $assignment['end_time'])
+                ) {
+                    $conflicts[] = array_merge($assignment, ['day_of_week' => $assignmentDays]); // Ensure day_of_week is set
+                    error_log("⚡ Conflict found: Course {$assignment['course_id']} on " . implode(',', $assignmentDays) . " at {$assignment['start_time']}-{$assignment['end_time']}");
+                }
+            }
+        }
+
+        return $conflicts;
+    }
+
+    private function findAlternativeFacultyForReassignment($courseId, $targetDays, $startTime, $endTime, $facultySpecializations, $facultyAssignments, $departmentId, $excludeFacultyId)
+    {
+        $suitableFaculty = array_filter($facultySpecializations, function ($spec) use ($courseId, $excludeFacultyId) {
+            return $spec['course_id'] == $courseId &&
+                $spec['faculty_id'] != $excludeFacultyId &&
+                in_array(strtolower($spec['expertise_level']), ['intermediate', 'advanced']);
+        });
+
+        usort($suitableFaculty, function ($a, $b) {
+            $levels = ['beginner' => 1, 'intermediate' => 2, 'advanced' => 3, 'expert' => 4];
+            return $levels[strtolower($b['expertise_level'])] - $levels[strtolower($a['expertise_level'])];
+        });
+
+        foreach ($suitableFaculty as $faculty) {
+            if ($this->isFacultyAvailable($faculty['faculty_id'], $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                return $faculty['faculty_id'];
+            }
+        }
+
+        $allFaculty = $this->getFaculty($departmentId);
+        foreach ($allFaculty as $faculty) {
+            if (
+                $faculty['faculty_id'] != $excludeFacultyId &&
+                $this->isFacultyAvailable($faculty['faculty_id'], $targetDays, $startTime, $endTime, $facultyAssignments)
+            ) {
+                return $faculty['faculty_id'];
+            }
+        }
+
+        return null;
+    }
+
+    private function reassignCourse($assignment, $newFacultyId, &$facultyAssignments, &$schedules)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            UPDATE schedules 
+            SET faculty_id = :new_faculty_id
+            WHERE schedule_id = :schedule_id
+        ");
+
+            $result = $stmt->execute([
+                ':new_faculty_id' => $newFacultyId,
+                ':schedule_id' => $assignment['schedule_id']
+            ]);
+
+            if ($result) {
+                // Update in-memory arrays
+                foreach ($facultyAssignments as &$fa) {
+                    if ($fa['schedule_id'] == $assignment['schedule_id']) {
+                        $fa['faculty_id'] = $newFacultyId;
+                        $fa['faculty_name'] = $this->getFacultyName($newFacultyId); // Fetch name if needed
+                        break;
+                    }
+                }
+
+                foreach ($schedules as &$schedule) {
+                    if ($schedule['schedule_id'] == $assignment['schedule_id']) {
+                        $schedule['faculty_id'] = $newFacultyId;
+                        $schedule['faculty_name'] = $this->getFacultyName($newFacultyId); // Fetch name if needed
+                        break;
+                    }
+                }
+
+                return true;
+            }
+        } catch (Exception $e) {
+            error_log("❌ Error reassigning course: " . $e->getMessage());
+        }
+
+        return false;
+    }
+
+    // Fallback: Find best non-expert faculty
+    private function findBestNonExpertFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $departmentId, $schedules, $facultyAssignments)
+    {
+        // Try intermediate/advanced first
+        $nonExpertSpecializations = array_filter($facultySpecializations, function ($spec) use ($courseId) {
+            return $spec['course_id'] == $courseId &&
+                !in_array(strtolower($spec['expertise_level']), ['expert']);
+        });
+
+        foreach ($nonExpertSpecializations as $spec) {
+            if ($this->isFacultyAvailable($spec['faculty_id'], $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                error_log("📚 Assigned " . ucfirst($spec['expertise_level']) . " faculty {$spec['faculty_id']} to course $courseId");
+                return $spec['faculty_id'];
+            }
+        }
+
+        // Last resort: random faculty
+        $allFaculty = $this->getFaculty($departmentId);
+        foreach ($allFaculty as $faculty) {
+            if ($this->isFacultyAvailable($faculty['faculty_id'], $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                error_log("🎲 Random assignment: faculty {$faculty['faculty_id']} to course $courseId");
+                return $faculty['faculty_id'];
+            }
+        }
+
+        return null;
+    }
+
+    // Helper method to check faculty availability
+    private function isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)
+    {
+        foreach ($facultyAssignments as $assignment) {
+            if ($assignment['faculty_id'] == $facultyId) {
+                foreach ($targetDays as $day) {
+                    if (
+                        in_array($day, (array)$assignment['days']) &&
+                        $this->hasTimeConflict($startTime, $endTime, $assignment['start_time'], $assignment['end_time'])
+                    ) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // Helper method to reschedule a conflicting course to different time
+    private function rescheduleConflictingCourse($assignment, &$facultyAssignments, &$schedules, $departmentId)
+    {
+        error_log("⏰ Attempting to reschedule course {$assignment['course_id']} to different time");
+
+        // Get available time slots (you might need to adjust this based on your time slot generation)
+        $alternativeTimeSlots = $this->getAlternativeTimeSlots($assignment['day_of_week']);
+
+        foreach ($alternativeTimeSlots as $timeSlot) {
+            $newStartTime = $timeSlot['start'];
+            $newEndTime = $timeSlot['end'];
+
+            // Check if faculty is available at new time
+            if ($this->isFacultyAvailable($assignment['faculty_id'], $assignment['day_of_week'], $newStartTime, $newEndTime, $facultyAssignments)) {
+                // Check if room is available at new time
+                $roomAvailable = $this->isRoomAvailable($assignment['room_id'], $assignment['day_of_week'], $newStartTime, $newEndTime, $schedules);
+
+                if ($roomAvailable) {
+                    // Update the schedule
+                    if ($this->updateScheduleTime($assignment['schedule_id'], $newStartTime, $newEndTime)) {
+                        // Update in-memory arrays
+                        foreach ($facultyAssignments as &$fa) {
+                            if ($fa['schedule_id'] == $assignment['schedule_id']) {
+                                $fa['start_time'] = $newStartTime;
+                                $fa['end_time'] = $newEndTime;
+                                break;
                             }
                         }
+
+                        foreach ($schedules as &$schedule) {
+                            if ($schedule['schedule_id'] == $assignment['schedule_id']) {
+                                $schedule['start_time'] = $newStartTime;
+                                $schedule['end_time'] = $newEndTime;
+                                break;
+                            }
+                        }
+
+                        error_log("✅ Successfully rescheduled course {$assignment['course_id']} to $newStartTime-$newEndTime");
+                        return true;
                     }
                 }
-                return $isAvailable;
-            });
-
-            if (!empty($availableFaculty)) {
-                $randomFaculty = $availableFaculty[array_rand($availableFaculty)];
-                $bestFacultyId = $randomFaculty['faculty_id'];
-                error_log("Randomly assigned faculty ID {$bestFacultyId} for course $courseId ($courseCode)");
-            } else {
-                error_log("No available faculty (random or specialized) for course $courseId ($courseCode) at $startTime-$endTime on " . implode(', ', $targetDays));
             }
         }
 
-        return $bestFacultyId;
+        error_log("❌ Could not find alternative time slot for course {$assignment['course_id']}");
+        return false;
     }
 
-    private function calculateFacultyMatchScore($facultySpec, $courseId, $courseCode)
+    // Get alternative time slots for rescheduling
+    private function getAlternativeTimeSlots($currentDays)
     {
-        $matchScore = 0;
+        // Return common alternative time slots
+        return [
+            ['start' => '07:30:00', 'end' => '09:00:00'],
+            ['start' => '09:00:00', 'end' => '10:30:00'],
+            ['start' => '10:30:00', 'end' => '12:00:00'],
+            ['start' => '13:00:00', 'end' => '14:30:00'],
+            ['start' => '14:30:00', 'end' => '16:00:00'],
+            ['start' => '16:00:00', 'end' => '17:30:00'],
+            ['start' => '17:30:00', 'end' => '19:00:00']
+        ];
+    }
 
-        // Get course_id from courseCode if needed
-        $targetCourseId = $facultySpec['course_id'] == $courseId ? $courseId : $this->getCourseIdFromCode($courseCode);
+    // Check if room is available at specific time
+    private function isRoomAvailable($roomId, $days, $startTime, $endTime, $schedules)
+    {
+        foreach ($schedules as $schedule) {
+            if ($schedule['room_id'] == $roomId) {
+                $scheduleDays = (array)$schedule['day_of_week'];
+                $dayOverlap = array_intersect((array)$days, $scheduleDays);
 
-        if ($targetCourseId && $facultySpec['course_id'] == $targetCourseId) {
-            $matchScore = $facultySpec['expertise_level'] ?? 1; // Default to 1 if expertise_level is missing
-            if ($facultySpec['is_primary_specialization']) {
-                $matchScore += 2; // Add bonus for primary specialization
+                if (
+                    !empty($dayOverlap) &&
+                    $this->hasTimeConflict($startTime, $endTime, $schedule['start_time'], $schedule['end_time'])
+                ) {
+                    return false;
+                }
             }
-        } else {
-            error_log("No match for faculty ID {$facultySpec['faculty_id']} with course $courseId ($courseCode), targetCourseId: $targetCourseId, spec course_id: {$facultySpec['course_id']}");
         }
-
-        return $matchScore;
+        return true;
     }
 
-    private function getCourseIdFromCode($courseCode)
+    // Update schedule time in database
+    private function updateScheduleTime($scheduleId, $newStartTime, $newEndTime)
     {
-        $result = $this->getCourseDetails($courseCode);
-        return $result['course_id'] ?? null;
+        try {
+            $stmt = $this->db->prepare("
+            UPDATE schedules 
+            SET start_time = :start_time, end_time = :end_time 
+            WHERE schedule_id = :schedule_id
+        ");
+
+            return $stmt->execute([
+                ':start_time' => $newStartTime,
+                ':end_time' => $newEndTime,
+                ':schedule_id' => $scheduleId
+            ]);
+        } catch (Exception $e) {
+            error_log("❌ Error updating schedule time: " . $e->getMessage());
+            return false;
+        }
     }
 
-    private function hasTimeConflict($start1, $end1, $start2, $end2)
+    // Enhanced hasTimeConflict method with logging
+    private function hasTimeConflict($startTime1, $endTime1, $startTime2, $endTime2)
     {
-        $start1Ts = strtotime($start1);
-        $end1Ts = strtotime($end1);
-        $start2Ts = strtotime($start2);
-        $end2Ts = strtotime($end2);
+        // Convert time strings to comparable format (24-hour format)
+        $start1 = strtotime($startTime1);
+        $end1 = strtotime($endTime1);
+        $start2 = strtotime($startTime2);
+        $end2 = strtotime($endTime2);
 
-        return ($start1Ts < $end2Ts) && ($end1Ts > $start2Ts);
+        // Check for overlap: two time periods overlap if one starts before the other ends
+        $hasConflict = ($start1 < $end2) && ($start2 < $end1);
+
+        return $hasConflict;
     }
 
     private function getRoomAssignments($departmentId, $maxStudents, $targetDays, $startTime, $endTime, $schedules, $forceF2F = false)
@@ -1667,10 +1945,10 @@ class ChairController
         return $schedules;
     }
 
-    // Updated method to fetch faculty specializations
     private function getFacultySpecializations($departmentId)
     {
-        $stmt = $this->db->prepare("
+        try {
+            $stmt = $this->db->prepare("
             SELECT s.faculty_id, s.course_id, s.expertise_level, s.is_primary_specialization
             FROM specializations s
             JOIN faculty_departments fd ON s.faculty_id = fd.faculty_id
@@ -1678,8 +1956,24 @@ class ChairController
             WHERE fd.department_id = :department_id
             ORDER BY s.expertise_level DESC, s.is_primary_specialization DESC
         ");
-        $stmt->execute([':department_id' => $departmentId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmt->execute([':department_id' => $departmentId]);
+            $specializations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($specializations === false) {
+                error_log("fetchAll returned false for getFacultySpecializations, department $departmentId");
+                return [];
+            }
+
+            error_log("getFacultySpecializations for department $departmentId: found " . count($specializations) . " specializations");
+            return $specializations;
+        } catch (PDOException $e) {
+            error_log("getFacultySpecializations failed for department $departmentId: " . $e->getMessage());
+            return [];
+        } catch (Exception $e) {
+            error_log("Unexpected error in getFacultySpecializations for department $departmentId: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Updated method to find a specialized faculty
