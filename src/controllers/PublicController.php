@@ -186,10 +186,6 @@ class PublicController
 
             $searchPattern = '%' . $search . '%';
 
-            // Log the query and parameters for debugging
-            error_log("Search Schedules Query: $query");
-            error_log("Parameters: semester_id=$semester_id, college_id=$college_id, department_id=$department_id, year_level=$year_level, section_id=$section_id, search=$searchPattern");
-
             $stmt->execute([
                 $semester_id,       // 1st ?
                 $college_id,        // 2nd ?
