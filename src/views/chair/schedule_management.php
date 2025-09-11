@@ -20,15 +20,6 @@ ob_start();
             </div>
         <?php endif; ?>
 
-
-        <!-- Semester Info -->
-        <div class="bg-white p-4 rounded-md shadow-md mb-6 flex items-center justify-between">
-            <div class="flex items-center">
-                <i class="far fa-calendar-alt text-blue-500 mr-2"></i>
-                <span class="text-gray-700 font-medium">Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></span>
-            </div>
-        </div>
-
         <!-- Tabs -->
         <div class="mb-6">
             <div class="border-b border-gray-200">
