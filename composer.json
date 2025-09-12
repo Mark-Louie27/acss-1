@@ -10,6 +10,7 @@
         "tecnickcom/tcpdf": "^6.9",
         "setasign/fpdi-tcpdf": "^2.3",
         "phpoffice/phpspreadsheet": "^4.2",
-        "phpmailer/phpmailer": "^6.10"
+        "phpmailer/phpmailer": "^6.10",
+        "mpdf/mpdf": "^8.2"
     }
 }

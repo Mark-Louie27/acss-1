@@ -385,16 +385,17 @@ ob_start();
 <?php endif; ?>
 
 <!-- Main Content -->
-<div class="flex flex-col p-6 min-h-screen">
+<!-- Main Content -->
+<div class="flex flex-col p-3 sm:p-4 md:p-6 min-h-screen">
     <!-- Page Header -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
-        <div>
-            <h2 class="text-2xl sm:text-3xl font-heading text-prmsu-gray-dark">Curriculum Management</h2>
-            <p class="text-prmsu-gray text-sm mt-1">Organize and manage academic curricula with ease</p>
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 sm:mb-8">
+        <div class="mb-4 lg:mb-0">
+            <h2 class="text-xl sm:text-2xl md:text-3xl font-heading text-prmsu-gray-dark">Curriculum Management</h2>
+            <p class="text-prmsu-gray text-xs sm:text-sm mt-1">Organize and manage academic curricula with ease</p>
         </div>
-        <div class="flex space-x-3 mt-4 sm:mt-0">
-            <button onclick="openModal('addCurriculumCourseModal')" class="btn-gold flex items-center space-x-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
+            <button onclick="openModal('addCurriculumCourseModal')" class="btn-gold flex items-center justify-center space-x-2 w-full sm:w-auto px-4 py-2 text-sm sm:text-base">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                 </svg>
                 <span>Add New</span>
@@ -403,19 +404,19 @@ ob_start();
     </div>
 
     <!-- Search and Filter Bar -->
-    <div class="mb-6 flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
+    <div class="mb-4 sm:mb-6 flex flex-col lg:flex-row items-stretch lg:items-center space-y-3 lg:space-y-0 lg:space-x-4">
         <div class="relative flex-1 w-full">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg class="w-5 h-5 text-prmsu-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-prmsu-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
             </div>
             <input type="text" placeholder="Search curricula..." id="searchInput"
-                class="w-full pl-10 pr-4 py-3 border border-prmsu-gray rounded-lg focus-gold bg-prmsu-white shadow-sm">
+                class="w-full pl-8 sm:pl-10 pr-4 py-2 sm:py-3 text-sm sm:text-base border border-prmsu-gray rounded-lg focus-gold bg-prmsu-white shadow-sm">
         </div>
 
-        <div class="flex space-x-3 w-full sm:w-auto">
-            <select id="statusFilter" class="border border-prmsu-gray rounded-lg px-4 py-3 focus-gold bg-prmsu-white text-prmsu-gray-dark w-full sm:w-auto shadow-sm">
+        <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
+            <select id="statusFilter" class="border border-prmsu-gray rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base focus-gold bg-prmsu-white text-prmsu-gray-dark w-full sm:w-auto shadow-sm">
                 <option value="">All Statuses</option>
                 <option value="active">Active</option>
                 <option value="draft">Draft</option>
@@ -423,18 +424,118 @@ ob_start();
         </div>
     </div>
 
-    <!-- Curriculum Table -->
-    <div class="card overflow-hidden">
+    <!-- Mobile Card View (visible on small screens) -->
+    <div class="block lg:hidden space-y-4" id="mobileCardView">
+        <?php foreach ($curricula as $curriculum): ?>
+            <?php
+            $courseCountStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id");
+            $courseCountStmt->execute([':curriculum_id' => $curriculum['curriculum_id']]);
+            $course_count = $courseCountStmt->fetchColumn();
+
+            $coursesStmt = $db->prepare("
+                SELECT 
+                    c.course_id, 
+                    c.course_code, 
+                    c.course_name, 
+                    c.units, 
+                    cc.year_level, 
+                    cc.semester, 
+                    cc.subject_type,
+                    cc.is_core,
+                    cc.prerequisites,
+                    cc.co_requisites
+                FROM curriculum_courses cc
+                JOIN courses c ON cc.course_id = c.course_id
+                WHERE cc.curriculum_id = :curriculum_id
+                ORDER BY cc.year_level, cc.semester, c.course_code
+            ");
+            $coursesStmt->execute([':curriculum_id' => $curriculum['curriculum_id']]);
+            $curriculum_courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+            ?>
+            <div class="card p-4 space-y-3" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
+                <!-- Header -->
+                <div class="flex justify-between items-start">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-base sm:text-lg font-medium text-prmsu-gray-dark truncate"><?= htmlspecialchars($curriculum['curriculum_name']) ?></h3>
+                        <p class="text-xs sm:text-sm text-prmsu-gray mt-1"><?= htmlspecialchars($course_count) ?> Courses • <?= htmlspecialchars($curriculum['total_units']) ?> Units</p>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-2 <?= $curriculum['status'] === 'Active' ? 'bg-[var(--solid-green)] text-green-700' : 'bg-prmsu-gray-light text-prmsu-gray' ?>">
+                        <span class="w-2 h-2 mr-1 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-prmsu-gray' ?>"></span>
+                        <?= htmlspecialchars($curriculum['status']) ?>
+                    </span>
+                </div>
+
+                <!-- Last Updated -->
+                <div class="text-xs text-prmsu-gray">
+                    Last updated: <?= htmlspecialchars($curriculum['updated_at']) ?>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex flex-wrap gap-2 pt-2">
+                    <button onclick='openViewCoursesModal(<?= json_encode($curriculum_courses) ?>, "<?= htmlspecialchars($curriculum['curriculum_name']) ?>", <?= $curriculum['curriculum_id'] ?>)'
+                        class="flex items-center space-x-1 text-blue-600 hover:text-blue-800 transition-all bg-blue-50 px-2 py-1 rounded text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>View</span>
+                    </button>
+                    <button onclick="openManageCoursesModal(<?= $curriculum['curriculum_id'] ?>, '<?= htmlspecialchars($curriculum['curriculum_name']) ?>')"
+                        class="flex items-center space-x-1 text-green-600 hover:text-green-800 transition-all bg-green-50 px-2 py-1 rounded text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                        <span>Manage</span>
+                    </button>
+                    <button onclick="openEditCurriculumModal(<?= $curriculum['curriculum_id'] ?>)"
+                        class="flex items-center space-x-1 text-green-600 hover:text-green-800 transition-all bg-green-50 px-2 py-1 rounded text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        <span>Edit</span>
+                    </button>
+                    <form method="POST" class="inline">
+                        <input type="hidden" name="action" value="toggle_curriculum">
+                        <input type="hidden" name="curriculum_id" value="<?= $curriculum['curriculum_id'] ?>">
+                        <input type="hidden" name="status" value="<?= $curriculum['status'] ?>">
+                        <button type="submit"
+                            class="flex items-center space-x-1 text-prmsu-gray hover:text-prmsu-gray-dark transition-all bg-gray-50 px-2 py-1 rounded text-xs"
+                            title="<?= $curriculum['status'] === 'Active' ? 'Deactivate Curriculum' : 'Activate Curriculum' ?>">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $curriculum['status'] === 'Active' ? 'M10 9v6m4-6v6m-7-3h10' : 'M9 12h6m-3-3v6' ?>" />
+                            </svg>
+                            <span><?= $curriculum['status'] === 'Active' ? 'Deactivate' : 'Activate' ?></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        <?php endforeach; ?>
+
+        <?php if (empty($curricula)): ?>
+            <div class="card p-8 text-center">
+                <div class="flex flex-col items-center justify-center">
+                    <svg class="w-12 h-12 sm:w-16 sm:h-16 text-prmsu-gray-light mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p class="text-base sm:text-lg font-medium mb-2">No curricula found</p>
+                    <p class="text-sm">Start by adding a new curriculum</p>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Desktop Table View (hidden on small screens) -->
+    <div class="card overflow-hidden hidden lg:block">
         <div class="overflow-x-auto">
-            <table class="w-full table-auto border-collapse">
+            <table class="w-full table-auto border-collapse min-w-full">
                 <thead>
                     <tr class="table-header">
-                        <th class="px-4 sm:px-6 py-4 text-left">Curriculum Name</th>
-                        <th class="px-4 sm:px-6 py-4 text-left">Courses</th>
-                        <th class="px-4 sm:px-6 py-4 text-left">Total Units</th>
-                        <th class="px-4 sm:px-6 py-4 text-left">Last Updated</th>
-                        <th class="px-4 sm:px-6 py-4 text-left">Status</th>
-                        <th class="px-4 sm:px-6 py-4 text-left">Actions</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Curriculum Name</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Courses</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Total Units</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Last Updated</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Status</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="curriculaTableBody" class="divide-y divide-prmsu-gray-light">
@@ -464,38 +565,48 @@ ob_start();
                         $coursesStmt->execute([':curriculum_id' => $curriculum['curriculum_id']]);
                         $curriculum_courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
                         ?>
-                        <tr class="table-row" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
-                            <td class="px-4 sm:px-6 py-4 text-sm font-medium text-prmsu-gray-dark"><?= htmlspecialchars($curriculum['curriculum_name']) ?></td>
-                            <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($course_count) ?> Courses</td>
-                            <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray total-units"><?= htmlspecialchars($curriculum['total_units']) ?> Total Units</td>
-                            <td class="px-4 sm:px-6 py-4 text-sm text-prmsu-gray"><?= htmlspecialchars($curriculum['updated_at']) ?></td>
-                            <td class="px-4 sm:px-6 py-4 text-sm">
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium <?= $curriculum['status'] === 'Active' ? 'bg-[var(--solid-green)] text-green-700' : 'bg-prmsu-gray-light text-prmsu-gray' ?>">
-                                    <span class="w-2 h-2 mr-2 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-prmsu-gray' ?>"></span>
+                        <tr class="table-row hover:bg-gray-50 transition-colors" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
+                            <td class="px-4 xl:px-6 py-3 xl:py-4">
+                                <div class="text-sm xl:text-base font-medium text-prmsu-gray-dark truncate max-w-xs" title="<?= htmlspecialchars($curriculum['curriculum_name']) ?>">
+                                    <?= htmlspecialchars($curriculum['curriculum_name']) ?>
+                                </div>
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-prmsu-gray whitespace-nowrap">
+                                <?= htmlspecialchars($course_count) ?> Courses
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-prmsu-gray total-units whitespace-nowrap">
+                                <?= htmlspecialchars($curriculum['total_units']) ?> Units
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-prmsu-gray whitespace-nowrap">
+                                <?= htmlspecialchars($curriculum['updated_at']) ?>
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 xl:py-4">
+                                <span class="inline-flex items-center px-2 xl:px-3 py-1 rounded-full text-xs font-medium <?= $curriculum['status'] === 'Active' ? 'bg-[var(--solid-green)] text-green-700' : 'bg-prmsu-gray-light text-prmsu-gray' ?>">
+                                    <span class="w-2 h-2 mr-1 xl:mr-2 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-prmsu-gray' ?>"></span>
                                     <?= htmlspecialchars($curriculum['status']) ?>
                                 </span>
                             </td>
-                            <td class="px-4 sm:px-6 py-4 text-sm font-medium">
-                                <div class="flex space-x-3">
+                            <td class="px-4 xl:px-6 py-3 xl:py-4">
+                                <div class="flex space-x-2 xl:space-x-3">
                                     <button onclick='openViewCoursesModal(<?= json_encode($curriculum_courses) ?>, "<?= htmlspecialchars($curriculum['curriculum_name']) ?>", <?= $curriculum['curriculum_id'] ?>)'
-                                        class="text-blue-600 hover:text-blue-800 transition-all"
+                                        class="text-blue-600 hover:text-blue-800 transition-all p-1"
                                         title="View Courses">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                         </svg>
                                     </button>
                                     <button onclick="openManageCoursesModal(<?= $curriculum['curriculum_id'] ?>, '<?= htmlspecialchars($curriculum['curriculum_name']) ?>')"
-                                        class="text-green-600 hover:text-green-800 transition-all"
+                                        class="text-green-600 hover:text-green-800 transition-all p-1"
                                         title="Manage Courses">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                                         </svg>
                                     </button>
                                     <button onclick="openEditCurriculumModal(<?= $curriculum['curriculum_id'] ?>)"
-                                        class="text-green-600 hover:text-green-800 transition-all"
+                                        class="text-green-600 hover:text-green-800 transition-all p-1"
                                         title="Edit Curriculum">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                         </svg>
                                     </button>
@@ -504,9 +615,9 @@ ob_start();
                                         <input type="hidden" name="curriculum_id" value="<?= $curriculum['curriculum_id'] ?>">
                                         <input type="hidden" name="status" value="<?= $curriculum['status'] ?>">
                                         <button type="submit"
-                                            class="text-prmsu-gray hover:text-prmsu-gray-dark transition-all"
+                                            class="text-prmsu-gray hover:text-prmsu-gray-dark transition-all p-1"
                                             title="<?= $curriculum['status'] === 'Active' ? 'Deactivate Curriculum' : 'Activate Curriculum' ?>">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $curriculum['status'] === 'Active' ? 'M10 9v6m4-6v6m-7-3h10' : 'M9 12h6m-3-3v6' ?>" />
                                             </svg>
                                         </button>
@@ -518,12 +629,12 @@ ob_start();
 
                     <?php if (empty($curricula)): ?>
                         <tr>
-                            <td colspan="6" class="px-4 sm:px-6 py-12 text-center text-prmsu-gray">
+                            <td colspan="6" class="px-4 xl:px-6 py-8 xl:py-12 text-center text-prmsu-gray">
                                 <div class="flex flex-col items-center justify-center">
-                                    <svg class="w-16 h-16 text-prmsu-gray-light mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-12 h-12 xl:w-16 xl:h-16 text-prmsu-gray-light mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                     </svg>
-                                    <p class="text-lg font-medium mb-2">No curricula found</p>
+                                    <p class="text-base xl:text-lg font-medium mb-2">No curricula found</p>
                                     <p class="text-sm">Start by adding a new curriculum</p>
                                 </div>
                             </td>

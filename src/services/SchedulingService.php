@@ -1,6 +1,12 @@
 <?php
 header("Content-Type: application/json");
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+// Make sure to install PhpSpreadsheet via Composer
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class SchedulingService
 {
@@ -12,6 +18,148 @@ class SchedulingService
         $this->conn = $conn;
         $this->db = (new Database())->connect();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    }
+
+    private function exportTimetableToExcel($schedules, $filename, $roomName, $semesterName)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set title and headers
+        $sheet->mergeCells('A1:E1');
+        $sheet->setCellValue('A1', 'Republic of the Philippines');
+        $sheet->mergeCells('A2:E2');
+        $sheet->setCellValue('A2', 'PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY');
+        $sheet->mergeCells('A3:E3');
+        $sheet->setCellValue('A3', '(Formerly Ramon Magsaysay Technological University)');
+        $sheet->mergeCells('A4:E4');
+        $sheet->setCellValue('A4', 'COMPUTER LABORATORY SCHEDULE');
+        $sheet->mergeCells('A5:E5');
+        $sheet->setCellValue('A5', $semesterName);
+        $sheet->mergeCells('A6:E6');
+        $sheet->setCellValue('A6', strtoupper($roomName));
+
+        // Faculty in-charge (placeholder)
+        $sheet->setCellValue('A7', 'Faculty-in-charge:');
+        $sheet->mergeCells('B7:E7');
+
+        // Time slots and days
+        $days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+        $times = [
+            '7:30 - 8:00',
+            '8:00 - 9:00',
+            '9:00 - 10:00',
+            '10:00 - 11:00',
+            '11:00 - 12:00',
+            '12:00 - 1:00',
+            '1:00 - 2:00',
+            '2:00 - 3:00',
+            '3:00 - 4:00',
+            '4:00 - 5:00'
+        ];
+
+        $sheet->setCellValue('A9', 'TIME');
+        for ($i = 0; $i < count($days); $i++) {
+            $cell = chr(66 + $i) . '9'; // Convert column index to letter (B, C, D, etc.)
+            $sheet->setCellValue($cell, $days[$i]);
+        }
+
+        $row = 10;
+        foreach ($times as $time) {
+            $sheet->setCellValue('A' . $row, $time);
+            $row++;
+        }
+
+        // Populate schedule data
+        $row = 10;
+        foreach ($times as $time) {
+            foreach ($days as $index => $day) {
+                $cell = chr(66 + $index) . $row; // B, C, D, E columns
+                foreach ($schedules as $schedule) {
+                    if ($schedule['start_time'] === substr($time, 0, 5) && $schedule['day_of_week'] === $day) {
+                        $sheet->setCellValue($cell, $schedule['course_code'] . ' - ' . $schedule['faculty_name']);
+                    }
+                }
+                $sheet->getStyle($cell)->getAlignment()->setWrapText(true);
+            }
+            $row++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', 'E') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Style headers
+        $sheet->getStyle('A1:E6')->getFont()->setBold(true);
+        $sheet->getStyle('A9:E9')->getFont()->setBold(true);
+        $sheet->getStyle('A1:E6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        // Write to file
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '.xlsx"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        exit;
+    }
+
+    private function exportPlainExcel($courses, $faculty, $rooms, $sections, $filename)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Headers
+        $sheet->setCellValue('A1', 'Course Code');
+        $sheet->setCellValue('B1', 'Course Name');
+        $sheet->setCellValue('C1', 'Faculty Name');
+        $sheet->setCellValue('D1', 'Room Name');
+        $sheet->setCellValue('E1', 'Section Name');
+        $sheet->setCellValue('F1', 'Day of Week');
+        $sheet->setCellValue('G1', 'Start Time');
+        $sheet->setCellValue('H1', 'End Time');
+
+        // Populate with available resources
+        $row = 2;
+        foreach ($courses as $course) {
+            $sheet->setCellValue('A' . $row, $course['course_code']);
+            $sheet->setCellValue('B' . $row, $course['course_name']);
+            $row++;
+        }
+        $row = 2;
+        foreach ($faculty as $fac) {
+            $sheet->setCellValue('C' . $row, $fac['name']);
+            $row++;
+        }
+        $row = 2;
+        foreach ($rooms as $room) {
+            $sheet->setCellValue('D' . $row, $room['room_name']);
+            $row++;
+        }
+        $row = 2;
+        foreach ($sections as $section) {
+            $sheet->setCellValue('E' . $row, $section['section_name']);
+            $row++;
+        }
+
+        // Add days and times as dropdown options
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        $times = ['07:30', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+        $sheet->setCellValue('F2', implode(', ', $days));
+        $sheet->setCellValue('G2', implode(', ', $times));
+        $sheet->setCellValue('H2', implode(', ', $times));
+
+        foreach (range('A', 'H') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '.xlsx"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        exit;
     }
 
     /**

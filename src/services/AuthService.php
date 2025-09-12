@@ -25,7 +25,7 @@ class AuthService
     {
         try {
             $query = "
-                SELECT u.user_id, u.employee_id, u.username, u.first_name, u.last_name, 
+                SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.last_name, 
                        u.password_hash, u.role_id, u.profile_picture, u.is_active,
                        u.department_id, u.college_id, r.role_name
                 FROM users u
@@ -42,6 +42,7 @@ class AuthService
                 return [
                     'user_id' => $user['user_id'],
                     'employee_id' => $user['employee_id'],
+                    'title' => $user['title'],
                     'username' => $user['username'],
                     'first_name' => $user['first_name'],
                     'last_name' => $user['last_name'],

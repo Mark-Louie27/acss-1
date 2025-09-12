@@ -2,132 +2,89 @@
 ob_start();
 ?>
 
-<div class="min-h-screen bg-gray-100 font-sans">
-    <div class="container mx-auto p-6">
-        <!-- Header -->
-        <h1 class="text-3xl font-semibold text-gray-900 mb-6">Schedule Management System</h1>
+<div class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-lg border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-6">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-yellow-500 p-3 rounded-lg">
+                        <i class="fas fa-calendar-alt text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Schedule Management</h1>
+                        <p class="text-sm text-gray-600">Organize and manage academic schedules</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4 no-print">
+                    <button id="printBtn" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="window.print()">
+                        <i class="fas fa-print"></i>
+                        <span class="hidden sm:inline">Print</span>
+                    </button>
+                    <button id="downloadBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="downloadSchedule()">
+                        <i class="fas fa-download"></i>
+                        <span class="hidden sm:inline">Download CSV</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
 
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Notifications -->
         <?php if (isset($error)): ?>
-            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-6 shadow-md">
-                <?php echo nl2br(htmlspecialchars($error)); ?>
+            <div class="mb-6 flex items-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                <i class="fas fa-exclamation-circle text-red-500 text-xl mr-3"></i>
+                <p class="text-sm font-medium text-red-800"><?php echo nl2br(htmlspecialchars($error)); ?></p>
             </div>
         <?php endif; ?>
 
         <?php if (isset($success)): ?>
-            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mb-6 shadow-md">
-                <?php echo htmlspecialchars($success); ?>
+            <div class="mb-6 flex items-center p-4 bg-green-50 border border-green-200 rounded-lg">
+                <i class="fas fa-check-circle text-green-500 text-xl mr-3"></i>
+                <p class="text-sm font-medium text-green-800"><?php echo htmlspecialchars($success); ?></p>
             </div>
         <?php endif; ?>
 
-        <!-- Tabs -->
-        <div class="mb-6">
-            <div class="border-b border-gray-200">
-                <nav class="-mb-px flex space-x-8">
-                    <a href="?tab=manual" class="tab-link <?php echo $activeTab === 'manual' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?> inline-flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors duration-200">
-                        <i class="fas fa-calendar-plus mr-2"></i> Manual Edit
-                    </a>
-                    <a href="?tab=generate" class="tab-link <?php echo $activeTab === 'generate' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?> inline-flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors duration-200">
-                        <i class="fas fa-magic mr-2"></i> Generate Schedules
-                    </a>
-                    <a href="?tab=schedule-list" class="tab-link <?php echo $activeTab === 'schedule-list' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?> inline-flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors duration-200">
-                        <i class="fas fa-list mr-2"></i> Schedule List
-                    </a>
-                    <a href="?tab=export" class="tab-link <?php echo $activeTab === 'export' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?> inline-flex items-center px-4 py-2 border-b-2 font-medium text-sm transition-colors duration-200">
-                        <i class="fas fa-file-export mr-2"></i> Export Template
-                    </a>
-                </nav>
-            </div>
+        <!-- Navigation Tabs -->
+        <div class="mb-8">
+            <nav class="flex space-x-1 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                <button onclick="switchTab('generate')" id="tab-generate" class="tab-button flex-1 py-3 px-4 text-sm font-medium rounded-md transition-all duration-200 <?php echo $activeTab === 'generate' ? 'bg-yellow-500 text-white' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'; ?>">
+                    <i class="fas fa-magic mr-2"></i>
+                    <span class="hidden sm:inline">Generate Schedules</span>
+                    <span class="sm:hidden">Generate</span>
+                </button>
+                <button onclick="switchTab('manual')" id="tab-manual" class="tab-button flex-1 py-3 px-4 text-sm font-medium rounded-md transition-all duration-200 <?php echo $activeTab === 'manual' ? 'bg-yellow-500 text-white' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'; ?>">
+                    <i class="fas fa-edit mr-2"></i>
+                    <span class="hidden sm:inline">Manual Edit</span>
+                    <span class="sm:hidden">Manual</span>
+                </button>
+                <button onclick="switchTab('schedule')" id="tab-schedule" class="tab-button flex-1 py-3 px-4 text-sm font-medium rounded-md transition-all duration-200 <?php echo $activeTab === 'schedule-list' ? 'bg-yellow-500 text-white' : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'; ?>">
+                    <i class="fas fa-calendar mr-2"></i>
+                    <span class="hidden sm:inline">View Schedule</span>
+                    <span class="sm:hidden">View</span>
+                </button>
+            </nav>
         </div>
 
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                <p class="text-gray-700">Generating schedules... Please wait.</p>
-            </div>
-        </div>
-
-        <!-- Tab Content -->
-        <div class="tab-content">
-            <!-- Manual Edit Tab -->
-            <div class="tab-pane <?php echo $activeTab === 'manual' ? 'active' : 'hidden'; ?>" id="manual" role="tabpanel">
-                <div class="bg-white rounded-md shadow-md p-6 mb-6">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Manual Schedule Editor</h3>
-                    <div class="schedule-table-container overflow-x-auto">
-                        <table class="w-full schedule-table border-collapse">
-                            <thead>
-                                <tr class="bg-gray-50">
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Time</th>
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Monday</th>
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Tuesday</th>
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Wednesday</th>
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Thursday</th>
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Friday</th>
-                                    <th class="border-b border-gray-200 p-3 text-left text-sm font-medium text-gray-700">Saturday</th>
-                                </tr>
-                            </thead>
-                            <tbody id="scheduleBody">
-                                <?php
-                                $times = [
-                                    ['07:30', '08:30'], // 60 minutes
-                                    ['08:30', '10:00'], // 90 minutes
-                                    ['10:00', '11:00'], // 60 minutes
-                                    ['11:00', '12:30'], // 90 minutes
-                                    ['12:30', '13:30'], // 60 minutes
-                                    ['13:00', '14:30'], // 90 minutes
-                                    ['14:30', '15:30'], // 60 minutes
-                                    ['15:30', '17:00'], // 90 minutes
-                                    ['17:00', '18:00']  // 60 minutes
-                                ];
-                                foreach ($times as $time) {
-                                    echo "<tr>";
-                                    echo "<td class='border-b border-gray-200 p-2 text-sm text-gray-700 bg-gray-50'>{$time[0]} - {$time[1]}</td>";
-                                    foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $day) {
-                                        $schedule = array_filter($schedules, fn($s) => $s['day_of_week'] === $day && substr($s['start_time'], 0, 5) === $time[0] && substr($s['end_time'], 0, 5) === $time[1]);
-                                        $schedule = reset($schedule) ?: null;
-                                        echo "<td class='droppable border-b border-gray-200 p-2 text-sm text-gray-700 min-h-[60px] relative' data-time='{$time[0]}' data-end-time='{$time[1]}' data-day='{$day}'>";
-                                        if ($schedule) {
-                                            echo "<div class='schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative' data-id='{$schedule['schedule_id']}'>";
-                                            echo "<strong class='text-gray-900'>{$schedule['course_code']} - {$schedule['course_name']}</strong><br>";
-                                            echo "<span class='text-gray-600 text-xs'>{$schedule['faculty_name']}</span><br>";
-                                            echo "<span class='text-gray-600 text-xs'>" . (isset($schedule['room_name']) ? $schedule['room_name'] : 'Online') . "</span><br>";
-                                            echo "<span class='text-gray-600 text-xs'>{$schedule['section_name']} ({$schedule['schedule_type']})</span>";
-                                            echo "<div class='mt-2'>";
-                                            echo "<button class='remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded' onclick='removeSchedule(this)'>Remove</button>";
-                                            echo "<button class='edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded' onclick='editScheduleInline(this)'>Edit</button>";
-                                            echo "</div>";
-                                            echo "</div>";
-                                        } else {
-                                            echo "<button class='add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded' onclick='addScheduleInline(this)'>Add</button>";
-                                        }
-                                        echo "</td>";
-                                    }
-                                    echo "</tr>";
-                                }
-                                ?>
-                            </tbody>
-                        </table>
+        <!-- Generate Tab -->
+        <div id="content-generate" class="tab-content <?php echo $activeTab !== 'generate' ? 'hidden' : ''; ?>">
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center mb-6">
+                    <div class="bg-yellow-500 p-2 rounded-lg mr-3">
+                        <i class="fas fa-magic text-white"></i>
                     </div>
-                    <form id="scheduleForm" method="POST" action="" class="mt-6">
-                        <input type="hidden" name="tab" value="manual">
-                        <input type="hidden" name="schedules" id="schedulesInput">
-                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
-                            Save Changes
-                        </button>
-                    </form>
+                    <h2 class="text-xl font-bold text-gray-900">Generate Schedules</h2>
                 </div>
-            </div>
 
-            <!-- Generate Schedules Tab -->
-            <div class="tab-pane <?php echo $activeTab === 'generate' ? 'active' : 'hidden'; ?>" id="generate" role="tabpanel">
-                <div class="bg-white rounded-md shadow-md p-6">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Generate Schedules</h3>
-                    <form method="POST" action="/chair/schedule_management" class="grid grid-cols-1 gap-6" id="generate-form">
-                        <input type="hidden" name="tab" value="generate">
+                <form id="generate-form" class="space-y-6">
+                    <input type="hidden" name="tab" value="generate">
+                    <input type="hidden" name="semester_id" value="<?php echo htmlspecialchars($currentSemester['semester_id'] ?? ''); ?>">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div>
-                            <label for="generate_curriculum_id" class="block text-sm font-medium text-gray-700">Curriculum</label>
-                            <select name="curriculum_id" id="generate_curriculum_id" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required onchange="updateYearLevels()">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Curriculum</label>
+                            <select name="curriculum_id" id="curriculum_id" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white" required onchange="updateYearLevels()">
                                 <option value="">Select Curriculum</option>
                                 <?php foreach ($curricula as $curriculum): ?>
                                     <option value="<?php echo htmlspecialchars($curriculum['curriculum_id']); ?>">
@@ -138,708 +95,1280 @@ ob_start();
                         </div>
 
                         <div>
-                            <label for="year_levels" class="block text-sm font-medium text-gray-700">Year Levels</label>
-                            <select name="year_levels[]" id="year_levels" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" multiple onchange="updateSections()">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Year Levels</label>
+                            <select name="year_levels[]" id="year_levels" multiple class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white" size="4" onchange="updateSections()">
                                 <option value="">Select Year Level</option>
                             </select>
                         </div>
+
                         <div>
-                            <label for="sections" class="block text-sm font-medium text-gray-700">Sections</label>
-                            <select name="sections[]" id="sections" class="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" multiple required>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Sections</label>
+                            <select name="sections[]" id="sections" multiple class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white" size="4" required>
                                 <option value="">Select Section</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></label>
-                            <input type="hidden" name="semester_id" value="<?php echo htmlspecialchars($currentSemester['semester_id'] ?? ''); ?>">
-                        </div>
-                        <div>
-                            <button type="button" id="generate-schedules-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
-                                Generate Schedules
-                            </button>
-                        </div>
-                    </form>
-                    <div id="generation-result"></div>
-                </div>
-            </div>
+                    </div>
 
-            <!-- Schedule List Tab -->
-            <div class="tab-pane <?php echo $activeTab === 'schedule-list' ? 'active' : 'hidden'; ?>" id="schedule-list" role="tabpanel">
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-2xl font-bold text-gray-900">Weekly Schedule</h3>
-                        <div class="flex space-x-3">
-                            <select id="filterYearLevel" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm" onchange="filterSchedules()">
-                                <option value="">All Year Levels</option>
-                                <?php
-                                $yearLevels = array_unique(array_column($schedules, 'year_level'));
-                                foreach ($yearLevels as $year) {
-                                    echo "<option value='" . htmlspecialchars($year) . "'>" . htmlspecialchars($year) . "</option>";
-                                }
-                                ?>
-                            </select>
-                            <select id="filterSection" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm" onchange="filterSchedules()">
-                                <option value="">All Sections</option>
-                                <?php
-                                $sections = array_unique(array_column($schedules, 'section_name'));
-                                foreach ($sections as $section) {
-                                    echo "<option value='" . htmlspecialchars($section) . "'>" . htmlspecialchars($section) . "</option>";
-                                }
-                                ?>
-                            </select>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+                            <span class="text-sm font-medium text-gray-800">Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name'] ?? 'Not Set'); ?></span>
                         </div>
                     </div>
 
-                    <!-- Weekly Timetable -->
-                    <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="min-w-full">
-                            <!-- Header with days -->
-                            <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                                <div class="px-4 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50">
-                                    Time
-                                </div>
-                                <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                    Monday
-                                </div>
-                                <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                    Tuesday
-                                </div>
-                                <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                    Wednesday
-                                </div>
-                                <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                    Thursday
-                                </div>
-                                <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                    Friday
-                                </div>
-                                <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700">
-                                    Saturday
-                                </div>
+                    <div class="flex justify-end">
+                        <button type="button" id="generate-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold px-8 py-3 rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105">
+                            <i class="fas fa-magic mr-2"></i>
+                            Generate Schedules
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Generation Results -->
+                <div id="generation-results" class="hidden mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex items-center mb-4">
+                        <i class="fas fa-check-circle text-green-500 text-xl mr-3"></i>
+                        <h3 class="text-lg font-semibold text-green-800">Schedules Generated Successfully!</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="bg-white p-3 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-green-600" id="total-courses">0</div>
+                            <div class="text-gray-600">Courses Scheduled</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-green-600" id="total-sections">0</div>
+                            <div class="text-gray-600">Sections</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-green-600" id="success-rate">100%</div>
+                            <div class="text-gray-600">Success Rate</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Edit Tab -->
+        <div id="content-manual" class="tab-content <?php echo $activeTab !== 'manual' ? 'hidden' : ''; ?>">
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="bg-yellow-500 p-2 rounded-lg mr-3">
+                            <i class="fas fa-edit text-white"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-gray-900">Manual Schedule Editor</h2>
+                    </div>
+                    <div class="flex items-center space-x-4 no-print">
+                        <select id="filter-year-manual" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedulesManual()">
+                            <option value="">All Year Levels</option>
+                            <?php $yearLevels = array_unique(array_column($schedules, 'year_level'));
+                            foreach ($yearLevels as $year): ?>
+                                <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select id="filter-section-manual" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedulesManual()">
+                            <option value="">All Sections</option>
+                            <?php $sectionNames = array_unique(array_column($schedules, 'section_name'));
+                            foreach ($sectionNames as $section): ?>
+                                <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select id="filter-room-manual" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedulesManual()">
+                            <option value="">All Rooms</option>
+                            <?php $rooms = array_unique(array_column($schedules, 'room_name'));
+                            foreach ($rooms as $room): ?>
+                                <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button id="add-schedule-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="openAddModal()">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Schedule</span>
+                        </button>
+                        <button id="save-changes-btn" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="saveAllChanges()">
+                            <i class="fas fa-save"></i>
+                            <span>Save Changes</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Rest of the grid layout remains the same as provided earlier -->
+                <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="min-w-full">
+                        <!-- Header with days -->
+                        <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                            <div class="px-4 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50">
+                                Time
                             </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Monday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Tuesday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Wednesday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Thursday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Friday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700">
+                                Saturday
+                            </div>
+                        </div>
 
-                            <!-- Time slots -->
-                            <div id="timetableGrid" class="divide-y divide-gray-200">
-                                <?php
-                                $timeSlots = [
-                                    ['07:30', '08:30'], // 60 minutes
-                                    ['08:30', '10:00'], // 90 minutes
-                                    ['10:00', '11:00'], // 60 minutes
-                                    ['11:00', '12:30'], // 90 minutes
-                                    ['12:30', '13:30'], // 60 minutes
-                                    ['13:00', '14:30'], // 90 minutes
-                                    ['14:30', '15:30'], // 60 minutes
-                                    ['15:30', '17:00'], // 90 minutes
-                                    ['17:00', '18:00']  // 60 minutes
-                                ];
+                        <!-- Time slots -->
+                        <div id="schedule-grid" class="divide-y divide-gray-200">
+                            <?php
+                            $timeSlots = [
+                                ['07:30', '08:30'],
+                                ['08:30', '10:00'],
+                                ['10:00', '11:00'],
+                                ['11:00', '12:30'],
+                                ['12:30', '13:30'],
+                                ['13:00', '14:30'],
+                                ['14:30', '15:30'],
+                                ['15:30', '17:00'],
+                                ['17:00', '18:00']
+                            ];
 
-                                $scheduleGrid = [];
-                                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            $scheduleGrid = [];
+                            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-                                foreach ($schedules as $schedule) {
-                                    $day = $schedule['day_of_week'];
-                                    $startTime = substr($schedule['start_time'], 0, 5);
-                                    $endTime = substr($schedule['end_time'], 0, 5);
+                            foreach ($schedules as $schedule) {
+                                $day = $schedule['day_of_week'];
+                                $startTime = substr($schedule['start_time'], 0, 5);
+                                $endTime = substr($schedule['end_time'], 0, 5);
 
-                                    if (!isset($scheduleGrid[$day])) {
-                                        $scheduleGrid[$day] = [];
-                                    }
-
-                                    // Group by start time for rendering
-                                    if (!isset($scheduleGrid[$day][$startTime])) {
-                                        $scheduleGrid[$day][$startTime] = [];
-                                    }
-                                    $scheduleGrid[$day][$startTime][] = $schedule;
+                                if (!isset($scheduleGrid[$day])) {
+                                    $scheduleGrid[$day] = [];
                                 }
-                                ?>
 
-                                <?php foreach ($timeSlots as $time): ?>
-                                    <?php
-                                    $duration = strtotime($time[1]) - strtotime($time[0]);
-                                    $rowSpan = $duration / 3600; // Convert seconds to hours
-                                    ?>
-                                    <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
-                                        <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
-                                            <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
-                                        </div>
-                                        <?php foreach ($days as $day): ?>
-                                            <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative" data-day="<?php echo $day; ?>" data-time="<?php echo $time[0]; ?>" data-end-time="<?php echo $time[1]; ?>">
-                                                <?php
-                                                $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
-                                                foreach ($schedulesForSlot as $schedule) {
-                                                    $scheduleStart = substr($schedule['start_time'], 0, 5);
-                                                    $scheduleEnd = substr($schedule['end_time'], 0, 5);
-                                                    if ($scheduleStart === $time[0]) { // Match by start time only
-                                                        $colors = [
-                                                            'bg-blue-100 border-blue-300 text-blue-800',
-                                                            'bg-green-100 border-green-300 text-green-800',
-                                                            'bg-purple-100 border-purple-300 text-purple-800',
-                                                            'bg-orange-100 border-orange-300 text-orange-800',
-                                                            'bg-pink-100 border-pink-300 text-pink-800'
-                                                        ];
-                                                        $colorClass = $colors[array_rand($colors)];
-                                                ?>
-                                                        <div class="<?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1" data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>" data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>">
+                                if (!isset($scheduleGrid[$day][$startTime])) {
+                                    $scheduleGrid[$day][$startTime] = [];
+                                }
+                                $scheduleGrid[$day][$startTime][] = $schedule;
+                            }
+                            ?>
+
+                            <?php foreach ($timeSlots as $time): ?>
+                                <?php
+                                $duration = strtotime($time[1]) - strtotime($time[0]);
+                                $rowSpan = $duration / 3600;
+                                ?>
+                                <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
+                                    <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
+                                        <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                    </div>
+                                    <?php foreach ($days as $day): ?>
+                                        <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative drop-zone"
+                                            data-day="<?php echo $day; ?>"
+                                            data-start-time="<?php echo $time[0]; ?>"
+                                            data-end-time="<?php echo $time[1]; ?>">
+                                            <?php
+                                            $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
+                                            foreach ($schedulesForSlot as $schedule) {
+                                                $scheduleStart = substr($schedule['start_time'], 0, 5);
+                                                $scheduleEnd = substr($schedule['end_time'], 0, 5);
+                                                if ($scheduleStart === $time[0]) {
+                                                    $colors = [
+                                                        'bg-blue-100 border-blue-300 text-blue-800',
+                                                        'bg-green-100 border-green-300 text-green-800',
+                                                        'bg-purple-100 border-purple-300 text-purple-800',
+                                                        'bg-orange-100 border-orange-300 text-orange-800',
+                                                        'bg-pink-100 border-pink-300 text-pink-800'
+                                                    ];
+                                                    $colorClass = $colors[array_rand($colors)];
+                                            ?>
+                                                    <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 draggable cursor-move"
+                                                        draggable="true"
+                                                        data-schedule-id="<?php echo $schedule['schedule_id']; ?>"
+                                                        ondragstart="handleDragStart(event)"
+                                                        ondragend="handleDragEnd(event)"
+                                                        data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
+                                                        data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
+                                                        data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>">
+                                                        <div class="flex justify-between items-start mb-2">
                                                             <div class="font-semibold text-xs truncate mb-1">
                                                                 <?php echo htmlspecialchars($schedule['course_code']); ?>
                                                             </div>
-                                                            <div class="text-xs opacity-90 truncate mb-1">
-                                                                <?php echo htmlspecialchars($schedule['section_name']); ?>
-                                                            </div>
-                                                            <div class="text-xs opacity-75 truncate">
-                                                                <?php echo htmlspecialchars($schedule['faculty_name']); ?>
-                                                            </div>
-                                                            <div class="text-xs opacity-75 truncate">
-                                                                <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
-                                                            </div>
-                                                            <div class="text-xs font-medium mt-1">
-                                                                <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
-                                                            </div>
+                                                            <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
                                                         </div>
+                                                        <div class="text-xs opacity-90 truncate mb-1">
+                                                            <?php echo htmlspecialchars($schedule['section_name']); ?>
+                                                        </div>
+                                                        <div class="text-xs opacity-75 truncate">
+                                                            <?php echo htmlspecialchars($schedule['faculty_name']); ?>
+                                                        </div>
+                                                        <div class="text-xs opacity-75 truncate">
+                                                            <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
+                                                        </div>
+                                                        <div class="text-xs font-medium mt-1">
+                                                            <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
+                                                        </div>
+                                                    </div>
                                                 <?php
-                                                    }
                                                 }
+                                            }
+                                            if (empty($schedulesForSlot)) {
                                                 ?>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
+                                                <button onclick="openAddModalForSlot('<?php echo $day; ?>', '<?php echo $time[0]; ?>', '<?php echo $time[1]; ?>')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print">
+                                                    <i class="fas fa-plus text-lg"></i>
+                                                </button>
+                                            <?php
+                                            }
+                                            ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Legend -->
-                    <div class="mt-6 bg-gray-50 rounded-lg p-4">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-2">Legend</h4>
-                        <div class="flex flex-wrap gap-4 text-xs">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-4 h-4 bg-blue-100 border-l-4 border-blue-300 rounded"></div>
-                                <span class="text-gray-600">Different colors for visual distinction</span>
+        <!-- View Schedule Tab -->
+        <div id="content-schedule" class="tab-content <?php echo $activeTab !== 'schedule-list' ? 'hidden' : ''; ?>">
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="bg-yellow-500 p-2 rounded-lg mr-3">
+                            <i class="fas fa-calendar text-white"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
+                    </div>
+                    <div class="flex items-center space-x-4 no-print">
+                        <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                            <option value="">All Year Levels</option>
+                            <?php $yearLevels = array_unique(array_column($schedules, 'year_level'));
+                            foreach ($yearLevels as $year): ?>
+                                <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select id="filter-section" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                            <option value="">All Sections</option>
+                            <?php $sectionNames = array_unique(array_column($schedules, 'section_name'));
+                            foreach ($sectionNames as $section): ?>
+                                <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select id="filter-room" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                            <option value="">All Rooms</option>
+                            <?php $rooms = array_unique(array_column($schedules, 'room_name'));
+                            foreach ($rooms as $room): ?>
+                                <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Weekly Timetable -->
+                <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="min-w-full">
+                        <!-- Header with days -->
+                        <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                            <div class="px-4 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50">
+                                Time
                             </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Monday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Tuesday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Wednesday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Thursday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                Friday
+                            </div>
+                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700">
+                                Saturday
+                            </div>
+                        </div>
+
+                        <!-- Time slots -->
+                        <div id="timetableGrid" class="divide-y divide-gray-200">
+                            <?php
+                            $timeSlots = [
+                                ['07:30', '08:30'], // 60 minutes
+                                ['08:30', '10:00'], // 90 minutes
+                                ['10:00', '11:00'], // 60 minutes
+                                ['11:00', '12:30'], // 90 minutes
+                                ['12:30', '13:30'], // 60 minutes
+                                ['13:00', '14:30'], // 90 minutes
+                                ['14:30', '15:30'], // 60 minutes
+                                ['15:30', '17:00'], // 90 minutes
+                                ['17:00', '18:00']  // 60 minutes
+                            ];
+
+                            $scheduleGrid = [];
+                            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+                            foreach ($schedules as $schedule) {
+                                $day = $schedule['day_of_week'];
+                                $startTime = substr($schedule['start_time'], 0, 5);
+                                $endTime = substr($schedule['end_time'], 0, 5);
+
+                                if (!isset($scheduleGrid[$day])) {
+                                    $scheduleGrid[$day] = [];
+                                }
+
+                                // Group by start time for rendering
+                                if (!isset($scheduleGrid[$day][$startTime])) {
+                                    $scheduleGrid[$day][$startTime] = [];
+                                }
+                                $scheduleGrid[$day][$startTime][] = $schedule;
+                            }
+                            ?>
+
+                            <?php foreach ($timeSlots as $time): ?>
+                                <?php
+                                $duration = strtotime($time[1]) - strtotime($time[0]);
+                                $rowSpan = $duration / 3600; // Convert seconds to hours
+                                ?>
+                                <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
+                                    <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
+                                        <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                    </div>
+                                    <?php foreach ($days as $day): ?>
+                                        <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative" data-day="<?php echo $day; ?>" data-time="<?php echo $time[0]; ?>" data-end-time="<?php echo $time[1]; ?>">
+                                            <?php
+                                            $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
+                                            foreach ($schedulesForSlot as $schedule) {
+                                                $scheduleStart = substr($schedule['start_time'], 0, 5);
+                                                $scheduleEnd = substr($schedule['end_time'], 0, 5);
+                                                if ($scheduleStart === $time[0]) { // Match by start time only
+                                                    $colors = [
+                                                        'bg-blue-100 border-blue-300 text-blue-800',
+                                                        'bg-green-100 border-green-300 text-green-800',
+                                                        'bg-purple-100 border-purple-300 text-purple-800',
+                                                        'bg-orange-100 border-orange-300 text-orange-800',
+                                                        'bg-pink-100 border-pink-300 text-pink-800'
+                                                    ];
+                                                    $colorClass = $colors[array_rand($colors)];
+                                            ?>
+                                                    <div class="<?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1" data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>" data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>">
+                                                        <div class="font-semibold text-xs truncate mb-1">
+                                                            <?php echo htmlspecialchars($schedule['course_code']); ?>
+                                                        </div>
+                                                        <div class="text-xs opacity-90 truncate mb-1">
+                                                            <?php echo htmlspecialchars($schedule['section_name']); ?>
+                                                        </div>
+                                                        <div class="text-xs opacity-75 truncate">
+                                                            <?php echo htmlspecialchars($schedule['faculty_name']); ?>
+                                                        </div>
+                                                        <div class="text-xs opacity-75 truncate">
+                                                            <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
+                                                        </div>
+                                                        <div class="text-xs font-medium mt-1">
+                                                            <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
+                                                        </div>
+                                                    </div>
+                                            <?php
+                                                }
+                                            }
+                                            ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Export Template Tab -->
-            <div class="tab-pane <?php echo $activeTab === 'export' ? 'active' : 'hidden'; ?>" id="export" role="tabpanel">
-                <div class="bg-white rounded-md shadow-md p-6">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Export Schedule Template</h3>
-                    <form method="POST" class="space-y-4">
-                        <input type="hidden" name="tab" value="export">
-                        <p class="text-gray-600">Export a plain Excel file containing all available resources (curricula, courses, faculty, rooms, sections) for manual editing.</p>
-                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
-                            Export Template
+            <!-- Loading Overlay -->
+            <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+                <div class="bg-white p-8 rounded-lg shadow-xl text-center">
+                    <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-yellow-500 mx-auto mb-4"></div>
+                    <p class="text-gray-700 font-medium">Generating schedules...</p>
+                </div>
+            </div>
+
+            <!-- Add/Edit Schedule Modal -->
+            <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900" id="modal-title">Add Schedule</h3>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
                         </button>
+                    </div>
+
+                    <form id="schedule-form" class="space-y-4" onsubmit="handleScheduleSubmit(event)">
+                        <input type="hidden" id="schedule-id" name="schedule_id">
+                        <input type="hidden" id="modal-day" name="day_of_week">
+                        <input type="hidden" id="modal-start-time" name="start_time">
+                        <input type="hidden" id="modal-end-time" name="end_time">
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Course Code</label>
+                            <input type="text" id="course-code" name="course_code" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
+                            <input type="text" id="course-name" name="course_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
+                            <input type="text" id="faculty-name" name="faculty_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
+                            <input type="text" id="room-name" name="room_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
+                            <input type="text" id="section-name" name="section_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                                <select id="start-time" name="start_time_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
+                                    <option value="07:30">7:30 AM</option>
+                                    <option value="08:30">8:30 AM</option>
+                                    <option value="10:00">10:00 AM</option>
+                                    <option value="11:00">11:00 AM</option>
+                                    <option value="12:30">12:30 PM</option>
+                                    <option value="13:30">1:30 PM</option>
+                                    <option value="14:30">2:30 PM</option>
+                                    <option value="15:30">3:30 PM</option>
+                                    <option value="17:00">5:00 PM</option>
+                                    <option value="18:00">6:00 PM</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Day</label>
+                            <select id="day-select" name="day_select_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
+                                <option value="Monday">Monday</option>
+                                <option value="Tuesday">Tuesday</option>
+                                <option value="Wednesday">Wednesday</option>
+                                <option value="Thursday">Thursday</option>
+                                <option value="Friday">Friday</option>
+                                <option value="Saturday">Saturday</option>
+                            </select>
+                        </div>
+
+                        <div class="flex justify-end space-x-4 pt-4">
+                            <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Save Schedule</button>
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-<script>
-    const departmentId = <?php echo json_encode($departmentId); ?>;
-    const times = [
-        ['07:30', '08:30'],
-        ['08:30', '10:00'],
-        ['10:00', '11:00'],
-        ['11:00', '12:30'],
-        ['12:30', '13:30'],
-        ['13:00', '14:30'],
-        ['14:30', '15:30'],
-        ['15:30', '17:00'],
-        ['17:00', '18:00']
-    ];
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    let scheduleData = <?php echo json_encode($schedules); ?> || [];
+        <script>
+            // Global variables
+            let scheduleData = <?php echo json_encode($schedules); ?> || [];
+            let currentEditingId = null;
+            let draggedElement = null;
 
-    function populateSchedule() {
-        const tbody = document.getElementById('scheduleBody');
-        times.forEach(time => {
-            const row = document.createElement('tr');
-            const timeCell = document.createElement('td');
-            timeCell.textContent = `${time[0]} - ${time[1]}`;
-            timeCell.classList.add('border-b', 'border-gray-200', 'p-2', 'text-sm', 'text-gray-700', 'bg-gray-50');
-            row.appendChild(timeCell);
-            days.forEach(day => {
-                const cell = document.createElement('td');
-                cell.dataset.time = time[0];
-                cell.dataset.endTime = time[1];
-                cell.dataset.day = day;
-                cell.classList.add('droppable', 'border-b', 'border-gray-200', 'p-2', 'text-sm', 'text-gray-700', 'min-h-[60px]', 'relative');
-                row.appendChild(cell);
-            });
-            tbody.appendChild(row);
-        });
-        renderSchedules();
-    }
+            // Pass PHP data to JavaScript
+            const departmentId = <?php echo json_encode($departmentId); ?>;
+            const currentSemester = <?php echo json_encode($currentSemester); ?>;
+            const rawSectionsData = <?php echo json_encode($sections); ?> || [];
+            const currentAcademicYear = "<?php echo htmlspecialchars($currentSemester['academic_year'] ?? ''); ?>";
 
-    function renderSchedules() {
-        document.querySelectorAll('.droppable').forEach(cell => {
-            cell.innerHTML = '';
-            const schedule = scheduleData.find(s =>
-                s.day_of_week === cell.dataset.day &&
-                s.start_time.substring(0, 5) === cell.dataset.time &&
-                s.end_time.substring(0, 5) === cell.dataset.endTime
-            );
-            if (schedule) {
-                cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${schedule.schedule_id ?? ''}"><strong class="text-gray-900">${schedule.course_code ?? 'N/A'} - ${schedule.course_name ?? 'N/A'}</strong><br><span class="text-gray-600 text-xs">${schedule.faculty_name ?? 'N/A'}</span><br><span class="text-gray-600 text-xs">${schedule.room_name ?? 'Online'}</span><br><span class="text-gray-600 text-xs">${schedule.section_name ?? 'N/A'} (${schedule.schedule_type ?? 'N/A'})</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
-            } else {
-                cell.innerHTML = `<button class="add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded" onclick="addScheduleInline(this)">Add</button>`;
+            // Transform sections data
+            const sectionsData = Array.isArray(rawSectionsData) ? rawSectionsData.map((s, index) => ({
+                section_id: s.section_id ?? (index + 1),
+                section_name: s.section_name ?? '',
+                year_level: s.year_level ?? 'Unknown',
+                curriculum_id: s.curriculum_id ?? null,
+                academic_year: s.academic_year ?? ''
+            })) : [];
+
+            // Tab switching
+            function switchTab(tabName) {
+                // Update tab buttons
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('bg-yellow-500', 'text-white');
+                    btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                });
+                document.getElementById(`tab-${tabName}`).classList.add('bg-yellow-500', 'text-white');
+                document.getElementById(`tab-${tabName}`).classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+
+                // Show/hide content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+                document.getElementById(`content-${tabName}`).classList.remove('hidden');
+
+                // Update URL without page reload
+                const url = new URL(window.location);
+                url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
+                window.history.pushState({}, '', url);
             }
-        });
-    }
 
-    // Ensure populateSchedule runs on page load
-    document.addEventListener('DOMContentLoaded', () => {
-        if (document.getElementById('scheduleBody').children.length === 0) {
-            populateSchedule();
-        }
-        renderSchedules();
-    });
+            // Drag and Drop functionality
+            function handleDragStart(e) {
+                draggedElement = e.target;
+                e.target.style.opacity = '0.5';
+                e.dataTransfer.effectAllowed = 'move';
+            }
 
-    function filterSchedules() {
-        const yearLevel = document.getElementById('filterYearLevel').value;
-        const section = document.getElementById('filterSection').value;
-        const rows = document.querySelectorAll('#timetableGrid > div');
-        rows.forEach(row => {
-            const cells = row.querySelectorAll('div:nth-child(n+2)');
-            cells.forEach(cell => {
-                const scheduleItems = cell.querySelectorAll('[data-year-level]');
-                let show = !scheduleItems.length; // Show empty cells by default
+            function handleDragEnd(e) {
+                e.target.style.opacity = '1';
+                draggedElement = null;
+            }
+
+            function handleDragOver(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            }
+
+            function handleDragEnter(e) {
+                if (e.target.classList.contains('drop-zone')) {
+                    e.target.classList.add('bg-yellow-100', 'border-2', 'border-dashed', 'border-yellow-400');
+                }
+            }
+
+            function handleDragLeave(e) {
+                if (e.target.classList.contains('drop-zone')) {
+                    e.target.classList.remove('bg-yellow-100', 'border-2', 'border-dashed', 'border-yellow-400');
+                }
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                const dropZone = e.target.closest('.drop-zone');
+                if (dropZone && draggedElement && dropZone !== draggedElement.parentElement) {
+                    dropZone.classList.remove('bg-yellow-100', 'border-2', 'border-dashed', 'border-yellow-400');
+
+                    // Move the element
+                    const scheduleId = draggedElement.dataset.scheduleId;
+                    const newDay = dropZone.dataset.day;
+                    const newStartTime = dropZone.dataset.startTime;
+                    const newEndTime = dropZone.dataset.endTime;
+
+                    // Update schedule data
+                    const scheduleIndex = scheduleData.findIndex(s => s.schedule_id == scheduleId);
+                    if (scheduleIndex !== -1) {
+                        scheduleData[scheduleIndex].day_of_week = newDay;
+                        scheduleData[scheduleIndex].start_time = newStartTime + ':00';
+                        scheduleData[scheduleIndex].end_time = newEndTime + ':00';
+                    }
+
+                    // Clear the old position
+                    const oldButton = draggedElement.parentElement.querySelector('button');
+                    if (oldButton) {
+                        oldButton.style.display = 'block';
+                    }
+
+                    // Move to new position
+                    const existingCard = dropZone.querySelector('.schedule-card');
+                    if (existingCard && existingCard !== draggedElement) {
+                        // Swap positions - move existing card to old position
+                        draggedElement.parentElement.appendChild(existingCard);
+                    }
+
+                    // Hide the add button in new position
+                    const newButton = dropZone.querySelector('button');
+                    if (newButton) {
+                        newButton.style.display = 'none';
+                    }
+
+                    dropZone.appendChild(draggedElement);
+
+                    // Show success message
+                    showNotification('Schedule moved successfully! Don\'t forget to save changes.', 'success');
+                }
+            }
+
+            // Initialize drag and drop
+            function initializeDragAndDrop() {
+                const dropZones = document.querySelectorAll('.drop-zone');
+                dropZones.forEach(zone => {
+                    zone.addEventListener('dragover', handleDragOver);
+                    zone.addEventListener('dragenter', handleDragEnter);
+                    zone.addEventListener('dragleave', handleDragLeave);
+                    zone.addEventListener('drop', handleDrop);
+                });
+            }
+
+            // Modal functions
+            function openAddModal() {
+                document.getElementById('modal-title').textContent = 'Add Schedule';
+                document.getElementById('schedule-form').reset();
+                document.getElementById('schedule-id').value = '';
+                currentEditingId = null;
+                document.getElementById('schedule-modal').classList.remove('hidden');
+            }
+
+            function openAddModalForSlot(day, startTime, endTime) {
+                // Clear existing values and set for adding a new schedule
+                document.getElementById('edit-schedule-id').value = ''; // No ID for new schedule
+                document.getElementById('edit-course-code').value = ''; // Default to first option or empty
+                document.getElementById('edit-faculty').value = ''; // Default to first option or empty
+                document.getElementById('edit-room').value = '0'; // Default to "Online"
+                document.getElementById('edit-section').value = ''; // Default to first option or empty
+                document.getElementById('edit-day').value = day;
+                document.getElementById('edit-start-time').value = startTime;
+                document.getElementById('edit-end-time').value = endTime;
+
+                // Ensure modal is visible
+                const modal = document.getElementById('edit-modal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                } else {
+                    console.error('Edit modal not found in DOM');
+                }
+            }
+
+            function editSchedule(scheduleId) {
+                const schedule = scheduleData.find(s => s.schedule_id === scheduleId);
+                if (schedule) {
+                    document.getElementById('edit-schedule-id').value = schedule.schedule_id;
+                    document.getElementById('edit-course-code').value = schedule.course_code;
+                    document.getElementById('edit-faculty').value = schedule.faculty_id;
+                    document.getElementById('edit-room').value = schedule.room_id || '0';
+                    document.getElementById('edit-section').value = schedule.section_id;
+                    document.getElementById('edit-day').value = schedule.day_of_week;
+                    document.getElementById('edit-start-time').value = schedule.start_time.substring(0, 5);
+                    document.getElementById('edit-end-time').value = schedule.end_time.substring(0, 5);
+                    document.getElementById('edit-modal').classList.remove('hidden');
+                }
+            }
+
+            function saveEditedSchedule() {
+                const scheduleId = document.getElementById('edit-schedule-id').value;
+                const courseCode = document.getElementById('edit-course-code').value;
+                const facultyId = document.getElementById('edit-faculty').value;
+                const roomId = document.getElementById('edit-room').value;
+                const sectionId = document.getElementById('edit-section').value;
+                const day = document.getElementById('edit-day').value;
+                const startTime = document.getElementById('edit-start-time').value;
+                const endTime = document.getElementById('edit-end-time').value;
+
+                const updatedSchedule = {
+                    schedule_id: scheduleId,
+                    course_code: courseCode,
+                    faculty_id: facultyId,
+                    room_id: roomId === '0' ? null : roomId,
+                    section_id: sectionId,
+                    day_of_week: day,
+                    start_time: startTime + ':00',
+                    end_time: endTime + ':00'
+                };
+
+                // Update local data
+                const index = scheduleData.findIndex(s => s.schedule_id === scheduleId);
+                if (index !== -1) {
+                    scheduleData[index] = updatedSchedule;
+                    updateScheduleDisplay(scheduleData);
+                }
+
+                // Send to server (optional, implement backend endpoint)
+                fetch('/chair/update-schedule', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: new URLSearchParams(updatedSchedule)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification('Schedule updated successfully!', 'success');
+                        } else {
+                            showNotification('Error updating schedule: ' + data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Error updating schedule', 'error');
+                    });
+
+                closeModal();
+            }
+
+            function closeModal() {
+                document.getElementById('schedule-modal').classList.add('hidden');
+                currentEditingId = null;
+            }
+
+            function handleScheduleSubmit(e) {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const scheduleId = formData.get('schedule_id');
+
+                const endpoint = scheduleId ? '/chair/updateSchedule' : '/chair/addSchedule';
+                const body = new URLSearchParams();
+
+                if (scheduleId) {
+                    body.append('schedule_id', scheduleId);
+                    body.append('data', JSON.stringify(Object.fromEntries(formData)));
+                } else {
+                    body.append('data', JSON.stringify(Object.fromEntries(formData)));
+                }
+
+                fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: body
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification(scheduleId ? 'Schedule updated successfully!' : 'Schedule added successfully!', 'success');
+                            closeModal();
+                            location.reload(); // Refresh to show updated data
+                        } else {
+                            showNotification('Error: ' + (data.message || 'Failed to save schedule'), 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Error saving schedule', 'error');
+                    });
+            }
+
+            function deleteSchedule(scheduleId) {
+                if (!confirm('Are you sure you want to delete this schedule?')) return;
+
+                fetch('/chair/deleteSchedule', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: `schedule_id=${scheduleId}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification('Schedule deleted successfully!', 'success');
+                            location.reload(); // Refresh to show updated data
+                        } else {
+                            showNotification('Error deleting schedule', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Error deleting schedule', 'error');
+                    });
+            }
+
+            function saveAllChanges() {
+                const formData = new FormData();
+                formData.append('tab', 'manual');
+                formData.append('schedules', JSON.stringify(scheduleData));
+
+                fetch('/chair/schedule_management', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(data => {
+                        showNotification('All changes saved successfully!', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Error saving changes', 'error');
+                    });
+            }
+
+            function filterSchedulesManual() {
+                const yearLevel = document.getElementById('filter-year-manual').value;
+                const section = document.getElementById('filter-section-manual').value;
+                const room = document.getElementById('filter-room-manual').value;
+                const scheduleItems = document.querySelectorAll('#schedule-grid .schedule-card');
+
                 scheduleItems.forEach(item => {
                     const itemYearLevel = item.getAttribute('data-year-level');
                     const itemSectionName = item.getAttribute('data-section-name');
+                    const itemRoomName = item.getAttribute('data-room-name');
                     const matchesYear = !yearLevel || itemYearLevel === yearLevel;
                     const matchesSection = !section || itemSectionName === section;
-                    if (matchesYear && matchesSection) {
-                        show = true;
+                    const matchesRoom = !room || itemRoomName === room;
+
+                    if (matchesYear && matchesSection && matchesRoom) {
+                        item.parentElement.style.display = 'block';
+                    } else {
+                        item.parentElement.style.display = 'none';
                     }
                 });
-                cell.style.display = show ? 'block' : 'none';
-            });
-        });
-    }
+            }
 
-    function deleteSchedule(scheduleId) {
-        if (confirm('Are you sure you want to delete this schedule?')) {
-            fetch('/chair/deleteSchedule', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: `schedule_id=${scheduleId}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const item = document.querySelector(`[data-id="${scheduleId}"]`);
-                        if (item) item.closest('td').innerHTML = '<button class="add-btn text-green-500 text-xs p-1 hover:bg-green-100 rounded" onclick="addScheduleInline(this)">Add</button>';
-                        scheduleData = scheduleData.filter(s => s.schedule_id !== scheduleId);
-                        document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
-                        alert('Schedule deleted successfully.');
-                    } else {
-                        alert('Failed to delete schedule.');
+            function updateYearLevels() {
+                const curriculumId = document.getElementById('curriculum_id').value;
+                const yearLevelsSelect = document.getElementById('year_levels');
+                yearLevelsSelect.innerHTML = '<option value="">Select Year Level</option>';
+
+                if (curriculumId && Array.isArray(sectionsData)) {
+                    const yearLevels = sectionsData
+                        .filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId)
+                        .map(s => s.year_level);
+
+                    const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))];
+                    uniqueYears.sort((a, b) => {
+                        const order = {
+                            '1': 1,
+                            '2': 2,
+                            '3': 3,
+                            '4': 4
+                        };
+                        return (order[a[0]] || 99) - (order[b[0]] || 99);
+                    });
+
+                    uniqueYears.forEach(year => {
+                        const option = document.createElement('option');
+                        option.value = year;
+                        option.textContent = year;
+                        yearLevelsSelect.appendChild(option);
+                    });
+
+                    // Automatically select all year levels
+                    for (let i = 0; i < yearLevelsSelect.options.length; i++) {
+                        yearLevelsSelect.options[i].selected = true;
                     }
-                })
-                .catch(error => console.error('Error:', error));
-        }
-    }
-
-    function editScheduleInline(button) {
-        const item = button.parentElement.parentElement;
-        const schedule = scheduleData.find(s => s.schedule_id === item.dataset.id) || {};
-        const cell = item.closest('td');
-        item.remove();
-
-        cell.innerHTML = `
-            <form class="edit-form p-2 bg-white rounded-md shadow-sm" onsubmit="saveEdit(event, this, '${schedule.schedule_id}')">
-                <input type="hidden" name="schedule_id" value="${schedule.schedule_id ?? ''}">
-                <input type="hidden" name="day_of_week" value="${cell.dataset.day}">
-                <input type="hidden" name="start_time" value="${cell.dataset.time}">
-                <input type="hidden" name="end_time" value="${cell.dataset.endTime}">
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Course</label>
-                    <input type="text" name="course_code" value="${schedule.course_code ?? ''}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
-                </div>
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Faculty</label>
-                    <input type="text" name="faculty_name" value="${schedule.faculty_name ?? ''}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
-                </div>
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Room</label>
-                    <input type="text" name="room_name" value="${schedule.room_name ?? 'Online'}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs">
-                </div>
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Section</label>
-                    <input type="text" name="section_name" value="${schedule.section_name ?? ''}" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" class="bg-gray-300 text-gray-800 px-2 py-1 rounded-md text-xs hover:bg-gray-400" onclick="cancelEdit(this)">Cancel</button>
-                    <button type="submit" class="bg-blue-600 text-white px-2 py-1 rounded-md text-xs hover:bg-blue-700">Save</button>
-                </div>
-            </form>`;
-    }
-
-    function saveEdit(event, form, scheduleId) {
-        event.preventDefault();
-        const formData = new FormData(form);
-        fetch('/chair/updateSchedule', {
-                method: 'POST',
-                body: new URLSearchParams({
-                    schedule_id: scheduleId,
-                    data: JSON.stringify(Object.fromEntries(formData))
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Schedule updated successfully.');
-                    const cell = form.closest('td');
-                    cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${scheduleId}"><strong class="text-gray-900">${formData.get('course_code')}</strong><br><span class="text-gray-600 text-xs">${formData.get('faculty_name')}</span><br><span class="text-gray-600 text-xs">${formData.get('room_name')}</span><br><span class="text-gray-600 text-xs">${formData.get('section_name')}</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
-                    scheduleData = scheduleData.map(s => s.schedule_id === scheduleId ? {
-                        ...s,
-                        ...Object.fromEntries(formData)
-                    } : s);
-                    document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
-                } else {
-                    alert('Failed to update schedule.');
+                    updateSections(); // Trigger sections update after selecting all years
                 }
-            })
-            .catch(error => console.error('Error:', error));
-    }
+            }
 
-    function cancelEdit(button) {
-        const form = button.closest('.edit-form');
-        const cell = form.closest('td');
-        renderSchedules();
-    }
+            function updateSections() {
+                const curriculumId = document.getElementById('curriculum_id').value;
+                const yearLevelsSelect = document.getElementById('year_levels');
+                const selectedYears = Array.from(yearLevelsSelect.selectedOptions).map(opt => opt.value).filter(y => y);
+                const sectionsSelect = document.getElementById('sections');
+                sectionsSelect.innerHTML = '<option value="">Select Section</option>';
 
-    function addScheduleInline(button) {
-        const cell = button.closest('td');
-        cell.innerHTML = `
-            <form class="add-form p-2 bg-white rounded-md shadow-sm" onsubmit="saveAdd(event, this)">
-                <input type="hidden" name="day_of_week" value="${cell.dataset.day}">
-                <input type="hidden" name="start_time" value="${cell.dataset.time}">
-                <input type="hidden" name="end_time" value="${cell.dataset.endTime}">
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Course</label>
-                    <input type="text" name="course_code" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
-                </div>
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Faculty</label>
-                    <input type="text" name="faculty_name" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
-                </div>
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Room</label>
-                    <input type="text" name="room_name" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs">
-                </div>
-                <div class="mb-2">
-                    <label class="block text-xs font-medium text-gray-700">Section</label>
-                    <input type="text" name="section_name" class="w-full px-2 py-1 border border-gray-200 rounded-md text-xs" required>
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" class="bg-gray-300 text-gray-800 px-2 py-1 rounded-md text-xs hover:bg-gray-400" onclick="cancelAdd(this)">Cancel</button>
-                    <button type="submit" class="bg-blue-600 text-white px-2 py-1 rounded-md text-xs hover:bg-blue-700">Add</button>
-                </div>
-            </form>`;
-    }
+                if (curriculumId && Array.isArray(sectionsData)) {
+                    let matchingSections = sectionsData.filter(s =>
+                        s.academic_year === currentAcademicYear &&
+                        s.curriculum_id == curriculumId
+                    );
 
-    function saveAdd(event, form) {
-        event.preventDefault();
-        const formData = new FormData(form);
-        fetch('/chair/addSchedule', {
-                method: 'POST',
-                body: new URLSearchParams({
-                    data: JSON.stringify(Object.fromEntries(formData))
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Schedule added successfully.');
-                    const cell = form.closest('td');
-                    const newSchedule = {
-                        schedule_id: data.schedule_id,
-                        ...Object.fromEntries(formData)
-                    };
-                    scheduleData.push(newSchedule);
-                    cell.innerHTML = `<div class="schedule-item bg-blue-100 p-2 rounded-md shadow-sm relative" data-id="${newSchedule.schedule_id}"><strong class="text-gray-900">${formData.get('course_code')}</strong><br><span class="text-gray-600 text-xs">${formData.get('faculty_name')}</span><br><span class="text-gray-600 text-xs">${formData.get('room_name') ?? 'Online'}</span><br><span class="text-gray-600 text-xs">${formData.get('section_name')}</span><div class="mt-2"><button class="remove-btn text-red-500 text-xs p-1 hover:bg-red-100 rounded" onclick="removeSchedule(this)">Remove</button><button class="edit-btn ml-2 text-blue-500 text-xs p-1 hover:bg-blue-100 rounded" onclick="editScheduleInline(this)">Edit</button></div></div>`;
-                    document.getElementById('schedulesInput').value = JSON.stringify(scheduleData);
-                } else {
-                    alert('Failed to add schedule.');
+                    if (selectedYears.length > 0) {
+                        matchingSections = matchingSections.filter(s => selectedYears.includes(s.year_level));
+                    }
+
+                    matchingSections.forEach(section => {
+                        const option = document.createElement('option');
+                        option.value = section.section_id;
+                        option.textContent = section.section_name;
+                        sectionsSelect.appendChild(option);
+                    });
+
+                    // Automatically select all sections
+                    for (let i = 0; i < sectionsSelect.options.length; i++) {
+                        sectionsSelect.options[i].selected = true;
+                    }
                 }
-            })
-            .catch(error => console.error('Error:', error));
-    }
+            }
 
-    function cancelAdd(button) {
-        const form = button.closest('.add-form');
-        const cell = form.closest('td');
-        renderSchedules();
-    }
+            function generateSchedules() {
+                const form = document.getElementById('generate-form');
+                const formData = new FormData(form);
 
-    function removeSchedule(button) {
-        const item = button.parentElement.parentElement;
-        const scheduleId = item.dataset.id;
-        deleteSchedule(scheduleId);
-    }
+                const curriculumId = formData.get('curriculum_id');
+                const selectedYearLevels = formData.getAll('year_levels[]');
+                const selectedSections = formData.getAll('sections[]');
 
-    if (document.getElementById('scheduleBody').children.length === 0) {
-        populateSchedule();
-    }
-    if (document.getElementById('timetableGrid')) {
-        filterSchedules();
-    }
+                if (!curriculumId) {
+                    showNotification('Please select a curriculum', 'error');
+                    return;
+                }
+                if (selectedYearLevels.length === 0 && selectedSections.length === 0) {
+                    showNotification('Please select at least one year level or section', 'error');
+                    return;
+                }
 
-    const rawSectionsData = <?php echo json_encode($sections); ?> || [];
-    const currentAcademicYear = "<?php echo htmlspecialchars($currentSemester['academic_year'] ?? ''); ?>";
-    const sectionsData = Array.isArray(rawSectionsData) ? rawSectionsData.map((s, index) => ({
-        section_id: s.section_id ?? (index + 1),
-        section_name: s.section_name ?? '',
-        year_level: s.year_level ?? 'Unknown',
-        curriculum_id: s.curriculum_id ?? null,
-        academic_year: s.academic_year ?? ''
-    })) : [];
-    console.log('Raw Sections Data:', rawSectionsData); // Debug raw data
-    console.log('Transformed Sections Data:', sectionsData); // Debug transformed data
+                document.getElementById('loading-overlay').classList.remove('hidden');
 
-    function updateYearLevels() {
-        const curriculumId = document.getElementById('generate_curriculum_id').value;
-        const yearLevelsSelect = document.getElementById('year_levels');
-        yearLevelsSelect.innerHTML = '<option value="">Select Year Level</option>';
-        console.log('Curriculum ID:', curriculumId, 'Sections Data:', sectionsData);
-
-        if (curriculumId && Array.isArray(sectionsData)) {
-            const yearLevels = sectionsData
-                .filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId)
-                .map(s => s.year_level);
-            console.log('Extracted Year Levels:', yearLevels); // Debug individual year levels
-            const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))];
-            console.log('Unique Years:', uniqueYears);
-            uniqueYears.sort((a, b) => {
-                const order = {
-                    '1': 1,
-                    '2': 2,
-                    '3': 3,
-                    '4': 4
+                const data = {
+                    curriculum_id: curriculumId,
+                    year_levels: selectedYearLevels,
+                    sections: selectedSections,
+                    semester_id: formData.get('semester_id'),
+                    tab: 'generate'
                 };
-                return (order[a[0]] || 99) - (order[b[0]] || 99);
-            });
-            uniqueYears.forEach(year => {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year;
-                yearLevelsSelect.appendChild(option);
-            });
-        }
-    }
 
-    function updateSections() {
-        const curriculumId = document.getElementById('generate_curriculum_id').value;
-        const yearLevelsSelect = document.getElementById('year_levels');
-        const selectedYears = Array.from(yearLevelsSelect.selectedOptions).map(opt => opt.value).filter(y => y);
-        const sectionsSelect = document.getElementById('sections');
-        sectionsSelect.innerHTML = '<option value="">Select Section</option>';
-        console.log('Curriculum ID:', curriculumId, 'Selected Years:', selectedYears);
+                fetch('/chair/generate-schedules', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: new URLSearchParams(data)
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                        console.log('Response from server:', data); // Debug log
+                        if (data.success) {
+                            scheduleData = data.schedules || [];
+                            console.log('Updated scheduleData:', scheduleData); // Debug log
+                            document.getElementById('generation-results').classList.remove('hidden');
+                            document.getElementById('total-courses').textContent = data.schedules ? data.schedules.length : 0;
+                            document.getElementById('total-sections').textContent = new Set(data.schedules?.map(s => s.section_name)).size || 0;
 
-        if (curriculumId && Array.isArray(sectionsData)) {
-            let matchingSections = sectionsData.filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId);
-            console.log('Initial Matching Sections:', matchingSections);
-            if (selectedYears.length > 0) {
-                matchingSections = matchingSections.filter(s => selectedYears.includes(s.year_level));
-                console.log('Filtered Matching Sections:', matchingSections);
+                            // Force update both tabs
+                            updateScheduleDisplay(scheduleData);
+                            showNotification('Schedules generated successfully!', 'success');
+                        } else {
+                            showNotification('Error: ' + (data.message || 'Failed to generate schedules'), 'error');
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                        console.error('Error:', error);
+                        showNotification('Error generating schedules: ' + error.message, 'error');
+                    });
             }
-            matchingSections.forEach(section => {
-                const option = document.createElement('option');
-                option.value = section.section_id;
-                option.textContent = section.section_name;
-                sectionsSelect.appendChild(option);
-            });
-        }
-    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const curriculumSelect = document.getElementById('generate_curriculum_id');
-        curriculumSelect.onchange = updateYearLevels;
-        if (curriculumSelect.value) {
-            updateYearLevels();
-        }
+            function updateScheduleDisplay(schedules) {
+                scheduleData = schedules;
+                console.log('Rendering schedules:', schedules); // Debug log
 
-        const generateBtn = document.getElementById('generate-schedules-btn');
-        generateBtn.addEventListener('click', () => {
-            const form = document.getElementById('generate-form');
-            const formData = new FormData(form);
-
-            // Show loading overlay
-            const loadingOverlay = document.getElementById('loading-overlay');
-            loadingOverlay.classList.remove('hidden');
-
-            fetch('/chair/generate-schedules', {
-                    method: 'POST',
-                    body: new URLSearchParams(formData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    loadingOverlay.classList.add('hidden');
-                    if (data.success) {
-                        scheduleData = data.schedules;
-                        const resultDiv = document.getElementById('generation-result');
-                        resultDiv.innerHTML = `<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mt-4 shadow-md">
-                        ${data.message}
-                        ${data.unassigned ? '<p class="mt-2 text-yellow-700">Warning: Some courses were not assigned. Please check manually.</p>' : '<p class="mt-2 text-sm font-medium">All schedules have been successfully completed!</p>'}
-                        <button onclick="window.location.href='/chair/schedule-management?tab=manual'" class="mt-2 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700">View/Edit Schedule</button>
+                // Update Manual Edit tab
+                const manualGrid = document.getElementById('schedule-grid');
+                if (manualGrid) {
+                    manualGrid.innerHTML = '';
+                    const times = [
+                        ['07:30', '08:30'],
+                        ['08:30', '10:00'],
+                        ['10:00', '11:00'],
+                        ['11:00', '12:30'],
+                        ['12:30', '13:30'],
+                        ['13:00', '14:30'],
+                        ['14:30', '15:30'],
+                        ['15:30', '17:00'],
+                        ['17:00', '18:00']
+                    ];
+                    times.forEach(time => {
+                        const row = document.createElement('div');
+                        row.className = 'grid grid-cols-7 min-h-[100px] hover:bg-gray-50';
+                        row.innerHTML = `<div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-100 flex items-center">
+                ${formatTime(time[0])} - ${formatTime(time[1])}
+                </div>`;
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
+                            const cell = document.createElement('div');
+                            cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0 drop-zone relative';
+                            cell.dataset.day = day;
+                            cell.dataset.startTime = time[0];
+                            cell.dataset.endTime = time[1];
+                            const schedule = schedules.find(s =>
+                                s.day_of_week === day &&
+                                s.start_time.substring(0, 5) === time[0] &&
+                                s.end_time.substring(0, 5) === time[1]
+                            );
+                            if (schedule) {
+                                cell.innerHTML = `<div class="schedule-card bg-white border-l-4 border-yellow-500 rounded-lg p-3 shadow-sm draggable cursor-move" 
+                        draggable="true" data-schedule-id="${escapeHtml(schedule.schedule_id)}" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="font-semibold text-sm text-gray-900 truncate">${escapeHtml(schedule.course_code)}</div>
+                            <button onclick="editSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.course_name)}</div>
+                        <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.faculty_name)}</div>
+                        <div class="text-xs text-gray-600 truncate mb-2">${escapeHtml(schedule.room_name ?? 'Online')}</div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-medium text-yellow-600">${escapeHtml(schedule.section_name)}</span>
+                            <button onclick="deleteSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-red-500 hover:text-red-700 text-xs no-print">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </div>`;
-                        renderSchedules(); // Update manual tab if visible
-                    } else {
-                        document.getElementById('generation-result').innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mt-4 shadow-md">${data.message}</div>`;
-                    }
-                })
-                .catch(error => {
-                    loadingOverlay.classList.add('hidden');
-                    document.getElementById('generation-result').innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mt-4 shadow-md">Error generating schedules: ${error.message}</div>`;
-                    console.error('Error:', error);
+                            } else {
+                                cell.innerHTML = `<button onclick="openAddModalForSlot('${day}', '${time[0]}', '${time[1]}')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print">
+                        <i class="fas fa-plus text-lg"></i>
+                    </button>`;
+                            }
+                            row.appendChild(cell);
+                        });
+                        manualGrid.appendChild(row);
+                    });
+                    initializeDragAndDrop();
+                }
+
+                // Update View Schedule tab
+                const viewGrid = document.getElementById('view-schedule-grid');
+                if (viewGrid) {
+                    viewGrid.innerHTML = '';
+                    const times = [
+                        ['07:30', '08:30'],
+                        ['08:30', '10:00'],
+                        ['10:00', '11:00'],
+                        ['11:00', '12:30'],
+                        ['12:30', '13:30'],
+                        ['13:00', '14:30'],
+                        ['14:30', '15:30'],
+                        ['15:30', '17:00'],
+                        ['17:00', '18:00']
+                    ];
+                    times.forEach(time => {
+                        const row = document.createElement('div');
+                        row.className = 'grid grid-cols-7 min-h-[100px] hover:bg-gray-50';
+                        row.innerHTML = `<div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-100 flex items-center">
+                ${formatTime(time[0])} - ${formatTime(time[1])}
+                    </div>`;
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
+                            const cell = document.createElement('div');
+                            cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0';
+                            const daySchedules = schedules.filter(s =>
+                                s.day_of_week === day &&
+                                s.start_time.substring(0, 5) === time[0] &&
+                                s.end_time.substring(0, 5) === time[1]
+                            );
+                            if (daySchedules.length > 0) {
+                                daySchedules.forEach(schedule => {
+                                    const colorClass = ['bg-blue-100', 'bg-green-100', 'bg-purple-100', 'bg-orange-100', 'bg-pink-100'][Math.floor(Math.random() * 5)] + ' border-l-4';
+                                    cell.innerHTML += `<div class="${colorClass} p-2 rounded-lg mb-1 schedule-item" 
+                            data-year-level="${escapeHtml(schedule.year_level)}" 
+                            data-section-name="${escapeHtml(schedule.section_name)}" 
+                            data-room-name="${escapeHtml(schedule.room_name ?? 'Online')}">
+                            <div class="font-semibold text-xs truncate mb-1">${escapeHtml(schedule.course_code)}</div>
+                            <div class="text-xs opacity-90 truncate mb-1">${escapeHtml(schedule.section_name)}</div>
+                            <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.faculty_name)}</div>
+                            <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.room_name ?? 'Online')}</div>
+                        </div>`;
+                                });
+                            }
+                            row.appendChild(cell);
+                        });
+                        viewGrid.appendChild(row);
+                    });
+                }
+            }
+
+            // Helper functions
+            function formatTime(time) {
+                const [hours, minutes] = time.split(':');
+                const date = new Date(2000, 0, 1, hours, minutes);
+                return date.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
                 });
-        });
-    });
-</script>
-
-<style>
-    .container {
-        max-width: 1200px;
-    }
-
-    .schedule-table {
-        border-collapse: separate;
-        border-spacing: 0;
-    }
-
-    .schedule-table th,
-    .schedule-table td {
-        vertical-align: top;
-    }
-
-    .droppable:hover {
-        background-color: #f3f4f6;
-        transition: background-color 0.2s;
-    }
-
-    .schedule-item {
-        border: 1px solid #e5e7eb;
-        transition: all 0.2s ease;
-    }
-
-    .schedule-item:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .tab-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-
-
-    @media (max-width: 768px) {
-        .schedule-table {
-            display: block;
-            overflow-x: auto;
-        }
-
-        .schedule-table thead,
-        .schedule-table tbody,
-        .schedule-table th,
-        .schedule-table td {
-            display: block;
-        }
-
-        .schedule-table tr {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 1rem;
-            border: 1px solid #e5e7eb;
-            padding: 0.5rem;
-        }
-
-        .schedule-table td {
-            padding: 0.5rem;
-            border: none;
-        }
-
-        .schedule-table td:before {
-            content: attr(data-label);
-            font-weight: bold;
-            margin-right: 0.5rem;
-        }
-
-        .schedule-table td[data-label="Time"]:before {
-            content: "Time: ";
-        }
-
-        .schedule-table td[data-label]:not(:first-child):before {
-            content: attr(data-label) ": ";
-        }
-    }
-
-    @media print {
-        @page {
-            size: A4 landscape;
-            margin: 0;
-        }
-
-        body {
-            margin: 0;
-        }
-
-        body * {
-            visibility: hidden;
-        }
-
-        .schedule-table,
-        .schedule-table * {
-            visibility: visible;
-        }
-
-        .schedule-table {
-            width: 100%;
-            table-layout: fixed;
-            border-collapse: collapse;
-        }
-
-        .schedule-table th,
-        .schedule-table td {
-            font-size: 10px;
-            padding: 5px;
-        }
-
-        .schedule-item button {
-            display: none;
-        }
-
-        #loading-overlay {
-            transition: opacity 0.3s ease;
-        }
-
-        #loading-overlay .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
             }
 
-            to {
-                transform: rotate(360deg);
+            function escapeHtml(unsafe) {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
             }
-        }
-    }
-</style>
 
-<?php
-$content = ob_get_clean();
-require_once __DIR__ . '/layout.php';
-?>
+            // Filtering for schedule view
+            function filterSchedules() {
+                const yearLevel = document.getElementById('filter-year').value;
+                const section = document.getElementById('filter-section').value;
+                const room = document.getElementById('filter-room').value;
+                const scheduleItems = document.querySelectorAll('#view-schedule-grid .schedule-item');
+
+                scheduleItems.forEach(item => {
+                    const itemYearLevel = item.getAttribute('data-year-level');
+                    const itemSectionName = item.getAttribute('data-section-name');
+                    const itemRoomName = item.getAttribute('data-room-name');
+                    const matchesYear = !yearLevel || itemYearLevel === yearLevel;
+                    const matchesSection = !section || itemSectionName === section;
+                    const matchesRoom = !room || itemRoomName === room;
+
+                    if (matchesYear && matchesSection && matchesRoom) {
+                        item.style.display = 'table-row';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+
+            // Utility functions
+            function showNotification(message, type = 'success') {
+                const notification = document.getElementById('notification');
+                if (!notification) {
+                    // Create notification if it doesn't exist
+                    const notificationDiv = document.createElement('div');
+                    notificationDiv.id = 'notification';
+                    notificationDiv.className = 'mb-6';
+                    notificationDiv.innerHTML = `
+                    <div class="flex items-center p-4 rounded-lg ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
+                        <div class="flex-shrink-0">
+                            <i class="fas ${type === 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500'} text-xl"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium ${type === 'success' ? 'text-green-800' : 'text-red-800'}" id="notificationText">${message}</p>
+                        </div>
+                        <div class="ml-auto pl-3">
+                            <button class="inline-flex ${type === 'success' ? 'text-green-400 hover:text-green-600' : 'text-red-400 hover:text-red-600'}" onclick="hideNotification()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                    document.querySelector('.max-w-7xl').insertBefore(notificationDiv, document.querySelector('.max-w-7xl').firstElementChild.nextElementSibling);
+                } else {
+                    const notificationText = document.getElementById('notificationText');
+                    if (notificationText) {
+                        notificationText.textContent = message;
+                    }
+                    notification.classList.remove('hidden');
+                }
+
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    hideNotification();
+                }, 5000);
+            }
+
+            function hideNotification() {
+                const notification = document.getElementById('notification');
+                if (notification) {
+                    notification.classList.add('hidden');
+                }
+            }
+
+            function downloadSchedule() {
+                // Create CSV content
+                let csvContent = "Course Code,Course Name,Faculty,Room,Section,Day,Start Time,End Time\n";
+
+                scheduleData.forEach(schedule => {
+                    csvContent += `"${schedule.course_code}","${schedule.course_name}","${schedule.faculty_name}","${schedule.room_name || 'Online'}","${schedule.section_name}","${schedule.day_of_week}","${schedule.start_time}","${schedule.end_time}"\n`;
+                });
+
+                // Create and download file
+                const blob = new Blob([csvContent], {
+                    type: 'text/csv;charset=utf-8;'
+                });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'schedule.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                initializeDragAndDrop();
+
+                // Set up generate button
+                const generateBtn = document.getElementById('generate-btn');
+                if (generateBtn) {
+                    generateBtn.addEventListener('click', generateSchedules);
+                }
+
+                // Handle URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const tab = urlParams.get('tab');
+                if (tab === 'schedule-list') {
+                    switchTab('schedule');
+                } else if (tab === 'manual') {
+                    switchTab('manual');
+                } else if (tab === 'generate') {
+                    switchTab('generate');
+                }
+            });
+        </script>
+
+        <style>
+            .draggable {
+                cursor: grab;
+            }
+
+            .draggable:active {
+                cursor: grabbing;
+            }
+
+            .drop-zone {
+                min-height: 100px;
+                transition: all 0.3s ease;
+            }
+
+            .drop-zone:hover {
+                background-color: #fef3c7;
+            }
+
+            .schedule-card {
+                transition: all 0.3s ease;
+            }
+
+            .schedule-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            }
+
+            @media print {
+                .no-print {
+                    display: none !important;
+                }
+
+                .print-only {
+                    display: block !important;
+                }
+
+                body {
+                    background: white;
+                }
+
+                .schedule-card {
+                    box-shadow: none;
+                    border: 1px solid #374151;
+                    page-break-inside: avoid;
+                }
+
+                .tab-content {
+                    display: block !important;
+                }
+
+                #content-generate,
+                #content-manual {
+                    display: none !important;
+                }
+
+                #content-schedule {
+                    display: block !important;
+                }
+            }
+
+            @media (max-width: 768px) {
+                .grid-cols-7 {
+                    display: block;
+                }
+
+                .grid-cols-7>div {
+                    display: block;
+                    border-right: none;
+                    border-bottom: 1px solid #e5e7eb;
+                    padding: 0.75rem;
+                }
+
+                .grid-cols-7>div:first-child {
+                    background-color: #f3f4f6;
+                    font-weight: 600;
+                }
+            }
+        </style>
+
+        <?php
+        $content = ob_get_clean();
+        require_once __DIR__ . '/layout.php';
+        ?>

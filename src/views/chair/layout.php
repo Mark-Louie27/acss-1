@@ -208,7 +208,7 @@ $modal_content = $modal_content ?? '';
             top: 100%;
             left: 0;
             min-width: 200px;
-            z-index: 50;
+            z-index: 20;
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
             border-radius: 0.375rem;
             background: #1F2937;
