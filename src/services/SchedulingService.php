@@ -1,5 +1,4 @@
 <?php
-header("Content-Type: application/json");
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -7,7 +6,6 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
-
 class SchedulingService
 {
     private $conn;
@@ -20,7 +18,121 @@ class SchedulingService
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
-    private function exportTimetableToExcel($schedules, $filename, $roomName, $semesterName)
+    public function exportTimetableToPDF($schedules, $filename, $roomName, $semesterName)
+    {
+        // Initialize TCPDF
+        $pdf = new \TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+
+        // Set document information
+        $pdf->SetCreator(PDF_CREATOR);
+        $pdf->SetAuthor('ACSS System');
+        $pdf->SetTitle('Computer Laboratory Schedule');
+        $pdf->SetSubject('Schedule for ' . $semesterName . ' - ' . $roomName);
+
+        // Set margins and font
+        $pdf->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
+        $pdf->SetHeaderMargin(PDF_MARGIN_HEADER);
+        $pdf->SetFooterMargin(PDF_MARGIN_FOOTER);
+        $pdf->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
+
+        // Add a page
+        $pdf->AddPage();
+
+        // Add logo (assuming logo.png is in ../assets/ relative to this file)
+        $logoPath = __DIR__ . '/assets/logo/main_logo/PRMSUlogo.png';
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 10, 10, 30, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        }
+
+        // Set font
+        $pdf->SetFont('helvetica', '', 12);
+
+        // Header content
+        $html = '<h1>Republic of the Philippines</h1>
+             <h2>PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</h2>
+             <h2>COMPUTER LABORATORY SCHEDULE</h2>
+             <h3>' . htmlspecialchars($semesterName) . '</h3>';
+
+        // Group schedules by year_level and section_name
+        $groupedSchedules = [];
+        foreach ($schedules as $schedule) {
+            $yearSection = $schedule['year_level'] . ' - ' . $schedule['section_name'];
+            if ($roomName === 'All Rooms' || $schedule['room_name'] === $roomName) {
+                $groupedSchedules[$yearSection][] = $schedule;
+            }
+        }
+
+        // Generate a table for each year-section group
+        foreach ($groupedSchedules as $yearSection => $groupSchedules) {
+            $html .= '<h3>' . htmlspecialchars($yearSection) . ' (' . ($roomName === 'All Rooms' ? 'All Rooms' : $roomName) . ')</h3>';
+
+            // Table structure
+            $html .= '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                  <tr>
+                      <th style="background-color: #e6f3ff; text-align: center;">Time</th>
+                      <th style="background-color: #e6f3ff; text-align: center;">MONDAY</th>
+                      <th style="background-color: #e6f3ff; text-align: center;">TUESDAY</th>
+                      <th style="background-color: #e6f3ff; text-align: center;">WEDNESDAY</th>
+                      <th style="background-color: #e6f3ff; text-align: center;">THURSDAY</th>
+                      <th style="background-color: #e6f3ff; text-align: center;">FRIDAY</th>
+                      <th style="background-color: #e6f3ff; text-align: center;">SATURDAY</th>
+                  </tr>';
+
+            // Use exact start times to match schedule data
+            $times = [
+                '07:30',
+                '08:00',
+                '09:00',
+                '10:00',
+                '11:00',
+                '12:00',
+                '13:00',
+                '14:00',
+                '15:00',
+                '16:00'
+            ];
+            $days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+            // Build schedule grid for this group
+            $scheduleGrid = [];
+            foreach ($groupSchedules as $schedule) {
+                $day = strtoupper($schedule['day_of_week']);
+                $startTime = substr($schedule['start_time'], 0, 5);
+                if (!isset($scheduleGrid[$day])) $scheduleGrid[$day] = [];
+                if (!isset($scheduleGrid[$day][$startTime])) $scheduleGrid[$day][$startTime] = [];
+                $scheduleGrid[$day][$startTime][] = $schedule;
+            }
+
+            foreach ($times as $time) {
+                $html .= '<tr>';
+                $html .= '<td style="text-align: center;">' . htmlspecialchars($time . ' - ' . date('H:i', strtotime($time . ':00') + 3600)) . '</td>';
+                foreach ($days as $day) {
+                    $cellContent = '';
+                    if (isset($scheduleGrid[$day][$time])) {
+                        $schedulesForSlot = $scheduleGrid[$day][$time];
+                        $content = [];
+                        foreach ($schedulesForSlot as $schedule) {
+                            $content[] = htmlspecialchars($schedule['course_code'] . ' - ' . $schedule['faculty_name']);
+                        }
+                        $cellContent = implode('<br>', $content);
+                    }
+                    $html .= '<td style="text-align: center; vertical-align: middle;">' . $cellContent . '</td>';
+                }
+                $html .= '</tr>';
+            }
+
+            $html .= '</table>';
+        }
+
+        // Output the HTML content
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        // Close and output PDF
+        $pdf->Output($filename . '.pdf', 'D');
+        exit;
+    }
+
+    public function exportTimetableToExcel($schedules, $filename, $roomName, $semesterName)
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();

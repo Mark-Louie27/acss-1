@@ -16,18 +16,33 @@ ob_start();
                         <p class="text-sm text-gray-600">Organize and manage academic schedules</p>
                     </div>
                 </div>
-                <div class="flex items-center space-x-4 no-print">
-                    <button id="printBtn" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="window.print()">
-                        <i class="fas fa-print"></i>
-                        <span class="hidden sm:inline">Print</span>
-                    </button>
-                    <button id="downloadBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="downloadSchedule()">
-                        <i class="fas fa-download"></i>
-                        <span class="hidden sm:inline">Download CSV</span>
-                    </button>
+                <div class="flex items-center space-x-4">
+                    <!-- Print Options -->
+                    <div class="relative">
+                        <button id="printDropdownBtn" onclick="togglePrintDropdown()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                            <i class="fas fa-print"></i>
+                            <span>Print Options</span>
+                            <i class="fas fa-chevron-down ml-1"></i>
+                        </button>
+                        <div id="printDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                            <div class="py-1">
+                                <button onclick="printSchedule('all')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-calendar mr-2"></i>Print All Schedules
+                                </button>
+                                <button onclick="printSchedule('filtered')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-filter mr-2"></i>Print Filtered View
+                                </button>
+                                <button onclick="exportSchedule('excel')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-file-excel mr-2"></i>Export to Excel
+                                </button>
+                                <button onclick="exportSchedule('pdf')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-file-pdf mr-2"></i>Export to PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
     </header>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -191,7 +206,6 @@ ob_start();
                     </div>
                 </div>
 
-                <!-- Rest of the grid layout remains the same as provided earlier -->
                 <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="min-w-full">
                         <!-- Header with days -->
@@ -256,7 +270,7 @@ ob_start();
                             <?php foreach ($timeSlots as $time): ?>
                                 <?php
                                 $duration = strtotime($time[1]) - strtotime($time[0]);
-                                $rowSpan = $duration / 3600;
+                                $rowSpan = $duration / 7200;
                                 ?>
                                 <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
                                     <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
@@ -335,6 +349,7 @@ ob_start();
         <!-- View Schedule Tab -->
         <div id="content-schedule" class="tab-content <?php echo $activeTab !== 'schedule-list' ? 'hidden' : ''; ?>">
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <!-- Header with Filters -->
                 <div class="flex items-center justify-between mb-6">
                     <div class="flex items-center">
                         <div class="bg-yellow-500 p-2 rounded-lg mr-3">
@@ -399,15 +414,15 @@ ob_start();
                         <div id="timetableGrid" class="divide-y divide-gray-200">
                             <?php
                             $timeSlots = [
-                                ['07:30', '08:30'], // 60 minutes
-                                ['08:30', '10:00'], // 90 minutes
-                                ['10:00', '11:00'], // 60 minutes
-                                ['11:00', '12:30'], // 90 minutes
-                                ['12:30', '13:30'], // 60 minutes
-                                ['13:00', '14:30'], // 90 minutes
-                                ['14:30', '15:30'], // 60 minutes
-                                ['15:30', '17:00'], // 90 minutes
-                                ['17:00', '18:00']  // 60 minutes
+                                ['07:30', '08:30'],
+                                ['08:30', '10:00'],
+                                ['10:00', '11:00'],
+                                ['11:00', '12:30'],
+                                ['12:30', '13:30'],
+                                ['13:00', '14:30'],
+                                ['14:30', '15:30'],
+                                ['15:30', '17:00'],
+                                ['17:00', '18:00']
                             ];
 
                             $scheduleGrid = [];
@@ -422,7 +437,6 @@ ob_start();
                                     $scheduleGrid[$day] = [];
                                 }
 
-                                // Group by start time for rendering
                                 if (!isset($scheduleGrid[$day][$startTime])) {
                                     $scheduleGrid[$day][$startTime] = [];
                                 }
@@ -433,20 +447,26 @@ ob_start();
                             <?php foreach ($timeSlots as $time): ?>
                                 <?php
                                 $duration = strtotime($time[1]) - strtotime($time[0]);
-                                $rowSpan = $duration / 3600; // Convert seconds to hours
+                                $rowSpan = $duration / 7200;
                                 ?>
                                 <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
                                     <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
                                         <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
                                     </div>
                                     <?php foreach ($days as $day): ?>
-                                        <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative" data-day="<?php echo $day; ?>" data-time="<?php echo $time[0]; ?>" data-end-time="<?php echo $time[1]; ?>">
+                                        <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative schedule-cell"
+                                            data-day="<?php echo $day; ?>"
+                                            data-start-time="<?php echo $time[0]; ?>"
+                                            data-end-time="<?php echo $time[1]; ?>"
+                                            data-year-level=""
+                                            data-section-name=""
+                                            data-room-name="">
                                             <?php
                                             $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
                                             foreach ($schedulesForSlot as $schedule) {
                                                 $scheduleStart = substr($schedule['start_time'], 0, 5);
                                                 $scheduleEnd = substr($schedule['end_time'], 0, 5);
-                                                if ($scheduleStart === $time[0]) { // Match by start time only
+                                                if ($scheduleStart === $time[0]) {
                                                     $colors = [
                                                         'bg-blue-100 border-blue-300 text-blue-800',
                                                         'bg-green-100 border-green-300 text-green-800',
@@ -456,7 +476,10 @@ ob_start();
                                                     ];
                                                     $colorClass = $colors[array_rand($colors)];
                                             ?>
-                                                    <div class="<?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1" data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>" data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>">
+                                                    <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 schedule-item"
+                                                        data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
+                                                        data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
+                                                        data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>">
                                                         <div class="font-semibold text-xs truncate mb-1">
                                                             <?php echo htmlspecialchars($schedule['course_code']); ?>
                                                         </div>
@@ -494,65 +517,52 @@ ob_start();
                 </div>
             </div>
 
-            <!-- Add/Edit Schedule Modal -->
-            <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-                    <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-lg font-semibold text-gray-900" id="modal-title">Add Schedule</h3>
-                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
-                            <i class="fas fa-times text-xl"></i>
-                        </button>
-                    </div>
+        </div>
 
-                    <form id="schedule-form" class="space-y-4" onsubmit="handleScheduleSubmit(event)">
-                        <input type="hidden" id="schedule-id" name="schedule_id">
-                        <input type="hidden" id="modal-day" name="day_of_week">
-                        <input type="hidden" id="modal-start-time" name="start_time">
-                        <input type="hidden" id="modal-end-time" name="end_time">
+        <!-- Enhanced Add/Edit Schedule Modal -->
+        <div id="schedule-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900" id="modal-title">Add Schedule</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
 
+                <form id="schedule-form" class="space-y-4" onsubmit="handleScheduleSubmit(event)">
+                    <input type="hidden" id="schedule-id" name="schedule_id">
+                    <input type="hidden" id="modal-day" name="day_of_week">
+                    <input type="hidden" id="modal-start-time" name="start_time">
+                    <input type="hidden" id="modal-end-time" name="end_time">
+
+                    <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Course Code</label>
                             <input type="text" id="course-code" name="course_code" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
-                            <input type="text" id="course-name" name="course_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
-                            <input type="text" id="faculty-name" name="faculty_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
-                            <input type="text" id="room-name" name="room_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-
-                        <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
                             <input type="text" id="section-name" name="section_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
                         </div>
+                    </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
-                                <select id="start-time" name="start_time_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
-                                    <option value="07:30">7:30 AM</option>
-                                    <option value="08:30">8:30 AM</option>
-                                    <option value="10:00">10:00 AM</option>
-                                    <option value="11:00">11:00 AM</option>
-                                    <option value="12:30">12:30 PM</option>
-                                    <option value="13:30">1:30 PM</option>
-                                    <option value="14:30">2:30 PM</option>
-                                    <option value="15:30">3:30 PM</option>
-                                    <option value="17:00">5:00 PM</option>
-                                    <option value="18:00">6:00 PM</option>
-                                </select>
-                            </div>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
+                        <input type="text" id="course-name" name="course_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                    </div>
 
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
+                        <input type="text" id="faculty-name" name="faculty_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
+                        <input type="text" id="room-name" name="room_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" placeholder="Leave blank for Online">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Day</label>
                             <select id="day-select" name="day_select_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
@@ -565,12 +575,34 @@ ob_start();
                             </select>
                         </div>
 
-                        <div class="flex justify-end space-x-4 pt-4">
-                            <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                            <button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Save Schedule</button>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Time Slot</label>
+                            <select id="time-slot" name="time_slot_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
+                                <option value="07:30-08:30">7:30 AM - 8:30 AM</option>
+                                <option value="08:30-10:00">8:30 AM - 10:00 AM</option>
+                                <option value="10:00-11:00">10:00 AM - 11:00 AM</option>
+                                <option value="11:00-12:30">11:00 AM - 12:30 PM</option>
+                                <option value="12:30-13:30">12:30 PM - 1:30 PM</option>
+                                <option value="13:00-14:30">1:00 PM - 2:30 PM</option>
+                                <option value="14:30-15:30">2:30 PM - 3:30 PM</option>
+                                <option value="15:30-17:00">3:30 PM - 5:00 PM</option>
+                                <option value="17:00-18:00">5:00 PM - 6:00 PM</option>
+                            </select>
                         </div>
-                    </form>
-                </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-4 pt-4">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors">
+                            Save Schedule
+                        </button>
+                        <button type="button" id="delete-schedule-btn" onclick="confirmDeleteSchedule()" class="hidden px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
+                            Delete
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -597,7 +629,6 @@ ob_start();
 
             // Tab switching
             function switchTab(tabName) {
-                // Update tab buttons
                 document.querySelectorAll('.tab-button').forEach(btn => {
                     btn.classList.remove('bg-yellow-500', 'text-white');
                     btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
@@ -605,13 +636,11 @@ ob_start();
                 document.getElementById(`tab-${tabName}`).classList.add('bg-yellow-500', 'text-white');
                 document.getElementById(`tab-${tabName}`).classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
 
-                // Show/hide content
                 document.querySelectorAll('.tab-content').forEach(content => {
                     content.classList.add('hidden');
                 });
                 document.getElementById(`content-${tabName}`).classList.remove('hidden');
 
-                // Update URL without page reload
                 const url = new URL(window.location);
                 url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
                 window.history.pushState({}, '', url);
@@ -652,13 +681,11 @@ ob_start();
                 if (dropZone && draggedElement && dropZone !== draggedElement.parentElement) {
                     dropZone.classList.remove('bg-yellow-100', 'border-2', 'border-dashed', 'border-yellow-400');
 
-                    // Move the element
                     const scheduleId = draggedElement.dataset.scheduleId;
                     const newDay = dropZone.dataset.day;
                     const newStartTime = dropZone.dataset.startTime;
                     const newEndTime = dropZone.dataset.endTime;
 
-                    // Update schedule data
                     const scheduleIndex = scheduleData.findIndex(s => s.schedule_id == scheduleId);
                     if (scheduleIndex !== -1) {
                         scheduleData[scheduleIndex].day_of_week = newDay;
@@ -666,33 +693,22 @@ ob_start();
                         scheduleData[scheduleIndex].end_time = newEndTime + ':00';
                     }
 
-                    // Clear the old position
                     const oldButton = draggedElement.parentElement.querySelector('button');
-                    if (oldButton) {
-                        oldButton.style.display = 'block';
-                    }
+                    if (oldButton) oldButton.style.display = 'block';
 
-                    // Move to new position
                     const existingCard = dropZone.querySelector('.schedule-card');
                     if (existingCard && existingCard !== draggedElement) {
-                        // Swap positions - move existing card to old position
                         draggedElement.parentElement.appendChild(existingCard);
                     }
 
-                    // Hide the add button in new position
                     const newButton = dropZone.querySelector('button');
-                    if (newButton) {
-                        newButton.style.display = 'none';
-                    }
+                    if (newButton) newButton.style.display = 'none';
 
                     dropZone.appendChild(draggedElement);
-
-                    // Show success message
                     showNotification('Schedule moved successfully! Don\'t forget to save changes.', 'success');
                 }
             }
 
-            // Initialize drag and drop
             function initializeDragAndDrop() {
                 const dropZones = document.querySelectorAll('.drop-zone');
                 dropZones.forEach(zone => {
@@ -706,109 +722,74 @@ ob_start();
             // Modal functions
             function openAddModal() {
                 document.getElementById('modal-title').textContent = 'Add Schedule';
-                document.getElementById('schedule-form').reset();
+                const form = document.getElementById('schedule-form');
+                form.reset();
                 document.getElementById('schedule-id').value = '';
-                currentEditingId = null;
+                document.getElementById('modal-day').value = '';
+                document.getElementById('modal-start-time').value = '';
+                document.getElementById('modal-end-time').value = '';
+                document.getElementById('course-code').value = '';
+                document.getElementById('course-name').value = '';
+                document.getElementById('faculty-name').value = '';
+                document.getElementById('room-name').value = '';
+                document.getElementById('section-name').value = '';
+                document.getElementById('start-time').value = '07:30';
+                document.getElementById('day-select').value = 'Monday';
                 document.getElementById('schedule-modal').classList.remove('hidden');
             }
 
             function openAddModalForSlot(day, startTime, endTime) {
-                // Clear existing values and set for adding a new schedule
-                document.getElementById('edit-schedule-id').value = ''; // No ID for new schedule
-                document.getElementById('edit-course-code').value = ''; // Default to first option or empty
-                document.getElementById('edit-faculty').value = ''; // Default to first option or empty
-                document.getElementById('edit-room').value = '0'; // Default to "Online"
-                document.getElementById('edit-section').value = ''; // Default to first option or empty
-                document.getElementById('edit-day').value = day;
-                document.getElementById('edit-start-time').value = startTime;
-                document.getElementById('edit-end-time').value = endTime;
-
-                // Ensure modal is visible
-                const modal = document.getElementById('edit-modal');
-                if (modal) {
-                    modal.classList.remove('hidden');
-                } else {
-                    console.error('Edit modal not found in DOM');
-                }
+                document.getElementById('modal-title').textContent = 'Add Schedule';
+                const form = document.getElementById('schedule-form');
+                form.reset();
+                document.getElementById('schedule-id').value = '';
+                document.getElementById('modal-day').value = day;
+                document.getElementById('modal-start-time').value = startTime;
+                document.getElementById('modal-end-time').value = endTime;
+                document.getElementById('start-time').value = startTime;
+                document.getElementById('day-select').value = day;
+                document.getElementById('schedule-modal').classList.remove('hidden');
             }
 
             function editSchedule(scheduleId) {
-                const schedule = scheduleData.find(s => s.schedule_id === scheduleId);
+                const schedule = scheduleData.find(s => s.schedule_id == scheduleId);
                 if (schedule) {
-                    document.getElementById('edit-schedule-id').value = schedule.schedule_id;
-                    document.getElementById('edit-course-code').value = schedule.course_code;
-                    document.getElementById('edit-faculty').value = schedule.faculty_id;
-                    document.getElementById('edit-room').value = schedule.room_id || '0';
-                    document.getElementById('edit-section').value = schedule.section_id;
-                    document.getElementById('edit-day').value = schedule.day_of_week;
-                    document.getElementById('edit-start-time').value = schedule.start_time.substring(0, 5);
-                    document.getElementById('edit-end-time').value = schedule.end_time.substring(0, 5);
-                    document.getElementById('edit-modal').classList.remove('hidden');
+                    const modal = document.getElementById('schedule-modal');
+                    const modalContent = document.getElementById('modal-content');
+
+                    document.getElementById('modal-title').textContent = 'Edit Schedule';
+                    document.getElementById('schedule-id').value = schedule.schedule_id;
+                    document.getElementById('course-code').value = schedule.course_code;
+                    document.getElementById('course-name').value = schedule.course_name;
+                    document.getElementById('faculty-name').value = schedule.faculty_name;
+                    document.getElementById('room-name').value = schedule.room_name || '';
+                    document.getElementById('section-name').value = schedule.section_name;
+                    document.getElementById('modal-day').value = schedule.day_of_week;
+                    document.getElementById('modal-start-time').value = schedule.start_time.substring(0, 5);
+                    document.getElementById('modal-end-time').value = schedule.end_time.substring(0, 5);
+                    document.getElementById('day-select').value = schedule.day_of_week;
+                    document.getElementById('time-slot').value = `${schedule.start_time.substring(0, 5)}-${schedule.end_time.substring(0, 5)}`;
+                    document.getElementById('delete-schedule-btn').classList.remove('hidden');
+
+                    currentEditingId = scheduleId;
+                    modal.classList.remove('hidden');
+
+                    // Trigger animation
+                    setTimeout(() => {
+                        modalContent.classList.remove('scale-95', 'opacity-0');
+                        modalContent.classList.add('scale-100', 'opacity-100');
+                    }, 10);
                 }
-            }
-
-            function saveEditedSchedule() {
-                const scheduleId = document.getElementById('edit-schedule-id').value;
-                const courseCode = document.getElementById('edit-course-code').value;
-                const facultyId = document.getElementById('edit-faculty').value;
-                const roomId = document.getElementById('edit-room').value;
-                const sectionId = document.getElementById('edit-section').value;
-                const day = document.getElementById('edit-day').value;
-                const startTime = document.getElementById('edit-start-time').value;
-                const endTime = document.getElementById('edit-end-time').value;
-
-                const updatedSchedule = {
-                    schedule_id: scheduleId,
-                    course_code: courseCode,
-                    faculty_id: facultyId,
-                    room_id: roomId === '0' ? null : roomId,
-                    section_id: sectionId,
-                    day_of_week: day,
-                    start_time: startTime + ':00',
-                    end_time: endTime + ':00'
-                };
-
-                // Update local data
-                const index = scheduleData.findIndex(s => s.schedule_id === scheduleId);
-                if (index !== -1) {
-                    scheduleData[index] = updatedSchedule;
-                    updateScheduleDisplay(scheduleData);
-                }
-
-                // Send to server (optional, implement backend endpoint)
-                fetch('/chair/update-schedule', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: new URLSearchParams(updatedSchedule)
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showNotification('Schedule updated successfully!', 'success');
-                        } else {
-                            showNotification('Error updating schedule: ' + data.message, 'error');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        showNotification('Error updating schedule', 'error');
-                    });
-
-                closeModal();
             }
 
             function closeModal() {
                 document.getElementById('schedule-modal').classList.add('hidden');
-                currentEditingId = null;
             }
 
             function handleScheduleSubmit(e) {
                 e.preventDefault();
                 const formData = new FormData(e.target);
                 const scheduleId = formData.get('schedule_id');
-
                 const endpoint = scheduleId ? '/chair/updateSchedule' : '/chair/addSchedule';
                 const body = new URLSearchParams();
 
@@ -831,7 +812,7 @@ ob_start();
                         if (data.success) {
                             showNotification(scheduleId ? 'Schedule updated successfully!' : 'Schedule added successfully!', 'success');
                             closeModal();
-                            location.reload(); // Refresh to show updated data
+                            location.reload();
                         } else {
                             showNotification('Error: ' + (data.message || 'Failed to save schedule'), 'error');
                         }
@@ -839,31 +820,6 @@ ob_start();
                     .catch(error => {
                         console.error('Error:', error);
                         showNotification('Error saving schedule', 'error');
-                    });
-            }
-
-            function deleteSchedule(scheduleId) {
-                if (!confirm('Are you sure you want to delete this schedule?')) return;
-
-                fetch('/chair/deleteSchedule', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: `schedule_id=${scheduleId}`
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showNotification('Schedule deleted successfully!', 'success');
-                            location.reload(); // Refresh to show updated data
-                        } else {
-                            showNotification('Error deleting schedule', 'error');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        showNotification('Error deleting schedule', 'error');
                     });
             }
 
@@ -900,11 +856,7 @@ ob_start();
                     const matchesSection = !section || itemSectionName === section;
                     const matchesRoom = !room || itemRoomName === room;
 
-                    if (matchesYear && matchesSection && matchesRoom) {
-                        item.parentElement.style.display = 'block';
-                    } else {
-                        item.parentElement.style.display = 'none';
-                    }
+                    item.parentElement.style.display = matchesYear && matchesSection && matchesRoom ? 'block' : 'none';
                 });
             }
 
@@ -917,9 +869,7 @@ ob_start();
                     const yearLevels = sectionsData
                         .filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId)
                         .map(s => s.year_level);
-
-                    const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))];
-                    uniqueYears.sort((a, b) => {
+                    const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))].sort((a, b) => {
                         const order = {
                             '1': 1,
                             '2': 2,
@@ -936,11 +886,10 @@ ob_start();
                         yearLevelsSelect.appendChild(option);
                     });
 
-                    // Automatically select all year levels
                     for (let i = 0; i < yearLevelsSelect.options.length; i++) {
                         yearLevelsSelect.options[i].selected = true;
                     }
-                    updateSections(); // Trigger sections update after selecting all years
+                    updateSections();
                 }
             }
 
@@ -968,7 +917,6 @@ ob_start();
                         sectionsSelect.appendChild(option);
                     });
 
-                    // Automatically select all sections
                     for (let i = 0; i < sectionsSelect.options.length; i++) {
                         sectionsSelect.options[i].selected = true;
                     }
@@ -978,7 +926,6 @@ ob_start();
             function generateSchedules() {
                 const form = document.getElementById('generate-form');
                 const formData = new FormData(form);
-
                 const curriculumId = formData.get('curriculum_id');
                 const selectedYearLevels = formData.getAll('year_levels[]');
                 const selectedSections = formData.getAll('sections[]');
@@ -1010,22 +957,16 @@ ob_start();
                         body: new URLSearchParams(data)
                     })
                     .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                         return response.json();
                     })
                     .then(data => {
                         document.getElementById('loading-overlay').classList.add('hidden');
-                        console.log('Response from server:', data); // Debug log
                         if (data.success) {
                             scheduleData = data.schedules || [];
-                            console.log('Updated scheduleData:', scheduleData); // Debug log
                             document.getElementById('generation-results').classList.remove('hidden');
                             document.getElementById('total-courses').textContent = data.schedules ? data.schedules.length : 0;
                             document.getElementById('total-sections').textContent = new Set(data.schedules?.map(s => s.section_name)).size || 0;
-
-                            // Force update both tabs
                             updateScheduleDisplay(scheduleData);
                             showNotification('Schedules generated successfully!', 'success');
                         } else {
@@ -1041,9 +982,6 @@ ob_start();
 
             function updateScheduleDisplay(schedules) {
                 scheduleData = schedules;
-                console.log('Rendering schedules:', schedules); // Debug log
-
-                // Update Manual Edit tab
                 const manualGrid = document.getElementById('schedule-grid');
                 if (manualGrid) {
                     manualGrid.innerHTML = '';
@@ -1062,8 +1000,8 @@ ob_start();
                         const row = document.createElement('div');
                         row.className = 'grid grid-cols-7 min-h-[100px] hover:bg-gray-50';
                         row.innerHTML = `<div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-100 flex items-center">
-                ${formatTime(time[0])} - ${formatTime(time[1])}
-                </div>`;
+                            ${formatTime(time[0])} - ${formatTime(time[1])}
+                        </div>`;
                         ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
                             const cell = document.createElement('div');
                             cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0 drop-zone relative';
@@ -1077,27 +1015,27 @@ ob_start();
                             );
                             if (schedule) {
                                 cell.innerHTML = `<div class="schedule-card bg-white border-l-4 border-yellow-500 rounded-lg p-3 shadow-sm draggable cursor-move" 
-                        draggable="true" data-schedule-id="${escapeHtml(schedule.schedule_id)}" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)">
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="font-semibold text-sm text-gray-900 truncate">${escapeHtml(schedule.course_code)}</div>
-                            <button onclick="editSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </div>
-                        <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.course_name)}</div>
-                        <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.faculty_name)}</div>
-                        <div class="text-xs text-gray-600 truncate mb-2">${escapeHtml(schedule.room_name ?? 'Online')}</div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-xs font-medium text-yellow-600">${escapeHtml(schedule.section_name)}</span>
-                            <button onclick="deleteSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-red-500 hover:text-red-700 text-xs no-print">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>`;
+                                    draggable="true" data-schedule-id="${escapeHtml(schedule.schedule_id)}" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="font-semibold text-sm text-gray-900 truncate">${escapeHtml(schedule.course_code)}</div>
+                                        <button onclick="editSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.course_name)}</div>
+                                    <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.faculty_name)}</div>
+                                    <div class="text-xs text-gray-600 truncate mb-2">${escapeHtml(schedule.room_name ?? 'Online')}</div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs font-medium text-yellow-600">${escapeHtml(schedule.section_name)}</span>
+                                        <button onclick="deleteSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-red-500 hover:text-red-700 text-xs no-print">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>`;
                             } else {
                                 cell.innerHTML = `<button onclick="openAddModalForSlot('${day}', '${time[0]}', '${time[1]}')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print">
-                        <i class="fas fa-plus text-lg"></i>
-                    </button>`;
+                                    <i class="fas fa-plus text-lg"></i>
+                                </button>`;
                             }
                             row.appendChild(cell);
                         });
@@ -1106,8 +1044,7 @@ ob_start();
                     initializeDragAndDrop();
                 }
 
-                // Update View Schedule tab
-                const viewGrid = document.getElementById('view-schedule-grid');
+                const viewGrid = document.getElementById('timetableGrid');
                 if (viewGrid) {
                     viewGrid.innerHTML = '';
                     const times = [
@@ -1125,11 +1062,11 @@ ob_start();
                         const row = document.createElement('div');
                         row.className = 'grid grid-cols-7 min-h-[100px] hover:bg-gray-50';
                         row.innerHTML = `<div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-100 flex items-center">
-                ${formatTime(time[0])} - ${formatTime(time[1])}
-                    </div>`;
+                            ${formatTime(time[0])} - ${formatTime(time[1])}
+                        </div>`;
                         ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
                             const cell = document.createElement('div');
-                            cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0';
+                            cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0 schedule-cell';
                             const daySchedules = schedules.filter(s =>
                                 s.day_of_week === day &&
                                 s.start_time.substring(0, 5) === time[0] &&
@@ -1138,15 +1075,15 @@ ob_start();
                             if (daySchedules.length > 0) {
                                 daySchedules.forEach(schedule => {
                                     const colorClass = ['bg-blue-100', 'bg-green-100', 'bg-purple-100', 'bg-orange-100', 'bg-pink-100'][Math.floor(Math.random() * 5)] + ' border-l-4';
-                                    cell.innerHTML += `<div class="${colorClass} p-2 rounded-lg mb-1 schedule-item" 
-                            data-year-level="${escapeHtml(schedule.year_level)}" 
-                            data-section-name="${escapeHtml(schedule.section_name)}" 
-                            data-room-name="${escapeHtml(schedule.room_name ?? 'Online')}">
-                            <div class="font-semibold text-xs truncate mb-1">${escapeHtml(schedule.course_code)}</div>
-                            <div class="text-xs opacity-90 truncate mb-1">${escapeHtml(schedule.section_name)}</div>
-                            <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.faculty_name)}</div>
-                            <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.room_name ?? 'Online')}</div>
-                        </div>`;
+                                    cell.innerHTML += `<div class="schedule-card ${colorClass} p-2 rounded-lg mb-1 schedule-item" 
+                                        data-year-level="${escapeHtml(schedule.year_level)}" 
+                                        data-section-name="${escapeHtml(schedule.section_name)}" 
+                                        data-room-name="${escapeHtml(schedule.room_name ?? 'Online')}">
+                                        <div class="font-semibold text-xs truncate mb-1">${escapeHtml(schedule.course_code)}</div>
+                                        <div class="text-xs opacity-90 truncate mb-1">${escapeHtml(schedule.section_name)}</div>
+                                        <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.faculty_name)}</div>
+                                        <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.room_name ?? 'Online')}</div>
+                                    </div>`;
                                 });
                             }
                             row.appendChild(cell);
@@ -1156,7 +1093,6 @@ ob_start();
                 }
             }
 
-            // Helper functions
             function formatTime(time) {
                 const [hours, minutes] = time.split(':');
                 const date = new Date(2000, 0, 1, hours, minutes);
@@ -1176,120 +1112,163 @@ ob_start();
                     .replace(/'/g, "&#039;");
             }
 
-            // Filtering for schedule view
             function filterSchedules() {
                 const yearLevel = document.getElementById('filter-year').value;
                 const section = document.getElementById('filter-section').value;
                 const room = document.getElementById('filter-room').value;
-                const scheduleItems = document.querySelectorAll('#view-schedule-grid .schedule-item');
+                const scheduleCells = document.querySelectorAll('#timetableGrid .schedule-cell');
 
-                scheduleItems.forEach(item => {
-                    const itemYearLevel = item.getAttribute('data-year-level');
-                    const itemSectionName = item.getAttribute('data-section-name');
-                    const itemRoomName = item.getAttribute('data-room-name');
-                    const matchesYear = !yearLevel || itemYearLevel === yearLevel;
-                    const matchesSection = !section || itemSectionName === section;
-                    const matchesRoom = !room || itemRoomName === room;
+                scheduleCells.forEach(cell => {
+                    const items = cell.querySelectorAll('.schedule-item');
+                    let shouldShow = false;
 
-                    if (matchesYear && matchesSection && matchesRoom) {
-                        item.style.display = 'table-row';
-                    } else {
-                        item.style.display = 'none';
-                    }
+                    items.forEach(item => {
+                        const itemYearLevel = item.getAttribute('data-year-level');
+                        const itemSectionName = item.getAttribute('data-section-name');
+                        const itemRoomName = item.getAttribute('data-room-name');
+                        const matchesYear = !yearLevel || itemYearLevel === yearLevel;
+                        const matchesSection = !section || itemSectionName === section;
+                        const matchesRoom = !room || itemRoomName === room;
+
+                        if (matchesYear && matchesSection && matchesRoom) {
+                            item.style.display = 'block';
+                            shouldShow = true;
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+
+                    cell.style.display = shouldShow ? 'block' : 'block'; // Keep cell visible if any item matches
                 });
             }
 
-            // Utility functions
             function showNotification(message, type = 'success') {
                 const notification = document.getElementById('notification');
                 if (!notification) {
-                    // Create notification if it doesn't exist
                     const notificationDiv = document.createElement('div');
                     notificationDiv.id = 'notification';
                     notificationDiv.className = 'mb-6';
                     notificationDiv.innerHTML = `
-                    <div class="flex items-center p-4 rounded-lg ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
-                        <div class="flex-shrink-0">
-                            <i class="fas ${type === 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500'} text-xl"></i>
+                        <div class="flex items-center p-4 rounded-lg ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
+                            <div class="flex-shrink-0">
+                                <i class="fas ${type === 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500'} text-xl"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium ${type === 'success' ? 'text-green-800' : 'text-red-800'}" id="notificationText">${message}</p>
+                            </div>
+                            <div class="ml-auto pl-3">
+                                <button class="${type === 'success' ? 'text-green-400 hover:text-green-600' : 'text-red-400 hover:text-red-600'}" onclick="hideNotification()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="ml-3">
-                            <p class="text-sm font-medium ${type === 'success' ? 'text-green-800' : 'text-red-800'}" id="notificationText">${message}</p>
-                        </div>
-                        <div class="ml-auto pl-3">
-                            <button class="inline-flex ${type === 'success' ? 'text-green-400 hover:text-green-600' : 'text-red-400 hover:text-red-600'}" onclick="hideNotification()">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                `;
+                    `;
                     document.querySelector('.max-w-7xl').insertBefore(notificationDiv, document.querySelector('.max-w-7xl').firstElementChild.nextElementSibling);
                 } else {
-                    const notificationText = document.getElementById('notificationText');
-                    if (notificationText) {
-                        notificationText.textContent = message;
-                    }
+                    document.getElementById('notificationText').textContent = message;
                     notification.classList.remove('hidden');
                 }
 
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    hideNotification();
-                }, 5000);
+                setTimeout(() => hideNotification(), 5000);
             }
 
             function hideNotification() {
                 const notification = document.getElementById('notification');
-                if (notification) {
-                    notification.classList.add('hidden');
+                if (notification) notification.classList.add('hidden');
+            }
+
+            // Enhanced print functionality
+            function togglePrintDropdown() {
+                const dropdown = document.getElementById('printDropdown');
+                dropdown.classList.toggle('hidden');
+            }
+
+            function printSchedule(type) {
+                // Hide dropdown
+                document.getElementById('printDropdown').classList.add('hidden');
+
+                if (type === 'filtered') {
+                    // Apply current filters before printing
+                    filterSchedules();
+                } else if (type === 'all') {
+                    // Clear all filters to show everything
+                    clearFilters();
+                }
+
+                // Switch to schedule view for printing
+                switchTab('schedule');
+
+                // Print after a short delay to ensure tab switch completes
+                setTimeout(() => {
+                    window.print();
+                }, 100);
+            }
+
+            function exportSchedule(format) {
+                // Hide dropdown
+                document.getElementById('printDropdown').classList.add('hidden');
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.style.display = 'none';
+
+                const actionInput = document.createElement('input');
+                actionInput.name = 'action';
+                actionInput.value = 'download';
+                form.appendChild(actionInput);
+
+                const formatInput = document.createElement('input');
+                formatInput.name = 'format';
+                formatInput.value = format;
+                form.appendChild(formatInput);
+
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            }
+
+            function confirmPrint() {
+                if (confirm("Are you sure you want to print the schedule? This will open the print dialog.")) {
+                    window.print();
                 }
             }
 
-            function downloadSchedule() {
-                // Create CSV content
-                let csvContent = "Course Code,Course Name,Faculty,Room,Section,Day,Start Time,End Time\n";
-
-                scheduleData.forEach(schedule => {
-                    csvContent += `"${schedule.course_code}","${schedule.course_name}","${schedule.faculty_name}","${schedule.room_name || 'Online'}","${schedule.section_name}","${schedule.day_of_week}","${schedule.start_time}","${schedule.end_time}"\n`;
-                });
-
-                // Create and download file
-                const blob = new Blob([csvContent], {
-                    type: 'text/csv;charset=utf-8;'
-                });
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                link.setAttribute('href', url);
-                link.setAttribute('download', 'schedule.csv');
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
-
-            // Initialize on page load
             document.addEventListener('DOMContentLoaded', function() {
                 initializeDragAndDrop();
-
-                // Set up generate button
                 const generateBtn = document.getElementById('generate-btn');
-                if (generateBtn) {
-                    generateBtn.addEventListener('click', generateSchedules);
-                }
+                if (generateBtn) generateBtn.addEventListener('click', generateSchedules);
 
-                // Handle URL parameters
                 const urlParams = new URLSearchParams(window.location.search);
                 const tab = urlParams.get('tab');
-                if (tab === 'schedule-list') {
-                    switchTab('schedule');
-                } else if (tab === 'manual') {
-                    switchTab('manual');
-                } else if (tab === 'generate') {
-                    switchTab('generate');
-                }
+                if (tab === 'schedule-list') switchTab('schedule');
+                else if (tab === 'manual') switchTab('manual');
+                else if (tab === 'generate') switchTab('generate');
             });
         </script>
 
         <style>
+            .modal-overlay {
+                background: rgba(0, 0, 0, 0.6);
+                backdrop-filter: blur(8px);
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+            }
+
+            .modal-overlay.active {
+                opacity: 1;
+                visibility: visible;
+            }
+
             .draggable {
                 cursor: grab;
             }
@@ -1316,6 +1295,32 @@ ob_start();
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             }
 
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+
+                to {
+                    opacity: 1;
+                }
+            }
+
+            .slide-in-left {
+                animation: slideInLeft 0.5s ease-in;
+            }
+
+            @keyframes slideInLeft {
+                from {
+                    transform: translateX(-20px);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
             @media print {
                 .no-print {
                     display: none !important;
@@ -1327,6 +1332,8 @@ ob_start();
 
                 body {
                     background: white;
+                    margin: 0;
+                    padding: 0;
                 }
 
                 .schedule-card {
@@ -1346,6 +1353,22 @@ ob_start();
 
                 #content-schedule {
                     display: block !important;
+                }
+
+                #timetableGrid {
+                    font-size: 12pt;
+                    width: 100%;
+                    overflow: visible;
+                }
+
+                #timetableGrid .grid-cols-7>div {
+                    border: 1px solid #e5e7eb;
+                    padding: 10px;
+                    page-break-inside: avoid;
+                }
+
+                #timetableGrid .bg-gray-50 {
+                    background: white;
                 }
             }
 

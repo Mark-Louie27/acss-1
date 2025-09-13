@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
+require_once __DIR__ . '/../services/SchedulingService.php';
 
 // Start session only if not already active
 if (session_status() === PHP_SESSION_NONE) {
@@ -14,6 +15,7 @@ class ChairController
     private $authService;
     private $baseUrl;
     private $emailService;
+    private $schedulingService;
 
     public function __construct()
     {
@@ -29,6 +31,8 @@ class ChairController
         $this->authService = new AuthService($this->db);
 
         $this->emailService = new EmailService();
+
+        $this->schedulingService = new SchedulingService($this->db);
     }
 
     public function getDb()
@@ -491,6 +495,21 @@ class ChairController
             $sections = $cachedData['sections'];
 
             $selectedCurriculumId = $_POST['curriculum_id'] ?? $_GET['curriculum_id'] ?? ($curricula[0]['curriculum_id'] ?? null);
+
+            // Handle download requests
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'download') {
+                $roomName = $_POST['room_name'] ?? 'All Rooms';
+                $semesterName = $currentSemester['semester_name'] ?? 'Current Semester';
+                $filename = 'schedule_' . str_replace(' ', '_', strtolower($roomName)) . '_' . date('Ymd_His', strtotime('08:27 PM PST')); // Current time: 08:27 PM PST, September 13, 2025
+
+                $format = $_POST['format'] ?? 'excel';
+                if ($format === 'excel') {
+                    $this->schedulingService->exportTimetableToExcel($schedules, $filename, $roomName, $semesterName);
+                } elseif ($format === 'pdf') {
+                    $this->schedulingService->exportTimetableToPDF($schedules, $filename, $roomName, $semesterName);
+                }
+                exit; // Exit after download
+            }
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tab'])) {
                 $tab = $_POST['tab'];
