@@ -84,9 +84,6 @@ class ChairController
         return ['code' => $httpCode, 'data' => json_decode($response, true)];
     }
 
-    /**
-     * Get department_id for the chair
-     */
     public function getChairDepartment($chairId)
     {
         $stmt = $this->db->prepare("SELECT p.department_id 

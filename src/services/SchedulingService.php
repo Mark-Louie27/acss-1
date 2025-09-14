@@ -18,6 +18,230 @@ class SchedulingService
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
+    public function generateMySchedulePdf($schedules, $semesterName, $departmentName, $totalHours, $showAllSchedules, $facultyName = '', $position = '')
+    {
+        $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false); // 'L' for landscape
+
+        $pdf->SetCreator(PDF_CREATOR);
+        $pdf->SetAuthor('PRMSU - ACSS System');
+        $pdf->SetTitle('Faculty Teaching Load');
+        $pdf->SetSubject('Teaching Schedule for ' . $semesterName);
+
+        // Set margins similar to the official document
+        $pdf->SetMargins(15, 15, 15);
+        $pdf->SetHeaderMargin(5);
+        $pdf->SetFooterMargin(10);
+        $pdf->SetAutoPageBreak(TRUE, 20);
+
+        // Remove default header/footer
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+
+        $pdf->AddPage();
+
+        // Logo positioning
+        $logoPath = __DIR__ . '/assets/logo/main_logo/PRMSUlogo.png';
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 20, 15, 25, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        }
+
+        // Header section with official styling
+        $pdf->SetFont('helvetica', 'B', 10);
+
+        $headerHtml = '
+        <table cellpadding="0" cellspacing="0" style="width: 100%; margin-top: 10px;">
+            <tr>
+                <td style="width: 20%; text-align: left;"></td>
+                <td style="width: 60%; text-align: center;">
+                    <div style="font-size: 9px; font-weight: normal;">Republic of the Philippines</div>
+                    <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">President Ramon Magsaysay State University</div>
+                    <div style="font-size: 8px; font-style: italic; margin-top: 1px;">(formerly Ramon Magsaysay Technological University)</div>
+                    <div style="font-size: 10px; font-weight: bold; margin-top: 8px;">FACULTY TEACHING LOAD</div>
+                    <div style="font-size: 9px; margin-top: 2px;">' . htmlspecialchars($semesterName) . '</div>
+                </td>
+                <td style="width: 20%; text-align: right;"></td>
+            </tr>
+        </table>';
+
+        $pdf->writeHTML($headerHtml, true, false, true, false, '');
+
+        // Faculty information section (similar to the original document layout)
+        $pdf->Ln(10);
+
+        $facultyInfoHtml = '
+        <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 9px;">
+            <tr>
+                <td style="width: 15%; background-color: #f0f0f0; font-weight: bold;">Campus:</td>
+                <td style="width: 25%;">Main Campus</td>
+                <td style="width: 15%; background-color: #f0f0f0; font-weight: bold;">No. of Units/Hrs.</td>
+                <td style="width: 15%; text-align: center; background-color: #f0f0f0; font-weight: bold;">Room</td>
+                <td style="width: 15%; text-align: center; background-color: #f0f0f0; font-weight: bold;">Course/ Yr./Sec.</td>
+                <td style="width: 15%; text-align: center; background-color: #f0f0f0; font-weight: bold;">No. of Students</td>
+            </tr>
+            <tr>
+                <td style="background-color: #f0f0f0; font-weight: bold;">Address:</td>
+                <td>Iba, Zambales</td>
+                <td rowspan="15" style="vertical-align: top;">
+                    <table cellpadding="2" cellspacing="0" style="width: 100%; font-size: 8px;">
+                        <tr style="background-color: #e0e0e0;">
+                            <td style="text-align: center; font-weight: bold;">Lec.</td>
+                            <td style="text-align: center; font-weight: bold;">Lab./RLE</td>
+                        </tr>
+                        <tr style="background-color: #e0e0e0;">
+                            <td style="text-align: center; font-weight: bold;">Units</td>
+                            <td style="text-align: center; font-weight: bold;">Hrs.</td>
+                            <td style="text-align: center; font-weight: bold;">Units</td>
+                            <td style="text-align: center; font-weight: bold;">Hrs.</td>
+                        </tr>
+                    </table>
+                </td>
+                <td rowspan="15" style="vertical-align: top; text-align: center; background-color: #f9f9f9;"></td>
+                <td rowspan="15" style="vertical-align: top; text-align: center; background-color: #f9f9f9;"></td>
+                <td rowspan="15" style="vertical-align: top; text-align: center; background-color: #f9f9f9;"></td>
+            </tr>
+            <tr>
+                <td style="background-color: #f0f0f0; font-weight: bold;">College:</td>
+                <td>' . htmlspecialchars($departmentName ?? 'College of Communication and Information Technology') . '</td>
+            </tr>
+        </table>';
+
+        $pdf->writeHTML($facultyInfoHtml, true, false, true, false, '');
+
+        // Faculty name section
+        $pdf->Ln(5);
+
+        $nameHtml = '
+        <table cellpadding="0" cellspacing="0" style="width: 100%;">
+            <tr>
+                <td style="font-size: 16px; font-weight: bold; text-align: center; padding: 10px 0;">
+                    ' . strtoupper(htmlspecialchars($facultyName ?: 'FACULTY NAME')) . '
+                </td>
+            </tr>
+        </table>';
+
+        $pdf->writeHTML($nameHtml, true, false, true, false, '');
+
+        // Schedule table
+        $pdf->Ln(5);
+
+        $scheduleHtml = '
+        <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 8px;">
+            <thead>
+                <tr style="background-color: #d0d0d0;">
+                    <th style="text-align: center; font-weight: bold; width: 12%;">Time</th>
+                    <th style="text-align: center; font-weight: bold; width: 8%;">Days</th>
+                    <th style="text-align: center; font-weight: bold; width: 35%;">Course Code and Title</th>
+                    <th style="text-align: center; font-weight: bold; width: 10%;">Room</th>
+                    <th style="text-align: center; font-weight: bold; width: 15%;">Course/ Yr./Sec.</th>
+                    <th style="text-align: center; font-weight: bold; width: 10%;">No. of Students</th>
+                    <th style="text-align: center; font-weight: bold; width: 10%;">Type</th>
+                </tr>
+            </thead>
+            <tbody>';
+
+            if (!empty($schedules)) {
+                foreach ($schedules as $schedule) {
+                    $timeRange = htmlspecialchars(($schedule['start_time'] ?? '') . '-' . ($schedule['end_time'] ?? ''));
+                    $courseInfo = htmlspecialchars(($schedule['course_code'] ?? 'N/A') . ' - ' . ($schedule['course_name'] ?? 'N/A'));
+
+                    $scheduleHtml .= '
+                <tr>
+                    <td style="text-align: center; padding: 4px;">' . $timeRange . '</td>
+                    <td style="text-align: center; padding: 4px;">' . htmlspecialchars($schedule['day_of_week'] ?? 'N/A') . '</td>
+                    <td style="padding: 4px;">' . $courseInfo . '</td>
+                    <td style="text-align: center; padding: 4px;">' . htmlspecialchars($schedule['room_name'] ?? 'TBD') . '</td>
+                    <td style="text-align: center; padding: 4px;">' . htmlspecialchars($schedule['section_name'] ?? 'N/A') . '</td>
+                    <td style="text-align: center; padding: 4px;">-</td>
+                    <td style="text-align: center; padding: 4px;">' . htmlspecialchars($schedule['schedule_type'] ?? 'N/A') . '</td>
+                </tr>';
+                }
+
+            // Add empty rows to match the original format
+            for ($i = count($schedules); $i < 12; $i++) {
+                $scheduleHtml .= '
+            <tr>
+                <td style="padding: 8px;">&nbsp;</td>
+                <td style="padding: 8px;">&nbsp;</td>
+                <td style="padding: 8px;">&nbsp;</td>
+                <td style="padding: 8px;">&nbsp;</td>
+                <td style="padding: 8px;">&nbsp;</td>
+                <td style="padding: 8px;">&nbsp;</td>
+                <td style="padding: 8px;">&nbsp;</td>
+            </tr>';
+            }
+        } else {
+            $scheduleHtml .= '<tr><td colspan="7" style="text-align: center; padding: 20px;">No schedules found for this term.</td></tr>';
+        }
+
+        $scheduleHtml .= '</tbody></table>';
+
+        $pdf->writeHTML($scheduleHtml, true, false, true, false, '');
+
+        // Additional information section
+        $pdf->Ln(5);
+
+        $additionalInfoHtml = '
+        <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 8px;">
+            <tr>
+                <td style="background-color: #f0f0f0; font-weight: bold; width: 25%;">Employment Status:</td>
+                <td style="width: 15%;">☐ Regular ☐ Yes ☐ No</td>
+                <td style="background-color: #f0f0f0; font-weight: bold; width: 20%;">Total Weekly Hours:</td>
+                <td style="width: 40%;">' . number_format($totalHours ?? 0, 2) . ' hrs</td>
+            </tr>
+            <tr>
+                <td style="background-color: #f0f0f0; font-weight: bold;">Academic Rank:</td>
+                <td>' . htmlspecialchars($position ?? 'Assistant Professor I') . '</td>
+                <td style="background-color: #f0f0f0; font-weight: bold;">Excess (24 Hours):</td>
+                <td>' . number_format(max(0, ($totalHours ?? 0) - 24), 2) . '</td>
+            </tr>
+        </table>';
+
+        $pdf->writeHTML($additionalInfoHtml, true, false, true, false, '');
+
+        // Signature section
+        $pdf->Ln(15);
+
+        $signatureHtml = '
+        <table cellpadding="5" cellspacing="0" style="width: 100%; font-size: 9px;">
+            <tr>
+                <td style="width: 30%; text-align: center;">
+                    <div style="border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;">
+                        <strong>Prepared:</strong><br/>
+                        Faculty Signature
+                    </div>
+                </td>
+                <td style="width: 40%; text-align: center;">
+                    <div style="border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;">
+                        <strong>Recommending Approval:</strong><br/>
+                        Department Head
+                    </div>
+                </td>
+                <td style="width: 30%; text-align: center;">
+                    <div style="border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;">
+                        <strong>Approved:</strong><br/>
+                        Dean/Director
+                    </div>
+                </td>
+            </tr>
+        </table>';
+
+        $pdf->writeHTML($signatureHtml, true, false, true, false, '');
+
+        // Footer with reference info
+        $pdf->Ln(10);
+        $footerHtml = '
+        <div style="font-size: 7px; text-align: right;">
+            Reference no.: PRMSU-ASA-COMP16 (16)<br/>
+            Effectivity date: May 04, 2021<br/>
+            Revision no.: 09
+        </div>';
+
+        $pdf->writeHTML($footerHtml, true, false, true, false, '');
+
+        $pdf->Output('faculty_teaching_load_' . date('Ymd') . '.pdf', 'D');
+        exit;
+    }
+
     public function exportTimetableToPDF($schedules, $filename, $roomName, $semesterName)
     {
         // Initialize TCPDF
