@@ -37,6 +37,10 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::activityLogs");
             $controller->activityLogs();
             break;
+        case '/admin/schedule':
+            error_log("Routing to AdminController::schedule");
+            $controller->mySchedule();
+            break;
         case '/admin/users':
         case '/admin/edit_user':
             error_log("Routing to AdminController::users");
@@ -50,6 +54,10 @@ function handleAdminRoutes($path)
         case '/admin/colleges_departments/create':
             error_log("Routing to AdminController::createCollegeDepartment");
             $controller->createCollegeDepartment();
+            break;
+        case '/admin/classroom':
+            error_log("Routing to AdminController::classroom");
+            $controller->classroom();
             break;
         case '/admin/faculty':
             error_log("Routing to AdminController::faculty");

@@ -376,9 +376,15 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>Dashboard</span>
             </a>
 
+            <!-- schedule link-->
+            <a href="/admin/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/admin/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>My Schedule</span>
+            </a>
+
             <!-- users Link -->
             <a href="/admin/users" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/users') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/admin/users') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <i class="fa-regular fa-circle-user w-5 mr-3 <?= strpos($currentUri, '/admin/users') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Users</span>
             </a>
 
@@ -392,12 +398,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
             <a href="/admin/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/admin/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Classrooms</span>
-            </a>
-
-            <!-- Faculty Link -->
-            <a href="/admin/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/faculty') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/admin/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Manage Faculty</span>
             </a>
 
             <!-- Profile Link -->

@@ -135,6 +135,121 @@ class AdminController
         }
     }
 
+    public function mySchedule()
+    {
+        try {
+            $adminId = $_SESSION['user_id'];
+            error_log("mySchedule: Starting mySchedule method for user_id: $adminId");
+
+            // Fetch faculty ID and name with join to users table
+            $facultyStmt = $this->db->prepare("
+            SELECT f.faculty_id, CONCAT(u.title, ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name, ' ', u.suffix) AS faculty_name 
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            WHERE u.user_id = :user_id
+        ");
+            $facultyStmt->execute([':user_id' => $adminId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$faculty) {
+                $error = "No faculty profile found for this user.";
+                require_once __DIR__ . '/../views/admin/schedule.php';
+                return;
+            }
+            $facultyId = $faculty['faculty_id'];
+            $facultyName = $faculty['faculty_name'];
+
+            // Fetch faculty position and employment status
+            $positionStmt = $this->db->prepare("SELECT academic_rank FROM faculty WHERE faculty_id = :faculty_id");
+            $positionStmt->execute([':faculty_id' => $facultyId]);
+            $facultyPosition = $positionStmt->fetchColumn() ?: 'Not Specified';
+
+            // Get department and college details (corrected join)
+            $deptStmt = $this->db->prepare("
+            SELECT d.department_name, c.college_name 
+            FROM users u 
+            JOIN faculty f ON f.user_id = u.user_id
+             
+            JOIN departments d ON u.department_id = d.department_id 
+            JOIN colleges c ON d.college_id = c.college_id 
+            WHERE u.user_id = :user_id 
+        ");
+            $deptStmt->execute([':user_id' => $adminId]);
+            $department = $deptStmt->fetch(PDO::FETCH_ASSOC);
+            $departmentName = $department['department_name'] ?? 'Not Assigned';
+            $collegeName = $department['college_name'] ?? 'Not Assigned';
+
+            $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
+            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$semester) {
+                error_log("mySchedule: No current semester found");
+                $error = "No current semester defined. Please contact the administrator to set the current semester.";
+                require_once __DIR__ . '/../views/admin/schedule.php';
+                return;
+            }
+            $semesterId = $semester['semester_id'];
+            $semesterName = $semester['semester_name'] . ' Semester, AY ' . $semester['academic_year'];
+            error_log("mySchedule: Current semester ID: $semesterId, Name: $semesterName");
+
+            $schedulesStmt = $this->db->prepare("
+            SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, 
+                   s.start_time, s.end_time, s.schedule_type, COALESCE(sec.section_name, 'N/A') AS section_name,
+                   TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+            FROM schedules s
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = :faculty_id AND s.semester_id = :semester_id
+            ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
+        ");
+            $schedulesStmt->execute([':faculty_id' => $facultyId, ':semester_id' => $semesterId]);
+            $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("mySchedule: Fetched " . count($schedules) . " schedules for faculty_id $facultyId in semester $semesterId");
+
+            $showAllSchedules = false;
+            if (empty($schedules)) {
+                error_log("mySchedule: No schedules found for current semester, trying to fetch all schedules");
+                $schedulesStmt = $this->db->prepare("
+                SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, 
+                       s.start_time, s.end_time, s.schedule_type, COALESCE(sec.section_name, 'N/A') AS section_name,
+                       TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+                FROM schedules s
+                LEFT JOIN courses c ON s.course_id = c.course_id
+                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                LEFT JOIN classrooms r ON s.room_id = r.room_id
+                WHERE s.faculty_id = :faculty_id
+                ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
+            ");
+                $schedulesStmt->execute([':faculty_id' => $facultyId]);
+                $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+                $showAllSchedules = true;
+                error_log("mySchedule: Fetched " . count($schedules) . " total schedules for faculty_id $facultyId");
+            }
+
+            if (empty($schedules)) {
+                error_log("mySchedule: No schedules found after fallback. Checking raw data...");
+                $debugStmt = $this->db->prepare("SELECT * FROM schedules WHERE faculty_id = :faculty_id");
+                $debugStmt->execute([':faculty_id' => $facultyId]);
+                $debugSchedules = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
+                error_log("mySchedule: Debug - Found " . count($debugSchedules) . " raw schedules for faculty_id $facultyId");
+            }
+
+            $totalHours = 0;
+            foreach ($schedules as $schedule) {
+                $totalHours += $schedule['duration_hours'];
+            }
+            error_log("mySchedule: Total hours calculated: $totalHours");
+
+            require_once __DIR__ . '/../views/admin/schedule.php';
+        } catch (Exception $e) {
+            error_log("mySchedule: Full error: " . $e->getMessage());
+            http_response_code(500);
+            echo "Error loading schedule: " . htmlspecialchars($e->getMessage());
+            exit;
+        }
+    }
+
     public function manageUsers()
     {
         try {
@@ -150,10 +265,11 @@ class AdminController
 
             // Fetch common data
             $usersStmt = $this->db->query("
-            SELECT u.user_id, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email,
-                   r.role_name, c.college_name, d.department_name
+            SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email, u.profile_picture,
+                   r.role_name, c.college_id, c.college_name, d.department_id, d.department_name, f.academic_rank
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
+            LEFT JOIN faculty f ON u.user_id = f.faculty_id
             LEFT JOIN colleges c ON u.college_id = c.college_id
             LEFT JOIN departments d ON u.department_id = d.department_id
             ORDER BY u.first_name, u.last_name
@@ -174,138 +290,45 @@ class AdminController
                 $this->db->beginTransaction();
 
                 try {
-                    if ($action === 'create') {
-                        $username = $_POST['username'] ?? '';
-                        $password = password_hash($_POST['password'] ?? '', PASSWORD_BCRYPT);
-                        $first_name = $_POST['first_name'] ?? '';
-                        $last_name = $_POST['last_name'] ?? '';
-                        $role_id = $_POST['role_id'] ?? null;
-                        $college_id = $_POST['college_id'] ?: null;
-                        $department_id = $_POST['department_id'] ?: null;
-                        $email = $_POST['email'] ?? '';
+                    $data = [
+                        'user_id' => $_POST['user_id'] ?? null,
+                        'action' => $_POST['action'] ?? null
+                    ];
 
-                        $stmt = $this->db->prepare("
-                        INSERT INTO users (username, password, first_name, last_name, role_id, college_id, department_id, email, is_active, created_at)
-                        VALUES (:username, :password, :first_name, :last_name, :role_id, :college_id, :department_id, :email, 0, NOW())
-                    ");
-                        $stmt->execute([
-                            ':username' => $username,
-                            ':password' => $password,
-                            ':first_name' => $first_name,
-                            ':last_name' => $last_name,
-                            ':role_id' => $role_id,
-                            ':college_id' => $college_id,
-                            ':department_id' => $department_id,
-                            ':email' => $email,
-                            ':is_active' => 0 // All users are inactive until approved
-                        ]);
-
-                        $newUserId = $this->db->lastInsertId();
-                        $fullName = "$first_name $last_name";
-                        $roleName = $roles[$role_id - 1]['role_name'] ?? 'Unknown Role';
-
-                        // Send confirmation email to the new user
-                        $this->emailService->sendConfirmationEmail($email, $fullName, $roleName);
-
-                        $adminEmail = 'admin@example.com'; // Replace with actual admin email
-                        $this->emailService->sendApprovalEmail($adminEmail, $fullName, $roleName);
-                    } elseif ($action === 'update' && $userId) {
-                        $username = $_POST['username'] ?? '';
-                        $first_name = $_POST['first_name'] ?? '';
-                        $last_name = $_POST['last_name'] ?? '';
-                        $role_id = $_POST['role_id'] ?? null;
-                        $college_id = $_POST['college_id'] ?: null;
-                        $department_id = $_POST['department_id'] ?: null;
-                        $email = $_POST['email'] ?? '';
-
-                        $updateFields = [
-                            'username = :username',
-                            'first_name = :first_name',
-                            'last_name = :last_name',
-                            'role_id = :role_id',
-                            'college_id = :college_id',
-                            'department_id = :department_id',
-                            'email = :email',
-                            'updated_at = NOW()'
-                        ];
-                        $params = [
-                            ':user_id' => $userId,
-                            ':username' => $username,
-                            ':first_name' => $first_name,
-                            ':last_name' => $last_name,
-                            ':role_id' => $role_id,
-                            ':college_id' => $college_id,
-                            ':department_id' => $department_id,
-                            ':email' => $email
-                        ];
-
-                        if (!empty($_POST['password'])) {
-                            $updateFields[] = 'password = :password';
-                            $params[':password'] = password_hash($_POST['password'], PASSWORD_BCRYPT);
-                        }
-
-                        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE user_id = :user_id";
-                        $stmt = $this->db->prepare($sql);
-                        $stmt->execute($params);
-                    } elseif ($action === 'approve' && $userId) {
-                        $checkStmt = $this->db->prepare("SELECT email, first_name, last_name, role_id FROM users WHERE user_id = :user_id");
-                        $checkStmt->execute([':user_id' => $userId]);
-                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-                        if ($user) {
-                            $stmt = $this->db->prepare("UPDATE users SET is_active = 1, updated_at = NOW() WHERE user_id = :user_id");
-                            $stmt->execute([':user_id' => $userId]);
-                            $roleName = $roles[$user['role_id'] - 1]['role_name'] ?? 'Unknown Role';
-                            $this->emailService->sendApprovalEmail($user['email'], $user['first_name'] . ' ' . $user['last_name'], $roleName);
-                            error_log("User approved: ID {$userId}, Email: {$user['email']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-                        }
-                    } elseif ($action === 'disable' && $userId) {
-                        if ($_SESSION['user_id'] == $userId) {
-                            echo json_encode(['success' => false, 'message' => 'Cannot disable your own account']);
-                            exit;
-                        }
-                        $checkStmt = $this->db->prepare("SELECT user_id, username FROM users WHERE user_id = :user_id");
-                        $checkStmt->execute([':user_id' => $userId]);
-                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-                        if ($user) {
-                            $stmt = $this->db->prepare("UPDATE users SET is_active = 1, updated_at = NOW() WHERE user_id = :user_id");
-                            $stmt->execute([':user_id' => $userId]);
-                            error_log("User disabled: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-                        }
-                    } elseif ($action === 'enable' && $userId) {
-                        $checkStmt = $this->db->prepare("SELECT user_id, username FROM users WHERE user_id = :user_id");
-                        $checkStmt->execute([':user_id' => $userId]);
-                        $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-                        if ($user) {
-                            $stmt = $this->db->prepare("UPDATE users SET is_active = 0, updated_at = NOW() WHERE user_id = :user_id");
-                            $stmt->execute([':user_id' => $userId]);
-                            error_log("User enabled: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-                        }
-                    }
+                    $result = $this->handleUserAction($data);
 
                     $this->db->commit();
-                    $_SESSION['flash'] = ['type' => 'success', 'message' => ucfirst($action) . ' user ' . ($action === 'create' ? 'created' : ($action === 'approve' ? 'approved' : 'updated')) . ' successfully'];
+                    $_SESSION['flash'] = ['type' => $result['success'] ? 'success' : 'error', 'message' => $result['message'] ?? $result['error']];
 
-                    if (in_array($action, ['disable', 'enable', 'approve'])) {
-                        header('Content-Type: application/json');
-                        echo json_encode(['success' => true, 'message' => ucfirst($action) . 'd successfully']);
-                        exit;
-                    }
-                    header('Location: /admin/users');
+                    header('Content-Type: application/json');
+                    echo json_encode($result);
                     exit;
                 } catch (PDOException $e) {
                     $this->db->rollBack();
                     error_log("User action error ($action): " . $e->getMessage());
-                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to ' . $action . ' user'];
-                    if (in_array($action, ['disable', 'enable', 'approve'])) {
-                        header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database error occurred']);
-                        exit;
-                    }
-                    header('Location: /admin/users');
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to process user action'];
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'Database error occurred']);
                     exit;
+                }
+            } elseif ($action === 'decline' && $userId) {
+                $checkStmt = $this->db->prepare("SELECT user_id, username, email, first_name, last_name, role_id FROM users WHERE user_id = :user_id");
+                $checkStmt->execute([':user_id' => $userId]);
+                $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($user) {
+                    // Option 1: Soft delete (mark as declined)
+                    $stmt = $this->db->prepare("UPDATE users SET is_active = -1, updated_at = NOW() WHERE user_id = :user_id");
+                    $stmt->execute([':user_id' => $userId]);
+                    error_log("User declined: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
+
+                    // Option 2: Hard delete (uncomment if preferred)
+                    // $stmt = $this->db->prepare("DELETE FROM users WHERE user_id = :user_id");
+                    // $stmt->execute([':user_id' => $userId]);
+                    // error_log("User deleted: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
+
+                    $roleName = $roles[$user['role_id'] - 1]['role_name'] ?? 'Unknown Role';
+                    //$this->emailService->sendDeclineEmail($user['email'], $user['first_name'] . ' ' . $user['last_name'], $roleName); // Add this method
                 }
             }
 
@@ -328,7 +351,6 @@ class AdminController
                     exit;
                 }
 
-                // Return JSON for view action
                 if ($action === 'view') {
                     header('Content-Type: application/json');
                     echo json_encode(['success' => true, 'user' => $userDetails]);
@@ -344,6 +366,110 @@ class AdminController
             echo "Server error";
         }
     }
+
+    private function handleUserAction($data)
+    {
+        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        $action = $data['action'];
+
+        if (!$userId) {
+            error_log("handleUserAction: Invalid user_id=$userId");
+            return ['success' => false, 'error' => 'Invalid user ID'];
+        }
+
+        // Fetch user details including college_id and department_id
+        $stmt = $this->db->prepare("
+        SELECT college_id, department_id, email, first_name, last_name, role_id
+        FROM users
+        WHERE user_id = :user_id
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            error_log("handleUserAction: No user found for user_id=$userId");
+            return ['success' => false, 'error' => 'User not found'];
+        }
+
+        $collegeId = $user['college_id'] ?: null;
+        $departmentId = $user['department_id'] ?: null;
+
+        try {
+            $this->db->beginTransaction();
+
+            if ($action === 'deactivate') {
+                $query = "UPDATE users SET is_active = 0 WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':user_id' => $userId]);
+                error_log("handleUserAction: Deactivated user_id=$userId");
+                $message = 'User account deactivated successfully';
+            } elseif ($action === 'activate') {
+                $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([':user_id' => $userId]);
+                error_log("handleUserAction: Activated user_id=$userId");
+
+                // Fetch role name for email
+                $roleStmt = $this->db->prepare("SELECT role_name FROM roles WHERE role_id = :role_id");
+                $roleStmt->execute([':role_id' => $user['role_id']]);
+                $role = $roleStmt->fetchColumn();
+
+                if ($user['email'] && $role) {
+                    $this->emailService->sendApprovalEmail(
+                        $user['email'],
+                        $user['first_name'] . ' ' . $user['last_name'],
+                        $role
+                    );
+                    error_log("handleUserAction: Approval email sent to {$user['email']}");
+                } else {
+                    error_log("handleUserAction: Failed to send email for user_id=$userId");
+                }
+                $message = 'User account activated successfully';
+            } else {
+                throw new Exception("Invalid action: $action");
+            }
+
+            $this->db->commit();
+            return ['success' => true, 'message' => $message];
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("handleUserAction: Error - " . $e->getMessage());
+            return ['success' => false, 'error' => 'An error occurred while processing the action: ' . $e->getMessage()];
+        }
+    }
+
+    public function classroom()
+    {
+        try {
+            $query = "
+        SELECT 
+            c.room_id, c.room_name, c.building, c.capacity, c.room_type, c.shared, c.availability,
+            c.created_at, c.updated_at, c.department_id,
+            d.department_name
+        FROM classrooms c
+        LEFT JOIN departments d ON c.department_id = d.department_id
+        ";
+
+            $query .= " ORDER BY c.department_id, c.room_name";
+
+            // Prepare and execute the query
+            $stmt = $this->db->prepare($query);
+            $stmt->execute();
+
+            // Fetch all results and store them in a variable
+            $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $controller = $this;
+
+            // Include the view file and pass the data to it
+            require_once __DIR__ . '/../views/admin/classroom.php';
+        } catch (PDOException $e) {
+            error_log("Classroom error: " . $e->getMessage());
+            http_response_code(500);
+            echo "Server error";
+        }
+    }
+
 
     public function collegesDepartments()
     {
