@@ -55,6 +55,9 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::createCollegeDepartment");
             $controller->createCollegeDepartment();
             break;
+        case '/admin/colleges_departments/update':
+            error_log("Routing to AdminController::update college/departments");
+            break;
         case '/admin/classroom':
             error_log("Routing to AdminController::classroom");
             $controller->classroom();

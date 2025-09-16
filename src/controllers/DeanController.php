@@ -1585,7 +1585,7 @@ class DeanController
 
             // Fetch programs
             $query = "
-                SELECT p.program_id, p.program_name, p.department_id, d.department_name
+                SELECT p.program_id, p.program_code, p.program_name, p.department_id, d.department_name
                 FROM programs p
                 JOIN departments d ON p.department_id = d.department_id
                 WHERE d.college_id = :college_id AND p.is_active = 1
@@ -1784,6 +1784,7 @@ class DeanController
                 error_log("Invalid department ID provided");
                 return ['error' => 'Invalid department selected'];
             }
+            $programCode = trim($data['program_code'] ?? '');
 
             // Verify department belongs to college
             $query = "SELECT COUNT(*) FROM departments WHERE department_id = :department_id AND college_id = :college_id";
@@ -1795,7 +1796,7 @@ class DeanController
             }
 
             // Check if program exists
-            $query = "SELECT COUNT(*) FROM programs WHERE program_name = :program_name AND department_id = :department_id";
+            $query = "SELECT COUNT(*) FROM programs WHERE program_code = :program_code, program_name = :program_name AND department_id = :department_id";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':program_name' => $programName, ':department_id' => $departmentId]);
             if ($stmt->fetchColumn() > 0) {
@@ -1804,7 +1805,7 @@ class DeanController
             }
 
             // Insert program
-            $query = "INSERT INTO programs (program_name, department_id, is_active) VALUES (:program_name, :department_id, 1)";
+            $query = "INSERT INTO programs (program_code, program_name, department_id, is_active) VALUES (program_code: :program_name, :department_id, 1)";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':program_name' => $programName, ':department_id' => $departmentId]);
 
@@ -1820,6 +1821,7 @@ class DeanController
         try {
             $programId = intval($data['program_id'] ?? 0);
             $programName = trim($data['program_name'] ?? '');
+            $programCode = trim($data['program_code'] ?? '');
             $departmentId = intval($data['department_id'] ?? 0);
             if (empty($programName) || strlen($programName) > 100) {
                 error_log("Invalid program name provided");
@@ -1844,9 +1846,10 @@ class DeanController
             }
 
             // Update program
-            $query = "UPDATE programs SET program_name = :program_name, department_id = :department_id WHERE program_id = :program_id";
+            $query = "UPDATE programs SET program_code = program_code: program_name = :program_name, department_id = :department_id WHERE program_id = :program_id";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
+                ':program_code' => $programCode,
                 ':program_name' => $programName,
                 ':department_id' => $departmentId,
                 ':program_id' => $programId

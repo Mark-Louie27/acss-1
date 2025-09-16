@@ -478,9 +478,11 @@ class AdminController
             $colleges = $collegesStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $departmentsStmt = $this->db->query("
-                SELECT d.department_id, d.department_name, c.college_name
-                FROM departments d
-                JOIN colleges c ON d.college_id = c.college_id
+            SELECT d.department_id, d.department_name, d.college_id, c.college_name, 
+                   p.program_id, p.program_name, p.program_code
+            FROM departments d
+            JOIN colleges c ON d.college_id = c.college_id
+            LEFT JOIN programs p ON d.department_id = p.department_id
             ");
             $departments = $departmentsStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -523,9 +525,9 @@ class AdminController
                 }
 
                 $stmt = $this->db->prepare("
-                    INSERT INTO colleges (college_name, college_code)
-                    VALUES (:college_name, :college_code)
-                ");
+                INSERT INTO colleges (college_name, college_code)
+                VALUES (:college_name, :college_code)
+            ");
                 $stmt->execute([
                     ':college_name' => $college_name,
                     ':college_code' => $college_code
@@ -535,13 +537,17 @@ class AdminController
             } elseif ($type === 'department') {
                 $department_name = trim($_POST['department_name'] ?? '');
                 $college_id = $_POST['college_id'] ?? null;
+                $program_name = trim($_POST['program_name'] ?? '');
+                $program_code = trim($_POST['program_code'] ?? '');
+                $program_type = $_POST['program_type'] ?? 'Major'; // Default to 'Major'
 
-                if (empty($department_name) || empty($college_id)) {
-                    $_SESSION['error'] = "Department name and college are required";
+                if (empty($department_name) || empty($college_id) || empty($program_name) || empty($program_code)) {
+                    $_SESSION['error'] = "Department name, college, program name, and program code are required";
                     header('Location: /admin/colleges');
                     exit;
                 }
 
+                // Check for duplicate department
                 $stmt = $this->db->prepare("SELECT COUNT(*) FROM departments WHERE department_name = :department_name AND college_id = :college_id");
                 $stmt->execute([':department_name' => $department_name, ':college_id' => $college_id]);
                 if ($stmt->fetchColumn() > 0) {
@@ -550,16 +556,44 @@ class AdminController
                     exit;
                 }
 
+                // Check for duplicate program code
+                $stmt = $this->db->prepare("SELECT COUNT(*) FROM programs WHERE program_code = :program_code");
+                $stmt->execute([':program_code' => $program_code]);
+                if ($stmt->fetchColumn() > 0) {
+                    $_SESSION['error'] = "Program code already exists";
+                    header('Location: /admin/colleges');
+                    exit;
+                }
+
+                // Start transaction to ensure both department and program are created
+                $this->db->beginTransaction();
+
+                // Insert department
                 $stmt = $this->db->prepare("
-                    INSERT INTO departments (department_name, college_id)
-                    VALUES (:department_name, :college_id)
-                ");
+                INSERT INTO departments (department_name, college_id)
+                VALUES (:department_name, :college_id)
+            ");
                 $stmt->execute([
                     ':department_name' => $department_name,
                     ':college_id' => $college_id
                 ]);
+                $departmentId = $this->db->lastInsertId();
 
-                $_SESSION['success'] = "Department created successfully";
+                // Insert program
+                $stmt = $this->db->prepare("
+                INSERT INTO programs (program_name, program_code, program_type, department_id, is_active)
+                VALUES (:program_name, :program_code, :program_type, :department_id, 1)
+            ");
+                $stmt->execute([
+                    ':program_name' => $program_name,
+                    ':program_code' => $program_code,
+                    ':program_type' => $program_type,
+                    ':department_id' => $departmentId
+                ]);
+
+                $this->db->commit();
+
+                $_SESSION['success'] = "Department and associated program created successfully";
             } else {
                 $_SESSION['error'] = "Invalid request type";
                 header('Location: /admin/colleges');
@@ -569,9 +603,86 @@ class AdminController
             header('Location: /admin/colleges');
             exit;
         } catch (PDOException $e) {
+            $this->db->rollBack(); // Roll back transaction on error
             error_log("Create college/department error: " . $e->getMessage());
             $_SESSION['error'] = "Failed to create $type";
             header('Location: /admin/colleges');
+            exit;
+        }
+    }
+
+    public function updateCollegeDepartment()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo "Method Not Allowed";
+            exit;
+        }
+
+        try {
+            $type = $_POST['type'] ?? '';
+            $id = $_POST['id'] ?? '';
+
+            if (empty($type) || empty($id)) {
+                $_SESSION['error'] = "Invalid request";
+                header('Location: /admin/colleges_departments');
+                exit;
+            }
+
+            if ($type === 'college') {
+                $college_name = trim($_POST['college_name'] ?? '');
+                $college_code = trim($_POST['college_code'] ?? '');
+
+                if (empty($college_name) || empty($college_code)) {
+                    $_SESSION['error'] = "College name and code are required";
+                    header('Location: /admin/colleges_departments');
+                    exit;
+                }
+
+                $stmt = $this->db->prepare("UPDATE colleges SET college_name = :college_name, college_code = :college_code WHERE college_id = :id");
+                $stmt->execute([':college_name' => $college_name, ':college_code' => $college_code, ':id' => $id]);
+                $_SESSION['success'] = "College updated successfully";
+            } elseif ($type === 'department') {
+                $department_name = trim($_POST['department_name'] ?? '');
+                $college_id = $_POST['college_id'] ?? null;
+                $program_name = trim($_POST['program_name'] ?? '');
+                $program_code = trim($_POST['program_code'] ?? '');
+                $program_type = $_POST['program_type'] ?? 'Major';
+
+                if (empty($department_name) || empty($college_id) || empty($program_name) || empty($program_code)) {
+                    $_SESSION['error'] = "All fields are required";
+                    header('Location: /admin/colleges_departments');
+                    exit;
+                }
+
+                $this->db->beginTransaction();
+                $stmt = $this->db->prepare("UPDATE departments SET department_name = :department_name, college_id = :college_id WHERE department_id = :id");
+                $stmt->execute([':department_name' => $department_name, ':college_id' => $college_id, ':id' => $id]);
+
+                // Update or insert program (assuming one program per department for simplicity)
+                $programStmt = $this->db->prepare("SELECT program_id FROM programs WHERE department_id = :id");
+                $programStmt->execute([':id' => $id]);
+                $program = $programStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($program) {
+                    $stmt = $this->db->prepare("UPDATE programs SET program_name = :program_name, program_code = :program_code, program_type = :program_type WHERE program_id = :program_id");
+                    $stmt->execute([':program_name' => $program_name, ':program_code' => $program_code, ':program_type' => $program_type, ':program_id' => $program['program_id']]);
+                } else {
+                    $stmt = $this->db->prepare("INSERT INTO programs (program_name, program_code, program_type, department_id, is_active) VALUES (:program_name, :program_code, :program_type, :department_id, 1)");
+                    $stmt->execute([':program_name' => $program_name, ':program_code' => $program_code, ':program_type' => $program_type, ':department_id' => $id]);
+                }
+
+                $this->db->commit();
+                $_SESSION['success'] = "Department and program updated successfully";
+            }
+
+            header('Location: /admin/colleges_departments');
+            exit;
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            error_log("Update college/department error: " . $e->getMessage());
+            $_SESSION['error'] = "Failed to update $type";
+            header('Location: /admin/colleges_departments');
             exit;
         }
     }

@@ -42,10 +42,10 @@ ob_start();
     }
 </style>
 
-<div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+<div class="min-h-screen">
 
     <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <!-- Success/Error Messages -->
         <?php if (isset($_SESSION['success'])): ?>
             <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-xl" role="alert">
