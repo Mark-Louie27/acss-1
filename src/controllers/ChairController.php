@@ -248,18 +248,43 @@ class ChairController
             $chairId = $_SESSION['user_id'];
             error_log("mySchedule: Starting mySchedule method for user_id: $chairId");
 
-            $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+            // Fetch faculty ID and name with join to users table
+            $facultyStmt = $this->db->prepare("
+            SELECT f.faculty_id, CONCAT(u.title, ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name, ' ', u.suffix) AS faculty_name 
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            WHERE u.user_id = :user_id
+            ");
             $facultyStmt->execute([':user_id' => $chairId]);
-            $facultyId = $facultyStmt->fetchColumn();
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$facultyId) {
+            if (!$faculty) {
                 $error = "No faculty profile found for this user.";
                 require_once __DIR__ . '/../views/chair/my_schedule.php';
                 return;
             }
+            $facultyId = $faculty['faculty_id'];
+            $facultyName = $faculty['faculty_name'];
 
-            // Get department name directly
-            $departmentName = $this->getChairDepartment($chairId);
+            // fetch faculty position and employment stautus
+            $positionStmt = $this->db->prepare("SELECT academic_rank FROM faculty WHERE faculty_id = :faculty_id");
+            $positionStmt->execute([':faculty_id' => $facultyId]);
+            $facultyPosition = $positionStmt->fetch(PDO::FETCH_ASSOC) ?: 'Not Specified';
+
+            // Get department and college details
+            $deptStmt = $this->db->prepare("
+            SELECT d.department_name, c.college_name 
+            FROM program_chairs pc 
+            JOIN faculty f ON pc.faculty_id = f.faculty_id
+            JOIN programs p ON pc.program_id = p.program_id 
+            JOIN departments d ON p.department_id = d.department_id 
+            JOIN colleges c ON d.college_id = c.college_id 
+            WHERE f.user_id = :user_id AND pc.is_current = 1
+            ");
+            $deptStmt->execute([':user_id' => $chairId]);
+            $department = $deptStmt->fetch(PDO::FETCH_ASSOC);
+            $departmentName = $department['department_name'] ?? 'Not Assigned';
+            $collegeName = $department['college_name'] ?? 'Not Assigned';
 
             $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
             $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
@@ -284,7 +309,7 @@ class ChairController
             LEFT JOIN classrooms r ON s.room_id = r.room_id
             WHERE s.faculty_id = :faculty_id AND s.semester_id = :semester_id
             ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
-        ");
+            ");
             $schedulesStmt->execute([':faculty_id' => $facultyId, ':semester_id' => $semesterId]);
             $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
             error_log("mySchedule: Fetched " . count($schedules) . " schedules for faculty_id $facultyId in semester $semesterId");
@@ -325,10 +350,10 @@ class ChairController
 
             require_once __DIR__ . '/../views/chair/my_schedule.php';
         } catch (Exception $e) {
-            error_log("mySchedule: Error - " . $e->getMessage());
-            $error = "Failed to load schedule due to an error: " . htmlspecialchars($e->getMessage());
-            require_once __DIR__ . '/../views/chair/my_schedule.php';
-            return;
+            error_log("mySchedule: Full error: " . $e->getMessage());
+            http_response_code(500);
+            echo "Error loading schedule: " . htmlspecialchars($e->getMessage());
+            exit;
         }
     }
 

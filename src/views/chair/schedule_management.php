@@ -958,9 +958,16 @@ ob_start();
                     })
                     .then(response => {
                         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        return response.json();
+                        return response.text(); // Get raw text first
                     })
-                    .then(data => {
+                    .then(text => {
+                        let data;
+                        try {
+                            data = JSON.parse(text); // Attempt to parse as JSON
+                        } catch (e) {
+                            console.error('Invalid JSON response:', text); // Log raw response
+                            throw new Error('Invalid response format: ' + e.message);
+                        }
                         document.getElementById('loading-overlay').classList.add('hidden');
                         if (data.success) {
                             scheduleData = data.schedules || [];
