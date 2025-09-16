@@ -22,6 +22,8 @@ if (!$profilePicture) {
     }
 }
 
+$isScheduleActive = strpos($_SERVER['REQUEST_URI'], '/chair/schedule') !== false;
+
 // Get department ID
 $userDepartmentId = $_SESSION['department_id'] ?? null;
 if (!$userDepartmentId) {
@@ -571,13 +573,14 @@ $modal_content = $modal_content ?? '';
 
             <!-- Schedule Dropdown -->
             <div class="dropdown relative my-1">
-                <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                     <div class="flex items-center">
-                        <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                        <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                         <span>Schedule</span>
                     </div>
                     <i class="fas fa-chevron-down text-xs transition-transform duration-300 toggle-icon"></i>
                 </button>
+
                 <div class="dropdown-menu ml-5 mt-1 rounded-md flex-col bg-gray-800/80 overflow-hidden">
                     <!-- Deadline Status Indicator -->
                     <?php if ($isScheduleLocked): ?>
@@ -626,7 +629,7 @@ $modal_content = $modal_content ?? '';
                             </div>
                         </div>
                     <?php else: ?>
-                        <a href="/chair/schedule_management" class="group relative flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/create') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+                        <a href="/chair/schedule_management" class="group relative flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule_management') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                             <i class="fas fa-plus-circle w-5 mr-2"></i> Create Schedule
                             <?php if (isset($deadlineStatus['deadline']) && $totalHours <= 48): ?>
                                 <span class="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full <?= ($totalHours <= 24) ? 'deadline-warning' : '' ?>">
@@ -640,10 +643,11 @@ $modal_content = $modal_content ?? '';
                         </a>
                     <?php endif; ?>
 
-                    <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/my_schedule') !==  false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+                    <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/my_schedule') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-list w-5 mr-2"></i> My Schedule
                     </a>
-                    <a href="/chair/schedule_history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule/schedule_history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+
+                    <a href="/chair/schedule_history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule_history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-history w-5 mr-2"></i> Schedule History
                     </a>
                 </div>
@@ -766,25 +770,25 @@ $modal_content = $modal_content ?? '';
             const isSmallScreen = window.innerWidth < 768;
 
             if (isSmallScreen) {
-            sidebar.classList.toggle('show');
-            sidebarOverlay.classList.toggle('show');
-            hamburgerMenu.classList.toggle('active');
+                sidebar.classList.toggle('show');
+                sidebarOverlay.classList.toggle('show');
+                hamburgerMenu.classList.toggle('active');
 
-            // Prevent body scroll when sidebar is open on mobile
-            if (sidebar.classList.contains('show')) {
-                document.body.style.overflow = 'hidden';
-            } else {
-                document.body.style.overflow = '';
-            }
+                // Prevent body scroll when sidebar is open on mobile
+                if (sidebar.classList.contains('show')) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = '';
+                }
             }
         }
 
         // Hide hamburger menu on desktop
         function updateHamburgerVisibility() {
             if (window.innerWidth >= 768) {
-            hamburgerMenu.style.display = 'none';
+                hamburgerMenu.style.display = 'none';
             } else {
-            hamburgerMenu.style.display = 'flex';
+                hamburgerMenu.style.display = 'flex';
             }
         }
 

@@ -520,11 +520,12 @@ ob_start();
         </div>
 
         <!-- Enhanced Add/Edit Schedule Modal -->
-        <div id="schedule-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+        <!-- Add/Edit Schedule Modal -->
+        <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md items-center justify-center z-50 hidden modal-overlay">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 modal-content">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-semibold text-gray-900" id="modal-title">Add Schedule</h3>
-                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times text-xl"></i>
                     </button>
                 </div>
@@ -535,72 +536,103 @@ ob_start();
                     <input type="hidden" id="modal-start-time" name="start_time">
                     <input type="hidden" id="modal-end-time" name="end_time">
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Course Code</label>
-                            <input type="text" id="course-code" name="course_code" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
-                            <input type="text" id="section-name" name="section_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Course Code</label>
+                        <input type="text" id="course-code" name="course_code" list="course-codes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required oninput="syncCourseName()">
+                        <datalist id="course-codes">
+                            <?php foreach (array_unique(array_column($schedules, 'course_code')) as $code): ?>
+                                <option value="<?php echo htmlspecialchars($code); ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
                     </div>
 
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
-                        <input type="text" id="course-name" name="course_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        <input type="text" id="course-name" name="course_name" list="course-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required oninput="syncCourseCode()">
+                        <datalist id="course-names">
+                            <?php foreach (array_unique(array_column($schedules, 'course_name')) as $name): ?>
+                                <option value="<?php echo htmlspecialchars($name); ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
                     </div>
 
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
-                        <input type="text" id="faculty-name" name="faculty_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        <input type="text" id="faculty-name" name="faculty_name" list="faculty-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        <datalist id="faculty-names">
+                            <?php foreach (array_unique(array_column($schedules, 'faculty_name')) as $faculty): ?>
+                                <option value="<?php echo htmlspecialchars($faculty); ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
                     </div>
 
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
-                        <input type="text" id="room-name" name="room_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" placeholder="Leave blank for Online">
+                        <input type="text" id="room-name" name="room_name" list="room-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        <datalist id="room-names">
+                            <?php foreach (array_unique(array_column(array_filter($schedules, fn($s) => $s['room_name']), 'room_name')) as $room): ?>
+                                <option value="<?php echo htmlspecialchars($room); ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
+                        <input type="text" id="section-name" name="section_name" list="section-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
+                        <datalist id="section-names">
+                            <?php foreach (array_unique(array_column($schedules, 'section_name')) as $section): ?>
+                                <option value="<?php echo htmlspecialchars($section); ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Day</label>
-                            <select id="day-select" name="day_select_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
-                                <option value="Monday">Monday</option>
-                                <option value="Tuesday">Tuesday</option>
-                                <option value="Wednesday">Wednesday</option>
-                                <option value="Thursday">Thursday</option>
-                                <option value="Friday">Friday</option>
-                                <option value="Saturday">Saturday</option>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                            <select id="start-time" name="start_time_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="document.getElementById('modal-start-time').value=this.value">
+                                <option value="07:30">7:30 AM</option>
+                                <option value="08:30">8:30 AM</option>
+                                <option value="10:00">10:00 AM</option>
+                                <option value="11:00">11:00 AM</option>
+                                <option value="12:30">12:30 PM</option>
+                                <option value="13:30">1:30 PM</option>
+                                <option value="14:30">2:30 PM</option>
+                                <option value="15:30">3:30 PM</option>
+                                <option value="17:00">5:00 PM</option>
+                                <option value="18:00">6:00 PM</option>
                             </select>
                         </div>
-
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Time Slot</label>
-                            <select id="time-slot" name="time_slot_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" disabled>
-                                <option value="07:30-08:30">7:30 AM - 8:30 AM</option>
-                                <option value="08:30-10:00">8:30 AM - 10:00 AM</option>
-                                <option value="10:00-11:00">10:00 AM - 11:00 AM</option>
-                                <option value="11:00-12:30">11:00 AM - 12:30 PM</option>
-                                <option value="12:30-13:30">12:30 PM - 1:30 PM</option>
-                                <option value="13:00-14:30">1:00 PM - 2:30 PM</option>
-                                <option value="14:30-15:30">2:30 PM - 3:30 PM</option>
-                                <option value="15:30-17:00">3:30 PM - 5:00 PM</option>
-                                <option value="17:00-18:00">5:00 PM - 6:00 PM</option>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                            <select id="end-time" name="end_time_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="document.getElementById('modal-end-time').value=this.value">
+                                <option value="08:30">8:30 AM</option>
+                                <option value="10:00">10:00 AM</option>
+                                <option value="11:00">11:00 AM</option>
+                                <option value="12:30">12:30 PM</option>
+                                <option value="13:30">1:30 PM</option>
+                                <option value="14:30">2:30 PM</option>
+                                <option value="15:30">3:30 PM</option>
+                                <option value="17:00">5:00 PM</option>
+                                <option value="18:00">6:00 PM</option>
                             </select>
                         </div>
                     </div>
 
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Day</label>
+                        <select id="day-select" name="day_select_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="document.getElementById('modal-day').value=this.value">
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                            <option value="Saturday">Saturday</option>
+                        </select>
+                    </div>
+
                     <div class="flex justify-end space-x-4 pt-4">
-                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors">
-                            Save Schedule
-                        </button>
-                        <button type="button" id="delete-schedule-btn" onclick="confirmDeleteSchedule()" class="hidden px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
-                            Delete
-                        </button>
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Save Schedule</button>
                     </div>
                 </form>
             </div>
@@ -751,39 +783,168 @@ ob_start();
                 document.getElementById('schedule-modal').classList.remove('hidden');
             }
 
+            // Fixed editSchedule function
             function editSchedule(scheduleId) {
-                const schedule = scheduleData.find(s => s.schedule_id == scheduleId);
-                if (schedule) {
-                    const modal = document.getElementById('schedule-modal');
-                    const modalContent = document.getElementById('modal-content');
+                console.log('Looking for scheduleId:', scheduleId);
+                const schedule = scheduleData.find(s => String(s.schedule_id) === String(scheduleId));
+                console.log('Found schedule:', schedule);
 
-                    document.getElementById('modal-title').textContent = 'Edit Schedule';
-                    document.getElementById('schedule-id').value = schedule.schedule_id;
-                    document.getElementById('course-code').value = schedule.course_code;
-                    document.getElementById('course-name').value = schedule.course_name;
-                    document.getElementById('faculty-name').value = schedule.faculty_name;
-                    document.getElementById('room-name').value = schedule.room_name || '';
-                    document.getElementById('section-name').value = schedule.section_name;
-                    document.getElementById('modal-day').value = schedule.day_of_week;
-                    document.getElementById('modal-start-time').value = schedule.start_time.substring(0, 5);
-                    document.getElementById('modal-end-time').value = schedule.end_time.substring(0, 5);
-                    document.getElementById('day-select').value = schedule.day_of_week;
-                    document.getElementById('time-slot').value = `${schedule.start_time.substring(0, 5)}-${schedule.end_time.substring(0, 5)}`;
-                    document.getElementById('delete-schedule-btn').classList.remove('hidden');
+                if (!schedule) {
+                    showNotification('Schedule not found', 'error');
+                    return;
+                }
 
-                    currentEditingId = scheduleId;
+                // Use existing modal instead of creating new one
+                const modal = document.getElementById('schedule-modal');
+                if (!modal) {
+                    console.error('Modal element not found in DOM');
+                    return;
+                }
+
+                // Update modal title
+                document.getElementById('modal-title').textContent = 'Edit Schedule';
+
+                // Populate form fields with schedule data
+                document.getElementById('schedule-id').value = schedule.schedule_id;
+                document.getElementById('course-code').value = schedule.course_code || '';
+                document.getElementById('course-name').value = schedule.course_name || '';
+                document.getElementById('faculty-name').value = schedule.faculty_name || '';
+                document.getElementById('room-name').value = schedule.room_name || '';
+                document.getElementById('section-name').value = schedule.section_name || '';
+
+                // Set time fields
+                const startTime = schedule.start_time.substring(0, 5);
+                const endTime = schedule.end_time.substring(0, 5);
+                document.getElementById('start-time').value = startTime;
+                document.getElementById('end-time').value = endTime;
+                document.getElementById('modal-start-time').value = startTime;
+                document.getElementById('modal-end-time').value = endTime;
+
+                // Set day field
+                document.getElementById('day-select').value = schedule.day_of_week;
+                document.getElementById('modal-day').value = schedule.day_of_week;
+
+                // Show the modal
+                showModal();
+            }
+
+            // Add this helper function to properly show the modal
+            function showModal() {
+                const modal = document.getElementById('schedule-modal');
+                if (modal) {
                     modal.classList.remove('hidden');
+                    modal.style.display = 'flex';
+                    modal.style.opacity = '1';
+                    modal.style.visibility = 'visible';
+                    modal.style.pointerEvents = 'auto';
 
-                    // Trigger animation
-                    setTimeout(() => {
-                        modalContent.classList.remove('scale-95', 'opacity-0');
-                        modalContent.classList.add('scale-100', 'opacity-100');
-                    }, 10);
+                    // Focus on the first input for better UX
+                    const firstInput = modal.querySelector('input[type="text"]');
+                    if (firstInput) {
+                        setTimeout(() => firstInput.focus(), 100);
+                    }
                 }
             }
 
+            // Updated closeModal function
             function closeModal() {
-                document.getElementById('schedule-modal').classList.add('hidden');
+                const modal = document.getElementById('schedule-modal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                    modal.style.opacity = '0';
+                    modal.style.visibility = 'hidden';
+                    modal.style.pointerEvents = 'none';
+
+                    // Clear form
+                    const form = document.getElementById('schedule-form');
+                    if (form) {
+                        form.reset();
+                    }
+                    document.getElementById('schedule-id').value = '';
+                }
+                currentEditingId = null;
+            }
+
+            // Updated openAddModal function for consistency
+            function openAddModal() {
+                document.getElementById('modal-title').textContent = 'Add Schedule';
+                const form = document.getElementById('schedule-form');
+                form.reset();
+
+                // Clear all hidden fields
+                document.getElementById('schedule-id').value = '';
+                document.getElementById('modal-day').value = '';
+                document.getElementById('modal-start-time').value = '';
+                document.getElementById('modal-end-time').value = '';
+
+                // Set default values
+                document.getElementById('start-time').value = '07:30';
+                document.getElementById('end-time').value = '08:30';
+                document.getElementById('day-select').value = 'Monday';
+
+                showModal();
+            }
+
+            // Updated openAddModalForSlot function
+            function openAddModalForSlot(day, startTime, endTime) {
+                document.getElementById('modal-title').textContent = 'Add Schedule';
+                const form = document.getElementById('schedule-form');
+                form.reset();
+
+                document.getElementById('schedule-id').value = '';
+                document.getElementById('modal-day').value = day;
+                document.getElementById('modal-start-time').value = startTime;
+                document.getElementById('modal-end-time').value = endTime;
+                document.getElementById('start-time').value = startTime;
+                document.getElementById('end-time').value = endTime;
+                document.getElementById('day-select').value = day;
+
+                showModal();
+            }
+
+            // Add click outside to close modal functionality
+            document.addEventListener('DOMContentLoaded', function() {
+                const modal = document.getElementById('schedule-modal');
+                if (modal) {
+                    modal.addEventListener('click', function(e) {
+                        if (e.target === modal) {
+                            closeModal();
+                        }
+                    });
+                }
+
+                // Add ESC key to close modal
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        closeModal();
+                    }
+                });
+            });
+
+            // Sync course code and name
+            function syncCourseName() {
+                const code = document.getElementById('course-code').value;
+                const name = scheduleData.find(s => s.course_code === code)?.course_name || '';
+                document.getElementById('course-name').value = name;
+            }
+
+            function syncCourseCode() {
+                const name = document.getElementById('course-name').value;
+                const code = scheduleData.find(s => s.course_name === name)?.course_code || '';
+                document.getElementById('course-code').value = code;
+            }
+
+            function closeModal() {
+                const modal = document.getElementById('schedule-modal');
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+                modal.style.opacity = '0';
+                modal.style.zIndex = '0';
+                modal.style.pointerEvents = 'none';
+                modal.style.height = '0';
+                modal.style.overflow = 'hidden';
+                currentEditingId = null;
             }
 
             function handleScheduleSubmit(e) {
@@ -1254,6 +1415,7 @@ ob_start();
         </script>
 
         <style>
+            /* Add this CSS to fix modal display issues */
             .modal-overlay {
                 background: rgba(0, 0, 0, 0.6);
                 backdrop-filter: blur(8px);
@@ -1262,18 +1424,55 @@ ob_start();
                 left: 0;
                 right: 0;
                 bottom: 0;
+                width: 100vw;
+                height: 100vh;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 padding: 20px;
+                z-index: 9999;
                 opacity: 0;
                 visibility: hidden;
                 transition: all 0.3s ease;
             }
 
-            .modal-overlay.active {
-                opacity: 1;
-                visibility: visible;
+            #schedule-modal:not(.hidden) {
+                opacity: 1 !important;
+                visibility: visible !important;
+                display: flex !important;
+            }
+
+            #schedule-modal.hidden {
+                opacity: 0 !important;
+                visibility: hidden !important;
+                display: none !important;
+            }
+
+            .modal-content {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                max-width: 28rem;
+                width: 100%;
+                max-height: 90vh;
+                overflow-y: auto;
+                margin: auto;
+                transform: scale(0.95);
+                transition: transform 0.3s ease;
+            }
+
+            #schedule-modal:not(.hidden) .modal-content {
+                transform: scale(1);
+            }
+
+            /* Ensure modal appears above everything */
+            #schedule-modal {
+                z-index: 10000 !important;
+            }
+
+            /* Prevent body scroll when modal is open */
+            body.modal-open {
+                overflow: hidden;
             }
 
             .draggable {

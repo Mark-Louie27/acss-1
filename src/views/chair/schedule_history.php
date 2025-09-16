@@ -3,22 +3,6 @@ ob_start();
 ?>
 <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 font-sans text-gray-800">
     <div class="container mx-auto p-6 lg:p-12">
-        <!-- Header with enhanced styling -->
-        <div class="bg-white rounded-xl shadow-sm border-l-4 border-yellow-500 p-6 mb-8">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-2">Schedule History</h1>
-                    <p class="text-gray-600 text-lg">View and manage historical schedule records</p>
-                </div>
-                <div class="hidden md:block">
-                    <div class="bg-yellow-100 rounded-full p-4">
-                        <svg class="w-12 h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Enhanced Notifications -->
         <?php if (isset($error)): ?>
