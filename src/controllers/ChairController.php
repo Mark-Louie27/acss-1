@@ -791,10 +791,7 @@ class ChairController
                     $roomId = $roomDetail['room_id'];
                     $roomName = $roomDetail['room_name'];
                     $scheduleType = 'F2F';
-                } elseif (!$this->isOnlineSlotAvailable($targetDays, $startTime, $endTime, $onlineSlotTracker, $section['max_students'])) {
-                    error_log("Online slot unavailable for {$courseDetails['course_code']} (section {$section['section_name']}) at $startTime-$endTime");
-                    continue;
-                }
+                } 
 
                 $sectionScheduledSuccessfully = true;
                 foreach ($targetDays as $day) {
@@ -3399,8 +3396,11 @@ class ChairController
             SELECT 
                 u.user_id,
                 u.employee_id,
+                u.title,
                 u.first_name,
+                u.middle_name,
                 u.last_name,
+                u.suffix,
                 r.role_name,
                 f.academic_rank,
                 f.employment_type,
@@ -3448,8 +3448,11 @@ class ChairController
             SELECT 
                 u.user_id,
                 u.employee_id,
+                u.title,
                 u.first_name,
+                u.middle_name,
                 u.last_name,
+                u.suffix,
                 r.role_name,
                 f.academic_rank,
                 f.employment_type,
@@ -3558,9 +3561,12 @@ class ChairController
             $query = "
             SELECT 
                 u.user_id, 
-                u.employee_id, 
-                u.first_name, 
-                u.last_name, 
+                u.employee_id,
+                u.title, 
+                u.first_name,
+                u.middle_name, 
+                u.last_name,
+                u.suffix, 
                 f.academic_rank, 
                 f.employment_type, 
                 c.course_name AS specialization,
@@ -3586,7 +3592,7 @@ class ChairController
             $stmt->execute([':department_id' => $departmentId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($results as &$result) {
-                if ($result['profile_picture'] && $result['profile_picture'] !== '/uploads/profiles/') {
+                if ($result['profile_picture'] && $result['profile_picture']) {
                     $result['profile_picture'] = $baseUrl . $result['profile_picture'];
                 }
             }
@@ -3897,9 +3903,12 @@ class ChairController
                         $query = "
                         SELECT 
                             u.user_id, 
-                            u.employee_id, 
-                            u.first_name, 
-                            u.last_name, 
+                            u.employee_id,
+                            u.title, 
+                            u.first_name,
+                            u.middle_name, 
+                            u.last_name,
+                            u.suffix, 
                             f.academic_rank, 
                             f.employment_type, 
                             GROUP_CONCAT(CONCAT(c.course_name, IF(s.expertise_level IS NOT NULL, CONCAT(' (', s.expertise_level, ')'), '')) SEPARATOR ', ') AS specialization,
@@ -3930,7 +3939,7 @@ class ChairController
                             exit;
                         }
 
-                        if ($facultyDetails['profile_picture'] && $facultyDetails['profile_picture'] !== '/uploads/profiles/') {
+                        if ($facultyDetails['profile_picture'] && $facultyDetails['profile_picture']) {
                             $facultyDetails['profile_picture'] = $this->baseUrl . $facultyDetails['profile_picture'];
                         }
 

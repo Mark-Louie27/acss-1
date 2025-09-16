@@ -525,13 +525,15 @@ class DeanController
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             $error = null;
 
-            // Fetch Program deans
+            // Fetch Program Chairs
             $querydeans = "
-            SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, pc.program_id, p.program_name, d.department_name, d.department_id
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
+                   pc.program_id, p.program_name, d.department_name, d.department_id, c.college_name
             FROM users u
             JOIN program_chairs pc ON u.user_id = pc.user_id
             JOIN programs p ON pc.program_id = p.program_id
             JOIN departments d ON p.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
             WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
             ORDER BY u.last_name, u.first_name";
             $stmtdeans = $this->db->prepare($querydeans);
@@ -540,15 +542,20 @@ class DeanController
             }
             $stmtdeans->execute([':college_id' => $collegeId]);
             $programChairs = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
-            error_log("faculty: Fetched " . count($programChairs) . " program deans");
+            error_log("faculty: Fetched " . count($programChairs) . " program chairs");
 
             // Fetch Faculty
             $queryFaculty = "
-            SELECT u.user_id, u.email, u.first_name, u.last_name, u.profile_picture, u.is_active, f.academic_rank, f.employment_type, d.department_name, d.department_id
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
+                   f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name,
+                   co.course_name AS specialization, s.expertise_level
             FROM users u
             JOIN faculty f ON u.user_id = f.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
             JOIN departments d ON fd.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
+            LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
+            LEFT JOIN courses co ON s.course_id = co.course_id
             WHERE d.college_id = :college_id AND u.role_id = 6 AND fd.is_primary = 1
             ORDER BY u.last_name, u.first_name";
             $stmtFaculty = $this->db->prepare($queryFaculty);
@@ -561,10 +568,13 @@ class DeanController
 
             // Fetch pending users
             $queryPending = "
-            SELECT u.user_id, u.email, u.first_name, u.last_name, u.role_id, r.role_name, d.department_name, d.department_id
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
+                   u.role_id, r.role_name, f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name
             FROM users u
+            JOIN faculty f ON u.user_id = f.user_id
             JOIN roles r ON u.role_id = r.role_id
             JOIN departments d ON u.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
             WHERE u.college_id = :college_id AND u.is_active = 0 AND u.role_id IN (5, 6)
             ORDER BY u.created_at";
             $stmtPending = $this->db->prepare($queryPending);
@@ -623,14 +633,14 @@ class DeanController
             error_log("faculty: PDO Error - " . $e->getMessage());
             http_response_code(500);
             $error = "Database error: " . $e->getMessage();
-            $programdeans = $faculty = $pendingUsers = $departments = [];
+            $programChairs = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
         } catch (Exception $e) {
             error_log("faculty: Error - " . $e->getMessage());
             http_response_code(500);
             $error = $e->getMessage();
-            $programdeans = $faculty = $pendingUsers = $departments = [];
+            $programChairs = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
         }

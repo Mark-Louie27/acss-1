@@ -9,7 +9,6 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Faculty Management | ACSS</title>
-    <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         :root {
@@ -58,6 +57,7 @@ ob_start();
         }
 
         .modal {
+            background-color: rgba(0, 0, 0, 0.5);
             transition: opacity 0.3s ease;
         }
 
@@ -232,22 +232,22 @@ ob_start();
                                 <?php foreach ($faculty as $member): ?>
                                     <tr class="faculty-row hover:bg-gray-50 transition-all duration-200"
                                         data-id="<?php echo $member['user_id']; ?>"
-                                        data-name="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>">
+                                        data-name="<?php echo htmlspecialchars($member['title'] . ' ' . $member['first_name'] . ' ' . $member['middle_name'] . ' ' . $member['last_name']) . ' ' . $member['suffix']; ?>">
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <img src="<?php echo htmlspecialchars($member['profile_picture']); ?>"
-                                                alt="Profile picture of <?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>"
+                                                alt="Profile picture of <?php echo htmlspecialchars($member['title'] . ' ' . $member['first_name'] . ' ' . $member['middle_name'] . ' ' . $member['last_name']) . ' ' . $member['suffix']; ?>"
                                                 class="profile-picture"
                                                 onerror="replaceWithIcon(this, 'profile-icon')">
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['employee_id']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark"><?php echo htmlspecialchars($member['title'] . ' ' . $member['first_name'] . ' ' . $member['middle_name'] . ' ' . $member['last_name']) . ' ' . $member['suffix']; ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['academic_rank'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['employment_type'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($member['department_names'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button class="remove-btn text-red-600 group relative hover:text-red-700 transition-all duration-200"
                                                 data-id="<?php echo $member['user_id']; ?>"
-                                                data-name="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>">
+                                                data-name="<?php echo htmlspecialchars($member['title'] . ' ' . $member['first_name'] . ' ' . $member['middle_name'] . ' ' . $member['last_name']) . ' ' . $member['suffix']; ?>">
                                                 <i class="fa-solid fa-xmark"></i>
                                                 <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Remove Faculty</span>
                                             </button>
@@ -576,7 +576,7 @@ ob_start();
                                 ${results.map(result => `
                                     <tr class="hover:bg-gray-50 transition-all duration-200">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employee_id || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.first_name} ${result.last_name}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.title} ${result.first_name} ${result.middle_name} ${result.last_name} ${result.suffix}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">
                                             ${result.role_name || 'N/A'}
                                             ${result.dean_college_id ? `(Dean of ${result.college_name})` : ''}
@@ -628,7 +628,7 @@ ob_start();
                                 ${includable.map(result => `
                                     <tr class="hover:bg-gray-50 transition-all duration-200">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employee_id || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.first_name} ${result.last_name}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.title} ${result.first_name} ${result.middle_name} ${result.last_name} ${result.suffix}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.college_name || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_names || 'N/A'}</td>
                                         <td class="px-6 py-4 text-sm text-gray-dark specialization">${result.specialization || 'N/A'}</td>
@@ -703,7 +703,7 @@ ob_start();
                                         </div>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <h4 class="text-2xl font-bold text-gray-900 mb-2">${details.first_name} ${details.last_name}</h4>
+                                        <h4 class="text-2xl font-bold text-gray-900 mb-2">${details.title} ${details.first_name} ${details.middle_name} ${details.last_name} ${details.suffix}</h4>
                                         <div class="flex flex-wrap gap-2 mb-3">
                                             ${details.academic_rank ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">${details.academic_rank}</span>` : ''}
                                             ${details.employment_type ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">${details.employment_type}</span>` : ''}

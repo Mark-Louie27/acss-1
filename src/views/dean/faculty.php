@@ -87,6 +87,32 @@ ob_start();
         .close:hover {
             color: #000;
         }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .slide-in-left {
+            animation: slideInLeft 0.5s ease-in;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 
@@ -508,35 +534,34 @@ ob_start();
             const modalBody = document.getElementById('modalBody');
             let userData = null;
 
-            // Fetch user data based on type and userId
-            const tables = {
-                'chair': document.getElementById('programChairsTable'),
-                'faculty': document.getElementById('facultyTable'),
-                'pending': document.querySelector('#pending-content table')
-            };
-            const table = tables[type];
-            if (table) {
-                const rows = table.querySelectorAll('tbody tr');
-                rows.forEach(row => {
-                    if (row.getAttribute('data-user-id') == userId) {
-                        userData = {
-                            name: row.querySelector('td:first-child .font-medium')?.textContent.trim() || 'Unknown',
-                            email: row.getAttribute('data-email') || 'N/A',
-                            department: row.getAttribute('data-department-name') || 'N/A',
-                            ...(type === 'chair' && {
-                                program: row.getAttribute('data-program') || 'N/A'
-                            }),
-                            ...(type === 'faculty' && {
-                                academicRank: row.getAttribute('data-academic-rank') || 'N/A',
-                                employmentType: row.getAttribute('data-employment-type') || 'N/A'
-                            }),
-                            ...(type === 'pending' && {
-                                role: row.getAttribute('data-role') || 'N/A'
-                            })
-                        };
-                    }
-                });
+            <?php
+            $allUsers = array_merge($programChairs, $faculty, $pendingUsers);
+            foreach ($allUsers as $user) {
+                $userIdKey = $user['user_id'];
+                echo "if ($userIdKey == userId) {";
+                echo "userData = " . json_encode([
+                    'user_id' => $user['user_id'],
+                    'employee_id' => $user['employee_id'] ?? 'N/A',
+                    'email' => $user['email'] ?? 'N/A',
+                    'title' => $user['title'] ?? '',
+                    'first_name' => $user['first_name'] ?? 'Unknown',
+                    'middle_name' => $user['middle_name'] ?? '',
+                    'last_name' => $user['last_name'] ?? 'Unknown',
+                    'suffix' => $user['suffix'] ?? '',
+                    'profile_picture' => $user['profile_picture'],
+                    'is_active' => $user['is_active'],
+                    'program_name' => $user['program_name'] ?? 'N/A',
+                    'department_name' => $user['department_name'] ?? 'N/A',
+                    'college_name' => $user['college_name'] ?? 'N/A',
+                    'academic_rank' => $user['academic_rank'] ?? 'N/A',
+                    'employment_type' => $user['employment_type'] ?? 'N/A',
+                    'specialization' => $user['specialization'] ?? 'N/A',
+                    'expertise_level' => $user['expertise_level'] ?? 'N/A',
+                    'role_name' => $user['role_name'] ?? 'N/A'
+                ]) . ";";
+                echo "}";
             }
+            ?>
 
             if (!userData) {
                 modalBody.innerHTML = '<p>User data not found.</p>';
@@ -544,28 +569,85 @@ ob_start();
             }
 
             // Populate modal
-            modalTitle.textContent = `${userData.name} - Information`;
             modalBody.innerHTML = `
-        <div class="flex items-center mb-4">
-            <div class="flex-shrink-0 h-16 w-16 bg-gold-100 text-gold-700 rounded-full flex items-center justify-center mr-4">
-                <span class="font-medium text-xl">
-                    ${userData.name.split(', ').length > 1 ? 
-                        userData.name.split(', ')[1].trim()[0] + userData.name.split(', ')[0].trim()[0] : 
-                        userData.name.trim()[0] || 'U'}
-                </span>
-            </div>
-            <div>
-                <p><strong>Email:</strong> ${userData.email}</p>
-                <p><strong>Department:</strong> ${userData.department}</p>
-                ${type === 'chair' ? `<p><strong>Program:</strong> ${userData.program}</p>` : ''}
-                ${type === 'faculty' ? `
-                    <p><strong>Academic Rank:</strong> ${userData.academicRank}</p>
-                    <p><strong>Employment Type:</strong> ${userData.employmentType}</p>
-                ` : ''}
-                ${type === 'pending' ? `<p><strong>Role:</strong> ${userData.role}</p>` : ''}
-            </div>
-        </div>
-    `;
+                <div class="flex items-start space-x-6 mb-8 pb-6 border-b border-gray-200">
+                    <div class="flex-shrink-0">
+                        <div class="relative">
+                            <img src="${userData.profile_picture}" alt="Profile of ${userData.first_name} ${userData.last_name}" class="w-24 h-24 rounded-full object-cover ring-4 ring-gray-50 shadow-md">
+                            <div class="absolute -bottom-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                                <i class="fas fa-check text-white text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-2xl font-semibold text-gray-900 mb-2">${userData.title} ${userData.first_name} ${userData.middle_name} ${userData.last_name} ${userData.suffix}</h4>
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            ${userData.academic_rank !== 'N/A' ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${userData.academic_rank}</span>` : ''}
+                            ${userData.employment_type !== 'N/A' ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">${userData.employment_type}</span>` : ''}
+                        </div>
+                        ${userData.specialization !== 'N/A' ? `<p class="text-sm text-gray-600">${userData.specialization} ${userData.expertise_level !== 'N/A' ? '• ' + userData.expertise_level : ''}</p>` : ''}
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-gray-50 rounded-lg p-5">
+                        <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4"><i class="fas fa-user text-blue-500 mr-3"></i> Personal Information</h5>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-id-card text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">User ID</span></div>
+                                <p class="text-sm font-mono text-gray-900">${userData.user_id}</p>
+                            </div>
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-badge text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">Employee ID</span></div>
+                                <p class="text-sm font-mono text-gray-900">${userData.employee_id}</p>
+                            </div>
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-envelope text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">Email</span></div>
+                                <p class="text-sm text-gray-900">${userData.email !== 'N/A' ? `<a href="mailto:${userData.email}" class="text-blue-600 hover:text-blue-800">${userData.email}</a>` : 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-lg p-5">
+                        <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4"><i class="fas fa-graduation-cap text-green-500 mr-3"></i> Academic Information</h5>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-university text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">College</span></div>
+                                <p class="text-sm text-gray-900">${userData.college_name}</p>
+                            </div>
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-building text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">Department</span></div>
+                                <p class="text-sm text-gray-900">${userData.department_name}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-lg p-5">
+                        <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4"><i class="fas fa-briefcase text-purple-500 mr-3"></i> Employment Details</h5>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-medal text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">Academic Rank</span></div>
+                                <p class="text-sm text-gray-900">${userData.academic_rank !== 'N/A' ? `<span class="inline-flex items-center px-2 py-1 rounded-md bg-blue-100 text-blue-800 text-xs">${userData.academic_rank}</span>` : 'N/A'}</p>
+                            </div>
+                            <div class="bg-white rounded-md p-4 shadow-sm">
+                                <div class="flex items-center mb-2"><i class="fas fa-clock text-gray-400 mr-2"></i><span class="text-xs font-medium text-gray-500 uppercase">Employment Type</span></div>
+                                <p class="text-sm text-gray-900">${userData.employment_type !== 'N/A' ? `<span class="inline-flex items-center px-2 py-1 rounded-md bg-green-100 text-green-800 text-xs">${userData.employment_type}</span>` : 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${userData.specialization !== 'N/A' ? `
+                    <div class="bg-gradient-to-br from-gold-50 to-gray-100 rounded-lg p-5 border border-gold-200">
+                        <h5 class="flex items-center text-base font-semibold text-gray-900 mb-4"><i class="fas fa-star text-gold-400 mr-3"></i> Specialization & Expertise</h5>
+                        <div class="bg-white/80 rounded-md p-4">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm font-medium text-gray-900">${userData.specialization}</span>
+                                ${userData.expertise_level !== 'N/A' ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gold-200 text-gold-800"><i class="fas fa-trophy mr-1"></i> ${userData.expertise_level}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+                `;
             modal.style.display = 'block';
         }
 
