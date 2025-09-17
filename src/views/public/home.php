@@ -49,16 +49,28 @@
         .form-input {
             border-radius: 0.5rem;
             border: 2px solid #FCC201;
-            padding: 0.75rem 1rem;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            /* Increased left padding to accommodate icon */
             width: 100%;
             box-sizing: border-box;
             transition: all 0.15s;
+            position: relative;
         }
 
         .form-input:focus {
             outline: none;
             border-color: var(--gold-primary);
             box-shadow: 0 0 0 3px rgba(218, 145, 0, 0.1);
+        }
+
+        .form-input-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            /* Prevent icon from interfering with input */
+            color: var(--gold-primary);
         }
 
         .btn-primary {
@@ -500,14 +512,14 @@
                 <div>
                     <label for="college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
                     <div class="relative">
-                        <select id="college" name="college_id" class="form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="college" name="college_id" class="form-input pl-10 py-3">
                             <option value="">All Colleges</option>
                             <?php foreach ($colleges as $college): ?>
                                 <option value="<?= $college['college_id'] ?>"><?= $college['college_name'] ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <i class="fas fa-university text-yellow-600"></i>
+                        <div class="form-input-icon">
+                            <i class="fas fa-university"></i>
                         </div>
                     </div>
                 </div>
@@ -516,14 +528,14 @@
                 <div>
                     <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                     <div class="relative">
-                        <select id="department" name="department_id" class="form-input pl-10 py-3 border-2 border-yellow-500">
+                        <select id="department" name="department_id" class="form-input pl-10 py-3">
                             <option value="">All Departments</option>
                             <?php foreach ($departments as $department): ?>
                                 <option value="<?= $department['department_id'] ?>"><?= $department['department_name'] ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <i class="fas fa-building text-yellow-600"></i>
+                        <div class="form-input-icon">
+                            <i class="fas fa-building"></i>
                         </div>
                     </div>
                 </div>
@@ -539,8 +551,8 @@
                             <option value="3rd Year">3rd Year</option>
                             <option value="4th Year">4th Year</option>
                         </select>
-                        <div class="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <i class="fas fa-calendar-alt text-yellow-600"></i>
+                        <div class="form-input-icon">
+                            <i class="fas fa-calendar-alt"></i>
                         </div>
                     </div>
                 </div>
@@ -552,8 +564,8 @@
                         <select id="section" name="section_id" class="form-input pl-10 py-3">
                             <option value="">All Sections</option>
                         </select>
-                        <div class="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <i class="fas fa-users text-yellow-600"></i>
+                        <div class="form-input-icon">
+                            <i class="fas fa-users"></i>
                         </div>
                     </div>
                 </div>
@@ -565,19 +577,14 @@
                         <input type="text" id="global-search" name="search"
                             placeholder="Search courses, instructors..."
                             class="form-input pl-12 py-3">
-                        <div class="absolute inset-y-0 left-0 flex items-center pl-4">
-                            <i class="fas fa-search text-yellow-600"></i>
+                        <div class="form-input-icon">
+                            <i class="fas fa-search"></i>
                         </div>
                     </div>
                 </div>
 
-                <!-- Search Button -->
-                <div class="flex items-end">
-                    <button type="submit" class="btn-primary w-full py-3 flex items-center justify-center">
-                        <i class="fas fa-search mr-2"></i>
-                        <span>Search Schedules</span>
-                    </button>
-                </div>
+                <!-- Hidden input to maintain form structure -->
+                <input type="hidden" name="action" value="filter">
             </form>
         </div>
 
@@ -606,9 +613,7 @@
                     </thead>
                     <tbody id="schedule-table-body" class="bg-white divide-y divide-gray-200">
                         <tr class="hover:bg-yellow-50 transition-colors schedule-card">
-
                         </tr>
-                        <!-- More sample rows can be added here -->
                     </tbody>
                 </table>
             </div>
@@ -790,6 +795,22 @@
             // Load initial schedules
             fetchSchedules();
 
+            // Real-time filter events
+            const filterElements = [
+                document.getElementById('college'),
+                document.getElementById('department'),
+                document.getElementById('year_level'),
+                document.getElementById('section'),
+                document.getElementById('global-search')
+            ];
+
+            filterElements.forEach(element => {
+                element.addEventListener('input', debounce(fetchSchedules, 300)); // Debounce to prevent excessive calls
+                if (element.tagName === 'SELECT') {
+                    element.addEventListener('change', debounce(fetchSchedules, 300));
+                }
+            });
+
             document.getElementById('college').addEventListener('change', function() {
                 const collegeId = this.value;
                 const departmentSelect = document.getElementById('department');
@@ -818,15 +839,18 @@
                                 });
                             }
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
+                            fetchSchedules(); // Trigger filter update
                         })
                         .catch(error => {
                             console.error('Error fetching departments:', error);
                             departmentSelect.innerHTML = '<option value="">Error loading departments</option>';
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
+                            fetchSchedules(); // Trigger filter update
                         });
                 } else {
                     departmentSelect.innerHTML = '<option value="">All Departments</option>';
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
+                    fetchSchedules(); // Trigger filter update
                 }
             });
 
@@ -856,26 +880,27 @@
                                     sectionSelect.add(option);
                                 });
                             }
+                            fetchSchedules(); // Trigger filter update
                         })
                         .catch(error => {
                             console.error('Error fetching sections:', error);
                             sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                            fetchSchedules(); // Trigger filter update
                         });
                 } else {
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
+                    fetchSchedules(); // Trigger filter update
                 }
-            });
-
-            // Form submission handler
-            document.getElementById('searchForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetchSchedules();
             });
         });
 
         function fetchSchedules(page = 1) {
             const formData = new FormData(document.getElementById('searchForm'));
             formData.append('page', page);
+
+            // Show loading state
+            const tbody = document.getElementById('schedule-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
 
             fetch('/public/search', {
                     method: 'POST',
@@ -992,6 +1017,19 @@
             `;
         }
 
+        // Debounce function to limit API calls
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
         // Smooth scrolling for anchor links (excluding pagination and action links)
         document.querySelectorAll('a[href^="#"]:not([href="#"])').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
@@ -1004,20 +1042,6 @@
                     });
                 }
             });
-        });
-
-        // Add loading state to search button
-        document.getElementById('searchForm').addEventListener('submit', function(e) {
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>Searching...</span>';
-            submitBtn.disabled = true;
-
-            setTimeout(() => {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }, 1000);
         });
     </script>
 </body>
