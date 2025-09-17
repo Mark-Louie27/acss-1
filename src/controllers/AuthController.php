@@ -133,8 +133,9 @@ class AuthController
                 'role_id' => intval($_POST['role_id'] ?? 0),
                 'college_id' => intval($_POST['college_id'] ?? 0),
                 'department_id' => intval($_POST['department_id'] ?? 0),
-                'academic_rank' => $_POST['academic_rank'] ?? 'Instructor',
-                'employment_type' => $_POST['employment_type'] ?? 'Part-time',
+                'academic_rank' => trim($_POST['academic_rank'] ?? ''),
+                'employment_type' => trim($_POST['employment_type'] ?? ''),
+                'classification' => trim($_POST['classification'] ?? ''),
                 'program_id' => !empty($_POST['program_id']) ? intval($_POST['program_id']) : null
             ];
 
@@ -148,9 +149,6 @@ class AuthController
             if ($data['role_id'] < 1 || $data['role_id'] > 6) $errors[] = "Invalid role selected.";
             if ($data['college_id'] < 1) $errors[] = "Invalid college selected.";
             if ($data['department_id'] < 1) $errors[] = "Invalid department selected.";
-            if ($data['role_id'] == 6 && (empty($data['academic_rank']) || empty($data['employment_type']))) {
-                $errors[] = "Academic rank and employment type are required for Faculty.";
-            }
             if ($data['role_id'] == 5 && empty($data['program_id'])) {
                 $errors[] = "Program ID is required for Program Chair.";
             }

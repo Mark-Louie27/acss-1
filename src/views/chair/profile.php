@@ -9,7 +9,6 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile | ACSS</title>
-    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
     <style>
         :root {
             --gold: #D4AF37;
@@ -61,6 +60,7 @@ ob_start();
 
         .modal {
             transition: opacity 0.3s ease-in-out;
+            background-color: rgba(0, 0, 0, 0.5);
         }
 
         .modal.hidden {
@@ -268,22 +268,64 @@ ob_start();
                         <div>
                             <label class="text-sm font-medium text-gray-600">Academic Rank</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
-                                <i class="fas fa-award text-gray-400 mr-2"></i>
+                                <i class="fas fa-award text-yellow-500 mr-2"></i>
                                 <?php echo htmlspecialchars($user['academic_rank'] ?? 'Instructor', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Employment Type</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
-                                <i class="fas fa-briefcase text-gray-400 mr-2"></i>
+                                <i class="fas fa-briefcase text-blue-500 mr-2"></i>
                                 <?php echo htmlspecialchars($user['employment_type'] ?? 'Part-time', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
-                        <div class="md:col-span-2">
+                        <div>
                             <label class="text-sm font-medium text-gray-600">Classification</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
-                                <i class="fas fa-tag text-gray-400 mr-2"></i>
+                                <i class="fas fa-layer-group text-purple-500 mr-2"></i>
                                 <?php echo htmlspecialchars($user['classification'] ?? 'TL', ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Designation</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-id-badge text-green-500 mr-2"></i>
+                                <?php echo htmlspecialchars($user['designation'], ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Advisory Class</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-chalkboard-teacher text-pink-500 mr-2"></i>
+                                <?php echo htmlspecialchars($user['advisory_class'], ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Bachelor's Degree</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-scroll text-indigo-500 mr-2"></i>
+                                <?php echo htmlspecialchars($user['bachelor_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Master's Degree</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-award text-orange-500 mr-2"></i>
+                                <?php echo htmlspecialchars($user['master_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Doctorate Degree</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-university text-gray-400"></i>
+                                <?php echo htmlspecialchars($user['doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600">Post-Doctorate Degree</label>
+                            <p class="mt-1 text-gray-800 font-medium flex items-center">
+                                <i class="fas fa-medal text-teal-500 mr-2"></i>
+                                <?php echo htmlspecialchars($user['post_doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                     </div>
@@ -489,7 +531,7 @@ ob_start();
         </main>
 
         <!-- Edit Profile Modal -->
-        <div id="editProfileModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div id="editProfileModal" class="modal fixed inset-0 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-lg w-full max-w-4xl mx-4 transform modal-content scale-95 max-h-[90vh] overflow-y-auto">
                 <div class="bg-yellow-500 text-white p-6 rounded-t-xl flex flex-col sm:flex-row items-center justify-between">
                     <div class="flex items-center space-x-4">
@@ -622,12 +664,40 @@ ob_start();
                                         </div>
                                         <select id="academic_rank" name="academic_rank" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                             <option value="">Select Academic Rank</option>
-                                            <option value="Instructor" <?php echo $user['academic_rank'] === 'Instructor' ? 'selected' : ''; ?>>Instructor</option>
-                                            <option value="Professor" <?php echo $user['academic_rank'] === 'Professor' ? 'selected' : ''; ?>>Professor</option>
-                                            <option value="Associate Professor" <?php echo $user['academic_rank'] === 'Associate Professor' ? 'selected' : ''; ?>>Associate Professor</option>
+
+                                            <!-- Instructor Ranks -->
+                                            <option value="Instructor I" <?php echo $user['academic_rank'] === 'Instructor I' ? 'selected' : ''; ?>>Instructor I</option>
+                                            <option value="Instructor II" <?php echo $user['academic_rank'] === 'Instructor II' ? 'selected' : ''; ?>>Instructor II</option>
+                                            <option value="Instructor III" <?php echo $user['academic_rank'] === 'Instructor III' ? 'selected' : ''; ?>>Instructor III</option>
+
+                                            <!-- Assistant Professor Ranks -->
+                                            <option value="Assistant Professor I" <?php echo $user['academic_rank'] === 'Assistant Professor I' ? 'selected' : ''; ?>>Assistant Professor I</option>
+                                            <option value="Assistant Professor II" <?php echo $user['academic_rank'] === 'Assistant Professor II' ? 'selected' : ''; ?>>Assistant Professor II</option>
+                                            <option value="Assistant Professor III" <?php echo $user['academic_rank'] === 'Assistant Professor III' ? 'selected' : ''; ?>>Assistant Professor III</option>
+                                            <option value="Assistant Professor IV" <?php echo $user['academic_rank'] === 'Assistant Professor IV' ? 'selected' : ''; ?>>Assistant Professor IV</option>
+
+                                            <!-- Associate Professor Ranks -->
+                                            <option value="Associate Professor I" <?php echo $user['academic_rank'] === 'Associate Professor I' ? 'selected' : ''; ?>>Associate Professor I</option>
+                                            <option value="Associate Professor II" <?php echo $user['academic_rank'] === 'Associate Professor II' ? 'selected' : ''; ?>>Associate Professor II</option>
+                                            <option value="Associate Professor III" <?php echo $user['academic_rank'] === 'Associate Professor III' ? 'selected' : ''; ?>>Associate Professor III</option>
+                                            <option value="Associate Professor IV" <?php echo $user['academic_rank'] === 'Associate Professor IV' ? 'selected' : ''; ?>>Associate Professor IV</option>
+                                            <option value="Associate Professor V" <?php echo $user['academic_rank'] === 'Associate Professor V' ? 'selected' : ''; ?>>Associate Professor V</option>
+
+                                            <!-- Professor Ranks -->
+                                            <option value="Professor I" <?php echo $user['academic_rank'] === 'Professor I' ? 'selected' : ''; ?>>Professor I</option>
+                                            <option value="Professor II" <?php echo $user['academic_rank'] === 'Professor II' ? 'selected' : ''; ?>>Professor II</option>
+                                            <option value="Professor III" <?php echo $user['academic_rank'] === 'Professor III' ? 'selected' : ''; ?>>Professor III</option>
+                                            <option value="Professor IV" <?php echo $user['academic_rank'] === 'Professor IV' ? 'selected' : ''; ?>>Professor IV</option>
+                                            <option value="Professor V" <?php echo $user['academic_rank'] === 'Professor V' ? 'selected' : ''; ?>>Professor V</option>
+                                            <option value="Professor VI" <?php echo $user['academic_rank'] === 'Professor VI' ? 'selected' : ''; ?>>Professor VI</option>
+                                            <option value="Professor VII" <?php echo $user['academic_rank'] === 'Professor VII' ? 'selected' : ''; ?>>Professor VII</option>
+
+                                            <!-- Highest Rank -->
+                                            <option value="University Professor" <?php echo $user['academic_rank'] === 'University Professor' ? 'selected' : ''; ?>>University Professor</option>
                                         </select>
                                     </div>
                                 </div>
+
                                 <div>
                                     <label for="employment_type" class="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
                                     <div class="relative">
@@ -653,6 +723,77 @@ ob_start();
                                             <option value="VSL" <?php echo $user['classification'] === 'VSL' ? 'selected' : ''; ?>>VSL</option>
                                             <option value="TL" <?php echo $user['classification'] === 'TL' ? 'selected' : ''; ?>>TL</option>
                                         </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="bachelor_degree" class="block text-sm font-medium text-gray-700 mb-1">Bachelor Degree</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-user-graduate text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="bachelor_degree" name="bachelor_degree"
+                                            value="<?php echo htmlspecialchars($user['bachelor_degree'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="master_degree" class="block text-sm font-medium text-gray-700 mb-1">Master Degree</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-graduation-cap text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="master_degree" name="master_degree"
+                                            value="<?php echo htmlspecialchars($user['master_degree'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="doctorate_degree" class="block text-sm font-medium text-gray-700 mb-1">Doctorate Degree</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-university text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="doctorate_degree" name="doctorate_degree"
+                                            value="<?php echo htmlspecialchars($user['doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="post_doctorate_degree" class="block text-sm font-medium text-gray-700 mb-1">Post Doctorate Degree</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-user-tie text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="post_doctorate_degree" name="post_doctorate_degree"
+                                            value="<?php echo htmlspecialchars($user['post_doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="designation" class="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-briefcase text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="designation" name="designation"
+                                            value="<?php echo htmlspecialchars($user['designation'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="advisory_class" class="block text-sm font-medium text-gray-700 mb-1">Advisory Class</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-chalkboard-teacher text-gray-400"></i>
+                                        </div>
+                                        <input type="text" id="advisory_class" name="advisory_class"
+                                            value="<?php echo htmlspecialchars($user['advisory_class'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                     </div>
                                 </div>
                             </div>
@@ -701,21 +842,6 @@ ob_start();
                                 }
                                 ?>
                             </select>
-                        </div>
-
-                        <div>
-                            <label for="expertise_level" class="block text-sm font-medium text-gray-700 mb-1">Expertise Level</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-star text-gray-400"></i>
-                                </div>
-                                <select id="expertise_level" name="expertise_level" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
-                                    <option value="">Select Level</option>
-                                    <option value="Beginner" <?php echo $user['classification'] === 'Beginner' ? 'selected' : ''; ?>>Beginner</option>
-                                    <option value="Intermediate" <?php echo $user['classification'] === 'Intermediate' ? 'selected' : ''; ?>>Intermediate</option>
-                                    <option value="Expert" <?php echo $user['classification'] === 'Expert' ? 'selected' : ''; ?>>Expert</option>
-                                </select>
-                            </div>
                         </div>
                     </div>
 

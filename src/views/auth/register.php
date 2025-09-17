@@ -15,11 +15,10 @@ $roles = [];
 $colleges = [];
 $departments = [];
 
-// Fetch roles, colleges, and departments for dropdowns
+// Fetch roles and colleges for dropdowns
 try {
     $roles = $userModel->getRoles();
     $colleges = $userModel->getColleges();
-    $departments = [];
 } catch (Exception $e) {
     $error = "Error loading registration data: " . $e->getMessage();
 }
@@ -63,23 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'role_id' => (int)$_POST['role_id'],
             'college_id' => (int)$_POST['college_id'],
             'department_id' => (int)$_POST['department_id'],
-            'is_active' => 1
+            'is_active' => 0,
+            'academic_rank' => trim($_POST['academic_rank'] ?? ''),
+            'employment_type' => trim($_POST['employment_type'] ?? ''),
+            'classification' => trim($_POST['classification'] ?? null)
         ];
-
-        // Add academic rank, employment type, and classification if Faculty role (role_id = 6)
-        if ($userData['role_id'] == 6) {
-            $requiredFields[] = 'academic_rank';
-            $requiredFields[] = 'employment_type';
-            if (empty($_POST['academic_rank'])) {
-                throw new Exception("Academic rank is required for Faculty.");
-            }
-            if (empty($_POST['employment_type'])) {
-                throw new Exception("Employment type is required for Faculty.");
-            }
-            $userData['academic_rank'] = trim($_POST['academic_rank']);
-            $userData['employment_type'] = trim($_POST['employment_type']);
-            $userData['classification'] = trim($_POST['classification'] ?? null); // Optional, defaults to NULL
-        }
 
         if ($authService->register($userData)) {
             $success = "Registration successful! You can now login.";
@@ -129,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             z-index: 2;
         }
 
-        /* Custom radio button styles */
         .radio-group input[type="radio"]:checked+.radio-label {
             border-color: #d97706;
             background-color: #fef3c7;
@@ -332,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="border-b border-gray-200 pb-4">
                         <h3 class="text-lg font-semibold text-gray-700 mb-4">Academic Information</h3>
                         <div class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class=" gap-4">
                                 <div>
                                     <label for="role_id" class="block text-xs md:text-sm font-medium text-gray-700">Role <span class="text-red-500">*</span></label>
                                     <div class="mt-1 relative">
@@ -341,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a2 2 0 00-2-2h-3m-2 4h-5a2 2 0 01-2-2v-3m7-7a4 4 0 11-8 0 4 4 0 018 0z" />
                                             </svg>
                                         </div>
-                                        <select id="role_id" name="role_id" required class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none" onchange="toggleFacultyFields()">
+                                        <select id="role_id" name="role_id" required class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
                                             <option value="">Select Role</option>
                                             <?php foreach ($roles as $role): ?>
                                                 <option value="<?= $role['role_id'] ?>" <?= (isset($_POST['role_id']) && $_POST['role_id'] == $role['role_id']) ? 'selected' : '' ?>>
@@ -364,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a2 2 0 012-2h2a2 2 0 012 2v5m-4-6h.01" />
                                             </svg>
                                         </div>
-                                        <select id="college_id" name="college_id" required class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
+                                        <select id="college_id" name="college_id" required class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none" onchange="loadDepartments()">
                                             <option value="">Select College</option>
                                             <?php foreach ($colleges as $college): ?>
                                                 <option value="<?= $college['college_id'] ?>" <?= (isset($_POST['college_id']) && $_POST['college_id'] == $college['college_id']) ? 'selected' : '' ?>>
@@ -389,17 +375,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                         <select id="department_id" name="department_id" required class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
                                             <option value="">Select Department</option>
-                                            <?php
-                                            if (isset($_POST['college_id']) && !empty($_POST['college_id'])) {
-                                                $selectedCollegeId = (int)$_POST['college_id'];
-                                                $departments = $userModel->getDepartmentsByCollege($selectedCollegeId);
-                                                foreach ($departments as $dept) {
-                                                    echo '<option value="' . $dept['department_id'] . '" ' .
-                                                        ((isset($_POST['department_id']) && $_POST['department_id'] == $dept['department_id']) ? 'selected' : '') . '>' .
-                                                        htmlspecialchars($dept['department_name']) . '</option>';
-                                                }
-                                            }
-                                            ?>
                                         </select>
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <svg class="h-4 md:h-5 w-4 md:w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -410,10 +385,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
 
-                            <div id="faculty-fields" class="space-y-4 hidden">
+                            <div class="space-y-4"> <!-- Removed 'hidden' class and 'id=faculty-fields' to make it always visible -->
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label for="academic_rank" class="block text-xs md:text-sm font-medium text-gray-700">Academic Rank <span class="text-red-500">*</span></label>
+                                        <label for="academic_rank" class="block text-xs md:text-sm font-medium text-gray-700">Academic Rank</label>
                                         <div class="mt-1 relative">
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <svg class="h-4 md:h-5 w-4 md:w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -422,9 +397,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             </div>
                                             <select id="academic_rank" name="academic_rank" class="block w-full pl-9 md:pl-10 pr-3 py-2 md:py-2 border border-gray-300 rounded-md shadow-sm text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
                                                 <option value="">Select Academic Rank</option>
-                                                <option value="Instructor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor') ? 'selected' : '' ?>>Instructor</option>
-                                                <option value="Assistant Professor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor') ? 'selected' : '' ?>>Assistant Professor</option>
-                                                <option value="Associate Professor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor') ? 'selected' : '' ?>>Associate Professor</option>
+                                                <option value="Instructor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor I') ? 'selected' : '' ?>>Instructor I</option>
+                                                <option value="Instructor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor II') ? 'selected' : '' ?>>Instructor II</option>
+                                                <option value="Instructor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor III') ? 'selected' : '' ?>>Instructor III</option>
+                                                <option value="Assistant Professor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor I') ? 'selected' : '' ?>>Assistant Professor I</option>
+                                                <option value="Assistant Professor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor II') ? 'selected' : '' ?>>Assistant Professor II</option>
+                                                <option value="Assistant Professor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor III') ? 'selected' : '' ?>>Assistant Professor III</option>
+                                                <option value="Assistant Professor IV" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor IV') ? 'selected' : '' ?>>Assistant Professor IV</option>
+                                                <option value="Associate Professor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor I') ? 'selected' : '' ?>>Associate Professor I</option>
+                                                <option value="Associate Professor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor II') ? 'selected' : '' ?>>Associate Professor II</option>
+                                                <option value="Associate Professor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor III') ? 'selected' : '' ?>>Associate Professor III</option>
+                                                <option value="Associate Professor IV" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor IV') ? 'selected' : '' ?>>Associate Professor IV</option>
+                                                <option value="Associate Professor V" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor V') ? 'selected' : '' ?>>Associate Professor V</option>
                                                 <option value="Professor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor') ? 'selected' : '' ?>>Professor</option>
                                             </select>
                                             <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -435,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                     </div>
                                     <div>
-                                        <label for="employment_type" class="block text-xs md:text-sm font-medium text-gray-700">Employment Type <span class="text-red-500">*</span></label>
+                                        <label for="employment_type" class="block text-xs md:text-sm font-medium text-gray-700">Employment Type</label>
                                         <div class="mt-1 relative">
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <svg class="h-4 md:h-5 w-4 md:w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -465,7 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             </div>
                                         </label>
 
-                                        <div class="space-y-2">
+                                        <div class="space-y-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <!-- TL Radio Button -->
                                             <div class="relative radio-group">
                                                 <input
@@ -531,33 +515,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script>
+        // Load departments when college is selected
+        function loadDepartments() {
+            const collegeId = $('#college_id').val();
+            if (collegeId) {
+                $.ajax({
+                    url: '/api/departments?college_id=' + collegeId,
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        const deptSelect = $('#department_id');
+                        deptSelect.empty();
+                        deptSelect.append('<option value="">Select Department</option>');
+                        data.departments.forEach(function(dept) {
+                            deptSelect.append(`<option value="${dept.department_id}">${dept.department_name}</option>`);
+                        });
+                    },
+                    error: function() {
+                        console.error('Error loading departments');
+                    }
+                });
+            } else {
+                $('#department_id').empty().append('<option value="">Select Department</option>');
+            }
+        }
+
         $(document).ready(function() {
-            // Load departments when college is selected
-            $('#college_id').change(function() {
-                const collegeId = $(this).val();
-                if (collegeId) {
-                    $.ajax({
-                        url: '/api/departments?college_id=' + collegeId,
-                        method: 'GET',
-                        dataType: 'json',
-                        success: function(data) {
-                            const deptSelect = $('#department_id');
-                            deptSelect.empty();
-                            deptSelect.append('<option value="">Select Department</option>');
-                            data.departments.forEach(function(dept) {
-                                deptSelect.append(`<option value="${dept.department_id}">${dept.department_name}</option>`);
-                            });
-                        },
-                        error: function() {
-                            console.error('Error loading departments');
-                        }
-                    });
-                } else {
-                    $('#department_id').empty().append('<option value="">Select Department</option>');
-                }
-            });
+            // Initial load of departments if college_id is pre-selected
+            <?php if (isset($_POST['college_id']) && !empty($_POST['college_id'])): ?>
+                loadDepartments();
+            <?php endif; ?>
 
             // Password match validation
             $('#confirm_password, #password').on('keyup', function() {
@@ -572,23 +561,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     errorElement.addClass('hidden');
                 }
             });
-
-            // Toggle faculty fields based on role selection
-            function toggleFacultyFields() {
-                const roleId = $('#role_id').val();
-                const facultyFields = $('#faculty-fields');
-                if (roleId == 6) {
-                    facultyFields.removeClass('hidden');
-                } else {
-                    facultyFields.addClass('hidden');
-                }
-            }
-
-            // Initial check on page load
-            toggleFacultyFields();
-
-            // Re-check when role changes
-            $('#role_id').change(toggleFacultyFields);
         });
     </script>
 </body>

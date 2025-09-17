@@ -625,17 +625,19 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>Manage Faculty</span>
             </a>
 
-            <!-- Courses Link -->
+            <!-- Courses Link 
             <a href="/dean/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/courses') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/dean/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Courses</span>
             </a>
 
-            <!-- Curriculum Link -->
+            
             <a href="/dean/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Curriculum</span>
             </a>
+
+            -->
 
             <!-- Profile Link -->
             <a href="/dean/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/profile') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">

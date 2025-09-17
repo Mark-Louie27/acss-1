@@ -518,19 +518,19 @@ class DeanController
 
         try {
             // Initialize variables for the view
-            $programChairs = [];
+            $programdeans = [];
             $faculty = [];
             $pendingUsers = [];
             $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             $error = null;
 
-            // Fetch Program Chairs
+            // Fetch Program deans
             $querydeans = "
             SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
                    pc.program_id, p.program_name, d.department_name, d.department_id, c.college_name
             FROM users u
-            JOIN program_chairs pc ON u.user_id = pc.user_id
+            JOIN program_deans pc ON u.user_id = pc.user_id
             JOIN programs p ON pc.program_id = p.program_id
             JOIN departments d ON p.department_id = d.department_id
             JOIN colleges c ON d.college_id = c.college_id
@@ -541,8 +541,8 @@ class DeanController
                 throw new PDOException("Failed to prepare querydeans: " . implode(', ', $this->db->errorInfo()));
             }
             $stmtdeans->execute([':college_id' => $collegeId]);
-            $programChairs = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
-            error_log("faculty: Fetched " . count($programChairs) . " program chairs");
+            $programdeans = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($programdeans) . " program deans");
 
             // Fetch Faculty
             $queryFaculty = "
@@ -633,14 +633,14 @@ class DeanController
             error_log("faculty: PDO Error - " . $e->getMessage());
             http_response_code(500);
             $error = "Database error: " . $e->getMessage();
-            $programChairs = $faculty = $pendingUsers = $departments = [];
+            $programdeans = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
         } catch (Exception $e) {
             error_log("faculty: Error - " . $e->getMessage());
             http_response_code(500);
             $error = $e->getMessage();
-            $programChairs = $faculty = $pendingUsers = $departments = [];
+            $programdeans = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
         }
@@ -1029,7 +1029,6 @@ class DeanController
             $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                error_log("profile: Received POST data - " . print_r($_POST, true));
 
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
@@ -1049,6 +1048,12 @@ class DeanController
                     'classification' => trim($_POST['classification'] ?? ''),
                     'academic_rank' => trim($_POST['academic_rank'] ?? ''),
                     'employment_type' => trim($_POST['employment_type'] ?? ''),
+                    'bachelor_degree' => trim($_POST['bachelor_degree'] ?? ''),
+                    'master_degree' => trim($_POST['master_degree'] ?? ''),
+                    'doctorate_degree' => trim($_POST['dpost_doctorate_degree'] ?? ''),
+                    'post_doctorate_degree' => trim($_POST['bachelor_degree'] ?? ''),
+                    'advisory_class' => trim($_POST['advisory_class'] ?? ''),
+                    'designation' => trim($_POST['designation'] ?? ''),
                     'expertise_level' => trim($_POST['expertise_level'] ?? ''),
                     'course_id' => trim($_POST['course_id'] ?? ''),
                     'specialization_index' => trim($_POST['specialization_index'] ?? ''),
@@ -1067,11 +1072,9 @@ class DeanController
                         if (strpos($profilePictureResult, 'Error:') === 0) {
                             // It's an error message
                             $errors[] = $profilePictureResult;
-                            error_log("profile: Profile picture upload error for user_id $userId: $profilePictureResult");
                         } else {
                             // It's a successful upload path
                             $profilePicturePath = $profilePictureResult;
-                            error_log("profile: Profile picture upload successful for user_id $userId: $profilePicturePath");
                         }
                     }
 
@@ -1114,7 +1117,7 @@ class DeanController
 
                             if (!empty($setClause)) {
                                 $userStmt = $this->db->prepare("UPDATE users SET " . implode(', ', $setClause) . ", updated_at = NOW() WHERE user_id = :user_id");
-                                error_log("profile: Users query - " . $userStmt->queryString . ", Params: " . print_r($params, true));
+
                                 if (!$userStmt->execute($params)) {
                                     $errorInfo = $userStmt->errorInfo();
                                     error_log("profile: User update failed - " . print_r($errorInfo, true));
@@ -1140,7 +1143,17 @@ class DeanController
                     if ($facultyId && empty($errors)) {
                         $facultyParams = [':faculty_id' => $facultyId];
                         $facultySetClause = [];
-                        $facultyFields = ['academic_rank', 'employment_type', 'classification'];
+                        $facultyFields = [
+                            'academic_rank',
+                            'employment_type',
+                            'classification',
+                            'designation',
+                            'advisory_class',
+                            'bachelor_degree',
+                            'master_degree',
+                            'doctorate_degree',
+                            'post_doctorate_degree'
+                        ];
                         foreach ($facultyFields as $field) {
                             if (isset($data[$field]) && $data[$field] !== '') {
                                 $facultySetClause[] = "$field = :$field";
@@ -1336,7 +1349,8 @@ class DeanController
             // GET request - Display profile
             $stmt = $this->db->prepare("
             SELECT u.*, d.department_name, c.college_name, r.role_name,
-                   f.academic_rank, f.employment_type, f.classification
+                   f.academic_rank, f.employment_type, f.classification, f.bachelor_degree, f.master_degree,
+                   f.doctorate_degree, f.post_doctorate_degree, f.advisory_class, f.designation
             FROM users u
             LEFT JOIN departments d ON u.department_id = d.department_id
             LEFT JOIN colleges c ON u.college_id = c.college_id
@@ -1364,7 +1378,8 @@ class DeanController
             // Fetch user data and stats...
             $stmt = $this->db->prepare("
                 SELECT u.*, d.department_name, c.college_name, r.role_name,
-                       f.academic_rank, f.employment_type, f.classification,
+                       f.academic_rank, f.employment_type, f.classification, f.bachelor_degree, f.master_degree,
+                       f.doctorate_degree, f.post_doctorate_degree, f.advisory_class, f.designation,
                        s.expertise_level, 
                        (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
                        (SELECT COUNT(DISTINCT sch.course_id) FROM schedules sch WHERE sch.faculty_id = f.faculty_id) as coursesCount,
@@ -1406,7 +1421,6 @@ class DeanController
             error_log("profile: Error - " . $e->getMessage());
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load or update profile. Please try again.'];
 
-            // Provide default user data in case of error
             $user = [
                 'user_id' => $userId ?? 0,
                 'username' => '',
@@ -1421,10 +1435,16 @@ class DeanController
                 'employee_id' => '',
                 'department_name' => '',
                 'college_name' => '',
-                'role_name' => 'Dean',
+                'role_name' => 'Program dean',
                 'academic_rank' => '',
                 'employment_type' => '',
                 'classification' => '',
+                'bachelor_degree' => '',
+                'master_degree' => '',
+                'doctorate_degree' => '',
+                'post_doctorate_degree' => '',
+                'advisory_class' => '',
+                'designation' => '',
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             $specializations = [];
