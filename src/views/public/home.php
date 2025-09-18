@@ -503,7 +503,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-4 sm:px-6 py-6 sm:py-12 mt-16 sm:mt-24">
+    <main class="container mx-auto px-4 sm:px-6 py-6 sm:py-8 mt-16 sm:mt-24">
         <!-- Search Filters -->
         <div id="search-form" class="bg-white rounded-xl shadow-lg p-4 sm:p-8 mb-8 sm:mb-12 card-shadow gold-border">
             <h3 class="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 gold-gradient-text">Find Your Class Schedule</h3>

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../models/UserModel.php';
 
 class AuthController
 {
@@ -286,8 +287,13 @@ class AuthController
         try {
             $collegeId = intval($_GET['college_id'] ?? 0);
             if ($collegeId < 1) {
-                throw new Exception("Invalid college ID");
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Invalid college ID'
+                ]);
+                exit;
             }
+
             $userModel = new UserModel();
             $departments = $userModel->getDepartmentsByCollege($collegeId);
 
@@ -296,9 +302,10 @@ class AuthController
                 'departments' => $departments
             ]);
         } catch (Exception $e) {
+            error_log("Error in getDepartments: " . $e->getMessage());
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'Error loading departments: ' . $e->getMessage()
             ]);
         }
         exit;
