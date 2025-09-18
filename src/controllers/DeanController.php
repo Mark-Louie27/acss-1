@@ -180,21 +180,43 @@ class DeanController
             $departmentId = $_GET['department_id'] ?? null;
             $date = $_GET['date'] ?? null;
             $activities = $this->getDepartmentActivities($collegeId, $departmentId, $date);
+
             if ($activities === false) {
                 throw new Exception('Failed to fetch activities');
             }
+
+            // Prepare data array for the view
+            $data = [
+                'activities' => $activities ?? [],
+                'title' => 'Dean Activities Dashboard',
+                'college_id' => $collegeId,
+                'department_id' => $departmentId,
+                'date' => $date
+            ];
 
             // Load activities view
             require_once __DIR__ . '/../views/dean/activities.php';
         } catch (PDOException $e) {
             error_log("activities: Database error - " . $e->getMessage());
-            $activities = [];
-            $error = "Database error occurred. Please try again.";
+
+            // Prepare data array with empty activities and error
+            $data = [
+                'activities' => [],
+                'title' => 'Dean Activities Dashboard',
+                'error' => "Database error occurred. Please try again."
+            ];
+
             require_once __DIR__ . '/../views/dean/activities.php';
         } catch (Exception $e) {
             error_log("activities: Error - " . $e->getMessage());
-            $activities = [];
-            $error = $e->getMessage();
+
+            // Prepare data array with empty activities and error
+            $data = [
+                'activities' => [],
+                'title' => 'Dean Activities Dashboard',
+                'error' => $e->getMessage()
+            ];
+
             require_once __DIR__ . '/../views/dean/activities.php';
         }
     }
@@ -203,10 +225,12 @@ class DeanController
     {
         try {
             $query = "
-            SELECT al.*, d.department_name
-            FROM activity_logs al
-            JOIN departments d ON al.department_id = d.department_id
-            WHERE d.college_id = :college_id";
+        SELECT al.*, d.department_name, u.title, u.first_name, u.last_name, c.college_name
+        FROM activity_logs al
+        JOIN users u ON al.user_id = u.user_id
+        JOIN departments d ON al.department_id = d.department_id
+        JOIN colleges c ON d.college_id = c.college_id
+        WHERE d.college_id = :college_id";
 
             $params = [':college_id' => $collegeId];
 
@@ -220,10 +244,14 @@ class DeanController
             }
 
             $query .= " ORDER BY al.created_at DESC
-                   LIMIT 10"; // Limit to 10 recent activities
+               LIMIT 50"; // Increased limit for better dashboard experience
+
             $stmt = $this->db->prepare($query);
             $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Ensure we always return an array
+            return is_array($result) ? $result : [];
         } catch (PDOException $e) {
             error_log("getDepartmentActivities: Error - " . $e->getMessage());
             return [];
@@ -235,8 +263,9 @@ class DeanController
     {
         try {
             $query = "
-            SELECT al.*, d.department_name
+            SELECT al.*, d.department_name, u.title, u.first_name, u.last_name
             FROM activity_logs al
+            JOIN users u ON al.user_id = u.user_id
             JOIN departments d ON al.department_id = d.department_id
             WHERE d.college_id = :college_id";
 
@@ -341,6 +370,35 @@ class DeanController
 
         // Load schedule view
         require_once __DIR__ . '/../views/dean/schedule.php';
+    }
+
+    public function manageSchedule()
+    {
+        $userId = $_SESSION['user_id'];
+        $collegeId = $this->getDeanCollegeId($userId);
+        $stmt = $this->db->prepare("SELECT department_id, department_name FROM departments WHERE college_id = :college_id");
+        $stmt->execute([':college_id' => $collegeId]);
+        $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $schedules = [];
+        foreach ($departments as $dept) {
+            $deptId = $dept['department_id'];
+            $stmt = $this->db->prepare("
+                SELECT s.schedule_id, s.department_id, d.department_name, s.day_of_week, s.start_time, s.end_time,
+                    c.course_code, cm.room_name, st.section_name, cl.college_name, s.schedule_type
+                FROM schedules s
+                JOIN courses c ON s.course_id = c.course_id
+                JOIN classrooms cm ON s.room_id = cm.room_id
+                JOIN sections st ON s.section_id = s.section_id
+                JOIN departments d ON s.department_id = d.department_id
+                JOIN colleges cl ON d.college_id = cl.college_id
+                WHERE s.department_id = :dept_id
+            ");
+            $stmt->execute([':dept_id' => $deptId]);
+            $schedules[$deptId] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        require_once __DIR__ . '/../views/dean/manage_schedules.php';
     }
 
     public function classroom()
@@ -526,23 +584,23 @@ class DeanController
             $error = null;
 
             // Fetch Program deans
-            $querydeans = "
+            $queryChairs = "
             SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
                    pc.program_id, p.program_name, d.department_name, d.department_id, c.college_name
             FROM users u
-            JOIN program_deans pc ON u.user_id = pc.user_id
+            JOIN program_chairs pc ON u.user_id = pc.user_id
             JOIN programs p ON pc.program_id = p.program_id
             JOIN departments d ON p.department_id = d.department_id
             JOIN colleges c ON d.college_id = c.college_id
             WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
             ORDER BY u.last_name, u.first_name";
-            $stmtdeans = $this->db->prepare($querydeans);
-            if (!$stmtdeans) {
-                throw new PDOException("Failed to prepare querydeans: " . implode(', ', $this->db->errorInfo()));
+            $stmtChairs = $this->db->prepare($queryChairs);
+            if (!$stmtChairs) {
+                throw new PDOException("Failed to prepare queryChairs: " . implode(', ', $this->db->errorInfo()));
             }
-            $stmtdeans->execute([':college_id' => $collegeId]);
-            $programdeans = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
-            error_log("faculty: Fetched " . count($programdeans) . " program deans");
+            $stmtChairs->execute([':college_id' => $collegeId]);
+            $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($programChairs) . " program Chairs");
 
             // Fetch Faculty
             $queryFaculty = "
@@ -743,6 +801,15 @@ class DeanController
         $stmt->execute([':user_id' => $userId]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ? $result['department_id'] : null;
+    }
+
+    public function getDeanCollegeId($userId)
+    {
+        $query = "SELECT college_id FROM deans WHERE user_id = :user_id AND is_current = 1";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':user_id' => $userId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result['college_id'] ?? null;
     }
 
     public function search()
@@ -1910,14 +1977,5 @@ class DeanController
             error_log("deleteProgram: PDO Error - " . $e->getMessage());
             return ['error' => 'Failed to delete program'];
         }
-    }
-
-    public function getDeanCollegeId($userId)
-    {
-        $query = "SELECT college_id FROM deans WHERE user_id = :user_id AND is_current = 1";
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([':user_id' => $userId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result['college_id'] ?? null;
     }
 }

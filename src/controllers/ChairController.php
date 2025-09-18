@@ -159,23 +159,26 @@ class ChairController
 
             error_log("dashboard: Fetched " . count($curricula) . " curricula");
 
-            // Get recent schedules
+            // Get recent schedules for current semester only
             $recentSchedulesStmt = $this->db->prepare("
                 SELECT s.schedule_id, c.course_name, c.course_code, CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, 
-                    r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, sec.section_name
+                    r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, sec.section_name,
+                    sem.semester_name, sem.academic_year
                 FROM schedules s
                 JOIN courses c ON s.course_id = c.course_id
                 JOIN faculty f ON s.faculty_id = f.faculty_id
                 JOIN users u ON f.user_id = u.user_id
                 LEFT JOIN sections sec ON s.section_id = sec.section_id
                 LEFT JOIN classrooms r ON s.room_id = r.room_id
-                WHERE c.department_id = :department_id
+                LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
+                WHERE c.department_id = :department_id 
+                    AND sem.is_current = 1
                 ORDER BY s.created_at DESC
                 LIMIT 5
             ");
             $recentSchedulesStmt->execute([':department_id' => $departmentId]);
             $recentSchedules = $recentSchedulesStmt->fetchAll(PDO::FETCH_ASSOC);
-            $schedules = $recentSchedules; // Assign recent schedules to $schedules for the view
+            $schedules = $recentSchedules;
 
             error_log("dashboard: Fetched " . count($recentSchedules) . " recent schedules");
 
@@ -2685,7 +2688,11 @@ class ChairController
                                 c.course_id, 
                                 c.course_code, 
                                 c.course_name, 
-                                c.units, 
+                                c.units,
+                                c.lecture_units,
+                                c.lab_units,
+                                c.lab_hours,
+                                c.lecture_hours, 
                                 cc.year_level, 
                                 cc.semester, 
                                 cc.subject_type,
@@ -2699,10 +2706,10 @@ class ChairController
                         ");
                             $stmt->execute([':curriculum_id' => $curriculum_id]);
                             $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                            error_log("get_curriculum_courses: curriculum_id=$curriculum_id, courses=" . json_encode($courses));
+                            
                             echo json_encode($courses);
                         } catch (Exception $e) {
-                            error_log("get_curriculum_courses: Error - " . $e->getMessage());
+                            
                             echo json_encode(['error' => 'Failed to fetch courses: ' . $e->getMessage()]);
                         }
                         exit;

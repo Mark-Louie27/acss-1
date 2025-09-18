@@ -613,6 +613,18 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>My Schedule</span>
             </a>
 
+            <!-- College Department Schedule Management-->
+            <a href="/dean/manage_schedules" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-plus-circle w-5 mr-3 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Manage college Departments Schedule</span>
+            </a>
+
+            <!-- My set monitor Link -->
+            <a href="/dean/activities" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/dean/activities') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fa-solid fa-desktop w-5 mr-3 <?php echo strpos($currentUri, '/dean/activities') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
+                <span>College Activity Logs</span>
+            </a>
+
             <!-- Classrooms Link -->
             <a href="/dean/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/dean/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>

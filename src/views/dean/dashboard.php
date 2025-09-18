@@ -66,7 +66,7 @@ ob_start();
         </div>
 
         <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div class="grid grid-cols-1 gap-8 mb-8">
             <!-- Current Schedule Section -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div class="p-6 border-b border-gray-200">
@@ -124,77 +124,6 @@ ob_start();
                         <div class="mt-6 text-center">
                             <a href="/dean/schedule" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-800 bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-colors">
                                 View All Schedules
-                                <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                </svg>
-                            </a>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Recent Activities Section -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="p-6 border-b border-gray-200">
-                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                        <svg class="w-5 h-5 text-yellow-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Recent Activities
-                    </h3>
-                </div>
-                <div class="p-6">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full">
-                            <thead>
-                                <tr class="border-b border-gray-200">
-                                    <th class="text-left py-3 px-2 font-semibold text-gray-700 text-sm">Department</th>
-                                    <th class="text-left py-3 px-2 font-semibold text-gray-700 text-sm">Action</th>
-                                    <th class="text-left py-3 px-2 font-semibold text-gray-700 text-sm">Description</th>
-                                    <th class="text-left py-3 px-2 font-semibold text-gray-700 text-sm">Time</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                <?php if (empty($activities)): ?>
-                                    <tr>
-                                        <td colspan="4" class="py-8 text-center text-gray-500">
-                                            <div class="flex flex-col items-center">
-                                                <svg class="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                <p>No recent activities found.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php
-                                    $displayActivities = array_slice($activities, 0, 5);
-                                    foreach ($displayActivities as $index => $activity): ?>
-                                        <tr class="hover:bg-gray-50 transition-colors">
-                                            <td class="py-4 px-2 text-sm font-medium text-gray-800">
-                                                <?php echo htmlspecialchars($activity['department_name'] ?? 'Unknown'); ?>
-                                            </td>
-                                            <td class="py-4 px-2 text-sm text-gray-600">
-                                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-gray-800">
-                                                    <?php echo htmlspecialchars($activity['action_type'] ?? 'Unknown Action'); ?>
-                                                </span>
-                                            </td>
-                                            <td class="py-4 px-2 text-sm text-gray-600">
-                                                <?php echo htmlspecialchars($activity['action_description'] ?? 'No description'); ?>
-                                            </td>
-                                            <td class="py-4 px-2 text-sm text-gray-500">
-                                                <?php echo htmlspecialchars(date('M j, Y H:i', strtotime($activity['created_at']))); ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <?php if (!empty($activities)): ?>
-                        <div class="mt-6 text-center">
-                            <a href="/dean/activities" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-800 bg-yellow-400 rounded-lg hover:bg-yellow-500 transition-colors">
-                                View All Activities
                                 <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                                 </svg>
