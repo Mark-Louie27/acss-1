@@ -20,7 +20,82 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="/css/custom.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    
+    <style>
+        :root {
+            --yellow-primary: #FFC107;
+            --yellow-secondary: #FFCA28;
+            --yellow-light: #FFF8E1;
+            --gray-dark: #333;
+            --gray-light: #F5F5F5;
+        }
+
+        .bg-yellow-primary {
+            background-color: var(--yellow-primary);
+        }
+
+        .bg-yellow-secondary {
+            background-color: var(--yellow-secondary);
+        }
+
+        .text-yellow-primary {
+            color: var(--yellow-primary);
+        }
+
+        .border-yellow-primary {
+            border-color: var(--yellow-primary);
+        }
+
+        .form-input {
+            padding-left: 2.5rem;
+            /* Increased to accommodate icon */
+            border: 1px solid var(--gray-light);
+            border-radius: 0.5rem;
+            background-color: white;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .form-input:focus {
+            border-color: var(--yellow-primary);
+            box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2);
+            outline: none;
+        }
+
+        .form-input-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: var(--gray-dark);
+        }
+
+        .btn-gold {
+            background-color: var(--yellow-primary);
+            color: white;
+        }
+
+        .btn-gold:hover {
+            background-color: var(--yellow-secondary);
+            box-shadow: 0 4px 6px rgba(255, 193, 7, 0.3);
+        }
+
+        .search-highlight {
+            background-color: var(--yellow-light);
+            color: var(--gray-dark);
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        .table-header {
+            background-color: var(--yellow-light);
+            color: var(--gray-dark);
+        }
+
+        .modal-content {
+            border: 1px solid var(--yellow-light);
+        }
+    </style>
 </head>
 
 <body class="bg-gray-light font-sans antialiased max-w-full">
@@ -40,8 +115,8 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                 <!-- Action Button -->
                 <div class="flex-shrink-0">
                     <button id="openAddCourseModalBtn"
-                        class="w-full lg:w-auto px-6 py-3 rounded-xl bg-gray-800 text-white font-medium shadow-lg
-                       hover:bg-gray-700 btn-hover-lift transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-opacity-50
+                        class="w-full lg:w-auto px-6 py-3 rounded-xl bg-yellow-primary text-white font-medium shadow-lg
+                       hover:bg-yellow-secondary btn-hover-lift transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-yellow-primary focus:ring-opacity-50
                        flex items-center justify-center gap-2 text-sm md:text-base">
                         <i class="fas fa-plus"></i>
                         <span>Add New Course</span>
@@ -54,18 +129,17 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             <!-- Search Form -->
             <form method="GET" class="w-full">
                 <div class="relative">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-gray-500"></i>
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none form-input-icon">
+                        <i class="fas fa-search"></i>
                     </div>
                     <input type="text" id="searchInput" name="search" value="<?php echo htmlspecialchars($searchTerm); ?>"
                         placeholder="Search by course code or name"
-                        class="pl-12 pr-4 py-3 w-full text-base rounded-xl border border-black bg-white shadow-sm
-                               focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent">
+                        class="form-input pl-12 pr-4 py-3 w-full text-base rounded-xl shadow-sm">
                 </div>
             </form>
 
             <div class="flex space-x-3 w-full sm:w-auto">
-                <select id="statusFilter" class="border border-gray-light rounded-lg px-4 py-3 bg-white text-gray-dark w-full sm:w-auto shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                <select id="statusFilter" class="border border-gray-light rounded-lg px-4 py-3 bg-white text-gray-dark w-full sm:w-auto shadow-sm focus:ring focus:ring-yellow-primary focus:ring-opacity-50">
                     <option value="">All Subject Types</option>
                     <option value="Professional Course">Professional Course</option>
                     <option value="General Education">General Education</option>
@@ -75,9 +149,9 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
         </div>
 
         <!-- Add Course Modal -->
-        <div id="addCourseModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div id="addCourseModal" class="modal fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
-                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                <div class="flex justify-between items-center p-6 border-b border-yellow-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                     <h5 class="text-xl font-bold text-gray-dark">Add New Course</h5>
                     <button id="closeAddCourseModalBtn"
                         class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200"
@@ -90,11 +164,11 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     <div>
                         <label for="course_code_add" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-tag text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-tag"></i>
                             </div>
                             <input type="text" id="course_code_add" name="course_code" required
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 course-code-input"
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg"
                                 placeholder="e.g., CS101" aria-required="true">
                         </div>
                         <p id="courseCodeWarning" class="course-code-warning">This course code already exists.</p>
@@ -103,11 +177,11 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     <div>
                         <label for="course_name_add" class="block text-sm font-medium text-gray-dark mb-1">Course Name <span class="text-red-500">*</span></label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-book text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-book"></i>
                             </div>
                             <input type="text" id="course_name_add" name="course_name" required
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg"
                                 placeholder="e.g., Introduction to Programming" aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
@@ -115,11 +189,11 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     <div>
                         <label for="subject_type_add" class="block text-sm font-medium text-gray-dark mb-1">Subject Type <span class="text-red-500">*</span></label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-list text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-list"></i>
                             </div>
                             <select id="subject_type_add" name="subject_type" required
-                                class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
+                                class="form-input pl-10 pr-10 py-3 w-full rounded-lg appearance-none">
                                 <option value="General Education">General Education</option>
                                 <option value="Professional Course">Professional Course</option>
                             </select>
@@ -131,11 +205,11 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     <div>
                         <label for="units_add" class="block text-sm font-medium text-gray-dark mb-1">Total Units <span class="text-red-500">*</span></label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-calculator text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-calculator"></i>
                             </div>
                             <input type="number" id="units_add" name="units" value="3" min="1" required
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg"
                                 aria-required="true">
                         </div>
                         <p class="text-red-500 text-xs mt-1 hidden error-message">Total units must be at least 1.</p>
@@ -143,51 +217,44 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                     <div>
                         <label for="lecture_units_add" class="block text-sm font-medium text-gray-dark mb-1">Lecture Units</label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-chalkboard-teacher text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-chalkboard-teacher"></i>
                             </div>
                             <input type="number" id="lecture_units_add" name="lecture_units" value="0" min="0"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                         </div>
                     </div>
                     <div>
                         <label for="lab_units_add" class="block text-sm font-medium text-gray-dark mb-1">Lab Units</label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-flask text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-flask"></i>
                             </div>
                             <input type="number" id="lab_units_add" name="lab_units" value="0" min="0"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                         </div>
                     </div>
                     <div>
                         <label for="lecture_hours_add" class="block text-sm font-medium text-gray-dark mb-1">Lecture Hours</label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-clock text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-clock"></i>
                             </div>
                             <input type="number" id="lecture_hours_add" name="lecture_hours" value="0" min="0"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                         </div>
                     </div>
                     <div>
                         <label for="lab_hours_add" class="block text-sm font-medium text-gray-dark mb-1">Lab Hours</label>
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-clock text-gray-dark"></i>
+                            <div class="form-input-icon">
+                                <i class="fas fa-clock"></i>
                             </div>
                             <input type="number" id="lab_hours_add" name="lab_hours" value="0" min="0"
-                                class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                         </div>
                     </div>
-                    <div class="md:col-span-2">
-                        <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-light">
-                            <input type="checkbox" id="is_active_add" name="is_active" checked
-                                class="h-5 w-5 text-gold focus:ring-gold border-gray-light rounded">
-                            <label for="is_active_add" class="ml-2 text-sm text-gray-dark">Active</label>
-                        </div>
-                    </div>
-                    <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
+                    <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-yellow-light">
                         <button type="button" id="cancelAddCourseModalBtn"
                             class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
                         <button type="submit" class="btn-gold px-5 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium">Add Course</button>
@@ -198,9 +265,9 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
 
         <!-- Edit Course Modal -->
         <?php if ($editCourse): ?>
-            <div id="editCourseModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+            <div id="editCourseModal" class="modal fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
-                    <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                    <div class="flex justify-between items-center p-6 border-b border-yellow-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                         <h5 class="text-xl font-bold text-gray-dark">Edit Course</h5>
                         <button id="closeEditCourseModalBtn"
                             class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200"
@@ -214,12 +281,12 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         <div>
                             <label for="course_code_edit" class="block text-sm font-medium text-gray-dark mb-1">Course Code <span class="text-red-500">*</span></label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-tag text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-tag"></i>
                                 </div>
                                 <input type="text" id="course_code_edit" name="course_code" required
                                     value="<?php echo htmlspecialchars($editCourse['course_code'] ?? ''); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg"
                                     placeholder="e.g., CS101" aria-required="true">
                             </div>
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Course code is required.</p>
@@ -227,12 +294,12 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         <div>
                             <label for="course_name_edit" class="block text-sm font-medium text-gray-dark mb-1">Course Name <span class="text-red-500">*</span></label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-book text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-book"></i>
                                 </div>
                                 <input type="text" id="course_name_edit" name="course_name" required
                                     value="<?php echo htmlspecialchars($editCourse['course_name'] ?? ''); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg"
                                     placeholder="e.g., Introduction to Programming" aria-required="true">
                             </div>
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Course name is required.</p>
@@ -240,11 +307,11 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         <div>
                             <label for="subject_type_edit" class="block text-sm font-medium text-gray-dark mb-1">Subject Type <span class="text-red-500">*</span></label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-list text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-list"></i>
                                 </div>
                                 <select id="subject_type_edit" name="subject_type" required
-                                    class="pl-10 pr-10 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50 appearance-none">
+                                    class="form-input pl-10 pr-10 py-3 w-full rounded-lg appearance-none">
                                     <option value="General Education" <?php echo ($editCourse['subject_type'] === 'General Education') ? 'selected' : ''; ?>>General Education</option>
                                     <option value="Professional Course" <?php echo ($editCourse['subject_type'] === 'Professional Course') ? 'selected' : ''; ?>>Professional Course</option>
                                 </select>
@@ -256,12 +323,12 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         <div>
                             <label for="units_edit" class="block text-sm font-medium text-gray-dark mb-1">Total Units <span class="text-red-500">*</span></label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-calculator text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-calculator"></i>
                                 </div>
                                 <input type="number" id="units_edit" name="units" min="1" required
                                     value="<?php echo htmlspecialchars($editCourse['units'] ?? '3'); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50"
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg"
                                     aria-required="true">
                             </div>
                             <p class="text-red-500 text-xs mt-1 hidden error-message">Total units must be at least 1.</p>
@@ -269,56 +336,48 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                         <div>
                             <label for="lecture_units_edit" class="block text-sm font-medium text-gray-dark mb-1">Lecture Units</label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-chalkboard-teacher text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-chalkboard-teacher"></i>
                                 </div>
                                 <input type="number" id="lecture_units_edit" name="lecture_units" min="0"
                                     value="<?php echo htmlspecialchars($editCourse['lecture_units'] ?? '0'); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                             </div>
                         </div>
                         <div>
                             <label for="lab_units_edit" class="block text-sm font-medium text-gray-dark mb-1">Lab Units</label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-flask text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-flask"></i>
                                 </div>
                                 <input type="number" id="lab_units_edit" name="lab_units" min="0"
                                     value="<?php echo htmlspecialchars($editCourse['lab_units'] ?? '0'); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                             </div>
                         </div>
                         <div>
                             <label for="lecture_hours_edit" class="block text-sm font-medium text-gray-dark mb-1">Lecture Hours</label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-clock text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-clock"></i>
                                 </div>
                                 <input type="number" id="lecture_hours_edit" name="lecture_hours" min="0"
                                     value="<?php echo htmlspecialchars($editCourse['lecture_hours'] ?? '0'); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                             </div>
                         </div>
                         <div>
                             <label for="lab_hours_edit" class="block text-sm font-medium text-gray-dark mb-1">Lab Hours</label>
                             <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-clock text-gray-dark"></i>
+                                <div class="form-input-icon">
+                                    <i class="fas fa-clock"></i>
                                 </div>
                                 <input type="number" id="lab_hours_edit" name="lab_hours" min="0"
                                     value="<?php echo htmlspecialchars($editCourse['lab_hours'] ?? '0'); ?>"
-                                    class="pl-10 pr-4 py-3 w-full rounded-lg border-gray-light bg-white shadow-sm input-focus focus:ring focus:ring-gold focus:ring-opacity-50">
+                                    class="form-input pl-10 pr-4 py-3 w-full rounded-lg">
                             </div>
                         </div>
-                        <div class="md:col-span-2">
-                            <div class="flex items-center bg-gray-50 p-4 rounded-lg border border-gray-light">
-                                <input type="checkbox" id="is_active_edit" name="is_active"
-                                    <?php echo (isset($editCourse['is_active']) && $editCourse['is_active']) ? 'checked' : ''; ?>
-                                    class="h-5 w-5 text-gold focus:ring-gold border-gray-light rounded">
-                                <label for="is_active_edit" class="ml-2 text-sm text-gray-dark">Active</label>
-                            </div>
-                        </div>
-                        <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-gray-light">
+                        <div class="md:col-span-2 flex justify-end space-x-3 pt-4 border-t border-yellow-light">
                             <button type="button" id="cancelEditCourseModalBtn"
                                 class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">Cancel</button>
                             <button type="submit" class="btn-gold px-5 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium">Update Course</button>
@@ -330,11 +389,11 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
 
         <!-- Courses Table -->
         <div class="bg-white rounded-xl shadow-lg fade-in">
-            <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+            <div class="flex justify-between items-center p-6 border-b border-yellow-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
                 <h5 class="text-xl font-bold text-gray-dark">Courses List</h5>
                 <div class="flex items-center gap-4">
                     <span id="resultCount" class="text-sm font-medium text-gray-600">Showing all courses</span>
-                    <span class="text-sm font-medium text-gray-dark bg-gray-light px-3 py-1 rounded-full"><?php echo $totalCourses; ?> Total</span>
+                    <span class="text-sm font-medium text-gray-dark bg-yellow-light px-3 py-1 rounded-full"><?php echo $totalCourses; ?> Total</span>
                 </div>
             </div>
             <div class="overflow-hidden">
@@ -349,7 +408,6 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                                 <th class="table-header text-left hidden md:table-cell">Units</th>
                                 <th class="table-header text-left hidden lg:table-cell">Lecture</th>
                                 <th class="table-header text-left hidden lg:table-cell">Lab</th>
-                                <th class="table-header text-left">Status</th>
                                 <th class="table-header text-left">Actions</th>
                             </tr>
                         </thead>
@@ -370,8 +428,7 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                                         data-code="<?php echo htmlspecialchars(strtolower($course['course_code'])); ?>"
                                         data-name="<?php echo htmlspecialchars(strtolower($course['course_name'])); ?>"
                                         data-department="<?php echo htmlspecialchars(strtolower($course['department_name'] ?? '')); ?>"
-                                        data-subject-type="<?php echo htmlspecialchars(strtolower($course['subject_type'])); ?>"
-                                        data-status="<?php echo $course['is_active'] ? 'active' : 'inactive'; ?>">
+                                        data-subject-type="<?php echo htmlspecialchars(strtolower($course['subject_type'])); ?>">
 
                                         <td class="table-cell">
                                             <div class="font-semibold text-gray-900 curriculum-code">
@@ -420,31 +477,13 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                                         </td>
 
                                         <td class="table-cell">
-                                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full
-                                                <?php echo $course['is_active']
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-red-100 text-red-800'; ?>">
-                                                <?php echo $course['is_active'] ? 'Active' : 'Inactive'; ?>
-                                            </span>
-                                        </td>
-
-                                        <td class="table-cell">
-                                            <div class="flex flex-col sm:flex-row gap-6">
+                                            <div class="flex sm:flex-row gap-6">
                                                 <div class="relative group">
                                                     <a href="courses?edit=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                                        class="text-gold hover:text-gold-900 action-icon" title="Edit Course">
+                                                        class="text-yellow-primary hover:text-yellow-900 action-icon" title="Edit Course">
                                                         <i class="fas fa-pencil-alt"></i>
                                                     </a>
                                                     <span class="tooltip">Edit</span>
-                                                </div>
-                                                <div class="relative group">
-                                                    <a href="courses?toggle_status=<?php echo htmlspecialchars($course['course_id']); ?>&page=<?php echo $page; ?>&search=<?php echo urlencode($searchTerm); ?>"
-                                                        class="text-blue-600 hover:text-blue-800 action-icon"
-                                                        onclick="return confirm('Are you sure you want to <?php echo $course['is_active'] ? 'deactivate' : 'activate'; ?> this course?');"
-                                                        title="<?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?> Course">
-                                                        <i class="fas fa-power-off"></i>
-                                                    </a>
-                                                    <span class="tooltip"><?php echo $course['is_active'] ? 'Deactivate' : 'Activate'; ?></span>
                                                 </div>
                                             </div>
                                         </td>
@@ -467,7 +506,7 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
 
             <!-- Pagination -->
             <?php if ($totalPages > 1): ?>
-                <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl">
+                <div class="px-6 py-4 bg-gray-50 border-t border-yellow-200 rounded-b-xl">
                     <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div class="text-sm text-gray-600">
                             Showing <?php echo ($offset + 1); ?> to <?php echo min($offset + $perPage, $totalCourses); ?> of <?php echo $totalCourses; ?> courses
@@ -495,7 +534,7 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                             <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
                                 <a href="courses?page=<?php echo $i; ?>&search=<?php echo urlencode($searchTerm); ?>"
                                     class="px-3 py-2 text-sm rounded-lg transition-colors duration-200 <?php echo $i === $page
-                                                                                                            ? 'bg-gold text-white font-medium'
+                                                                                                            ? 'bg-yellow-primary text-white font-medium'
                                                                                                             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'; ?>">
                                     <?php echo $i; ?>
                                 </a>
@@ -544,7 +583,6 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             }
             const modalContent = modal.querySelector('.modal-content');
             modal.classList.remove('hidden');
-            modal.classList.add('active');
             modalContent.classList.remove('scale-95');
             modalContent.classList.add('scale-100');
             document.body.style.overflow = 'hidden';
@@ -556,7 +594,6 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             const modalContent = modal.querySelector('.modal-content');
             modalContent.classList.remove('scale-100');
             modalContent.classList.add('scale-95');
-            modal.classList.remove('active');
             setTimeout(() => {
                 modal.classList.add('hidden');
                 document.body.style.overflow = 'auto';
@@ -697,6 +734,27 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
             }
         }
 
+        // Function to update hours based on units
+        function updateHours() {
+            const forms = ['addCourseForm', 'editCourseForm'];
+            forms.forEach(formId => {
+                const form = document.getElementById(formId);
+                if (form) {
+                    const lectureUnits = form.querySelector('[name="lecture_units"]');
+                    const labUnits = form.querySelector('[name="lab_units"]');
+                    const lectureHours = form.querySelector('[name="lecture_hours"]');
+                    const labHours = form.querySelector('[name="lab_hours"]');
+
+                    if (lectureUnits && lectureHours) {
+                        lectureHours.value = parseInt(lectureUnits.value) || 0; // 1 unit = 1 hour
+                    }
+                    if (labUnits && labHours) {
+                        labHours.value = (parseInt(labUnits.value) * 2) || 0; // 1 unit = 2 hours
+                    }
+                }
+            });
+        }
+
         // Event listeners and initialization
         document.addEventListener('DOMContentLoaded', () => {
             // Show toast messages
@@ -805,6 +863,19 @@ $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) &&
                             errorMessage.classList.add('hidden');
                         }
                     });
+
+                    const lectureUnits = form.querySelector('[name="lecture_units"]');
+                    const labUnits = form.querySelector('[name="lab_units"]');
+
+                    if (lectureUnits) {
+                        lectureUnits.addEventListener('input', updateHours);
+                    }
+                    if (labUnits) {
+                        labUnits.addEventListener('input', updateHours);
+                    }
+
+                    // Initial update when form loads (e.g., for edit mode)
+                    updateHours();
                 }
             });
 

@@ -2544,9 +2544,6 @@ class ChairController
         }
     }
 
-    /**
-     * Remove a section (soft delete)
-     */
     private function removeSection()
     {
         try {
@@ -3100,16 +3097,20 @@ class ChairController
                         'units' => intval($_POST['units'] ?? 0),
                         'lecture_units' => intval($_POST['lecture_units'] ?? 0),
                         'lab_units' => intval($_POST['lab_units'] ?? 0),
-                        'lecture_hours' => intval($_POST['lecture_hours'] ?? 0),
-                        'lab_hours' => intval($_POST['lab_hours'] ?? 0),
+                        'lecture_hours' => intval($_POST['lecture_hours'] ?? 0), // Will be overridden
+                        'lab_hours' => intval($_POST['lab_hours'] ?? 0),        // Will be overridden
                         'is_active' => isset($_POST['is_active']) ? 1 : 0
                     ];
+
+                    // Automatically calculate hours based on units
+                    $data['lecture_hours'] = $data['lecture_units'] * 1; // 1 lecture unit = 1 hour
+                    $data['lab_hours'] = $data['lab_units'] * 2;        // 1 lab unit = 2 hours
 
                     $errors = [];
                     if (empty($data['course_code'])) $errors[] = "Course code is required.";
                     if (empty($data['course_name'])) $errors[] = "Course name is required.";
                     if ($data['units'] < 1) $errors[] = "Units must be at least 1.";
-                    if (!in_array($data['subject_type'], ['Professional Course', 'Professional Course'])) {
+                    if (!in_array($data['subject_type'], ['Professional Course', 'General Education'])) {
                         $errors[] = "Invalid subject type.";
                     }
 

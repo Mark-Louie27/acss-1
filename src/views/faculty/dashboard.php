@@ -69,7 +69,7 @@ ob_start();
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold">PRMSU Scheduling System</h1>
-                    <h3 class="text-2xl font-bold text-white">Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h3>
+                    <h3 class="font-bold text-white">Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?>!</h3>
                     <?php if (isset($departmentName) && !empty($departmentName)): ?>
                         <p class="text-gray-300 mt-2"><?php echo htmlspecialchars($departmentName); ?></p>
                     <?php endif; ?>

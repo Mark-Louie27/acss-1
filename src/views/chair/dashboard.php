@@ -51,7 +51,7 @@ ob_start();
         </div>
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Active Courses</h3>
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Active Curriculum</h3>
                 <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.747 0-3.332.477-4.5 1.253" />
@@ -59,8 +59,8 @@ ob_start();
                 </div>
             </div>
             <div class="flex justify-between items-end">
-                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($coursesCount ?? 42); ?></p>
-                <a href="/chair/courses" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
+                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars(count($curricula ?? [])); ?></p>
+                <a href="/chair/curriculum" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
                     Manage
                     <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -90,7 +90,7 @@ ob_start();
     </div>
 
     <!-- Schedule and Curricula Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 mb-8">
+    <div class=" gap-6 lg:gap-8 mb-8">
         <!-- My Schedule Section -->
         <div class="lg:col-span-2">
             <div class="bg-white rounded-xl shadow-md p-6 h-full">
@@ -163,45 +163,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Active Curricula -->
-        <div class="bg-white rounded-xl shadow-md p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-bold text-gray-900">Active Curricula</h3>
-                <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full"><?php echo htmlspecialchars(count($curricula ?? [])); ?> Total</span>
-            </div>
-            <?php if (empty($curricula)): ?>
-                <div class="flex flex-col items-center justify-center py-8 text-center">
-                    <svg class="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p class="text-gray-500 mb-2">No active curricula available</p>
-                    <a href="/chair/curriculum" class="text-sm text-yellow-600 hover:text-yellow-700">Create a new curriculum</a>
-                </div>
-            <?php else: ?>
-                <div class="space-y-4 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                    <?php
-                    foreach ($curricula as $curriculum):
-                        $statusClass = ($curriculum['status'] ?? 'Active') === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600';
-                    ?>
-                        <div class="flex justify-between items-center p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                            <div class="flex items-center">
-                                <div class="p-2 mr-3 rounded-md bg-yellow-50">
-                                    <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($curriculum['curriculum_name']); ?></p>
-                                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars($curriculum['total_units'] ?? 0); ?> units</p>
-                                </div>
-                            </div>
-                            <span class="text-xs px-2 py-1 rounded-full <?php echo $statusClass; ?>"><?php echo htmlspecialchars($curriculum['status'] ?? 'Draft'); ?></span>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-                <a href="/chair/curriculum" class="mt-6 text-center block text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg transition duration-300 shadow-sm">View all curricula</a>
-            <?php endif; ?>
-        </div>
     </div>
 </div>
 
