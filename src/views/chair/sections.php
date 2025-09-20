@@ -88,14 +88,6 @@ ob_start();
             background-color: #b8972e;
         }
 
-        .tooltip {
-            display: none;
-        }
-
-        .group:hover .tooltip {
-            display: block;
-        }
-
         .loading::after {
             content: '';
             display: inline-block;
@@ -123,35 +115,7 @@ ob_start();
             background-color: #f9fafb;
         }
 
-        .previous-section-select {
-            border-color: var(--gray-light);
-            border-radius: 0.5rem;
-            padding: 0.5rem 1rem;
-            font-size: 1rem;
-            width: 100%;
-            transition: border-color 0.2s ease;
-        }
-
-        .previous-section-select:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
-        }
-
-        /* New style for pre-filled fields */
-        .pre-filled {
-            border-color: var(--gold);
-            background-color: #fffbeb;
-            transition: all 0.3s ease;
-        }
-
-        .pre-filled:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.3);
-        }
-
         /* Responsive Design */
-
-        /* Default: Desktop View */
         .desktop-table {
             display: block;
         }
@@ -185,7 +149,6 @@ ob_start();
                 margin-bottom: 1rem;
             }
 
-            /* Mobile Table Responsiveness */
             .table-container {
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
@@ -216,7 +179,7 @@ ob_start();
 
             .section-card-header {
                 display: flex;
-                justify-content: between;
+                justify-content: space-between;
                 align-items: flex-start;
                 margin-bottom: 0.75rem;
             }
@@ -273,7 +236,6 @@ ob_start();
             }
         }
 
-        /* Action Buttons - Icon Style */
         .action-btn {
             display: inline-flex;
             align-items: center;
@@ -332,7 +294,6 @@ ob_start();
             opacity: 1;
         }
 
-        /* Responsive Header */
         @media (max-width: 640px) {
             .page-header h1 {
                 font-size: 1.875rem;
@@ -343,15 +304,80 @@ ob_start();
                 padding: 0.25rem 0.75rem;
             }
         }
+
+        /* Empty state styles */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 1rem;
+            border: 2px dashed #e2e8f0;
+        }
+
+        .empty-state-icon {
+            width: 4rem;
+            height: 4rem;
+            margin: 0 auto 1.5rem;
+            background: var(--gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .empty-state-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state-description {
+            color: #64748b;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .empty-state-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--gold);
+            color: white;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .empty-state-action:hover {
+            background: #b8972e;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+        }
+
+        .current-semester-badge {
+            background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            border: none;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+        }
     </style>
 </head>
 
 <body class="bg-gray-light font-sans antialiased">
     <div id="toast-container" class="fixed top-5 right-5 z-50"></div>
 
-    <!-- Main Content -->
     <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <!-- Header -->
         <header class="mb-8 slide-in-left page-header">
             <div class="header-title">
                 <h1 class="text-4xl font-bold text-gray-dark">Section Management</h1>
@@ -359,25 +385,19 @@ ob_start();
             </div>
         </header>
 
-        <!-- Sections Table -->
         <div class="bg-white rounded-xl shadow-lg fade-in">
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl header-actions">
                 <h3 class="text-xl font-bold text-gray-dark mb-4 lg:mb-0">Your Department's Sections</h3>
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full lg:w-auto">
-                    <select id="semesterFilter" class="input-focus px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold w-full sm:w-auto" disabled>
-                        <?php
-                        $currentSemesterName = $currentSemester['semester_name'] ?? '';
-                        $currentAcademicYear = $currentSemester['academic_year'] ?? '';
-                        if ($currentSemesterName && $currentAcademicYear): ?>
-                            <option value="<?php echo htmlspecialchars($currentSemesterName); ?>" selected>
-                                <?php echo htmlspecialchars("{$currentSemesterName} {$currentAcademicYear}"); ?>
-                            </option>
+                    <div class="current-semester-badge text-center">
+                        <?php if ($currentSemester): ?>
+                            <?php echo htmlspecialchars("{$currentSemester['semester_name']} {$currentSemester['academic_year']}"); ?>
                         <?php else: ?>
-                            <option value="" selected>Current Semester Not Set</option>
+                            Current Semester Not Set
                         <?php endif; ?>
-                    </select>
-                    <span class="stats-badge text-sm font-medium text-gray-dark bg-gray-light px-3 py-2 rounded-full text-center sm:text-left">
-                        <?php echo array_sum(array_map('count', $groupedSections)); ?> Sections
+                    </div>
+                    <span class="stats-badge text-sm font-medium text-gray-dark bg-gray-light px-3 py-2 rounded-full text-center sm:text-left" id="sections-count">
+                        <?php echo count($currentSemesterSections); ?> Sections
                     </span>
                     <button id="openAddModalBtn" class="btn-gold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium w-full sm:w-auto">
                         <i class="fas fa-plus mr-2"></i>Add Section
@@ -386,46 +406,51 @@ ob_start();
             </div>
 
             <div class="p-6">
-                <!-- Desktop Table View -->
-                <div class="desktop-table table-container">
-                    <?php if (empty($groupedSections['1st Year']) && empty($groupedSections['2nd Year']) && empty($groupedSections['3rd Year']) && empty($groupedSections['4th Year'])): ?>
-                        <div class="text-center py-8 text-gray-dark">
-                            <i class="fas fa-layer-group text-gray-dark text-2xl mb-2"></i>
-                            <p class="font-medium">No sections found in your department</p>
-                            <p class="text-sm mt-1">Add a new section to get started</p>
+                <?php if (empty($currentSemesterSections)): ?>
+                    <!-- Empty State -->
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-layer-group"></i>
                         </div>
-                    <?php else: ?>
+                        <div class="empty-state-title">No Sections Yet</div>
+                        <div class="empty-state-description">
+                            Create your first section to start organizing students by year level and program.
+                        </div>
+                        <button class="empty-state-action" id="emptyStateAddBtn">
+                            <i class="fas fa-plus"></i>
+                            Create Your First Section
+                        </button>
+                    </div>
+                <?php else: ?>
+                    <!-- Desktop Table -->
+                    <div class="desktop-table table-container">
                         <table class="mobile-table min-w-full divide-y divide-gray-light">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Section Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Year Level</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Semester</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Academic Year</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Max Students</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-light">
                                 <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
-                                    <?php if (!empty($groupedSections[$yearLevel])): ?>
+                                    <?php if (!empty($groupedCurrentSections[$yearLevel])): ?>
                                         <tr class="collapsible-header bg-gray-100" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
-                                            <td colspan="7" class="px-6 py-3 text-sm font-semibold text-gray-dark">
+                                            <td colspan="5" class="px-6 py-3 text-sm font-semibold text-gray-dark">
                                                 <div class="flex items-center">
                                                     <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
-                                                    <?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count"><?php echo count($groupedSections[$yearLevel]); ?></span> Sections)
+                                                    <?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count"><?php echo count($groupedCurrentSections[$yearLevel]); ?></span> Sections)
                                                 </div>
                                             </td>
                                         </tr>
                             <tbody class="collapsible-content">
-                                <?php foreach ($groupedSections[$yearLevel] as $section): ?>
-                                    <tr class="hover:bg-gray-50 transition-all duration-200 section-row" data-semester="<?php echo htmlspecialchars($section['semester']); ?>">
+                                <?php foreach ($groupedCurrentSections[$yearLevel] as $section): ?>
+                                    <tr class="hover:bg-gray-50 transition-all duration-200 section-row">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['section_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['semester']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['academic_year']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div class="flex space-x-2">
@@ -452,27 +477,19 @@ ob_start();
                     <?php endforeach; ?>
                     </tbody>
                         </table>
-                    <?php endif; ?>
-                </div>
+                    </div>
 
-                <!-- Mobile Card View -->
-                <div class="mobile-cards">
-                    <?php if (empty($groupedSections['1st Year']) && empty($groupedSections['2nd Year']) && empty($groupedSections['3rd Year']) && empty($groupedSections['4th Year'])): ?>
-                        <div class="text-center py-8 text-gray-dark">
-                            <i class="fas fa-layer-group text-gray-dark text-2xl mb-2"></i>
-                            <p class="font-medium">No sections found in your department</p>
-                            <p class="text-sm mt-1">Add a new section to get started</p>
-                        </div>
-                    <?php else: ?>
+                    <!-- Mobile Cards -->
+                    <div class="mobile-cards">
                         <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
-                            <?php if (!empty($groupedSections[$yearLevel])): ?>
+                            <?php if (!empty($groupedCurrentSections[$yearLevel])): ?>
                                 <div class="year-header-mobile" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
-                                    <span><?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count-mobile"><?php echo count($groupedSections[$yearLevel]); ?></span> Sections)</span>
+                                    <span><?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count-mobile"><?php echo count($groupedCurrentSections[$yearLevel]); ?></span> Sections)</span>
                                     <i class="fas fa-chevron-down transition-transform duration-200"></i>
                                 </div>
                                 <div class="year-sections-mobile">
-                                    <?php foreach ($groupedSections[$yearLevel] as $section): ?>
-                                        <div class="section-card section-row-mobile" data-semester="<?php echo htmlspecialchars($section['semester']); ?>">
+                                    <?php foreach ($groupedCurrentSections[$yearLevel] as $section): ?>
+                                        <div class="section-card section-row-mobile">
                                             <div class="section-card-header">
                                                 <div class="section-card-title"><?php echo htmlspecialchars($section['section_name']); ?></div>
                                                 <div class="section-card-actions">
@@ -502,14 +519,6 @@ ob_start();
                                                     <span><?php echo htmlspecialchars($section['year_level']); ?></span>
                                                 </div>
                                                 <div class="section-card-detail">
-                                                    <span class="detail-label">Semester</span>
-                                                    <span><?php echo htmlspecialchars($section['semester']); ?></span>
-                                                </div>
-                                                <div class="section-card-detail">
-                                                    <span class="detail-label">Academic Year</span>
-                                                    <span><?php echo htmlspecialchars($section['academic_year']); ?></span>
-                                                </div>
-                                                <div class="section-card-detail">
                                                     <span class="detail-label">Max Students</span>
                                                     <span><?php echo htmlspecialchars($section['max_students']); ?></span>
                                                 </div>
@@ -519,8 +528,8 @@ ob_start();
                                 </div>
                             <?php endif; ?>
                         <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -538,27 +547,15 @@ ob_start();
                 <form id="addSectionForm" action="/chair/sections" method="POST">
                     <div class="p-6">
                         <div class="mb-4">
-                            <label for="reuse_section" class="block text-sm font-medium text-gray-dark mb-1">Reuse Previous Section</label>
-                            <select id="reuse_section" name="reuse_section_id" class="previous-section-select" onchange="populateFromPrevious(this)">
-                                <option value="">Select a previous section</option>
-                                <?php foreach ($previousSections as $prevSection): ?>
-                                    <option value="<?php echo htmlspecialchars($prevSection['section_id']); ?>">
-                                        <?php echo htmlspecialchars("{$prevSection['section_name']} - {$prevSection['year_level']} - {$prevSection['semester']} {$prevSection['academic_year']}"); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Select to pre-fill fields (editable after selection).</p>
-                        </div>
-                        <div class="mb-4">
                             <label for="section_name" class="block text-sm font-medium text-gray-dark mb-1">Section Name</label>
                             <input type="text" id="section_name" name="section_name"
-                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold pre-filled"
+                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
                                 required placeholder="e.g., BSIT-1A">
                         </div>
                         <div class="mb-4">
                             <label for="year_level" class="block text-sm font-medium text-gray-dark mb-1">Year Level</label>
                             <select id="year_level" name="year_level"
-                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold pre-filled"
+                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
                                 required>
                                 <option value="" disabled selected>Select year level</option>
                                 <option value="1st Year">1st Year</option>
@@ -570,14 +567,14 @@ ob_start();
                         <div class="mb-4">
                             <label for="max_students" class="block text-sm font-medium text-gray-dark mb-1">Max Students</label>
                             <input type="number" id="max_students" name="max_students"
-                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold pre-filled"
+                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
                                 required min="1" max="100" value="40">
                         </div>
                         <div class="mb-4">
                             <label class="block text-sm font-medium text-gray-dark mb-1">Semester & Academic Year</label>
-                            <p class="text-gray-dark" id="current_semester_display">
+                            <div class="current-semester-badge">
                                 <?php echo $currentSemester ? htmlspecialchars($currentSemester['semester_name'] . ' ' . $currentSemester['academic_year']) : 'Not set'; ?>
-                            </p>
+                            </div>
                             <input type="hidden" name="add_section" value="1">
                         </div>
                     </div>
@@ -633,7 +630,9 @@ ob_start();
                         </div>
                         <div class="mb-4">
                             <label class="block text-sm font-medium text-gray-dark mb-1">Semester</label>
-                            <p class="text-gray-dark" id="edit_semester"></p>
+                            <div class="current-semester-badge" id="edit_semester">
+                                <?php echo $currentSemester ? htmlspecialchars($currentSemester['semester_name'] . ' ' . $currentSemester['academic_year']) : 'Not set'; ?>
+                            </div>
                             <input type="hidden" id="edit_section_id" name="section_id">
                             <input type="hidden" name="edit_section" value="1">
                         </div>
@@ -685,84 +684,16 @@ ob_start();
     </div>
 
     <script>
-        // Semester Filter (Locked to Current Semester)
-        const semesterFilter = document.getElementById('semesterFilter');
-        const currentSemester = '<?php echo $currentSemester ? htmlspecialchars($currentSemester['semester_name']) : ""; ?>';
-        const sectionRows = document.querySelectorAll('.section-row');
-        const sectionRowsMobile = document.querySelectorAll('.section-row-mobile');
-        const yearHeaders = document.querySelectorAll('.collapsible-header');
-        const yearHeadersMobile = document.querySelectorAll('.year-header-mobile');
-        const sectionCountSpan = document.querySelector('.stats-badge');
-
-        function filterByCurrentSemester() {
-            let visibleSections = 0;
-
-            // Filter desktop table rows
-            sectionRows.forEach(row => {
-                const semester = row.dataset.semester;
-                if (semester === currentSemester) {
-                    row.style.display = '';
-                    visibleSections++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-
-            // Filter mobile card rows
-            sectionRowsMobile.forEach(row => {
-                const semester = row.dataset.semester;
-                if (semester === currentSemester) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-
-            // Update desktop year headers
-            yearHeaders.forEach(header => {
-                const yearLevel = header.dataset.yearLevel;
-                const yearSections = Array.from(sectionRows).filter(row =>
-                    row.closest('tbody').previousElementSibling.dataset.yearLevel === yearLevel
-                );
-                const visibleYearSections = yearSections.filter(row => row.style.display !== 'none').length;
-
-                header.querySelector('.section-count').textContent = visibleYearSections;
-                header.style.display = visibleYearSections > 0 ? '' : 'none';
-
-                const content = header.nextElementSibling;
-                if (visibleYearSections > 0 && content.classList.contains('hidden')) {
-                    content.classList.remove('hidden');
-                    header.querySelector('.fas').classList.remove('fa-chevron-down');
-                    header.querySelector('.fas').classList.add('fa-chevron-up');
-                }
-            });
-
-            // Update mobile year headers
-            yearHeadersMobile.forEach(header => {
-                const yearLevel = header.dataset.yearLevel;
-                const yearSectionsMobile = header.nextElementSibling.querySelectorAll('.section-row-mobile');
-                const visibleMobileSections = Array.from(yearSectionsMobile).filter(row => row.style.display !== 'none').length;
-
-                header.querySelector('.section-count-mobile').textContent = visibleMobileSections;
-                header.style.display = visibleMobileSections > 0 ? '' : 'none';
-                header.nextElementSibling.style.display = visibleMobileSections > 0 ? '' : 'none';
-            });
-
-            if (sectionCountSpan) {
-                sectionCountSpan.textContent = `${visibleSections} Sections`;
-            }
-        }
-
-        // Add Section Modal and Previous Section Logic
         document.addEventListener('DOMContentLoaded', () => {
-            filterByCurrentSemester();
-
             // Toast Notifications
             <?php if (isset($success)): ?>
                 showToast('<?php echo htmlspecialchars($success); ?>', 'bg-green-500');
             <?php endif; ?>
             <?php if (isset($error)): ?>
                 showToast('<?php echo htmlspecialchars($error); ?>', 'bg-red-500');
+            <?php endif; ?>
+            <?php if (isset($info)): ?>
+                showToast('<?php echo htmlspecialchars($info); ?>', 'bg-blue-500');
             <?php endif; ?>
 
             function showToast(message, bgColor) {
@@ -797,120 +728,96 @@ ob_start();
                 }, 200);
             }
 
-            document.getElementById('openAddModalBtn').addEventListener('click', () => {
-                openModal('add-modal');
-                document.getElementById('reuse_section').value = '';
-                populateFromPrevious(document.getElementById('reuse_section')); // Reset fields
-            });
+            // Add Section Modal handlers
+            document.getElementById('openAddModalBtn').addEventListener('click', () => openModal('add-modal'));
 
-            document.getElementById('closeAddModalBtn').addEventListener('click', () => {
-                closeModal('add-modal');
-            });
-
-            document.getElementById('cancelAddBtn').addEventListener('click', () => {
-                closeModal('add-modal');
-            });
-
-            function populateFromPrevious(select) {
-                const sectionNameInput = document.getElementById('section_name');
-                const yearLevelSelect = document.getElementById('year_level');
-                const maxStudentsInput = document.getElementById('max_students');
-                const semesterDisplay = document.getElementById('current_semester_display');
-
-                // Remove pre-filled class initially
-                sectionNameInput.classList.remove('pre-filled');
-                yearLevelSelect.classList.remove('pre-filled');
-                maxStudentsInput.classList.remove('pre-filled');
-
-                if (select.value) {
-                    const section = <?php echo json_encode($previousSections); ?>.find(s => s.section_id == select.value);
-                    if (section) {
-                        sectionNameInput.value = section.section_name || '';
-                        sectionNameInput.classList.add('pre-filled');
-
-                        yearLevelSelect.value = section.year_level || '';
-                        yearLevelSelect.classList.add('pre-filled');
-
-                        maxStudentsInput.value = section.max_students || 40;
-                        maxStudentsInput.classList.add('pre-filled');
-                    }
-                } else {
-                    sectionNameInput.value = '';
-                    yearLevelSelect.value = '';
-                    maxStudentsInput.value = '40';
-                }
-                // Ensure semester display reflects current semester
-                semesterDisplay.textContent = '<?php echo $currentSemester ? htmlspecialchars($currentSemester['semester_name'] . ' ' . $currentSemester['academic_year']) : "Not set"; ?>';
+            // Only attach empty state button if it exists
+            const emptyStateBtn = document.getElementById('emptyStateAddBtn');
+            if (emptyStateBtn) {
+                emptyStateBtn.addEventListener('click', () => openModal('add-modal'));
             }
 
-            // Edit Section Modal - Handle both desktop and mobile buttons
+            document.getElementById('closeAddModalBtn').addEventListener('click', () => closeModal('add-modal'));
+            document.getElementById('cancelAddBtn').addEventListener('click', () => closeModal('add-modal'));
+
+            // Edit Section Modal
             function attachEditHandlers() {
-                document.querySelectorAll('.edit-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const sectionId = btn.dataset.id;
-                        const sectionName = btn.dataset.name;
-                        const yearLevel = btn.dataset.year;
-                        const maxStudents = btn.dataset.max;
+                const editButtons = document.querySelectorAll('.edit-btn');
+                console.log('Found edit buttons:', editButtons.length);
 
-                        // Get semester info from the row
-                        let semester;
-                        const desktopRow = btn.closest('tr');
-                        if (desktopRow) {
-                            semester = desktopRow.querySelector('td:nth-child(4)').textContent + ' ' +
-                                desktopRow.querySelector('td:nth-child(5)').textContent;
-                        } else {
-                            // Mobile card view
-                            const mobileCard = btn.closest('.section-card');
-                            const semesterDetail = mobileCard.querySelector('.section-card-detail:nth-child(3) span:last-child').textContent;
-                            const yearDetail = mobileCard.querySelector('.section-card-detail:nth-child(4) span:last-child').textContent;
-                            semester = semesterDetail + ' ' + yearDetail;
-                        }
-
-                        document.getElementById('edit_section_id').value = sectionId;
-                        document.getElementById('edit_section_name').value = sectionName;
-                        document.getElementById('edit_year_level').value = yearLevel;
-                        document.getElementById('edit_max_students').value = maxStudents;
-                        document.getElementById('edit_semester').textContent = semester;
-
-                        openModal('edit-modal');
-                    });
+                editButtons.forEach(btn => {
+                    // Remove existing listeners to prevent duplicates
+                    btn.removeEventListener('click', handleEditClick);
+                    btn.addEventListener('click', handleEditClick);
                 });
             }
 
-            attachEditHandlers();
+            function handleEditClick(event) {
+                const btn = event.currentTarget;
+                const sectionId = btn.dataset.id;
+                const sectionName = btn.dataset.name;
+                const yearLevel = btn.dataset.year;
+                const maxStudents = btn.dataset.max;
 
-            document.getElementById('closeEditModalBtn').addEventListener('click', () => {
-                closeModal('edit-modal');
-            });
+                console.log('Edit clicked:', {
+                    sectionId,
+                    sectionName,
+                    yearLevel,
+                    maxStudents
+                });
 
-            document.getElementById('cancelEditBtn').addEventListener('click', () => {
-                closeModal('edit-modal');
-            });
+                document.getElementById('edit_section_id').value = sectionId;
+                document.getElementById('edit_section_name').value = sectionName;
+                document.getElementById('edit_year_level').value = yearLevel;
+                document.getElementById('edit_max_students').value = maxStudents;
 
-            // Remove Section Modal - Handle both desktop and mobile buttons
+                openModal('edit-modal');
+            }
+
+            // Remove Section Modal
             function attachRemoveHandlers() {
-                document.querySelectorAll('.remove-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const sectionId = btn.dataset.id;
-                        const sectionName = btn.dataset.name;
-                        document.getElementById('remove-modal-section-id').value = sectionId;
-                        document.getElementById('remove-modal-section-name').textContent = sectionName;
-                        openModal('remove-modal');
-                    });
+                const removeButtons = document.querySelectorAll('.remove-btn');
+                console.log('Found remove buttons:', removeButtons.length);
+
+                removeButtons.forEach(btn => {
+                    // Remove existing listeners to prevent duplicates
+                    btn.removeEventListener('click', handleRemoveClick);
+                    btn.addEventListener('click', handleRemoveClick);
                 });
             }
 
+            function handleRemoveClick(event) {
+                const btn = event.currentTarget;
+                const sectionId = btn.dataset.id;
+                const sectionName = btn.dataset.name;
+
+                console.log('Remove clicked:', {
+                    sectionId,
+                    sectionName
+                });
+
+                const modalSectionId = document.getElementById('remove-modal-section-id');
+                const modalSectionName = document.getElementById('remove-modal-section-name');
+                if (modalSectionId && modalSectionName) {
+                    modalSectionId.value = sectionId;
+                    modalSectionName.textContent = sectionName;
+                } else {
+                    console.error('Modal elements not found');
+                }
+                openModal('remove-modal');
+            }
+
+            // Attach handlers initially
+            attachEditHandlers();
             attachRemoveHandlers();
 
-            document.getElementById('closeRemoveModalBtn').addEventListener('click', () => {
-                closeModal('remove-modal');
-            });
+            // Modal close handlers
+            document.getElementById('closeEditModalBtn').addEventListener('click', () => closeModal('edit-modal'));
+            document.getElementById('cancelEditBtn').addEventListener('click', () => closeModal('edit-modal'));
+            document.getElementById('closeRemoveModalBtn').addEventListener('click', () => closeModal('remove-modal'));
+            document.getElementById('cancelRemoveBtn').addEventListener('click', () => closeModal('remove-modal'));
 
-            document.getElementById('cancelRemoveBtn').addEventListener('click', () => {
-                closeModal('remove-modal');
-            });
-
-            // Close modals on backdrop click
+            // Modal click outside to close
             ['add-modal', 'edit-modal', 'remove-modal'].forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 modal.addEventListener('click', (e) => {
@@ -918,7 +825,7 @@ ob_start();
                 });
             });
 
-            // Close modals on ESC key
+            // ESC key to close modals
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     ['add-modal', 'edit-modal', 'remove-modal'].forEach(modalId => {
@@ -928,7 +835,7 @@ ob_start();
                 }
             });
 
-            // Collapsible Year Level Sections - Desktop
+            // Collapsible year headers for desktop
             document.querySelectorAll('.collapsible-header').forEach(header => {
                 header.addEventListener('click', () => {
                     const content = header.nextElementSibling;
@@ -939,7 +846,7 @@ ob_start();
                 });
             });
 
-            // Collapsible Year Level Sections - Mobile
+            // Collapsible year headers for mobile
             document.querySelectorAll('.year-header-mobile').forEach(header => {
                 header.addEventListener('click', () => {
                     const content = header.nextElementSibling;
@@ -956,45 +863,7 @@ ob_start();
                     }
                 });
             });
-
-            // Handle window resize to ensure proper display
-            window.addEventListener('resize', () => {
-                filterByCurrentSemester();
-            });
         });
-
-        // Make populateFromPrevious globally accessible
-        window.populateFromPrevious = function(select) {
-            const sectionNameInput = document.getElementById('section_name');
-            const yearLevelSelect = document.getElementById('year_level');
-            const maxStudentsInput = document.getElementById('max_students');
-            const semesterDisplay = document.getElementById('current_semester_display');
-
-            // Remove pre-filled class initially
-            sectionNameInput.classList.remove('pre-filled');
-            yearLevelSelect.classList.remove('pre-filled');
-            maxStudentsInput.classList.remove('pre-filled');
-
-            if (select.value) {
-                const section = <?php echo json_encode($previousSections); ?>.find(s => s.section_id == select.value);
-                if (section) {
-                    sectionNameInput.value = section.section_name || '';
-                    sectionNameInput.classList.add('pre-filled');
-
-                    yearLevelSelect.value = section.year_level || '';
-                    yearLevelSelect.classList.add('pre-filled');
-
-                    maxStudentsInput.value = section.max_students || 40;
-                    maxStudentsInput.classList.add('pre-filled');
-                }
-            } else {
-                sectionNameInput.value = '';
-                yearLevelSelect.value = ''; 
-                maxStudentsInput.value = '40';
-            }
-            // Ensure semester display reflects current semester
-            semesterDisplay.textContent = '<?php echo $currentSemester ? htmlspecialchars($currentSemester['semester_name'] . ' ' . $currentSemester['academic_year']) : "Not set"; ?>';
-        };
     </script>
 </body>
 

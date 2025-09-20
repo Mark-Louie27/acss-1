@@ -513,6 +513,7 @@ class ChairController
                 $_SESSION['schedule_cache'][$departmentId] = $this->loadCommonData($departmentId, $currentSemester);
                 error_log("Cache initialized for dept $departmentId: " . print_r($_SESSION['schedule_cache'][$departmentId], true));
             }
+
             $cachedData = $_SESSION['schedule_cache'][$departmentId];
             $curricula = $cachedData['curricula'];
             $classrooms = $cachedData['classrooms'];
@@ -520,6 +521,17 @@ class ChairController
             $sections = $cachedData['sections'];
 
             $selectedCurriculumId = $_POST['curriculum_id'] ?? $_GET['curriculum_id'] ?? ($curricula[0]['curriculum_id'] ?? null);
+
+            $jsData = [
+                'departmentId' => $departmentId,
+                'currentSemester' => $currentSemester,
+                'sectionsData' => $sections,
+                'currentAcademicYear' => $currentSemester['academic_year'] ?? '',
+                'faculty' => $faculty ?? [],
+                'classrooms' => $classrooms ?? [],
+                'curricula' => $curricula ?? [],
+                'schedules' => $schedules
+            ];
 
             // Handle download requests
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'download') {
@@ -551,6 +563,16 @@ class ChairController
                 $schedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
             }
         } else {
+            $jsData = [
+                'departmentId' => null,
+                'currentSemester' => null,
+                'sectionsData' => [],
+                'currentAcademicYear' => '',
+                'faculty' => [],
+                'classrooms' => [],
+                'curricula' => [],
+                'schedules' => []
+            ];
             $error = "No department assigned to chair.";
         }
 
@@ -565,7 +587,11 @@ class ChairController
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['curriculum_id'])) {
             error_log("Invalid request: Method or curriculum_id missing");
-            echo json_encode(['success' => false, 'message' => 'Invalid request method or missing parameters.']);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Invalid request method or missing curriculum selection.',
+                'validation_errors' => ['Please select a curriculum before generating schedules.']
+            ]);
             exit;
         }
 
@@ -575,44 +601,117 @@ class ChairController
 
         if (!$departmentId || !$currentSemester) {
             error_log("No department or semester: dept=$departmentId, semester=" . print_r($currentSemester, true));
-            echo json_encode(['success' => false, 'message' => 'Could not determine department or current semester.']);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Could not determine department or current semester.',
+                'validation_errors' => [
+                    'Department assignment not found.',
+                    'Active semester not configured.'
+                ]
+            ]);
             exit;
         }
 
         try {
             $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester);
             error_log("Cached data loaded: " . print_r($cachedData, true));
+
             $curriculumId = $_POST['curriculum_id'];
+
+            // Validate required data
+            $validationErrors = [];
+
+            if (empty($cachedData['faculty'])) {
+                $validationErrors[] = 'No faculty members found for this department.';
+            }
+
+            if (empty($cachedData['classrooms'])) {
+                $validationErrors[] = 'No classrooms available for scheduling.';
+            }
 
             // Ensure yearLevels is an array, even if empty
             $yearLevels = isset($_POST['year_levels']) && is_array($_POST['year_levels']) ? $_POST['year_levels'] : [];
             if (empty($yearLevels)) {
                 $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year']; // Default to all years if none selected
             }
+
+            if (empty($yearLevels)) {
+                $validationErrors[] = 'No year levels selected for schedule generation.';
+            }
+
+            // Check if sections exist for selected curriculum and year levels
+            $sections = isset($_POST['sections']) && is_array($_POST['sections']) ? $_POST['sections'] : [];
+            if (empty($sections)) {
+                $validationErrors[] = 'No sections selected for schedule generation.';
+            }
+
+            // If validation errors exist, return them
+            if (!empty($validationErrors)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Validation failed: Missing required data.',
+                    'validation_errors' => $validationErrors
+                ]);
+                exit;
+            }
+
             error_log("Year levels processed: " . print_r($yearLevels, true));
 
             $classrooms = $cachedData['classrooms'];
             $faculty = $cachedData['faculty'];
 
+            // Generate schedules with detailed tracking
             $schedules = $this->generateSchedules($curriculumId, $yearLevels, $departmentId, $currentSemester, $classrooms, $faculty);
             $this->removeDuplicateSchedules($departmentId, $currentSemester);
 
             $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
 
+            // Get curriculum courses for comparison
             $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
             $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
-            $unassigned = !empty(array_diff($allCourseCodes, $assignedCourseCodes));
+            $unassignedCourses = array_diff($allCourseCodes, $assignedCourseCodes);
+            $hasUnassigned = !empty($unassignedCourses);
 
-            echo json_encode([
+            // Calculate additional statistics
+            $totalSections = count(array_unique(array_column($consolidatedSchedules, 'section_name')));
+            $totalFacultyUsed = count(array_unique(array_column($consolidatedSchedules, 'faculty_name')));
+            $totalRoomsUsed = count(array_unique(array_filter(array_column($consolidatedSchedules, 'room_name'))));
+
+            $response = [
                 'success' => true,
                 'schedules' => $consolidatedSchedules,
-                'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses",
-                'unassigned' => $unassigned
-            ]);
+                'message' => "Schedules generated: " . count($consolidatedSchedules) . " courses scheduled",
+                'unassigned' => $hasUnassigned,
+                'statistics' => [
+                    'total_courses' => count($consolidatedSchedules),
+                    'total_sections' => $totalSections,
+                    'total_faculty_used' => $totalFacultyUsed,
+                    'total_rooms_used' => $totalRoomsUsed,
+                    'unassigned_courses' => count($unassignedCourses),
+                    'success_rate' => count($allCourseCodes) > 0 ?
+                        round((count($assignedCourseCodes) / count($allCourseCodes)) * 100) : 100
+                ]
+            ];
+
+            // Add warnings if there are issues
+            if ($hasUnassigned) {
+                $response['warnings'] = [
+                    count($unassignedCourses) . ' courses could not be automatically scheduled',
+                    'Check for conflicting time slots or unavailable resources',
+                    'Review faculty assignments and classroom availability'
+                ];
+            }
+
+            echo json_encode($response);
             exit;
         } catch (Exception $e) {
             error_log("Exception in generateSchedulesAjax: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()]);
+            echo json_encode([
+                'success' => false,
+                'message' => 'An error occurred during schedule generation.',
+                'error_details' => $e->getMessage(),
+                'validation_errors' => ['System error: Please contact administrator if problem persists.']
+            ]);
             exit;
         }
     }
@@ -2262,12 +2361,37 @@ class ChairController
             if (!$departmentId) {
                 error_log("sections: No department found for chairId: $chairId");
                 $error = "No department assigned to this chair.";
-                $sections = [];
+                $currentSemesterSections = [];
+                $groupedCurrentSections = [
+                    '1st Year' => [],
+                    '2nd Year' => [],
+                    '3rd Year' => [],
+                    '4th Year' => []
+                ];
                 $currentSemester = null;
-                $previousSections = [];
                 require_once __DIR__ . '/../views/chair/sections.php';
                 return;
             }
+
+            // Get current semester first
+            $currentSemester = $this->getCurrentSemester();
+
+            if (!$currentSemester) {
+                error_log("sections: No current semester set");
+                $error = "Current semester is not set. Please contact your administrator.";
+                $currentSemesterSections = [];
+                $groupedCurrentSections = [
+                    '1st Year' => [],
+                    '2nd Year' => [],
+                    '3rd Year' => [],
+                    '4th Year' => []
+                ];
+                require_once __DIR__ . '/../views/chair/sections.php';
+                return;
+            }
+
+            // Auto-transition sections from previous semesters to inactive
+            $this->autoTransitionSections($departmentId, $currentSemester);
 
             // Handle POST requests for add/remove/edit
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -2281,15 +2405,19 @@ class ChairController
                 // Retrieve success/error messages after POST
                 $success = $_SESSION['success'] ?? null;
                 $error = $_SESSION['error'] ?? null;
-                unset($_SESSION['success'], $_SESSION['error']);
+                $info = $_SESSION['info'] ?? null;
+                unset($_SESSION['success'], $_SESSION['error'], $_SESSION['info']);
             }
 
-            // Fetch sections, grouped by year level
+            // Fetch ONLY current semester sections
             $query = "
             SELECT s.*, p.program_name 
             FROM sections s 
             JOIN programs p ON s.department_id = p.department_id 
-            WHERE s.department_id = :department_id AND s.is_active = 1
+            WHERE s.department_id = :department_id 
+                AND s.is_active = 1
+                AND s.semester = :semester
+                AND s.academic_year = :academic_year
             ORDER BY 
                 CASE s.year_level
                     WHEN '1st Year' THEN 1
@@ -2300,96 +2428,131 @@ class ChairController
                 END,
                 s.section_name
         ";
+
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
+            $stmt->bindParam(':semester', $currentSemester['semester_name'], PDO::PARAM_STR);
+            $stmt->bindParam(':academic_year', $currentSemester['academic_year'], PDO::PARAM_STR);
             $stmt->execute();
-            $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $currentSemesterSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Group sections by year level
-            $groupedSections = [
+            // Group current semester sections by year level
+            $groupedCurrentSections = [
                 '1st Year' => [],
                 '2nd Year' => [],
                 '3rd Year' => [],
                 '4th Year' => []
             ];
-            foreach ($sections as $section) {
-                $groupedSections[$section['year_level']][] = $section;
+
+            foreach ($currentSemesterSections as $section) {
+                if (isset($groupedCurrentSections[$section['year_level']])) {
+                    $groupedCurrentSections[$section['year_level']][] = $section;
+                }
             }
 
-            // Get current semester
-            $currentSemester = $this->getCurrentSemester();
-
-            // Fetch previous sections (inactive records from past semesters) with section_id
-            $query = "
-            SELECT section_id, section_name, year_level, max_students, semester, academic_year 
-            FROM sections 
-            WHERE department_id = :department_id AND is_active = 0
-            ORDER BY academic_year DESC, semester DESC
-        ";
-            $stmt = $this->db->prepare($query);
-            $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
-            $stmt->execute();
-            $previousSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("sections: Found " . count($currentSemesterSections) . " sections for current semester");
 
             require_once __DIR__ . '/../views/chair/sections.php';
         } catch (PDOException $e) {
             error_log("sections: PDO Error - " . $e->getMessage());
             $error = "Failed to load sections.";
-            $sections = [];
-            $groupedSections = [
+            $currentSemesterSections = [];
+            $groupedCurrentSections = [
                 '1st Year' => [],
                 '2nd Year' => [],
                 '3rd Year' => [],
                 '4th Year' => []
             ];
             $currentSemester = null;
-            $previousSections = [];
             require_once __DIR__ . '/../views/chair/sections.php';
+        }
+    }
+
+    /**
+     * Automatically transition sections from previous semesters to inactive status
+     * This runs every time the sections page is accessed
+     */
+    private function autoTransitionSections($departmentId, $currentSemester)
+    {
+        try {
+            error_log("autoTransitionSections: Starting auto-transition for department $departmentId");
+
+            // Find all active sections that are NOT in the current semester
+            $query = "
+            UPDATE sections 
+            SET is_active = 0, updated_at = NOW() 
+            WHERE department_id = :department_id 
+                AND is_active = 1 
+                AND (
+                    semester != :current_semester 
+                    OR academic_year != :current_academic_year
+                )
+        ";
+
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':current_semester' => $currentSemester['semester_name'],
+                ':current_academic_year' => $currentSemester['academic_year']
+            ]);
+
+            $transitionedCount = $stmt->rowCount();
+
+            if ($transitionedCount > 0) {
+                error_log("autoTransitionSections: Transitioned $transitionedCount sections to inactive for department $departmentId");
+
+                // Optional: Add a session message to inform the user
+                if (!isset($_SESSION['auto_transition_notified'])) {
+                    $_SESSION['info'] = "Sections from previous semesters have been automatically archived.";
+                    $_SESSION['auto_transition_notified'] = true;
+                }
+            }
+        } catch (PDOException $e) {
+            error_log("autoTransitionSections: Error - " . $e->getMessage());
+            // Don't throw error to user - this is a background process
         }
     }
 
     private function addSection($departmentId)
     {
+        error_log("addSection: Starting add section process");
         try {
-            $section_name = trim($_POST['section_name'] ?? '');
-            $year_level = trim($_POST['year_level'] ?? '');
-            $max_students = (int)($_POST['max_students'] ?? 40);
-            $currentSemester = $_SESSION['current_semester'] ?? $this->getCurrentSemester();
+            $sectionName = trim($_POST['section_name'] ?? '');
+            $yearLevel = trim($_POST['year_level'] ?? '');
+            $maxStudents = (int)($_POST['max_students'] ?? 40);
+
+            // Input validation
+            if (!$sectionName || !$yearLevel || $maxStudents < 1 || $maxStudents > 100) {
+                $_SESSION['error'] = "Invalid input data.";
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Validate year level
+            $validYearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+            if (!in_array($yearLevel, $validYearLevels)) {
+                $_SESSION['error'] = "Invalid year level selected.";
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $currentSemester = $this->getCurrentSemester();
             if (!$currentSemester) {
-                throw new Exception("No current semester is set. Please contact the administrator.");
+                $_SESSION['error'] = "Current semester not set. Please contact your administrator.";
+                header('Location: /chair/sections');
+                exit;
             }
 
-            // Handle reuse of previous section
-            $reuseSectionId = $_POST['reuse_section_id'] ?? null;
-            if ($reuseSectionId) {
-                $query = "SELECT section_name, year_level, max_students FROM sections WHERE section_id = :section_id AND is_active = 0";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([':section_id' => $reuseSectionId]);
-                $previousSection = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($previousSection) {
-                    $section_name = $previousSection['section_name'];
-                    $year_level = $previousSection['year_level'];
-                    $max_students = $previousSection['max_students'];
-                }
-            }
+            $semesterName = $currentSemester['semester_name'];
+            $academicYear = $currentSemester['academic_year'];
 
-            // Validation
-            $errors = [];
-            if (empty($section_name)) {
-                $errors[] = "Section name is required.";
-            }
-            if (!in_array($year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year'])) {
-                $errors[] = "Invalid year level.";
-            }
-            if ($max_students < 1 || $max_students > 100) {
-                $errors[] = "Max students must be between 1 and 100.";
-            }
-            if (!$currentSemester || !isset($currentSemester['semester_name'], $currentSemester['academic_year'])) {
-                $errors[] = "No current semester is set. Please contact the administrator.";
-                error_log("addSection: No valid current semester found");
-            }
+            error_log("addSection: Adding section '$sectionName' for department $departmentId, semester $semesterName $academicYear");
 
-            // Check if section name already exists
+            // Start transaction
+            $this->db->beginTransaction();
+
+            // With the new constraint, we only need to check for active sections
+            // in the same department and academic year
             $query = "
             SELECT COUNT(*) 
             FROM sections 
@@ -2401,56 +2564,60 @@ class ChairController
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
-                ':section_name' => $section_name,
-                ':academic_year' => $currentSemester['academic_year']
+                ':section_name' => $sectionName,
+                ':academic_year' => $academicYear
             ]);
+
             if ($stmt->fetchColumn() > 0) {
-                $errors[] = "A section with this name already exists for this academic year.";
+                $this->db->rollBack();
+                $_SESSION['error'] = "A section with the name '$sectionName' already exists in this academic year.";
+                header('Location: /chair/sections');
+                exit;
             }
 
-            if (!empty($errors)) {
-                error_log("addSection: Validation errors - " . implode(", ", $errors));
-                $_SESSION['error'] = implode("<br>", $errors);
-                return;
-            }
-
-            // Insert section with current semester and academic year
+            // Insert new section
             $query = "
-            INSERT INTO sections (
-                department_id, section_name, year_level, 
-                semester, academic_year, max_students, 
-                current_students, is_active, created_at, updated_at
-            )
-            VALUES (
-                :department_id, :section_name, :year_level, 
-                :semester, :academic_year, :max_students, 
-                0, 1, NOW(), NOW()
-            )
+            INSERT INTO sections (department_id, section_name, year_level, max_students, semester, academic_year, is_active, created_at)
+            VALUES (:department_id, :section_name, :year_level, :max_students, :semester, :academic_year, 1, NOW())
         ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
-                ':section_name' => $section_name,
-                ':year_level' => $year_level,
-                ':semester' => $currentSemester['semester_name'],
-                ':academic_year' => $currentSemester['academic_year'],
-                ':max_students' => $max_students
+                ':section_name' => $sectionName,
+                ':year_level' => $yearLevel,
+                ':max_students' => $maxStudents,
+                ':semester' => $semesterName,
+                ':academic_year' => $academicYear
             ]);
 
-            $_SESSION['success'] = "Section '$section_name' added successfully.";
-            error_log("addSection: Section '$section_name' added for department_id: $departmentId");
+            // Commit transaction
+            $this->db->commit();
+
+            $_SESSION['success'] = "Section '$sectionName' added successfully.";
+            error_log("addSection: Successfully added section '$sectionName'");
         } catch (PDOException $e) {
-            error_log("addSection: Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to add section.";
+            // Rollback transaction on error
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("addSection: PDO Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to add section. Please try again.";
+        } catch (Exception $e) {
+            // Rollback transaction on any other error
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("addSection: General Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to add section. Please try again.";
         }
+
+        header('Location: /chair/sections');
+        exit;
     }
 
-    /**
-     * Edit an existing section
-     * @param int $departmentId
-     */
     private function editSection($departmentId)
     {
+        error_log("editSection: Starting edit section process");
         try {
             $section_id = (int)($_POST['section_id'] ?? 0);
             $section_name = trim($_POST['section_name'] ?? '');
@@ -2472,14 +2639,21 @@ class ChairController
                 $errors[] = "Max students must be between 1 and 100.";
             }
 
-            // Check if section exists and is active
+            if (!empty($errors)) {
+                error_log("editSection: Validation errors - " . implode(", ", $errors));
+                $_SESSION['error'] = implode(" ", $errors);
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Check if section exists, is active, and belongs to the department
             $query = "
-                 SELECT section_name, academic_year 
-                 FROM sections 
-                 WHERE section_id = :section_id 
-                 AND department_id = :department_id 
-                 AND is_active = 1
-             ";
+            SELECT section_name, semester, academic_year 
+            FROM sections 
+            WHERE section_id = :section_id 
+            AND department_id = :department_id 
+            AND is_active = 1
+        ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':section_id' => $section_id,
@@ -2488,49 +2662,47 @@ class ChairController
             $section = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$section) {
-                $errors[] = "Section not found or not active.";
                 error_log("editSection: Section ID $section_id not found or inactive for department_id: $departmentId");
+                $_SESSION['error'] = "Section not found or not accessible.";
+                header('Location: /chair/sections');
+                exit;
             }
 
             // Check for duplicate section name (excluding current section)
-            if (empty($errors)) {
-                $query = "
-                     SELECT COUNT(*) 
-                     FROM sections 
-                     WHERE department_id = :department_id 
-                     AND section_name = :section_name 
-                     AND academic_year = :academic_year 
-                     AND is_active = 1
-                     AND section_id != :section_id
-                 ";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([
-                    ':department_id' => $departmentId,
-                    ':section_name' => $section_name,
-                    ':academic_year' => $section['academic_year'],
-                    ':section_id' => $section_id
-                ]);
-                if ($stmt->fetchColumn() > 0) {
-                    $errors[] = "A section with this name already exists for this academic year.";
-                }
-            }
+            // With new constraint, only check active sections
+            $query = "
+            SELECT COUNT(*) 
+            FROM sections 
+            WHERE department_id = :department_id 
+            AND section_name = :section_name 
+            AND academic_year = :academic_year 
+            AND is_active = 1
+            AND section_id != :section_id
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':section_name' => $section_name,
+                ':academic_year' => $section['academic_year'],
+                ':section_id' => $section_id
+            ]);
 
-            if (!empty($errors)) {
-                error_log("editSection: Validation errors - " . implode(", ", $errors));
-                $_SESSION['error'] = implode("<br>", $errors);
-                return;
+            if ($stmt->fetchColumn() > 0) {
+                $_SESSION['error'] = "A section with this name already exists for this academic year.";
+                header('Location: /chair/sections');
+                exit;
             }
 
             // Update section
             $query = "
-                 UPDATE sections 
-                 SET 
-                     section_name = :section_name, 
-                     year_level = :year_level, 
-                     max_students = :max_students, 
-                     updated_at = NOW()
-                 WHERE section_id = :section_id
-             ";
+            UPDATE sections 
+            SET 
+                section_name = :section_name, 
+                year_level = :year_level, 
+                max_students = :max_students, 
+                updated_at = NOW()
+            WHERE section_id = :section_id
+        ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':section_name' => $section_name,
@@ -2542,41 +2714,87 @@ class ChairController
             $_SESSION['success'] = "Section '$section_name' updated successfully.";
             error_log("editSection: Section ID $section_id updated to '$section_name' for department_id: $departmentId");
         } catch (PDOException $e) {
-            error_log("editSection: Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to update section.";
+            error_log("editSection: PDO Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to update section. Please try again.";
+        } catch (Exception $e) {
+            error_log("editSection: General Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to update section. Please try again.";
         }
+
+        header('Location: /chair/sections');
+        exit;
     }
 
     private function removeSection()
     {
+        error_log("removeSection: Starting remove section process at " . date('Y-m-d H:i:s'));
         try {
             $section_id = (int)($_POST['section_id'] ?? 0);
+            $chairId = $_SESSION['user_id'];
+            $departmentId = $this->getChairDepartment($chairId);
 
-            // Validate section exists and is active
-            $query = "SELECT section_name FROM sections WHERE section_id = :section_id AND is_active = 1";
+            if ($section_id <= 0) {
+                error_log("removeSection: Invalid section ID: $section_id");
+                $_SESSION['error'] = "Invalid section ID.";
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Validate section belongs to the chair's department
+            $query = "
+            SELECT section_name 
+            FROM sections 
+            WHERE section_id = :section_id 
+            AND department_id = :department_id 
+            AND is_active = 1
+        ";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':section_id', $section_id, PDO::PARAM_INT);
+            $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
             $stmt->execute();
             $section = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$section) {
-                error_log("removeSection: Section ID $section_id not found or already inactive");
-                $_SESSION['error'] = "Section not found.";
-                return;
+                error_log("removeSection: Section ID $section_id not found or not accessible for department_id: $departmentId");
+                $_SESSION['error'] = "Section not found or not accessible.";
+                header('Location: /chair/sections');
+                exit;
             }
 
-            // Soft delete section
-            $query = "UPDATE sections SET is_active = 0, updated_at = NOW() WHERE section_id = :section_id";
+            // Start transaction
+            $this->db->beginTransaction();
+
+            // Hard delete section
+            $query = "DELETE FROM sections WHERE section_id = :section_id";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':section_id', $section_id, PDO::PARAM_INT);
-            $stmt->execute();
+            $success = $stmt->execute();
+
+            if (!$success) {
+                throw new PDOException("Failed to delete section.");
+            }
+
+            // Commit transaction
+            $this->db->commit();
 
             $_SESSION['success'] = "Section '{$section['section_name']}' removed successfully.";
-            error_log("removeSection: Section ID $section_id ('{$section['section_name']}') set to inactive");
+            error_log("removeSection: Section ID $section_id ('{$section['section_name']}') deleted");
         } catch (PDOException $e) {
-            error_log("removeSection: Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to remove section.";
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("removeSection: PDO Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to remove section. Please try again. Error: " . $e->getMessage();
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("removeSection: General Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to remove section. Please try again.";
         }
+
+        header('Location: /chair/sections?refresh=1');
+        exit;
     }
 
     private function fetchCurricula($departmentId)

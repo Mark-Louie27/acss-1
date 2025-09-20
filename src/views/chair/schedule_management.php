@@ -639,16 +639,19 @@ ob_start();
         </div>
 
         <script>
-            // Global variables
             let scheduleData = <?php echo json_encode($schedules); ?> || [];
             let currentEditingId = null;
             let draggedElement = null;
 
-            // Pass PHP data to JavaScript
-            const departmentId = <?php echo json_encode($departmentId); ?>;
-            const currentSemester = <?php echo json_encode($currentSemester); ?>;
-            const rawSectionsData = <?php echo json_encode($sections); ?> || [];
-            const currentAcademicYear = "<?php echo htmlspecialchars($currentSemester['academic_year'] ?? ''); ?>";
+            // Enhanced PHP data passing with validation support
+            const jsData = <?php echo json_encode($jsData); ?>;
+            const departmentId = jsData.departmentId;
+            const currentSemester = jsData.currentSemester;
+            const rawSectionsData = jsData.sectionsData || [];
+            const currentAcademicYear = jsData.currentAcademicYear || "";
+            const faculty = jsData.faculty || [];
+            const classrooms = jsData.classrooms || [];
+            const curricula = jsData.curricula || [];
 
             // Transform sections data
             const sectionsData = Array.isArray(rawSectionsData) ? rawSectionsData.map((s, index) => ({
@@ -658,6 +661,58 @@ ob_start();
                 curriculum_id: s.curriculum_id ?? null,
                 academic_year: s.academic_year ?? ''
             })) : [];
+
+            // Validation check on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                // Check if essential data is missing
+                if (!departmentId) {
+                    showValidationToast(['No department assigned to your account. Please contact administrator.']);
+                } else if (!currentSemester) {
+                    showValidationToast(['No active semester found. Please contact administrator to configure academic calendar.']);
+                }
+
+                // Initialize other functionality
+                initializeDragAndDrop();
+                const generateBtn = document.getElementById('generate-btn');
+                if (generateBtn) generateBtn.addEventListener('click', generateSchedules);
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const tab = urlParams.get('tab');
+                if (tab === 'schedule-list') switchTab('schedule');
+                else if (tab === 'manual') switchTab('manual');
+                else if (tab === 'generate') switchTab('generate');
+            });
+
+            // Add event listeners for real-time validation
+            document.addEventListener('DOMContentLoaded', function() {
+                // Clear validation errors when user starts selecting
+                const curriculumSelect = document.getElementById('curriculum_id');
+                if (curriculumSelect) {
+                    curriculumSelect.addEventListener('change', function() {
+                        if (this.value) {
+                            highlightField('curriculum_id', false);
+                        }
+                    });
+                }
+
+                const yearLevelsSelect = document.getElementById('year_levels');
+                if (yearLevelsSelect) {
+                    yearLevelsSelect.addEventListener('change', function() {
+                        if (this.selectedOptions.length > 0 && this.selectedOptions[0].value) {
+                            highlightField('year_levels', false);
+                        }
+                    });
+                }
+
+                const sectionsSelect = document.getElementById('sections');
+                if (sectionsSelect) {
+                    sectionsSelect.addEventListener('change', function() {
+                        if (this.selectedOptions.length > 0 && this.selectedOptions[0].value) {
+                            highlightField('sections', false);
+                        }
+                    });
+                }
+            });
 
             // Tab switching
             function switchTab(tabName) {
@@ -1021,9 +1076,265 @@ ob_start();
                 });
             }
 
+            // Updated generateSchedules function with validation
+            function generateSchedules() {
+                const form = document.getElementById('generate-form');
+                const formData = new FormData(form);
+                const curriculumId = formData.get('curriculum_id');
+                const selectedYearLevels = formData.getAll('year_levels[]');
+                const selectedSections = formData.getAll('sections[]');
+
+                // Clear any existing error messages
+                clearValidationErrors();
+
+                // Validation checks
+                const validationErrors = [];
+
+                if (!curriculumId) {
+                    validationErrors.push('Please select a curriculum');
+                    highlightField('curriculum_id', true);
+                }
+
+                if (selectedYearLevels.length === 0) {
+                    validationErrors.push('Please select at least one year level');
+                    highlightField('year_levels', true);
+                }
+
+                if (selectedSections.length === 0) {
+                    validationErrors.push('Please select at least one section');
+                    highlightField('sections', true);
+                }
+
+                // Check if faculty data is available
+                if (!faculty || faculty.length === 0) {
+                    validationErrors.push('No faculty members available for assignment');
+                }
+
+                // Check if classroom data is available
+                if (!classrooms || classrooms.length === 0) {
+                    validationErrors.push('No classrooms available for assignment');
+                }
+
+                // If there are validation errors, show them and return
+                if (validationErrors.length > 0) {
+                    showValidationToast(validationErrors);
+                    return;
+                }
+
+                // Clear any previous validation highlighting
+                clearValidationErrors();
+
+                // Show loading overlay
+                document.getElementById('loading-overlay').classList.remove('hidden');
+
+                const data = {
+                    curriculum_id: curriculumId,
+                    year_levels: selectedYearLevels,
+                    sections: selectedSections,
+                    semester_id: formData.get('semester_id'),
+                    tab: 'generate'
+                };
+
+                fetch('/chair/generate-schedules', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: new URLSearchParams(data)
+                    })
+                    .then(response => {
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        return response.text();
+                    })
+                    .then(text => {
+                        let data;
+                        try {
+                            data = JSON.parse(text);
+                        } catch (e) {
+                            console.error('Invalid JSON response:', text);
+                            throw new Error('Invalid response format: ' + e.message);
+                        }
+
+                        document.getElementById('loading-overlay').classList.add('hidden');
+
+                        if (data.success) {
+                            scheduleData = data.schedules || [];
+
+                            // Show success results
+                            document.getElementById('generation-results').classList.remove('hidden');
+                            document.getElementById('total-courses').textContent = data.schedules ? data.schedules.length : 0;
+                            document.getElementById('total-sections').textContent = new Set(data.schedules?.map(s => s.section_name)).size || 0;
+
+                            // Update success rate based on unassigned courses
+                            const successRate = data.unassigned ? '95%' : '100%';
+                            document.getElementById('success-rate').textContent = successRate;
+
+                            updateScheduleDisplay(scheduleData);
+
+                            // Show appropriate message based on completion
+                            if (data.unassigned) {
+                                showCompletionToast('warning', 'Schedules generated with some conflicts!', [
+                                    'Some courses could not be automatically assigned',
+                                    'Check for time conflicts or resource limitations',
+                                    'You can manually adjust schedules in the Manual Edit tab'
+                                ]);
+                            } else {
+                                showCompletionToast('success', 'Schedules generated successfully!', [
+                                    `${data.schedules.length} courses scheduled`,
+                                    `${new Set(data.schedules?.map(s => s.section_name)).size} sections assigned`,
+                                    'All courses successfully scheduled without conflicts'
+                                ]);
+                            }
+                        } else {
+                            showValidationToast([data.message || 'Failed to generate schedules']);
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                        console.error('Error:', error);
+                        showValidationToast(['Error generating schedules: ' + error.message]);
+                    });
+            }
+
+            // New function to show validation errors as toast
+            function showValidationToast(errors) {
+                const toastContainer = getOrCreateToastContainer();
+
+                const toast = document.createElement('div');
+                toast.className = 'validation-toast bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg mb-3 transform translate-x-full transition-transform duration-300';
+
+                toast.innerHTML = `
+        <div class="flex items-start">
+            <div class="flex-shrink-0 mr-3">
+                <i class="fas fa-exclamation-triangle text-xl"></i>
+            </div>
+            <div class="flex-1">
+                <h4 class="font-semibold mb-2">Please fix the following issues:</h4>
+                <ul class="text-sm space-y-1">
+                    ${errors.map(error => `<li>• ${error}</li>`).join('')}
+                </ul>
+            </div>
+            <button onclick="removeToast(this.parentElement.parentElement)" class="ml-3 text-white hover:text-red-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+
+                toastContainer.appendChild(toast);
+
+                // Trigger animation
+                setTimeout(() => {
+                    toast.classList.remove('translate-x-full');
+                }, 100);
+
+                // Auto remove after 8 seconds
+                setTimeout(() => {
+                    removeToast(toast);
+                }, 8000);
+            }
+
+            // New function to show completion messages
+            function showCompletionToast(type, title, messages) {
+                const toastContainer = getOrCreateToastContainer();
+
+                const bgColor = type === 'success' ? 'bg-green-500' : 'bg-yellow-500';
+                const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+
+                const toast = document.createElement('div');
+                toast.className = `completion-toast ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg mb-3 transform translate-x-full transition-transform duration-300`;
+
+                toast.innerHTML = `
+        <div class="flex items-start">
+            <div class="flex-shrink-0 mr-3">
+                <i class="fas ${icon} text-xl"></i>
+            </div>
+            <div class="flex-1">
+                <h4 class="font-semibold mb-2">${title}</h4>
+                <ul class="text-sm space-y-1">
+                    ${messages.map(message => `<li>• ${message}</li>`).join('')}
+                </ul>
+            </div>
+            <button onclick="removeToast(this.parentElement.parentElement)" class="ml-3 text-white hover:opacity-70">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+
+                toastContainer.appendChild(toast);
+
+                // Trigger animation
+                setTimeout(() => {
+                    toast.classList.remove('translate-x-full');
+                }, 100);
+
+                // Auto remove after 10 seconds
+                setTimeout(() => {
+                    removeToast(toast);
+                }, 10000);
+            }
+
+            // Helper function to get or create toast container
+            function getOrCreateToastContainer() {
+                let container = document.getElementById('toast-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'toast-container';
+                    container.className = 'fixed top-4 right-4 z-50 max-w-md';
+                    document.body.appendChild(container);
+                }
+                return container;
+            }
+
+            // Helper function to remove toast
+            function removeToast(toast) {
+                if (toast && toast.parentElement) {
+                    toast.classList.add('translate-x-full');
+                    setTimeout(() => {
+                        if (toast.parentElement) {
+                            toast.parentElement.removeChild(toast);
+                        }
+                    }, 300);
+                }
+            }
+
+            // Helper function to highlight invalid fields
+            function highlightField(fieldId, isError) {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    if (isError) {
+                        field.classList.add('border-red-500', 'ring-2', 'ring-red-200');
+                        field.classList.remove('border-gray-300');
+                    } else {
+                        field.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+                        field.classList.add('border-gray-300');
+                    }
+                }
+            }
+
+            // Helper function to clear validation errors
+            function clearValidationErrors() {
+                const fields = ['curriculum_id', 'year_levels', 'sections'];
+                fields.forEach(fieldId => {
+                    highlightField(fieldId, false);
+                });
+
+                // Remove any existing validation toasts
+                const existingToasts = document.querySelectorAll('.validation-toast, .completion-toast');
+                existingToasts.forEach(toast => {
+                    removeToast(toast);
+                });
+            }
+
+            // Enhanced updateYearLevels function with validation reset
             function updateYearLevels() {
                 const curriculumId = document.getElementById('curriculum_id').value;
                 const yearLevelsSelect = document.getElementById('year_levels');
+
+                // Clear validation error when curriculum is selected
+                if (curriculumId) {
+                    highlightField('curriculum_id', false);
+                }
+
                 yearLevelsSelect.innerHTML = '<option value="">Select Year Level</option>';
 
                 if (curriculumId && Array.isArray(sectionsData)) {
@@ -1047,6 +1358,7 @@ ob_start();
                         yearLevelsSelect.appendChild(option);
                     });
 
+                    // Auto-select all years
                     for (let i = 0; i < yearLevelsSelect.options.length; i++) {
                         yearLevelsSelect.options[i].selected = true;
                     }
@@ -1054,11 +1366,18 @@ ob_start();
                 }
             }
 
+            // Enhanced updateSections function with validation reset
             function updateSections() {
                 const curriculumId = document.getElementById('curriculum_id').value;
                 const yearLevelsSelect = document.getElementById('year_levels');
                 const selectedYears = Array.from(yearLevelsSelect.selectedOptions).map(opt => opt.value).filter(y => y);
                 const sectionsSelect = document.getElementById('sections');
+
+                // Clear validation error when year levels are selected
+                if (selectedYears.length > 0) {
+                    highlightField('year_levels', false);
+                }
+
                 sectionsSelect.innerHTML = '<option value="">Select Section</option>';
 
                 if (curriculumId && Array.isArray(sectionsData)) {
@@ -1078,74 +1397,16 @@ ob_start();
                         sectionsSelect.appendChild(option);
                     });
 
+                    // Auto-select all sections
                     for (let i = 0; i < sectionsSelect.options.length; i++) {
                         sectionsSelect.options[i].selected = true;
                     }
+
+                    // Clear validation error when sections are selected
+                    if (sectionsSelect.selectedOptions.length > 0) {
+                        highlightField('sections', false);
+                    }
                 }
-            }
-
-            function generateSchedules() {
-                const form = document.getElementById('generate-form');
-                const formData = new FormData(form);
-                const curriculumId = formData.get('curriculum_id');
-                const selectedYearLevels = formData.getAll('year_levels[]');
-                const selectedSections = formData.getAll('sections[]');
-
-                if (!curriculumId) {
-                    showNotification('Please select a curriculum', 'error');
-                    return;
-                }
-                if (selectedYearLevels.length === 0 && selectedSections.length === 0) {
-                    showNotification('Please select at least one year level or section', 'error');
-                    return;
-                }
-
-                document.getElementById('loading-overlay').classList.remove('hidden');
-
-                const data = {
-                    curriculum_id: curriculumId,
-                    year_levels: selectedYearLevels,
-                    sections: selectedSections,
-                    semester_id: formData.get('semester_id'),
-                    tab: 'generate'
-                };
-
-                fetch('/chair/generate-schedules', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: new URLSearchParams(data)
-                    })
-                    .then(response => {
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        return response.text(); // Get raw text first
-                    })
-                    .then(text => {
-                        let data;
-                        try {
-                            data = JSON.parse(text); // Attempt to parse as JSON
-                        } catch (e) {
-                            console.error('Invalid JSON response:', text); // Log raw response
-                            throw new Error('Invalid response format: ' + e.message);
-                        }
-                        document.getElementById('loading-overlay').classList.add('hidden');
-                        if (data.success) {
-                            scheduleData = data.schedules || [];
-                            document.getElementById('generation-results').classList.remove('hidden');
-                            document.getElementById('total-courses').textContent = data.schedules ? data.schedules.length : 0;
-                            document.getElementById('total-sections').textContent = new Set(data.schedules?.map(s => s.section_name)).size || 0;
-                            updateScheduleDisplay(scheduleData);
-                            showNotification('Schedules generated successfully!', 'success');
-                        } else {
-                            showNotification('Error: ' + (data.message || 'Failed to generate schedules'), 'error');
-                        }
-                    })
-                    .catch(error => {
-                        document.getElementById('loading-overlay').classList.add('hidden');
-                        console.error('Error:', error);
-                        showNotification('Error generating schedules: ' + error.message, 'error');
-                    });
             }
 
             function updateScheduleDisplay(schedules) {
@@ -1416,6 +1677,165 @@ ob_start();
 
         <style>
             /* Add this CSS to fix modal display issues */
+            /* Toast notification styles - Add this to the existing <style> section */
+
+            /* Toast container */
+            #toast-container {
+                position: fixed;
+                top: 1rem;
+                right: 1rem;
+                z-index: 9999;
+                max-width: 28rem;
+                pointer-events: none;
+            }
+
+            /* Toast base styles */
+            .validation-toast,
+            .completion-toast {
+                pointer-events: auto;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                backdrop-filter: blur(8px);
+                border-left: 4px solid rgba(255, 255, 255, 0.3);
+                animation: slideInRight 0.3s ease-out;
+            }
+
+            /* Toast animations */
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            .validation-toast.translate-x-full,
+            .completion-toast.translate-x-full {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            /* Toast hover effects */
+            .validation-toast:hover,
+            .completion-toast:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 25px 30px -5px rgba(0, 0, 0, 0.15), 0 15px 15px -5px rgba(0, 0, 0, 0.08);
+            }
+
+            /* Field validation styles */
+            .border-red-500 {
+                border-color: #ef4444 !important;
+            }
+
+            .ring-2 {
+                box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2) !important;
+            }
+
+            .ring-red-200 {
+                box-shadow: 0 0 0 2px rgba(254, 202, 202, 0.5) !important;
+            }
+
+            /* Loading overlay enhancement */
+            #loading-overlay {
+                backdrop-filter: blur(4px);
+                background: rgba(0, 0, 0, 0.6);
+            }
+
+            #loading-overlay .bg-white {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(8px);
+            }
+
+            /* Mobile responsive toast */
+            @media (max-width: 640px) {
+                #toast-container {
+                    left: 1rem;
+                    right: 1rem;
+                    max-width: none;
+                }
+
+                .validation-toast,
+                .completion-toast {
+                    margin: 0 0 0.75rem 0;
+                    padding: 1rem;
+                }
+
+                .validation-toast h4,
+                .completion-toast h4 {
+                    font-size: 0.875rem;
+                }
+
+                .validation-toast ul,
+                .completion-toast ul {
+                    font-size: 0.75rem;
+                }
+            }
+
+            /* Form field focus enhancement */
+            select:focus,
+            input:focus {
+                transition: all 0.2s ease-in-out;
+            }
+
+            /* Enhanced generation results styling */
+            #generation-results {
+                animation: fadeInUp 0.5s ease-out;
+                border-left: 4px solid #10b981;
+            }
+
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            /* Success and warning result variations */
+            #generation-results.warning {
+                border-left-color: #f59e0b;
+                background-color: #fef3c7;
+                border-color: #f59e0b;
+            }
+
+            #generation-results.warning .text-green-500,
+            #generation-results.warning .text-green-600,
+            #generation-results.warning .text-green-800 {
+                color: #d97706 !important;
+            }
+
+            /* Button loading state */
+            #generate-btn.loading {
+                background-color: #9ca3af;
+                cursor: not-allowed;
+                pointer-events: none;
+            }
+
+            #generate-btn.loading::before {
+                content: '';
+                display: inline-block;
+                width: 1rem;
+                height: 1rem;
+                border: 2px solid #ffffff;
+                border-radius: 50%;
+                border-top-color: transparent;
+                animation: spin 1s linear infinite;
+                margin-right: 0.5rem;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
             .modal-overlay {
                 background: rgba(0, 0, 0, 0.6);
                 backdrop-filter: blur(8px);
