@@ -236,6 +236,10 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::generateSchedule");
             $controller->generateSchedulesAjax();
             exit;
+        case '/chair/delete-all-schedules':
+            error_log("Routing to ChairController::delete all schedules");
+            $controller->deleteAllSchedules();
+            break;
         case '/chair/schedule_history':
             error_log("Routing to ChairController::scheduleHistory");
             $controller->viewScheduleHistory();

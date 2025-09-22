@@ -203,6 +203,10 @@ ob_start();
                             <i class="fas fa-save"></i>
                             <span>Save Changes</span>
                         </button>
+                        <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="deleteAllSchedules()">
+                            <i class="fas fa-trash"></i>
+                            <span>Delete All Schedules</span>
+                        </button>
                     </div>
                 </div>
 
@@ -351,34 +355,40 @@ ob_start();
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 <!-- Header with Filters -->
                 <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center">
-                        <div class="bg-yellow-500 p-2 rounded-lg mr-3">
-                            <i class="fas fa-calendar text-white"></i>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <div class="bg-yellow-500 p-2 rounded-lg mr-3">
+                                <i class="fas fa-calendar text-white"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
                         </div>
-                        <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
-                    </div>
-                    <div class="flex items-center space-x-4 no-print">
-                        <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                            <option value="">All Year Levels</option>
-                            <?php $yearLevels = array_unique(array_column($schedules, 'year_level'));
-                            foreach ($yearLevels as $year): ?>
-                                <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select id="filter-section" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                            <option value="">All Sections</option>
-                            <?php $sectionNames = array_unique(array_column($schedules, 'section_name'));
-                            foreach ($sectionNames as $section): ?>
-                                <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select id="filter-room" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                            <option value="">All Rooms</option>
-                            <?php $rooms = array_unique(array_column($schedules, 'room_name'));
-                            foreach ($rooms as $room): ?>
-                                <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="flex items-center space-x-4 no-print">
+                            <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                                <option value="">All Year Levels</option>
+                                <?php $yearLevels = array_unique(array_column($schedules, 'year_level'));
+                                foreach ($yearLevels as $year): ?>
+                                    <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="filter-section" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                                <option value="">All Sections</option>
+                                <?php $sectionNames = array_unique(array_column($schedules, 'section_name'));
+                                foreach ($sectionNames as $section): ?>
+                                    <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="filter-room" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                                <option value="">All Rooms</option>
+                                <?php $rooms = array_unique(array_column($schedules, 'room_name'));
+                                foreach ($rooms as $room): ?>
+                                    <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="deleteAllSchedules()">
+                                <i class="fas fa-trash"></i>
+                                <span>Delete All Schedules</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1325,23 +1335,18 @@ ob_start();
                 });
             }
 
-            // Enhanced updateYearLevels function with validation reset
             function updateYearLevels() {
                 const curriculumId = document.getElementById('curriculum_id').value;
                 const yearLevelsSelect = document.getElementById('year_levels');
-
-                // Clear validation error when curriculum is selected
-                if (curriculumId) {
-                    highlightField('curriculum_id', false);
-                }
-
                 yearLevelsSelect.innerHTML = '<option value="">Select Year Level</option>';
 
                 if (curriculumId && Array.isArray(sectionsData)) {
                     const yearLevels = sectionsData
                         .filter(s => s.academic_year === currentAcademicYear && s.curriculum_id == curriculumId)
                         .map(s => s.year_level);
-                    const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))].sort((a, b) => {
+
+                    const uniqueYears = [...new Set(yearLevels.filter(y => y && y !== 'Unknown'))];
+                    uniqueYears.sort((a, b) => {
                         const order = {
                             '1': 1,
                             '2': 2,
@@ -1358,7 +1363,6 @@ ob_start();
                         yearLevelsSelect.appendChild(option);
                     });
 
-                    // Auto-select all years
                     for (let i = 0; i < yearLevelsSelect.options.length; i++) {
                         yearLevelsSelect.options[i].selected = true;
                     }
@@ -1366,18 +1370,11 @@ ob_start();
                 }
             }
 
-            // Enhanced updateSections function with validation reset
             function updateSections() {
                 const curriculumId = document.getElementById('curriculum_id').value;
                 const yearLevelsSelect = document.getElementById('year_levels');
                 const selectedYears = Array.from(yearLevelsSelect.selectedOptions).map(opt => opt.value).filter(y => y);
                 const sectionsSelect = document.getElementById('sections');
-
-                // Clear validation error when year levels are selected
-                if (selectedYears.length > 0) {
-                    highlightField('year_levels', false);
-                }
-
                 sectionsSelect.innerHTML = '<option value="">Select Section</option>';
 
                 if (curriculumId && Array.isArray(sectionsData)) {
@@ -1397,17 +1394,190 @@ ob_start();
                         sectionsSelect.appendChild(option);
                     });
 
-                    // Auto-select all sections
                     for (let i = 0; i < sectionsSelect.options.length; i++) {
                         sectionsSelect.options[i].selected = true;
                     }
+                }
+            }
 
-                    // Clear validation error when sections are selected
-                    if (sectionsSelect.selectedOptions.length > 0) {
-                        highlightField('sections', false);
+            // Enhanced debugging function that also tries to fix data issues
+            function debugAndFixSectionsData() {
+                console.group('=== SECTIONS DATA COMPREHENSIVE DEBUG ===');
+
+                // Check raw data
+                console.log('1. Raw sectionsData from PHP:', rawSectionsData);
+                console.log('2. Processed sectionsData:', sectionsData);
+                console.log('3. Current academic year:', currentAcademicYear);
+                console.log('4. Available curricula:', curricula);
+                console.log('5. Department ID:', departmentId);
+
+                // If sectionsData is empty but rawSectionsData has content, use it
+                if ((!Array.isArray(sectionsData) || sectionsData.length === 0) &&
+                    Array.isArray(rawSectionsData) && rawSectionsData.length > 0) {
+                    console.log('6. sectionsData is empty, copying from rawSectionsData...');
+                    sectionsData = [...rawSectionsData];
+                }
+
+                // Check for data structure issues
+                if (Array.isArray(sectionsData) && sectionsData.length > 0) {
+                    console.log('7. Sample section structure:', sectionsData[0]);
+
+                    // Check for curriculum_id issues
+                    const curriculumIds = sectionsData.map(s => s.curriculum_id).filter(id => id);
+                    const uniqueCurriculumIds = [...new Set(curriculumIds)];
+                    console.log('8. Curriculum IDs in sections:', uniqueCurriculumIds);
+
+                    // Check for academic year issues
+                    const academicYears = sectionsData.map(s => s.academic_year).filter(year => year);
+                    const uniqueAcademicYears = [...new Set(academicYears)];
+                    console.log('9. Academic years in sections:', uniqueAcademicYears);
+
+                    // Check for year level issues
+                    const yearLevels = sectionsData.map(s => s.year_level).filter(level => level);
+                    const uniqueYearLevels = [...new Set(yearLevels)];
+                    console.log('10. Year levels in sections:', uniqueYearLevels);
+                }
+
+                console.groupEnd();
+            }
+
+            // New function to delete all schedules
+            function deleteAllSchedules() {
+                if (!scheduleData || scheduleData.length === 0) {
+                    showNotification('No schedules to delete', 'info');
+                    return;
+                }
+
+                // Show confirmation dialog
+                const confirmMessage = `Are you sure you want to delete all ${scheduleData.length} schedules created today? This action cannot be undone.`;
+
+                if (confirm(confirmMessage)) {
+                    // Show loading state
+                    const deleteBtn = document.getElementById('delete-all-btn');
+                    const originalText = deleteBtn.innerHTML;
+                    deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+                    deleteBtn.disabled = true;
+
+                    // Send delete request
+                    fetch('/chair/delete-all-schedules', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: new URLSearchParams({
+                                'confirm': 'true'
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Clear local schedule data
+                                scheduleData = [];
+
+                                // Refresh the schedule display
+                                updateScheduleDisplay([]);
+
+                                // Show success message
+                                showNotification(`Successfully deleted ${data.deleted_count || 'all'} schedules created today`, 'success');
+
+                                // Hide generation results if visible
+                                const generationResults = document.getElementById('generation-results');
+                                if (generationResults) {
+                                    generationResults.classList.add('hidden');
+                                }
+                            } else {
+                                showNotification('Error deleting schedules: ' + (data.message || 'Unknown error'), 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error deleting schedules:', error);
+                            showNotification('Error deleting schedules. Please try again.', 'error');
+                        })
+                        .finally(() => {
+                            // Restore button state
+                            deleteBtn.innerHTML = originalText;
+                            deleteBtn.disabled = false;
+                        });
+                }
+            }
+
+            // New function to delete individual schedule
+            function deleteSchedule(scheduleId) {
+                if (confirm('Are you sure you want to delete this schedule?')) {
+                    // Remove from local data
+                    const index = scheduleData.findIndex(s => String(s.schedule_id) === String(scheduleId));
+                    if (index !== -1) {
+                        scheduleData.splice(index, 1);
+
+                        // Find and remove the schedule card from DOM
+                        const scheduleCard = document.querySelector(`[data-schedule-id="${scheduleId}"]`);
+                        if (scheduleCard) {
+                            const parentCell = scheduleCard.closest('.drop-zone');
+                            scheduleCard.remove();
+
+                            // Show the "add" button if cell is now empty
+                            if (!parentCell.querySelector('.schedule-card')) {
+                                const day = parentCell.dataset.day;
+                                const startTime = parentCell.dataset.startTime;
+                                const endTime = parentCell.dataset.endTime;
+                                parentCell.innerHTML = `<button onclick="openAddModalForSlot('${day}', '${startTime}', '${endTime}')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print">
+                        <i class="fas fa-plus text-lg"></i>
+                    </button>`;
+                            }
+                        }
+
+                        showNotification('Schedule deleted successfully! Don\'t forget to save changes.', 'success');
                     }
                 }
             }
+
+            // Enhanced debugging function to check data structure
+            function debugSectionsData() {
+                console.group('Sections Data Debug');
+                console.log('Raw sections data:', rawSectionsData);
+                console.log('Processed sections data:', sectionsData);
+                console.log('Current academic year:', currentAcademicYear);
+                console.log('Available curricula:', curricula);
+
+                if (Array.isArray(sectionsData)) {
+                    console.log('Sections count:', sectionsData.length);
+                    sectionsData.forEach((section, index) => {
+                        console.log(`Section ${index}:`, {
+                            id: section.section_id,
+                            name: section.section_name,
+                            year_level: section.year_level,
+                            curriculum_id: section.curriculum_id,
+                            academic_year: section.academic_year
+                        });
+                    });
+                } else {
+                    console.error('sectionsData is not an array:', typeof sectionsData);
+                }
+                console.groupEnd();
+            }
+
+            // Call debug function on page load (remove this in production)
+            document.addEventListener('DOMContentLoaded', function() {
+                // Add debugging
+                debugSectionsData();
+
+                // Rest of your existing DOMContentLoaded code...
+                if (!departmentId) {
+                    showValidationToast(['No department assigned to your account. Please contact administrator.']);
+                } else if (!currentSemester) {
+                    showValidationToast(['No active semester found. Please contact administrator to configure academic calendar.']);
+                }
+
+                initializeDragAndDrop();
+                const generateBtn = document.getElementById('generate-btn');
+                if (generateBtn) generateBtn.addEventListener('click', generateSchedules);
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const tab = urlParams.get('tab');
+                if (tab === 'schedule-list') switchTab('schedule');
+                else if (tab === 'manual') switchTab('manual');
+                else if (tab === 'generate') switchTab('generate');
+            });
 
             function updateScheduleDisplay(schedules) {
                 scheduleData = schedules;
