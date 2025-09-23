@@ -189,9 +189,6 @@ ob_start();
                                 <tr class="hover:bg-gray-50 transition-colors">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center">
-                                            <div class="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                <span class="text-xs font-bold text-blue-600"><?php echo $index + 1; ?></span>
-                                            </div>
                                             <div class="ml-3">
                                                 <div class="text-sm font-semibold text-gray-900"><?php echo htmlspecialchars($schedule['course_code'] ?? 'N/A'); ?></div>
                                             </div>

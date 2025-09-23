@@ -73,11 +73,11 @@ class PublicController
             }
 
             $stmt = $this->db->prepare("
-            SELECT department_id, department_name 
-            FROM departments 
-            WHERE college_id = :college_id 
-            ORDER BY department_name
-        ");
+                SELECT department_id, department_name 
+                FROM departments 
+                WHERE college_id = :college_id 
+                ORDER BY department_name
+            ");
 
             $stmt->execute([':college_id' => $college_id]);
             $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -103,19 +103,17 @@ class PublicController
                 exit;
             }
 
-            // Get the current semester
             $currentSemester = $this->getCurrentSemester();
             $semester_id = $currentSemester['semester_id'];
 
-            // Query to get sections for the current semester
             $stmt = $this->db->prepare("
-            SELECT DISTINCT s.section_id, s.section_name, s.year_level 
-            FROM sections s
-            JOIN schedules sch ON s.section_id = sch.section_id
-            WHERE s.department_id = :department_id 
-            AND sch.semester_id = :semester_id
-            ORDER BY s.year_level, s.section_name
-        ");
+                SELECT DISTINCT s.section_id, s.section_name, s.year_level 
+                FROM sections s
+                JOIN schedules sch ON s.section_id = sch.section_id
+                WHERE s.department_id = :department_id 
+                AND sch.semester_id = :semester_id
+                ORDER BY s.year_level, s.section_name
+            ");
 
             $stmt->execute([
                 ':department_id' => $department_id,
@@ -133,12 +131,10 @@ class PublicController
         exit;
     }
 
-    // Updated searchSchedules method
     public function searchSchedules()
     {
         $currentSemester = $this->getCurrentSemester();
 
-        // Get and sanitize input
         $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
         $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : $currentSemester['semester_id'];
         $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
@@ -187,24 +183,23 @@ class PublicController
             $searchPattern = '%' . $search . '%';
 
             $stmt->execute([
-                $semester_id,       // 1st ?
-                $college_id,        // 2nd ?
-                $college_id,        // 3rd ?
-                $department_id,     // 4th ?
-                $department_id,     // 5th ?
-                $year_level,        // 6th ?
-                $year_level,        // 7th ?
-                $section_id,        // 8th ?
-                $section_id,        // 9th ?
-                $searchPattern,     // 10th ?
-                $searchPattern,     // 11th ?
-                $searchPattern      // 12th ?
+                $semester_id,
+                $college_id,
+                $college_id,
+                $department_id,
+                $department_id,
+                $year_level,
+                $year_level,
+                $section_id,
+                $section_id,
+                $searchPattern,
+                $searchPattern,
+                $searchPattern
             ]);
 
             $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Add pagination (simple implementation for now)
-            $total = count($schedules); // Replace with actual COUNT query for production
+            $total = count($schedules);
             $perPage = 10;
             $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
             $offset = ($page - 1) * $perPage;
@@ -227,13 +222,13 @@ class PublicController
 
     private function getCurrentSemester()
     {
-        $query = "SELECT * FROM semesters 
-              WHERE start_date <= CURDATE() 
-              AND end_date >= CURDATE() 
-              LIMIT 1";
+        $query = "SELECT semester_id, semester_name, academic_year
+            FROM semesters
+            WHERE is_current = 1
+            LIMIT 1";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: ['semester_name' => 'Current', 'academic_year' => date('Y')];
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function downloadSchedulePDF()
@@ -244,7 +239,6 @@ class PublicController
         $year_level = isset($_POST['year_level']) ? $_POST['year_level'] : '';
         $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : 0;
 
-        // Fetch schedules (same query as before)
         $query = "
             SELECT 
                 s.schedule_id, 
@@ -302,54 +296,42 @@ class PublicController
             }
 
             // Create new PDF document
-            $pdf = new Fpdi('L', 'mm', 'A4', true, 'UTF-8', false);
+            $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
 
-            // Set document information
             $pdf->SetCreator('PRMSU University');
             $pdf->SetAuthor('PRMSU University');
             $pdf->SetTitle('Class Schedule');
             $pdf->SetSubject('Class Schedule');
 
-            // Add a page
             $pdf->AddPage();
 
-            // Set header and footer fonts
             $pdf->setHeaderFont(array('helvetica', '', 10));
             $pdf->setFooterFont(array('helvetica', '', 8));
 
-            // Set margins
             $pdf->SetMargins(15, 25, 15);
             $pdf->SetHeaderMargin(10);
             $pdf->SetFooterMargin(10);
 
-            // Set auto page breaks
             $pdf->SetAutoPageBreak(true, 25);
 
-            // Set header content
             $pdf->setHeaderData('', 0, 'PRMSU University', 'Class Schedule');
 
-            // Set font
             $pdf->SetFont('helvetica', 'B', 12);
             $pdf->Cell(0, 10, 'Class Schedule', 0, 1, 'C');
             $pdf->SetFont('helvetica', '', 10);
-            $pdf->Cell(0, 6, $schedules[0]['semester_name'] . ' Semester, ' . $schedules[0]['academic_year'], 0, 1, 'C');
-            $pdf->Cell(0, 6, 'College: ' . $schedules[0]['college_name'] . ' | Department: ' . $schedules[0]['department_name'] . ' | Program: ' . $schedules[0]['program_name'], 0, 1, 'C');
+            $pdf->Cell(0, 6, ($semester_id ? $schedules[0]['semester_name'] : 'All Semesters') . ' ' . ($semester_id ? $schedules[0]['academic_year'] : ''), 0, 1, 'C');
+            $pdf->Cell(0, 6, 'College: ' . ($college_id ? $schedules[0]['college_name'] : 'All') . ' | Department: ' . ($department_id ? $schedules[0]['department_name'] : 'All') . ' | Program: ' . ($program_id ? $schedules[0]['program_name'] : 'All') . ' | Year Level: ' . ($year_level ?: 'All'), 0, 1, 'C');
             $pdf->Ln(5);
 
-            // Create the table
             $headers = ['Course Code', 'Course Name', 'Section', 'Instructor', 'Room', 'Day', 'Time', 'Type'];
             $columnWidths = [25, 40, 20, 35, 30, 20, 25, 20];
 
-            // Set table font
             $pdf->SetFont('helvetica', 'B', 8);
-
-            // Header
             foreach ($headers as $key => $header) {
                 $pdf->Cell($columnWidths[$key], 7, $header, 1, 0, 'C');
             }
             $pdf->Ln();
 
-            // Data
             $pdf->SetFont('helvetica', '', 8);
             foreach ($schedules as $schedule) {
                 $room = $schedule['room_name'] ? htmlspecialchars($schedule['room_name'] . ', ' . htmlspecialchars($schedule['building'])) : 'TBD';
@@ -366,7 +348,6 @@ class PublicController
                 $pdf->Ln();
             }
 
-            // Output the PDF
             $pdf->Output('PRMSU_Schedule_' . date('Ymd_His') . '.pdf', 'D');
         } catch (PDOException $e) {
             error_log("Download Schedule PDF Error: " . $e->getMessage());

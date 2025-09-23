@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Existing styles remain unchanged */
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
         :root {
@@ -27,6 +28,31 @@
             padding: 0;
         }
 
+        /* Add semester display style */
+        .semester-display {
+            background-color: rgba(255, 238, 170, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--gold-dark);
+            font-weight: 500;
+        }
+
+        /* Download form style */
+        .download-form {
+            display: none;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 1rem;
+        }
+
+        .download-form.active {
+            display: block;
+        }
+
+        /* Existing styles remain unchanged */
         .hero-pattern {
             background: linear-gradient(135deg, var(--gold-primary), var(--gold-secondary));
             position: relative;
@@ -50,7 +76,6 @@
             border-radius: 0.5rem;
             border: 2px solid #FCC201;
             padding: 0.75rem 1rem 0.75rem 2.5rem;
-            /* Increased left padding to accommodate icon */
             width: 100%;
             box-sizing: border-box;
             transition: all 0.15s;
@@ -69,7 +94,6 @@
             top: 50%;
             transform: translateY(-50%);
             pointer-events: none;
-            /* Prevent icon from interfering with input */
             color: var(--gold-primary);
         }
 
@@ -482,7 +506,7 @@
                         </div>
                         <div>
                             <h1 class="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-tight">President Ramon Magsaysay State University</h1>
-                            <p class="text-white text-xs sm:text-sm md:text-base opacity-90">Academic Schedule Management System</p>
+                            <p class="text-white text-xs sm:text-sm md:text-base opacity-90">Automatic Classroom Scheduling System</p>
                         </div>
                     </div>
                 </div>
@@ -503,12 +527,16 @@
     </header>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-4 sm:px-6 py-6 sm:py-8 mt-16 sm:mt-24">
+    <main class="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <?php if (isset($currentSemester)): ?>
+            <div class="semester-display mt-2">
+                Current Semester: <?php echo htmlspecialchars($currentSemester['semester_name']) . ' ' . htmlspecialchars($currentSemester['academic_year']); ?>
+            </div>
+        <?php endif; ?>
         <!-- Search Filters -->
         <div id="search-form" class="bg-white rounded-xl shadow-lg p-4 sm:p-8 mb-8 sm:mb-12 card-shadow gold-border">
             <h3 class="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 gold-gradient-text">Find Your Class Schedule</h3>
             <form id="searchForm" class="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6" method="POST">
-                <!-- College Filter -->
                 <div>
                     <label for="college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
                     <div class="relative">
@@ -524,7 +552,6 @@
                     </div>
                 </div>
 
-                <!-- Department Filter -->
                 <div>
                     <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                     <div class="relative">
@@ -540,7 +567,6 @@
                     </div>
                 </div>
 
-                <!-- Year Level Filter -->
                 <div>
                     <label for="year_level" class="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
                     <div class="relative">
@@ -557,7 +583,6 @@
                     </div>
                 </div>
 
-                <!-- Section Filter -->
                 <div>
                     <label for="section" class="block text-sm font-medium text-gray-700 mb-2">Section</label>
                     <div class="relative">
@@ -570,7 +595,6 @@
                     </div>
                 </div>
 
-                <!-- Search Bar -->
                 <div class="md:col-span-2">
                     <label for="global-search" class="block text-sm font-medium text-gray-700 mb-2">Search</label>
                     <div class="relative">
@@ -583,9 +607,72 @@
                     </div>
                 </div>
 
-                <!-- Hidden input to maintain form structure -->
-                <input type="hidden" name="action" value="filter">
+                <div class="md:col-span-2">
+                    <button type="button" id="downloadScheduleBtn" class="btn-primary mt-4">
+                        <i class="fas fa-download mr-2"></i> Download Schedule PDF
+                    </button>
+                </div>
             </form>
+
+            <!-- Download Customization Form -->
+            <div id="downloadForm" class="download-form">
+                <h4 class="text-md font-semibold mb-4 gold-gradient-text">Customize Your Schedule PDF</h4>
+                <form id="downloadScheduleForm" method="POST" action="/public/download-schedule-pdf">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="download_college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
+                            <select id="download_college" name="college_id" class="form-input pl-10 py-3">
+                                <option value="0">All Colleges</option>
+                                <?php foreach ($colleges as $college): ?>
+                                    <option value="<?= $college['college_id'] ?>"><?= $college['college_name'] ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="download_department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                            <select id="download_department" name="department_id" class="form-input pl-10 py-3">
+                                <option value="0">All Departments</option>
+                                <?php foreach ($departments as $department): ?>
+                                    <option value="<?= $department['department_id'] ?>"><?= $department['department_name'] ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="download_program" class="block text-sm font-medium text-gray-700 mb-2">Program</label>
+                            <select id="download_program" name="program_id" class="form-input pl-10 py-3">
+                                <option value="0">All Programs</option>
+                                <?php foreach ($programs as $program): ?>
+                                    <option value="<?= $program['program_id'] ?>"><?= $program['program_name'] ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="download_year_level" class="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
+                            <select id="download_year_level" name="year_level" class="form-input pl-10 py-3">
+                                <option value="">All Levels</option>
+                                <option value="1st Year">1st Year</option>
+                                <option value="2nd Year">2nd Year</option>
+                                <option value="3rd Year">3rd Year</option>
+                                <option value="4th Year">4th Year</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="download_semester" class="block text-sm font-medium text-gray-700 mb-2">Semester</label>
+                            <select id="download_semester" name="semester_id" class="form-input pl-10 py-3">
+                                <option value="0">All Semesters</option>
+                                <?php $semesters = $this->fetchSemesters();
+                                foreach ($semesters as $semester): ?>
+                                    <option value="<?= $semester['semester_id'] ?>"><?= $semester['semester_name'] . ' ' . $semester['academic_year'] ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary mt-4 w-full">
+                        <i class="fas fa-download mr-2"></i> Download PDF
+                    </button>
+                    <button type="button" class="btn-secondary mt-2 w-full" onclick="closeDownloadForm()">Cancel</button>
+                </form>
+            </div>
         </div>
 
         <!-- Schedule Table -->
@@ -658,7 +745,6 @@
     <footer class="bg-gray-800 text-white mt-8 sm:mt-16 shadow-inner">
         <div class="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-                <!-- Company Info -->
                 <div class="lg:col-span-1">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center mr-3">
@@ -675,7 +761,6 @@
                     </p>
                 </div>
 
-                <!-- Quick Links -->
                 <div>
                     <h3 class="text-yellow-400 font-semibold mb-3">Quick Links</h3>
                     <ul class="space-y-2">
@@ -687,7 +772,6 @@
                     </ul>
                 </div>
 
-                <!-- Resources -->
                 <div>
                     <h3 class="text-yellow-400 font-semibold mb-3">Resources</h3>
                     <ul class="space-y-2">
@@ -699,7 +783,6 @@
                     </ul>
                 </div>
 
-                <!-- Contact Info -->
                 <div>
                     <h3 class="text-yellow-400 font-semibold mb-3">Contact</h3>
                     <ul class="space-y-3">
@@ -723,7 +806,6 @@
                 </div>
             </div>
 
-            <!-- Bottom Footer -->
             <div class="border-t border-gray-700 mt-8 pt-6 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
                 <p class="text-sm text-gray-400 text-center sm:text-left">
                     © 2025 President Ramon Magsaysay State University. All rights reserved.
@@ -765,7 +847,6 @@
             document.body.style.overflow = '';
         }
 
-        // Close sidebar when clicking outside
         document.addEventListener('click', function(event) {
             const sidebar = document.getElementById('mobileSidebar');
             const hamburger = document.getElementById('hamburger');
@@ -777,14 +858,12 @@
             }
         });
 
-        // Close sidebar on escape key
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 closeSidebar();
             }
         });
 
-        // Responsive adjustments
         window.addEventListener('resize', function() {
             if (window.innerWidth >= 769) {
                 closeSidebar();
@@ -792,10 +871,8 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Load initial schedules
             fetchSchedules();
 
-            // Real-time filter events
             const filterElements = [
                 document.getElementById('college'),
                 document.getElementById('department'),
@@ -805,7 +882,7 @@
             ];
 
             filterElements.forEach(element => {
-                element.addEventListener('input', debounce(fetchSchedules, 300)); // Debounce to prevent excessive calls
+                element.addEventListener('input', debounce(fetchSchedules, 300));
                 if (element.tagName === 'SELECT') {
                     element.addEventListener('change', debounce(fetchSchedules, 300));
                 }
@@ -824,12 +901,7 @@
                             method: 'POST',
                             body: formData
                         })
-                        .then(response => {
-                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                            const contentType = response.headers.get('content-type');
-                            if (!contentType || !contentType.includes('application/json')) throw new Error('Response is not JSON');
-                            return response.json();
-                        })
+                        .then(response => response.json())
                         .then(departments => {
                             departmentSelect.innerHTML = '<option value="">All Departments</option>';
                             if (Array.isArray(departments)) {
@@ -839,18 +911,18 @@
                                 });
                             }
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
-                            fetchSchedules(); // Trigger filter update
+                            fetchSchedules();
                         })
                         .catch(error => {
                             console.error('Error fetching departments:', error);
                             departmentSelect.innerHTML = '<option value="">Error loading departments</option>';
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
-                            fetchSchedules(); // Trigger filter update
+                            fetchSchedules();
                         });
                 } else {
                     departmentSelect.innerHTML = '<option value="">All Departments</option>';
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
-                    fetchSchedules(); // Trigger filter update
+                    fetchSchedules();
                 }
             });
 
@@ -866,12 +938,7 @@
                             method: 'POST',
                             body: formData
                         })
-                        .then(response => {
-                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                            const contentType = response.headers.get('content-type');
-                            if (!contentType || !contentType.includes('application/json')) throw new Error('Response is not JSON');
-                            return response.json();
-                        })
+                        .then(response => response.json())
                         .then(sections => {
                             sectionSelect.innerHTML = '<option value="">All Sections</option>';
                             if (Array.isArray(sections)) {
@@ -880,17 +947,54 @@
                                     sectionSelect.add(option);
                                 });
                             }
-                            fetchSchedules(); // Trigger filter update
+                            fetchSchedules();
                         })
                         .catch(error => {
                             console.error('Error fetching sections:', error);
                             sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
-                            fetchSchedules(); // Trigger filter update
+                            fetchSchedules();
                         });
                 } else {
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
-                    fetchSchedules(); // Trigger filter update
+                    fetchSchedules();
                 }
+            });
+
+            // Download button functionality
+            document.getElementById('downloadScheduleBtn').addEventListener('click', function() {
+                document.getElementById('downloadForm').classList.add('active');
+            });
+
+            function closeDownloadForm() {
+                document.getElementById('downloadForm').classList.remove('active');
+            }
+
+            document.getElementById('downloadScheduleForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                fetch('/public/download-schedule-pdf', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        throw new Error('Failed to generate PDF');
+                    }
+                }).then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'PRMSU_Schedule_' + new Date().toISOString().replace(/[:.]/g, '-') + '.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    closeDownloadForm();
+                }).catch(error => {
+                    console.error('Error downloading PDF:', error);
+                    alert('An error occurred while downloading the PDF.');
+                });
             });
         });
 
@@ -898,7 +1002,6 @@
             const formData = new FormData(document.getElementById('searchForm'));
             formData.append('page', page);
 
-            // Show loading state
             const tbody = document.getElementById('schedule-table-body');
             tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
 
@@ -906,12 +1009,7 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) throw new Error('Response is not JSON');
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     if (data.error) {
                         console.error('Error:', data.error);
@@ -990,7 +1088,6 @@
                 </a>
             `;
 
-            // Show page numbers (limit to show max 5 pages)
             const maxVisiblePages = 5;
             let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
             let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
@@ -1017,7 +1114,6 @@
             `;
         }
 
-        // Debounce function to limit API calls
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -1030,7 +1126,6 @@
             };
         }
 
-        // Smooth scrolling for anchor links (excluding pagination and action links)
         document.querySelectorAll('a[href^="#"]:not([href="#"])').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
                 const target = document.querySelector(this.getAttribute('href'));

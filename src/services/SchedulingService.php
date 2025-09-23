@@ -18,6 +18,9 @@ class SchedulingService
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
+    public function publicDownloadSchedules()
+    {}
+
     public function generateMySchedulePdf($schedules, $semesterName, $departmentName, $totalHours, $showAllSchedules, $facultyName = '', $position = '')
     {
         $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false); // 'L' for landscape
