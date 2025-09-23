@@ -267,13 +267,16 @@ class DirectorController
             // Check if user is system admin (can set deadlines for all colleges)
             $isSystemAdmin = $this->checkSystemAdminRole($_SESSION['user_id']);
 
+            // fetch the current semester
+            $currentSemester = $this->api->getCurrentSemester();
+
             // Fetch department_id and college_id from department_instructors with department join
             $stmt = $this->db->prepare("
             SELECT di.department_id, d.college_id 
             FROM department_instructors di
             INNER JOIN departments d ON di.department_id = d.department_id
             WHERE di.user_id = :user_id AND di.is_current = 1
-        ");
+            ");
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
             $userDepartment = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -593,6 +596,7 @@ class DirectorController
 
             $data = [
                 'user' => $userData,
+                'current_semester' => $currentSemester,
                 'title' => 'Set Schedule Deadline',
                 'deadlines' => $deadlines,
                 'all_departments' => $allDepartments,

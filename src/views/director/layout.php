@@ -363,14 +363,14 @@ if (!$profilePicture) {
             </a>
 
             <!-- My set Schedule Link -->
-            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo strpos($currentUri, '/director/schedule_deadline') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
+            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo $currentUri === '/director/schedule_deadline' ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo $currentUri === '/director/schedule_deadline' ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Set Schedule Deadline</span>
             </a>
 
             <!-- Schedule Link -->
-            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/director/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= $currentUri === '/director/schedule' ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-list w-5 mr-3 <?= $currentUri === '/director/schedule' ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>My Schedule</span>
             </a>
 

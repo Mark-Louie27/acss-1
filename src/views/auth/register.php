@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_active' => 0,
             'academic_rank' => trim($_POST['academic_rank'] ?? ''),
             'employment_type' => trim($_POST['employment_type'] ?? ''),
-            'classification' => trim($_POST['classification'] ?? null)
+            'classification' => trim($_POST['classification'] ?? '')
         ];
 
         if ($authService->register($userData)) {

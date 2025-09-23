@@ -175,15 +175,16 @@ class AuthService
             if ($data['role_id'] == 6) {
                 $query = "
                 INSERT INTO faculty (
-                    user_id, employee_id, academic_rank, employment_type, max_hours
+                    user_id, employee_id, classification, academic_rank, employment_type, max_hours
                 ) VALUES (
-                    :user_id, :employee_id, :academic_rank, :employment_type, :max_hours
+                    :user_id, :employee_id, :classification, :academic_rank, :employment_type, :max_hours
                 )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
                     ':employee_id' => $data['employee_id'],
-                    ':academic_rank' => $data['academic_rank'] ?? 'Instructor',
+                    ':classification' => $data['classification'] ?? 'TL',
+                    ':academic_rank' => $data['academic_rank'] ?? 'Instructor I',
                     ':employment_type' => $data['employment_type'] ?? 'Part-time',
                     ':max_hours' => $data['max_hours'] ?? 18.00
                 ]);

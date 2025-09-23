@@ -192,6 +192,9 @@ function handleDeanRoutes($path)
         case '/dean/profile':
             $controller->profile();
             break;
+        case '/dean/profile/search_courses':
+            $controller->searchCourses();
+            exit;
         case '/dean/settings':
             $controller->settings();
             break;
@@ -276,6 +279,10 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::profile");
             $controller->profile();
             exit;
+        case '/chair/profile/search_courses':
+            error_log("Routing to ChairController::profile");
+            $controller->searchCourses();
+            exit;
         case '/chair/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';
@@ -331,6 +338,10 @@ function handleFacultyRoutes($path)
                 error_log("Routing to FacultyController::profile (POST)");
                 $controller->profile();
             }
+            exit;
+        case '/faculty/profile/search_courses':
+            error_log("Routing to FacultyController::profile");
+            $controller->searchCourses();
             exit;
         case '/faculty/logout':
             error_log("Routing to AuthController::logout");

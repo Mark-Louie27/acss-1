@@ -164,6 +164,61 @@ ob_start();
             color: #16a34a;
         }
 
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem 2.5rem 0.75rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            display: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .search-result-item {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .search-result-item:hover {
+            background-color: #f9fafb;
+        }
+
         @media (max-width: 640px) {
             .grid-cols-layout {
                 grid-template-columns: 1fr;
@@ -214,8 +269,6 @@ ob_start();
         </header>
 
         <main class="grid grid-cols-layout gap-6">
-
-
             <!-- Main Content -->
             <div class="space-y-6">
                 <!-- Personal Information -->
@@ -356,14 +409,6 @@ ob_start();
                                             </span>
                                         </div>
                                         <div class="flex space-x-1">
-                                            <form method="POST" action="/faculty/profile" style="display:inline;" class="edit-form" data-index="<?php echo $index; ?>">
-                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                                                <input type="hidden" name="action" value="edit_specialization">
-                                                <input type="hidden" name="specialization_index" value="<?php echo $index; ?>">
-                                                <button type="submit" class="text-gray-400 hover:text-blue-500 transition-colors" title="Edit">
-                                                    <i class="fas fa-edit text-sm"></i>
-                                                </button>
-                                            </form>
                                             <button type="button" class="remove-specialization-btn text-gray-400 hover:text-red-500 transition-colors" data-course-id="<?php echo htmlspecialchars($specialization['course_id'], ENT_QUOTES, 'UTF-8'); ?>" title="Remove">
                                                 <i class="fas fa-trash text-sm"></i>
                                             </button>
@@ -382,46 +427,6 @@ ob_start();
                                 </button>
                             </div>
                         <?php endif; ?>
-                    </div>
-
-                    <!-- Edit Specialization Modal (unchanged) -->
-                    <div id="editSpecializationModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-                        <div class="bg-white rounded-xl shadow-lg w-full max-w-md mx-4 transform modal-content scale-95">
-                            <div class="bg-yellow-600 text-white p-6 rounded-t-xl flex items-center justify-between">
-                                <h3 class="text-xl font-bold flex items-center">
-                                    <i class="fas fa-edit mr-2"></i>
-                                    Edit Subject Specialization
-                                </h3>
-                                <button id="closeEditSpecializationModalBtn" class="text-white hover:text-yellow-200 focus:outline-none bg-white bg-opacity-10 hover:bg-opacity-20 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <form method="POST" action="/faculty/profile/" class="p-6">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                                <input type="hidden" name="action" value="update_specialization">
-                                <input type="hidden" name="course_id" id="edit_course_id" value="">
-                                <div class="space-y-4">
-                                    <div>
-                                        <label for="edit_expertise_level" class="block text-sm font-medium text-gray-700 mb-1">Expertise Level</label>
-                                        <div class="relative">
-                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <i class="fas fa-star text-gray-400"></i>
-                                            </div>
-                                            <select id="edit_expertise_level" name="expertise_level" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus" required>
-                                                <option value="">Select Level</option>
-                                                <option value="Beginner">Beginner</option>
-                                                <option value="Intermediate">Intermediate</option>
-                                                <option value="Expert">Expert</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-6">
-                                    <button type="button" id="cancelEditSpecializationBtn" class="bg-gray-200 text-gray-700 px-5 py-3 rounded-lg hover:bg-gray-300 transition-all duration-200 font-medium">Cancel</button>
-                                    <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-3 rounded-lg shadow-md transition-all duration-200 font-medium">Save Changes</button>
-                                </div>
-                            </form>
-                        </div>
                     </div>
 
                     <!-- Remove Confirmation Modal -->
@@ -664,26 +669,18 @@ ob_start();
                                         </div>
                                         <select id="academic_rank" name="academic_rank" class="pl-10 pr-4 py-3 w-full rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
                                             <option value="">Select Academic Rank</option>
-
-                                            <!-- Instructor Ranks -->
                                             <option value="Instructor I" <?php echo $user['academic_rank'] === 'Instructor I' ? 'selected' : ''; ?>>Instructor I</option>
                                             <option value="Instructor II" <?php echo $user['academic_rank'] === 'Instructor II' ? 'selected' : ''; ?>>Instructor II</option>
                                             <option value="Instructor III" <?php echo $user['academic_rank'] === 'Instructor III' ? 'selected' : ''; ?>>Instructor III</option>
-
-                                            <!-- Assistant Professor Ranks -->
                                             <option value="Assistant Professor I" <?php echo $user['academic_rank'] === 'Assistant Professor I' ? 'selected' : ''; ?>>Assistant Professor I</option>
                                             <option value="Assistant Professor II" <?php echo $user['academic_rank'] === 'Assistant Professor II' ? 'selected' : ''; ?>>Assistant Professor II</option>
                                             <option value="Assistant Professor III" <?php echo $user['academic_rank'] === 'Assistant Professor III' ? 'selected' : ''; ?>>Assistant Professor III</option>
                                             <option value="Assistant Professor IV" <?php echo $user['academic_rank'] === 'Assistant Professor IV' ? 'selected' : ''; ?>>Assistant Professor IV</option>
-
-                                            <!-- Associate Professor Ranks -->
                                             <option value="Associate Professor I" <?php echo $user['academic_rank'] === 'Associate Professor I' ? 'selected' : ''; ?>>Associate Professor I</option>
                                             <option value="Associate Professor II" <?php echo $user['academic_rank'] === 'Associate Professor II' ? 'selected' : ''; ?>>Associate Professor II</option>
                                             <option value="Associate Professor III" <?php echo $user['academic_rank'] === 'Associate Professor III' ? 'selected' : ''; ?>>Associate Professor III</option>
                                             <option value="Associate Professor IV" <?php echo $user['academic_rank'] === 'Associate Professor IV' ? 'selected' : ''; ?>>Associate Professor IV</option>
                                             <option value="Associate Professor V" <?php echo $user['academic_rank'] === 'Associate Professor V' ? 'selected' : ''; ?>>Associate Professor V</option>
-
-                                            <!-- Professor Ranks -->
                                             <option value="Professor I" <?php echo $user['academic_rank'] === 'Professor I' ? 'selected' : ''; ?>>Professor I</option>
                                             <option value="Professor II" <?php echo $user['academic_rank'] === 'Professor II' ? 'selected' : ''; ?>>Professor II</option>
                                             <option value="Professor III" <?php echo $user['academic_rank'] === 'Professor III' ? 'selected' : ''; ?>>Professor III</option>
@@ -691,8 +688,6 @@ ob_start();
                                             <option value="Professor V" <?php echo $user['academic_rank'] === 'Professor V' ? 'selected' : ''; ?>>Professor V</option>
                                             <option value="Professor VI" <?php echo $user['academic_rank'] === 'Professor VI' ? 'selected' : ''; ?>>Professor VI</option>
                                             <option value="Professor VII" <?php echo $user['academic_rank'] === 'Professor VII' ? 'selected' : ''; ?>>Professor VII</option>
-
-                                            <!-- Highest Rank -->
                                             <option value="University Professor" <?php echo $user['academic_rank'] === 'University Professor' ? 'selected' : ''; ?>>University Professor</option>
                                         </select>
                                     </div>
@@ -827,21 +822,14 @@ ob_start();
                     <input type="hidden" name="last_name" value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="action" value="add_specialization">
+                    <input type="hidden" id="selected_course_id" name="course_id">
 
                     <div class="space-y-4">
-                        <div>
-                            <label for="course_id" class="block text-sm font-medium text-gray-700 mb-1">Course/Subject</label>
-                            <select id="course_id" name="course_id" required class="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white shadow-sm input-focus">
-                                <option value="">Select a course</option>
-                                <?php
-                                $stmt = $this->db->prepare("SELECT course_id, course_code, course_name FROM courses WHERE is_active = 1 ORDER BY course_code");
-                                $stmt->execute();
-                                $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                                foreach ($courses as $course) {
-                                    echo "<option value=\"{$course['course_id']}\">{$course['course_code']} - {$course['course_name']}</option>";
-                                }
-                                ?>
-                            </select>
+                        <div class="search-container">
+                            <label for="course_search" class="block text-sm font-medium text-gray-700 mb-1">Search Course/Subject</label>
+                            <input type="text" id="course_search" class="search-input" placeholder="Search courses across departments...">
+                            <i class="fas fa-search search-icon"></i>
+                            <div id="search-results" class="search-results"></div>
                         </div>
                     </div>
 
@@ -855,7 +843,6 @@ ob_start();
     </div>
 
     <script>
-        // Update the JavaScript block
         document.addEventListener('DOMContentLoaded', () => {
             <?php if (isset($_SESSION['flash'])): ?>
                 showToast('<?php echo htmlspecialchars($_SESSION['flash']['message'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo $_SESSION['flash']['type'] === 'success' ? 'bg-green-500' : 'bg-red-500'; ?>');
@@ -918,37 +905,12 @@ ob_start();
                         document.body.style.overflow = 'auto';
                         const form = modal.querySelector('form');
                         if (form) form.reset();
+                        document.getElementById('search-results').classList.remove('active');
                     }, 300);
                 }
             }
 
-            // Edit Specialization Modal Functions
-            function openEditSpecializationModal(courseId, currentLevel) {
-                const modal = document.getElementById('editSpecializationModal');
-                const modalContent = modal?.querySelector('.modal-content');
-                if (modal && modalContent) {
-                    document.getElementById('edit_course_id').value = courseId;
-                    const levelSelect = document.getElementById('edit_expertise_level');
-                    levelSelect.value = currentLevel || '';
-                    modal.classList.remove('hidden');
-                    setTimeout(() => modalContent.classList.add('scale-100'), 50);
-                    document.body.style.overflow = 'hidden';
-                }
-            }
-
-            function closeEditSpecializationModal() {
-                const modal = document.getElementById('editSpecializationModal');
-                const modalContent = modal?.querySelector('.modal-content');
-                if (modalContent) {
-                    modalContent.classList.remove('scale-100');
-                    setTimeout(() => {
-                        modal.classList.add('hidden');
-                        document.body.style.overflow = 'auto';
-                    }, 300);
-                }
-            }
-
-            // Add remove specialization modal functions
+            // Remove Specialization Modal Functions
             function openRemoveSpecializationModal(courseId) {
                 const modal = document.getElementById('removeSpecializationModal');
                 const modalContent = modal?.querySelector('.modal-content');
@@ -976,7 +938,6 @@ ob_start();
                 button.addEventListener('click', (e) => {
                     e.preventDefault();
                     const courseId = button.getAttribute('data-course-id');
-                    console.log('Removing course ID:', courseId); // Debug log
                     openRemoveSpecializationModal(courseId);
                 });
             });
@@ -991,7 +952,6 @@ ob_start();
                 cancelRemoveSpecializationBtn.addEventListener('click', closeRemoveSpecializationModal);
             }
 
-            // Existing modal close when clicking outside
             const removeSpecializationModal = document.getElementById('removeSpecializationModal');
             if (removeSpecializationModal) {
                 removeSpecializationModal.addEventListener('click', (e) => {
@@ -1009,7 +969,6 @@ ob_start();
             const cancelModalBtn = document.getElementById('cancelModalBtn');
             if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeProfileModal);
 
-            // Specialization modal event listeners
             const addSpecializationBtn = document.getElementById('addSpecializationBtn');
             if (addSpecializationBtn) addSpecializationBtn.addEventListener('click', openSpecializationModal);
 
@@ -1024,29 +983,6 @@ ob_start();
 
             const cancelSpecializationBtn = document.getElementById('cancelSpecializationBtn');
             if (cancelSpecializationBtn) cancelSpecializationBtn.addEventListener('click', closeSpecializationModal);
-
-            // Edit specialization modal event listeners
-            const closeEditSpecializationModalBtn = document.getElementById('closeEditSpecializationModalBtn');
-            if (closeEditSpecializationModalBtn) closeEditSpecializationModalBtn.addEventListener('click', closeEditSpecializationModal);
-
-            const cancelEditSpecializationBtn = document.getElementById('cancelEditSpecializationBtn');
-            if (cancelEditSpecializationBtn) cancelEditSpecializationBtn.addEventListener('click', closeEditSpecializationModal);
-
-            // Replace the edit form event listener
-            document.querySelectorAll('.edit-form').forEach(form => {
-                form.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const index = form.querySelector('input[name="specialization_index"]').value;
-                    const specializations = <?php echo json_encode(array_values($specializations)); ?>;
-                    if (specializations[index]) {
-                        openEditSpecializationModal(specializations[index].course_id, specializations[index].level);
-                    } else {
-                        console.log('Specialization not found for index:', index);
-                    }
-                });
-            });
-
-            // Handle remove confirmation (already in HTML with onsubmit)
 
             // Close modals when clicking outside
             const editProfileModal = document.getElementById('editProfileModal');
@@ -1063,13 +999,6 @@ ob_start();
                 });
             }
 
-            const editSpecializationModal = document.getElementById('editSpecializationModal');
-            if (editSpecializationModal) {
-                editSpecializationModal.addEventListener('click', (e) => {
-                    if (e.target === editSpecializationModal) closeEditSpecializationModal();
-                });
-            }
-
             // Close modals with Escape key
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
@@ -1079,13 +1008,10 @@ ob_start();
                     if (addSpecializationModal && !addSpecializationModal.classList.contains('hidden')) {
                         closeSpecializationModal();
                     }
-                    if (editSpecializationModal && !editSpecializationModal.classList.contains('hidden')) {
-                        closeEditSpecializationModal();
-                    }
                 }
             });
 
-            // Form Validation (unchanged, kept for completeness)
+            // Form Validation
             const profileForm = document.querySelector('#editProfileModal form');
             if (profileForm) {
                 profileForm.addEventListener('submit', (e) => {
@@ -1124,88 +1050,73 @@ ob_start();
             const specializationForm = document.querySelector('#addSpecializationModal form');
             if (specializationForm) {
                 specializationForm.addEventListener('submit', (e) => {
-                    const courseSelect = document.getElementById('course_id');
-                    const levelSelect = document.getElementById('expertise_level');
+                    const courseId = document.getElementById('selected_course_id').value;
                     let isValid = true;
-                    if (courseSelect && !courseSelect.value) {
-                        courseSelect.classList.add('border-red-500');
+                    if (!courseId) {
+                        document.getElementById('course_search').classList.add('border-red-500');
                         isValid = false;
-                    } else if (courseSelect) {
-                        courseSelect.classList.remove('border-red-500');
-                    }
-                    if (levelSelect && !levelSelect.value) {
-                        levelSelect.classList.add('border-red-500');
-                        isValid = false;
-                    } else if (levelSelect) {
-                        levelSelect.classList.remove('border-red-500');
+                    } else {
+                        document.getElementById('course_search').classList.remove('border-red-500');
                     }
                     if (!isValid) {
                         e.preventDefault();
-                        showToast('Please select both course and expertise level.', 'bg-red-500');
+                        showToast('Please select a course.', 'bg-red-500');
                     }
                 });
             }
 
-            // Real-time validation (unchanged, kept for completeness)
-            if (profileForm) {
-                profileForm.querySelectorAll('input[required]').forEach(input => {
-                    input.addEventListener('input', () => {
-                        if (input.value.trim()) {
-                            input.classList.remove('border-red-500');
+            // Search Functionality
+            const courseSearch = document.getElementById('course_search');
+            const searchResults = document.getElementById('search-results');
+            if (courseSearch && searchResults) {
+                courseSearch.addEventListener('input', async (e) => {
+                    const query = e.target.value.trim();
+                    if (query.length < 2) {
+                        searchResults.classList.remove('active');
+                        searchResults.innerHTML = '';
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/faculty/profile/search_courses?query=${encodeURIComponent(query)}`, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                            }
+                        });
+                        const courses = await response.json();
+                        searchResults.innerHTML = '';
+                        if (courses.length > 0) {
+                            courses.forEach(course => {
+                                const div = document.createElement('div');
+                                div.className = 'search-result-item';
+                                div.textContent = `${course.course_code} - ${course.course_name} (${course.department_name}, ${course.college_name})`;
+                                div.dataset.courseId = course.course_id;
+                                div.addEventListener('click', () => {
+                                    courseSearch.value = `${course.course_code} - ${course.course_name} (${course.department_name}, ${course.college_name})`;
+                                    document.getElementById('selected_course_id').value = course.course_id;
+                                    searchResults.classList.remove('active');
+                                });
+                                searchResults.appendChild(div);
+                            });
+                            searchResults.classList.add('active');
+                        } else {
+                            const div = document.createElement('div');
+                            div.className = 'search-result-item text-gray-500';
+                            div.textContent = 'No courses found';
+                            searchResults.appendChild(div);
+                            searchResults.classList.add('active');
                         }
-                    });
-                });
-            }
-            const emailModal = document.getElementById('email_modal');
-            if (emailModal) {
-                emailModal.addEventListener('input', function() {
-                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                    if (emailRegex.test(this.value.trim())) {
-                        this.classList.remove('border-red-500');
+                    } catch (error) {
+                        console.error('Error fetching courses:', error);
+                        searchResults.innerHTML = '<div class="search-result-item text-red-500">Error loading courses</div>';
+                        searchResults.classList.add('active');
                     }
                 });
-            }
-            const phoneModal = document.getElementById('phone_modal');
-            if (phoneModal) {
-                phoneModal.addEventListener('input', function() {
-                    const phoneRegex = /^\d{10,12}$/;
-                    if (!this.value.trim() || phoneRegex.test(this.value.trim())) {
-                        this.classList.remove('border-red-500');
-                    }
-                });
-            }
-            const profileInput = document.getElementById('profile_picture');
-            if (profileInput) {
-                profileInput.addEventListener('change', function(e) {
-                    const file = e.target.files[0];
-                    if (file) {
-                        const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-                        if (!validTypes.includes(file.type)) {
-                            showToast('Only JPEG, PNG, or GIF files are allowed.', 'bg-red-500');
-                            this.value = '';
-                            return;
-                        }
-                        if (file.size > 2 * 1024 * 1024) {
-                            showToast('File size must be less than 2MB.', 'bg-red-500');
-                            this.value = '';
-                            return;
-                        }
-                    }
-                });
-            }
-            const courseIdSelect = document.getElementById('course_id');
-            if (courseIdSelect) {
-                courseIdSelect.addEventListener('change', function() {
-                    if (this.value) {
-                        this.classList.remove('border-red-500');
-                    }
-                });
-            }
-            const expertiseLevelSelect = document.getElementById('expertise_level');
-            if (expertiseLevelSelect) {
-                expertiseLevelSelect.addEventListener('change', function() {
-                    if (this.value) {
-                        this.classList.remove('border-red-500');
+
+                document.addEventListener('click', (e) => {
+                    if (!courseSearch.contains(e.target) && !searchResults.contains(e.target)) {
+                        searchResults.classList.remove('active');
                     }
                 });
             }

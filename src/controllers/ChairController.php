@@ -133,7 +133,7 @@ class ChairController
             // Get current semester
             $currentSemesterStmt = $this->db->query("SELECT semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
             $currentSemester = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
-            $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
+            $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} Semester A.Y {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
 
             // Get counts for dashboard
             $schedulesCount = $this->db->query("SELECT COUNT(*) FROM schedules s 
@@ -298,7 +298,7 @@ class ChairController
                 return;
             }
             $semesterId = $semester['semester_id'];
-            $semesterName = $semester['semester_name'] . ' Semester, AY ' . $semester['academic_year'];
+            $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
             error_log("mySchedule: Current semester ID: $semesterId, Name: $semesterName");
 
             $schedulesStmt = $this->db->prepare("
@@ -443,35 +443,44 @@ class ChairController
     }
 
     private function getFaculty($departmentId, $collegeId)
-        {
-            try {
-                $stmt = $this->db->prepare("
-                SELECT f.faculty_id, u.user_id, u.college_id, fd.department_id
-                FROM faculty f
-                JOIN users u ON f.user_id = u.user_id
-                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                WHERE fd.department_id = :department_id
-                AND u.college_id = :college_id
-                AND u.is_active = 1
-                ");
-                $stmt->execute([':department_id' => $departmentId, ':college_id' => $collegeId]);
-                $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    {
+        try {
+            // Handle case where collegeId might be an array
+            if (is_array($collegeId)) {
+                error_log("Warning: collegeId is an array: " . json_encode($collegeId));
+                // Either take the first element or handle multiple colleges
+                $collegeId = $collegeId[0]; // or return [] if this shouldn't happen
+            }
 
-                if ($faculty === false) {
-                    error_log("fetchAll returned false for getFaculty, department $departmentId, college $collegeId");
-                    return [];
-                }
+            $stmt = $this->db->prepare("
+            SELECT f.faculty_id, u.user_id, u.college_id, fd.department_id
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            WHERE fd.department_id = :department_id
+            AND u.college_id = :college_id
+            AND u.is_active = 1
+            ");
+            $stmt->execute([':department_id' => $departmentId, ':college_id' => $collegeId]);
+            $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                error_log("getFaculty for department $departmentId, college $collegeId: found " . count($faculty) . " faculty");
-                return $faculty;
-            } catch (PDOException $e) {
-                error_log("getFaculty failed for department $departmentId, college $collegeId: " . $e->getMessage());
-                return [];
-            } catch (Exception $e) {
-                error_log("Unexpected error in getFaculty for department $departmentId, college $collegeId: " . $e->getMessage());
+            if ($faculty === false) {
+                error_log("fetchAll returned false for getFaculty, department $departmentId, college $collegeId");
                 return [];
             }
+
+            error_log("getFaculty for department $departmentId, college $collegeId: found " . count($faculty) . " faculty");
+            return $faculty;
+        } catch (PDOException $e) {
+            $collegeIdStr = is_array($collegeId) ? json_encode($collegeId) : $collegeId;
+            error_log("getFaculty failed for department $departmentId, college $collegeIdStr: " . $e->getMessage());
+            return [];
+        } catch (Exception $e) {
+            $collegeIdStr = is_array($collegeId) ? json_encode($collegeId) : $collegeId;
+            error_log("Unexpected error in getFaculty for department $departmentId, college $collegeIdStr: " . $e->getMessage());
+            return [];
         }
+    }
 
     private function getSections($departmentId, $semester, $academicYear)
     {
@@ -4473,6 +4482,57 @@ class ChairController
     /**
      * View/edit profile
      */
+    public function searchCourses()
+    {
+        try {
+            if (!$this->authService->isLoggedIn()) {
+                http_response_code(401);
+                echo json_encode(['error' => 'Unauthorized']);
+                exit;
+            }
+
+            $query = trim($_GET['query'] ?? '');
+            if (strlen($query) < 2) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Query must be at least 2 characters']);
+                exit;
+            }
+
+            // Use positional parameters (?) instead
+            $stmt = $this->db->prepare("
+            SELECT c.course_id, c.course_code, c.course_name, d.department_name, co.college_name
+            FROM courses c
+            JOIN departments d ON c.department_id = d.department_id
+            JOIN colleges co ON d.college_id = co.college_id
+            WHERE UPPER(c.course_code) LIKE UPPER(?) OR UPPER(c.course_name) LIKE UPPER(?)
+            LIMIT 10
+        ");
+
+            $searchTerm = "%" . strtoupper($query) . "%";
+            error_log("searchCourses: Preparing query with positional parameters");
+            error_log("searchCourses: Search term = $searchTerm");
+
+            // Execute with array of parameters
+            $stmt->execute([$searchTerm, $searchTerm]);
+            $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            error_log("searchCourses: Query executed successfully, found " . count($courses) . " results");
+            header('Content-Type: application/json');
+            echo json_encode($courses);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            error_log("searchCourses: PDO Error - SQLSTATE[" . $e->getCode() . "]: " . $e->getMessage());
+            error_log("searchCourses: Query: " . (isset($stmt) ? $stmt->queryString : 'Query not prepared'));
+            error_log("searchCourses: Search term: " . (isset($searchTerm) ? $searchTerm : 'Not set'));
+            echo json_encode(['error' => 'An error occurred while fetching courses: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            error_log("searchCourses: General Error - " . $e->getMessage());
+            echo json_encode(['error' => 'An error occurred while fetching courses']);
+        }
+        exit;
+    }
+
     public function profile()
     {
         try {
@@ -4486,7 +4546,6 @@ class ChairController
             $csrfToken = $this->authService->generateCsrfToken();
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
                     header('Location: /chair/profile');
@@ -4507,11 +4566,10 @@ class ChairController
                     'employment_type' => trim($_POST['employment_type'] ?? ''),
                     'bachelor_degree' => trim($_POST['bachelor_degree'] ?? ''),
                     'master_degree' => trim($_POST['master_degree'] ?? ''),
-                    'doctorate_degree' => trim($_POST['dpost_doctorate_degree'] ?? ''),
-                    'post_doctorate_degree' => trim($_POST['bachelor_degree'] ?? ''),
+                    'doctorate_degree' => trim($_POST['doctorate_degree'] ?? ''),
+                    'post_doctorate_degree' => trim($_POST['post_doctorate_degree'] ?? ''),
                     'advisory_class' => trim($_POST['advisory_class'] ?? ''),
                     'designation' => trim($_POST['designation'] ?? ''),
-                    'expertise_level' => trim($_POST['expertise_level'] ?? ''),
                     'course_id' => trim($_POST['course_id'] ?? ''),
                     'specialization_index' => trim($_POST['specialization_index'] ?? ''),
                     'action' => trim($_POST['action'] ?? ''),
@@ -4527,10 +4585,8 @@ class ChairController
 
                     if ($profilePictureResult !== null) {
                         if (strpos($profilePictureResult, 'Error:') === 0) {
-                            // It's an error message
                             $errors[] = $profilePictureResult;
                         } else {
-                            // It's a successful upload path
                             $profilePicturePath = $profilePictureResult;
                         }
                     }
@@ -4541,17 +4597,11 @@ class ChairController
                         !empty($data['phone']) || !empty($data['username']) || !empty($data['suffix']) ||
                         !empty($data['title']) || $profilePicturePath
                     ) {
-                        // Validate required fields only if they are being updated
                         if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
                             $errors[] = 'Valid email is required.';
                         }
                         if (!empty($data['phone']) && !preg_match('/^\d{10,12}$/', $data['phone'])) {
                             $errors[] = 'Phone number must be 10-12 digits.';
-                        }
-                        // And add this after your existing foreach loop for validFields:
-                        if ($profilePicturePath) {
-                            $setClause[] = "`profile_picture` = :profile_picture";
-                            $params[":profile_picture"] = $profilePicturePath;
                         }
 
                         if (empty($errors)) {
@@ -4566,7 +4616,6 @@ class ChairController
                                 }
                             }
 
-                            // Add profile picture to update if uploaded
                             if ($profilePicturePath) {
                                 $setClause[] = "`profile_picture` = :profile_picture";
                                 $params[":profile_picture"] = $profilePicturePath;
@@ -4632,25 +4681,24 @@ class ChairController
                         if (!empty($data['action'])) {
                             switch ($data['action']) {
                                 case 'add_specialization':
-                                    if (!empty($data['expertise_level']) && !empty($data['course_id'])) {
+                                    if (!empty($data['course_id'])) {
                                         // Check if specialization already exists
                                         $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
                                         $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
                                         $exists = $checkStmt->fetchColumn();
 
                                         if ($exists > 0) {
-                                            $errors[] = 'You already have this specialization. Use edit to modify it.';
+                                            $errors[] = 'You already have this specialization.';
                                             break;
                                         }
 
                                         $insertSpecializationStmt = $this->db->prepare("
-                                        INSERT INTO specializations (faculty_id, course_id, expertise_level, created_at)
-                                        VALUES (:faculty_id, :course_id, :expertise_level, NOW())
+                                        INSERT INTO specializations (faculty_id, course_id, created_at)
+                                        VALUES (:faculty_id, :course_id, NOW())
                                     ");
                                         $specializationParams = [
                                             ':faculty_id' => $facultyId,
                                             ':course_id' => $data['course_id'],
-                                            ':expertise_level' => $data['expertise_level'],
                                         ];
                                         error_log("profile: Add specialization query - " . $insertSpecializationStmt->queryString . ", Params: " . print_r($specializationParams, true));
 
@@ -4661,7 +4709,7 @@ class ChairController
                                         }
                                         error_log("profile: Successfully added specialization");
                                     } else {
-                                        $errors[] = 'Course and expertise level are required to add specialization.';
+                                        $errors[] = 'Course is required to add specialization.';
                                     }
                                     break;
 
@@ -4669,7 +4717,6 @@ class ChairController
                                     if (!empty($data['course_id'])) {
                                         error_log("profile: Attempting to remove specialization with course_id: " . $data['course_id'] . ", faculty_id: $facultyId");
 
-                                        // First, check if the record exists
                                         $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
                                         $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
                                         $recordExists = $checkStmt->fetchColumn();
@@ -4704,45 +4751,6 @@ class ChairController
                                     }
                                     break;
 
-                                case 'update_specialization':
-                                    if (!empty($data['course_id']) && !empty($data['expertise_level'])) {
-                                        error_log("profile: Attempting to update specialization with course_id: " . $data['course_id'] . ", faculty_id: $facultyId");
-
-                                        // Check if the record exists first
-                                        $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM specializations WHERE faculty_id = :faculty_id AND course_id = :course_id");
-                                        $checkStmt->execute([':faculty_id' => $facultyId, ':course_id' => $data['course_id']]);
-                                        $recordExists = $checkStmt->fetchColumn();
-
-                                        if ($recordExists > 0) {
-                                            $updateStmt = $this->db->prepare("UPDATE specializations SET expertise_level = :expertise_level, updated_at = NOW() WHERE faculty_id = :faculty_id AND course_id = :course_id");
-                                            $updateParams = [
-                                                ':faculty_id' => $facultyId,
-                                                ':course_id' => $data['course_id'],
-                                                ':expertise_level' => $data['expertise_level'],
-                                            ];
-                                            error_log("profile: Update specialization query - " . $updateStmt->queryString . ", Params: " . print_r($updateParams, true));
-
-                                            if ($updateStmt->execute($updateParams)) {
-                                                $affectedRows = $updateStmt->rowCount();
-                                                error_log("profile: Successfully updated $affectedRows rows");
-                                                if ($affectedRows === 0) {
-                                                    error_log("profile: Warning - No rows were affected by update operation");
-                                                    $errors[] = 'No changes were made to the specialization.';
-                                                }
-                                            } else {
-                                                $errorInfo = $updateStmt->errorInfo();
-                                                error_log("profile: Update failed - " . print_r($errorInfo, true));
-                                                throw new Exception("Failed to update specialization: " . $errorInfo[2]);
-                                            }
-                                        } else {
-                                            error_log("profile: No record found for update");
-                                            $errors[] = 'Specialization not found for update.';
-                                        }
-                                    } else {
-                                        $errors[] = 'Course ID and expertise level are required to update specialization.';
-                                    }
-                                    break;
-
                                 case 'edit_specialization':
                                     if (!empty($data['specialization_index'])) {
                                         error_log("profile: Edit specialization triggered for index: " . $data['specialization_index']);
@@ -4773,7 +4781,6 @@ class ChairController
                         $_SESSION['first_name'] = $data['first_name'] ?: $_SESSION['first_name'];
                         $_SESSION['email'] = $data['email'] ?: $_SESSION['email'];
 
-                        // Update profile picture in session if it was uploaded
                         if ($profilePicturePath) {
                             $_SESSION['profile_picture'] = $profilePicturePath;
                             error_log("profile: Updated session profile_picture to: " . $profilePicturePath);
@@ -4834,26 +4841,22 @@ class ChairController
 
             // Fetch user data and stats...
             $stmt = $this->db->prepare("
-                SELECT u.*, d.department_name, c.college_name, r.role_name,
-                       f.academic_rank, f.employment_type, f.classification, f.bachelor_degree, f.master_degree,
-                       f.doctorate_degree, f.post_doctorate_degree, f.advisory_class, f.designation,
-                       s.expertise_level, 
-                       (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
-                       (SELECT COUNT(DISTINCT sch.course_id) FROM schedules sch WHERE sch.faculty_id = f.faculty_id) as coursesCount,
-                       (SELECT COUNT(*) FROM specializations s2 WHERE s2.course_id = c2.course_id) as specializationsCount,
-                       (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
-                       (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
-                       (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
-                FROM users u
-                LEFT JOIN departments d ON u.department_id = d.department_id
-                LEFT JOIN colleges c ON u.college_id = c.college_id
-                LEFT JOIN courses c2 ON d.department_id = c2.department_id
-                LEFT JOIN schedules sch ON c2.course_id = sch.course_id
-                LEFT JOIN roles r ON u.role_id = r.role_id
-                LEFT JOIN faculty f ON u.user_id = f.user_id
-                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id
-                WHERE u.user_id = :user_id
-            ");
+            SELECT u.*, d.department_name, c.college_name, r.role_name,
+                   f.academic_rank, f.employment_type, f.classification, f.bachelor_degree, f.master_degree,
+                   f.doctorate_degree, f.post_doctorate_degree, f.advisory_class, f.designation,
+                   (SELECT COUNT(*) FROM faculty f2 JOIN users fu ON f2.user_id = fu.user_id WHERE fu.department_id = u.department_id) as facultyCount,
+                   (SELECT COUNT(DISTINCT sch.course_id) FROM schedules sch WHERE sch.faculty_id = f.faculty_id) as coursesCount,
+                   (SELECT COUNT(*) FROM specializations s2 WHERE s2.faculty_id = f.faculty_id) as specializationsCount,
+                   (SELECT COUNT(*) FROM faculty_requests fr WHERE fr.department_id = u.department_id AND fr.status = 'pending') as pendingApplicantsCount,
+                   (SELECT semester_name FROM semesters WHERE is_current = 1) as currentSemester,
+                   (SELECT created_at FROM auth_logs WHERE user_id = u.user_id AND action = 'login_success' ORDER BY created_at DESC LIMIT 1) as lastLogin
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON u.college_id = c.college_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            LEFT JOIN faculty f ON u.user_id = f.user_id
+            WHERE u.user_id = :user_id
+        ");
             $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 

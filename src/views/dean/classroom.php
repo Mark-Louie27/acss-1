@@ -146,12 +146,6 @@ if (!is_array($reservations)) {
 
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <!-- Header -->
-        <header class="mb-8 slide-in-left">
-            <h2 class="text-4xl font-bold text-gray-dark">Classroom Management</h2>
-            <p class="text-gray-dark mt-2">Manage classrooms and review pending reservations</p>
-        </header>
-
         <!-- Add Classroom Button -->
         <div class="mb-6 flex justify-end fade-in">
             <button id="openModalBtn" class="btn-gold px-6 py-3 rounded-lg shadow-md hover:shadow-lg flex items-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gold focus:ring-opacity-50">

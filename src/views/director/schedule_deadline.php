@@ -43,7 +43,13 @@ ob_start();
                     <div>
                         <h1 class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($data['title']); ?></h1>
                         <div class="mt-2 flex items-center space-x-4">
-                            
+                            <div class="text-sm text-gray-600">
+                                <span class="inline-flex items-center bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full">
+                                    <i class="fas fa-calendar-alt mr-2"></i>
+                                    Current Semester: <?php echo htmlspecialchars($data['current_semester']['semester_name'] ?? 'Not Set'); ?> Semester
+                                    A.Y <?php echo htmlspecialchars($data['current_semester']['academic_year'] ?? 'Not Set'); ?>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
