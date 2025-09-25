@@ -58,25 +58,16 @@ ob_start();
         }
 
         .modal {
-            transition: opacity 0.3s ease;
-        }
-
-        .modal.hidden {
-            opacity: 0;
-            pointer-events: none;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
         }
 
         .modal-content {
-            transition: transform 0.3s ease;
-        }
-
-        .input-focus {
-            transition: all 0.2s ease;
+            transition: transform 0.2s ease-in-out;
         }
 
         .input-focus:focus {
             border-color: var(--gold);
-            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
         }
 
         .btn-gold {
@@ -86,6 +77,51 @@ ob_start();
 
         .btn-gold:hover {
             background-color: #b8972e;
+        }
+
+        .toast {
+            opacity: 1;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .current-semester-badge {
+            background-color: var(--gray-light);
+            color: var(--gray-dark);
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .stats-badge {
+            background-color: var(--gray-light);
+            color: var(--gray-dark);
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--gray-light);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--gray-light);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .no-results {
+            text-align: center;
+            color: var(--gray-dark);
+            padding: 1rem;
+            font-size: 0.875rem;
         }
 
         .loading::after {
@@ -402,6 +438,9 @@ ob_start();
                     <button id="openAddModalBtn" class="btn-gold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium w-full sm:w-auto">
                         <i class="fas fa-plus mr-2"></i>Add Section
                     </button>
+                    <button id="openReuseModalBtn" class="btn-gold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium w-full sm:w-auto">
+                        <i class="fas fa-recycle mr-2"></i>Reuse Section
+                    </button>
                 </div>
             </div>
 
@@ -414,12 +453,18 @@ ob_start();
                         </div>
                         <div class="empty-state-title">No Sections Yet</div>
                         <div class="empty-state-description">
-                            Create your first section to start organizing students by year level and program.
+                            Create your first section or reuse a previous one to start organizing students by year level and program.
                         </div>
-                        <button class="empty-state-action" id="emptyStateAddBtn">
-                            <i class="fas fa-plus"></i>
-                            Create Your First Section
-                        </button>
+                        <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                            <button class="empty-state-action" id="emptyStateAddBtn">
+                                <i class="fas fa-plus"></i>
+                                Create Your First Section
+                            </button>
+                            <button class="empty-state-action" id="emptyStateReuseBtn">
+                                <i class="fas fa-recycle"></i>
+                                Reuse Previous Section
+                            </button>
+                        </div>
                     </div>
                 <?php else: ?>
                     <!-- Desktop Table -->
@@ -430,7 +475,9 @@ ob_start();
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Section Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Year Level</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Current Students</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Max Students</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Semester</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -438,7 +485,7 @@ ob_start();
                                 <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
                                     <?php if (!empty($groupedCurrentSections[$yearLevel])): ?>
                                         <tr class="collapsible-header bg-gray-100" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
-                                            <td colspan="5" class="px-6 py-3 text-sm font-semibold text-gray-dark">
+                                            <td colspan="6" class="px-6 py-3 text-sm font-semibold text-gray-dark">
                                                 <div class="flex items-center">
                                                     <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
                                                     <?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count"><?php echo count($groupedCurrentSections[$yearLevel]); ?></span> Sections)
@@ -452,13 +499,16 @@ ob_start();
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['current_students']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['semester'] . ' ' . $section['academic_year']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div class="flex space-x-2">
                                                 <button class="action-btn edit-btn"
                                                     data-id="<?php echo $section['section_id']; ?>"
                                                     data-name="<?php echo htmlspecialchars($section['section_name']); ?>"
                                                     data-year="<?php echo htmlspecialchars($section['year_level']); ?>"
-                                                    data-max="<?php echo htmlspecialchars($section['max_students']); ?>">
+                                                    data-max="<?php echo htmlspecialchars($section['max_students']); ?>"
+                                                    data-current="<?php echo htmlspecialchars($section['current_students']); ?>">
                                                     <i class="fas fa-edit"></i>
                                                     <span class="action-tooltip">Edit Section</span>
                                                 </button>
@@ -497,6 +547,7 @@ ob_start();
                                                         data-id="<?php echo $section['section_id']; ?>"
                                                         data-name="<?php echo htmlspecialchars($section['section_name']); ?>"
                                                         data-year="<?php echo htmlspecialchars($section['year_level']); ?>"
+                                                        data-current="<?php echo htmlspecialchars($section['current_students']); ?>"
                                                         data-max="<?php echo htmlspecialchars($section['max_students']); ?>">
                                                         <i class="fas fa-edit"></i>
                                                         <span class="action-tooltip">Edit</span>
@@ -519,8 +570,16 @@ ob_start();
                                                     <span><?php echo htmlspecialchars($section['year_level']); ?></span>
                                                 </div>
                                                 <div class="section-card-detail">
+                                                    <span class="detail-label">Current Students</span>
+                                                    <span><?php echo htmlspecialchars($section['current_students']); ?></span>
+                                                </div>
+                                                <div class="section-card-detail">
                                                     <span class="detail-label">Max Students</span>
                                                     <span><?php echo htmlspecialchars($section['max_students']); ?></span>
+                                                </div>
+                                                <div class="section-card-detail">
+                                                    <span class="detail-label">Semester</span>
+                                                    <span><?php echo htmlspecialchars($section['semester'] . ' ' . $section['academic_year']); ?></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -563,6 +622,12 @@ ob_start();
                                 <option value="3rd Year">3rd Year</option>
                                 <option value="4th Year">4th Year</option>
                             </select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="max_students" class="block text-sm font-medium text-gray-dark mb-1">Current Students</label>
+                            <input type="number" id="current_students" name="current_students"
+                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
+                                required min="1" max="100" value="40">
                         </div>
                         <div class="mb-4">
                             <label for="max_students" class="block text-sm font-medium text-gray-dark mb-1">Max Students</label>
@@ -623,6 +688,12 @@ ob_start();
                             </select>
                         </div>
                         <div class="mb-4">
+                            <label for="edit_max_students" class="block text-sm font-medium text-gray-dark mb-1">Current Students</label>
+                            <input type="number" id="edit_current_students" name="current_students"
+                                class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
+                                required min="1" max="100">
+                        </div>
+                        <div class="mb-4">
                             <label for="edit_max_students" class="block text-sm font-medium text-gray-dark mb-1">Max Students</label>
                             <input type="number" id="edit_max_students" name="max_students"
                                 class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
@@ -648,6 +719,109 @@ ob_start();
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Reuse Section Modal -->
+        <div id="reuse-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 transform modal-content scale-95">
+                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
+                    <h3 class="text-xl font-bold text-gray-dark">Reuse Previous Section</h3>
+                    <button id="closeReuseModalBtn"
+                        class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200"
+                        aria-label="Close modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div class="mb-4 flex flex-col sm:flex-row sm:space-x-4">
+                        <div class="flex-1">
+                            <label for="section-search" class="block text-sm font-medium text-gray-dark mb-1">Search Sections</label>
+                            <input type="text" id="section-search" class="search-input" placeholder="Search by section name...">
+                        </div>
+                        <div class="flex-1">
+                            <label for="semester-filter" class="block text-sm font-medium text-gray-dark mb-1">Filter by Semester</label>
+                            <select id="semester-filter" class="filter-select">
+                                <option value="">All Semesters</option>
+                                <?php foreach (array_keys($groupedPreviousSections) as $semesterKey): ?>
+                                    <option value="<?php echo htmlspecialchars($semesterKey); ?>"><?php echo htmlspecialchars($semesterKey); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label for="year-filter" class="block text-sm font-medium text-gray-dark mb-1">Filter by Year Level</label>
+                            <select id="year-filter" class="filter-select">
+                                <option value="">All Year Levels</option>
+                                <option value="1st Year">1st Year</option>
+                                <option value="2nd Year">2nd Year</option>
+                                <option value="3rd Year">3rd Year</option>
+                                <option value="4th Year">4th Year</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="max-h-96 overflow-y-auto">
+                        <table class="min-w-full divide-y divide-gray-light">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Section Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Year Level</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Current Students</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Max Students</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Semester</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previous-sections-table" class="bg-white divide-y divide-gray-light">
+                                <?php foreach ($groupedPreviousSections as $semesterKey => $yearGroups): ?>
+                                    <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
+                                        <?php if (!empty($yearGroups[$yearLevel])): ?>
+                                            <tr class="collapsible-header bg-gray-100" data-semester="<?php echo htmlspecialchars($semesterKey); ?>" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
+                                                <td colspan="6" class="px-6 py-3 text-sm font-semibold text-gray-dark">
+                                                    <div class="flex items-center">
+                                                        <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
+                                                        <?php echo htmlspecialchars("$semesterKey - $yearLevel"); ?> (<span class="section-count"><?php echo count($yearGroups[$yearLevel]); ?></span> Sections)
+                                                    </div>
+                                                </td>
+                                            </tr>
+                            <tbody class="collapsible-content" data-semester="<?php echo htmlspecialchars($semesterKey); ?>" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
+                                <?php foreach ($yearGroups[$yearLevel] as $section): ?>
+                                    <tr class="hover:bg-gray-50 transition-all duration-200 section-row"
+                                        data-section-name="<?php echo htmlspecialchars($section['section_name']); ?>"
+                                        data-semester="<?php echo htmlspecialchars($section['semester_name'] . ' ' . $section['academic_year']); ?>"
+                                        data-year-level="<?php echo htmlspecialchars($section['year_level']); ?>">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['section_name']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['current_students']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['semester_name'] . ' ' . $section['academic_year']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <form action="/chair/sections" method="POST" class="inline">
+                                                <input type="hidden" name="section_id" value="<?php echo $section['section_id']; ?>">
+                                                <input type="hidden" name="reuse_section" value="1">
+                                                <button type="submit" class="btn-gold px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200">
+                                                    <i class="fas fa-recycle mr-1"></i> Reuse
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+                </tbody>
+                        </table>
+                        <div id="no-results-message" class="no-results hidden">No sections found matching your criteria.</div>
+                    </div>
+                </div>
+                <div class="flex justify-end p-6 border-t border-gray-light">
+                    <button type="button" id="cancelReuseBtn"
+                        class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">
+                        Cancel
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -686,14 +860,17 @@ ob_start();
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // Toast Notifications
-            <?php if (isset($success)): ?>
-                showToast('<?php echo htmlspecialchars($success); ?>', 'bg-green-500');
+            <?php if (isset($_SESSION['success'])): ?>
+                showToast('<?php echo htmlspecialchars($_SESSION['success']); ?>', 'bg-green-500');
+                <?php unset($_SESSION['success']); ?>
             <?php endif; ?>
-            <?php if (isset($error)): ?>
-                showToast('<?php echo htmlspecialchars($error); ?>', 'bg-red-500');
+            <?php if (isset($_SESSION['error'])): ?>
+                showToast('<?php echo htmlspecialchars($_SESSION['error']); ?>', 'bg-red-500');
+                <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
-            <?php if (isset($info)): ?>
-                showToast('<?php echo htmlspecialchars($info); ?>', 'bg-blue-500');
+            <?php if (isset($_SESSION['info'])): ?>
+                showToast('<?php echo htmlspecialchars($_SESSION['info']); ?>', 'bg-blue-500');
+                <?php unset($_SESSION['info']); ?>
             <?php endif; ?>
 
             function showToast(message, bgColor) {
@@ -730,23 +907,26 @@ ob_start();
 
             // Add Section Modal handlers
             document.getElementById('openAddModalBtn').addEventListener('click', () => openModal('add-modal'));
-
-            // Only attach empty state button if it exists
-            const emptyStateBtn = document.getElementById('emptyStateAddBtn');
-            if (emptyStateBtn) {
-                emptyStateBtn.addEventListener('click', () => openModal('add-modal'));
+            const emptyStateAddBtn = document.getElementById('emptyStateAddBtn');
+            if (emptyStateAddBtn) {
+                emptyStateAddBtn.addEventListener('click', () => openModal('add-modal'));
             }
-
             document.getElementById('closeAddModalBtn').addEventListener('click', () => closeModal('add-modal'));
             document.getElementById('cancelAddBtn').addEventListener('click', () => closeModal('add-modal'));
+
+            // Reuse Section Modal handlers
+            document.getElementById('openReuseModalBtn').addEventListener('click', () => openModal('reuse-modal'));
+            const emptyStateReuseBtn = document.getElementById('emptyStateReuseBtn');
+            if (emptyStateReuseBtn) {
+                emptyStateReuseBtn.addEventListener('click', () => openModal('reuse-modal'));
+            }
+            document.getElementById('closeReuseModalBtn').addEventListener('click', () => closeModal('reuse-modal'));
+            document.getElementById('cancelReuseBtn').addEventListener('click', () => closeModal('reuse-modal'));
 
             // Edit Section Modal
             function attachEditHandlers() {
                 const editButtons = document.querySelectorAll('.edit-btn');
-                console.log('Found edit buttons:', editButtons.length);
-
                 editButtons.forEach(btn => {
-                    // Remove existing listeners to prevent duplicates
                     btn.removeEventListener('click', handleEditClick);
                     btn.addEventListener('click', handleEditClick);
                 });
@@ -758,17 +938,12 @@ ob_start();
                 const sectionName = btn.dataset.name;
                 const yearLevel = btn.dataset.year;
                 const maxStudents = btn.dataset.max;
-
-                console.log('Edit clicked:', {
-                    sectionId,
-                    sectionName,
-                    yearLevel,
-                    maxStudents
-                });
+                const currentStudents = btn.dataset.current;
 
                 document.getElementById('edit_section_id').value = sectionId;
                 document.getElementById('edit_section_name').value = sectionName;
                 document.getElementById('edit_year_level').value = yearLevel;
+                document.getElementById('edit_current_students').value = currentStudents;
                 document.getElementById('edit_max_students').value = maxStudents;
 
                 openModal('edit-modal');
@@ -777,10 +952,7 @@ ob_start();
             // Remove Section Modal
             function attachRemoveHandlers() {
                 const removeButtons = document.querySelectorAll('.remove-btn');
-                console.log('Found remove buttons:', removeButtons.length);
-
                 removeButtons.forEach(btn => {
-                    // Remove existing listeners to prevent duplicates
                     btn.removeEventListener('click', handleRemoveClick);
                     btn.addEventListener('click', handleRemoveClick);
                 });
@@ -791,23 +963,16 @@ ob_start();
                 const sectionId = btn.dataset.id;
                 const sectionName = btn.dataset.name;
 
-                console.log('Remove clicked:', {
-                    sectionId,
-                    sectionName
-                });
-
                 const modalSectionId = document.getElementById('remove-modal-section-id');
                 const modalSectionName = document.getElementById('remove-modal-section-name');
                 if (modalSectionId && modalSectionName) {
                     modalSectionId.value = sectionId;
                     modalSectionName.textContent = sectionName;
-                } else {
-                    console.error('Modal elements not found');
                 }
                 openModal('remove-modal');
             }
 
-            // Attach handlers initially
+            // Attach handlers
             attachEditHandlers();
             attachRemoveHandlers();
 
@@ -818,7 +983,7 @@ ob_start();
             document.getElementById('cancelRemoveBtn').addEventListener('click', () => closeModal('remove-modal'));
 
             // Modal click outside to close
-            ['add-modal', 'edit-modal', 'remove-modal'].forEach(modalId => {
+            ['add-modal', 'edit-modal', 'remove-modal', 'reuse-modal'].forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 modal.addEventListener('click', (e) => {
                     if (e.target === modal) closeModal(modalId);
@@ -828,14 +993,14 @@ ob_start();
             // ESC key to close modals
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    ['add-modal', 'edit-modal', 'remove-modal'].forEach(modalId => {
+                    ['add-modal', 'edit-modal', 'remove-modal', 'reuse-modal'].forEach(modalId => {
                         const modal = document.getElementById(modalId);
                         if (!modal.classList.contains('hidden')) closeModal(modalId);
                     });
                 }
             });
 
-            // Collapsible year headers for desktop
+            // Collapsible year headers for desktop (current sections)
             document.querySelectorAll('.collapsible-header').forEach(header => {
                 header.addEventListener('click', () => {
                     const content = header.nextElementSibling;
@@ -846,12 +1011,11 @@ ob_start();
                 });
             });
 
-            // Collapsible year headers for mobile
+            // Collapsible year headers for mobile (current sections)
             document.querySelectorAll('.year-header-mobile').forEach(header => {
                 header.addEventListener('click', () => {
                     const content = header.nextElementSibling;
                     const icon = header.querySelector('.fas');
-
                     if (content.style.display === 'none' || !content.style.display) {
                         content.style.display = 'block';
                         icon.classList.remove('fa-chevron-down');
@@ -861,6 +1025,69 @@ ob_start();
                         icon.classList.remove('fa-chevron-up');
                         icon.classList.add('fa-chevron-down');
                     }
+                });
+            });
+
+            // Search and filter for previous sections
+            const sectionSearch = document.getElementById('section-search');
+            const semesterFilter = document.getElementById('semester-filter');
+            const yearFilter = document.getElementById('year-filter');
+            const sectionsTable = document.getElementById('previous-sections-table');
+            const noResultsMessage = document.getElementById('no-results-message');
+
+            function filterSections() {
+                const searchTerm = sectionSearch.value.toLowerCase();
+                const selectedSemester = semesterFilter.value;
+                const selectedYear = yearFilter.value;
+                let visibleRows = 0;
+
+                document.querySelectorAll('#previous-sections-table .section-row').forEach(row => {
+                    const sectionName = row.dataset.sectionName.toLowerCase();
+                    const semester = row.dataset.semester;
+                    const yearLevel = row.dataset.yearLevel;
+
+                    const matchesSearch = sectionName.includes(searchTerm);
+                    const matchesSemester = !selectedSemester || semester === selectedSemester;
+                    const matchesYear = !selectedYear || yearLevel === selectedYear;
+
+                    if (matchesSearch && matchesSemester && matchesYear) {
+                        row.classList.remove('hidden');
+                        visibleRows++;
+                    } else {
+                        row.classList.add('hidden');
+                    }
+                });
+
+                // Show/hide collapsible headers based on visible sections
+                document.querySelectorAll('#previous-sections-table .collapsible-header').forEach(header => {
+                    const semester = header.dataset.semester;
+                    const yearLevel = header.dataset.yearLevel;
+                    const content = header.nextElementSibling;
+                    const rows = content.querySelectorAll('.section-row:not(.hidden)');
+                    if (rows.length > 0) {
+                        header.classList.remove('hidden');
+                        content.classList.remove('hidden');
+                    } else {
+                        header.classList.add('hidden');
+                        content.classList.add('hidden');
+                    }
+                });
+
+                noResultsMessage.classList.toggle('hidden', visibleRows > 0);
+            }
+
+            sectionSearch.addEventListener('input', filterSections);
+            semesterFilter.addEventListener('change', filterSections);
+            yearFilter.addEventListener('change', filterSections);
+
+            // Collapsible headers for previous sections
+            document.querySelectorAll('#previous-sections-table .collapsible-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const content = header.nextElementSibling;
+                    const icon = header.querySelector('.fas');
+                    content.classList.toggle('hidden');
+                    icon.classList.toggle('fa-chevron-down');
+                    icon.classList.toggle('fa-chevron-up');
                 });
             });
         });

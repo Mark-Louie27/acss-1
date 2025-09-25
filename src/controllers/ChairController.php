@@ -434,7 +434,7 @@ class ChairController
             }
 
             $stmt = $this->db->prepare("
-            SELECT f.faculty_id, u.user_id, u.college_id, fd.department_id
+            SELECT CONCAT(u.first_name, ' ', u.last_name) AS name, f.faculty_id, u.user_id, u.college_id, fd.department_id
             FROM faculty f
             JOIN users u ON f.user_id = u.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
@@ -508,6 +508,27 @@ class ChairController
         $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
         error_log("Fetched courses at " . date('Y-m-d H:i:s') . ": " . print_r($courses, true));
         return $courses;
+    }
+
+    private function getCurriculumCourses($curriculumId)
+    {
+        $stmt = $this->db->prepare("SELECT c.course_id, c.course_code, c.units, c.lecture_units, c.lab_units, c.lab_hours, c.lecture_hours, c.course_name, cc.subject_type, cc.year_level 
+            AS curriculum_year, cc.semester AS curriculum_semester FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id 
+            JOIN curricula cr ON cc.curriculum_id = cr.curriculum_id WHERE cc.curriculum_id = :curriculum_id AND cr.status = 'Active' 
+            ORDER BY FIELD(cc.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), FIELD(cc.semester, '1st', '2nd', 'Mid Year'), c.course_code");
+        $stmt->execute([':curriculum_id' => $curriculumId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function loadCommonData($departmentId, $collegeId, $currentSemester)
+    {
+        return [
+            'curricula' => $this->getCurricula($departmentId),
+            'curriculumCourses' => $this->getCurriculumCourses($departmentId),
+            'classrooms' => $this->getClassrooms($departmentId),
+            'faculty' => $this->getFaculty($departmentId, $collegeId),
+            'sections' => $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year'])
+        ];
     }
 
     public function deleteAllSchedules()
@@ -597,28 +618,1696 @@ class ChairController
         }
     }
 
-    private function getCurriculumCourses($curriculumId)
+    public function manageSchedule()
     {
-        $stmt = $this->db->prepare("SELECT c.course_id, c.course_code, c.units, c.lecture_units, c.lab_units, c.course_name, cc.subject_type, cc.year_level 
-            AS curriculum_year, cc.semester AS curriculum_semester FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id 
-            JOIN curricula cr ON cc.curriculum_id = cr.curriculum_id WHERE cc.curriculum_id = :curriculum_id AND cr.status = 'Active' 
-            ORDER BY FIELD(cc.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), FIELD(cc.semester, '1st', '2nd', 'Mid Year'), c.course_code");
-        $stmt->execute([':curriculum_id' => $curriculumId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $chairId = $_SESSION['user_id'] ?? null;
+        $departmentId = $this->getChairDepartment($chairId);
+        $currentSemester = $this->getCurrentSemester();
+        $_SESSION['current_semester'] = $currentSemester; // Store for AJAX calls
+        $activeTab = $_GET['tab'] ?? 'generate';
+        $error = $success = null;
+        $schedules = $this->loadSchedules($departmentId, $currentSemester);
+        $collegeId = $this->getChairCollege($chairId)['college_id'] ?? null;
+
+        if ($departmentId) {
+            if (!isset($_SESSION['schedule_cache'][$departmentId])) {
+                $_SESSION['schedule_cache'][$departmentId] = $this->loadCommonData($departmentId, $currentSemester, $collegeId);
+                error_log("Cache initialized for dept $departmentId: " . print_r($_SESSION['schedule_cache'][$departmentId], true));
+            }
+
+            $cachedData = $_SESSION['schedule_cache'][$departmentId];
+            $curricula = $cachedData['curricula'];
+            $classrooms = $cachedData['classrooms'];
+            $faculty = $cachedData['faculty'];
+            $sections = $cachedData['sections'];
+
+            $selectedCurriculumId = $_POST['curriculum_id'] ?? $_GET['curriculum_id'] ?? ($curricula[0]['curriculum_id'] ?? null);
+
+            $jsData = [
+                'departmentId' => $departmentId,
+                'currentSemester' => $currentSemester,
+                'sectionsData' => $sections,
+                'currentAcademicYear' => $currentSemester['academic_year'] ?? '',
+                'faculty' => $this->getFaculty($departmentId, $collegeId), // Ensure this method returns data
+                'classrooms' => $this->getClassrooms($departmentId),
+                'curricula' => $curricula ?? [],
+                'schedules' => $schedules
+            ];
+
+            // Handle download requests
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'download') {
+                $roomName = $_POST['room_name'] ?? 'All Rooms';
+                $semesterName = $currentSemester['semester_name'] ?? 'Current Semester';
+                $filename = 'schedule_' . str_replace(' ', '_', strtolower($roomName)) . '_' . date('Ymd_His', strtotime('08:27 PM PST')); // Current time: 08:27 PM PST, September 13, 2025
+
+                $format = $_POST['format'] ?? 'excel';
+                if ($format === 'excel') {
+                    $this->schedulingService->exportTimetableToExcel($schedules, $filename, $roomName, $semesterName);
+                } elseif ($format === 'pdf') {
+                    $this->schedulingService->exportTimetableToPDF($schedules, $filename, $roomName, $semesterName);
+                }
+                exit; // Exit after download
+            }
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tab'])) {
+                $tab = $_POST['tab'];
+                if ($tab === 'manual') {
+                    $schedulesData = json_decode($_POST['schedules'] ?? '[]', true);
+                    $schedules = $this->processManualSchedules($schedulesData, $currentSemester, $departmentId);
+                    $success = "Schedules saved successfully!";
+                } elseif ($tab === 'generate' && !empty($_POST['curriculum_id'])) {
+                    // Update schedules after generation
+                    $schedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
+                }
+            } elseif ($activeTab === 'schedule-list' && empty($schedules)) {
+                // Ensure schedules are loaded for view tab
+                $schedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
+            }
+        } else {
+            $jsData = [
+                'departmentId' => null,
+                'currentSemester' => null,
+                'sectionsData' => [],
+                'currentAcademicYear' => '',
+                'faculty' => $this->getFaculty($departmentId, $collegeId), // Ensure this method returns data
+                'classrooms' => $this->getClassrooms($departmentId),
+                'curricula' => [],
+                'schedules' => []
+            ];
+            $error = "No department assigned to chair.";
+        }
+
+        require_once __DIR__ . '/../views/chair/schedule_management.php';
     }
 
-    private function loadCommonData($departmentId, $collegeId, $currentSemester)
+    public function generateSchedulesAjax()
     {
-        return [
-            'curricula' => $this->getCurricula($departmentId),
-            'curriculumCourses' => $this->getCurriculumCourses($departmentId),
-            'classrooms' => $this->getClassrooms($departmentId),
-            'faculty' => $this->getFaculty($departmentId, $collegeId),
-            'sections' => $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year'])
+        header('Content-Type: application/json');
+        error_log("generateSchedulesAjax: Request received at " . date('Y-m-d H:i:s'));
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['curriculum_id'])) {
+            error_log("generateSchedulesAjax: Invalid request - Method: {$_SERVER['REQUEST_METHOD']}, curriculum_id: " . ($_POST['curriculum_id'] ?? 'Missing'));
+            echo json_encode(['success' => false, 'message' => 'Invalid request method or missing parameters.']);
+            exit;
+        }
+
+        $chairId = $_SESSION['user_id'] ?? null;
+        $departmentId = $this->getChairDepartment($chairId);
+        $currentSemester = $this->getCurrentSemester();
+        $collegeData = $this->getChairCollege($chairId);
+
+        error_log("generateSchedulesAjax: Chair ID: $chairId, Department ID: $departmentId, Semester: " . json_encode($currentSemester));
+
+        if (!$chairId || !$currentSemester) {
+            error_log("generateSchedulesAjax: Missing chairId or currentSemester");
+            echo json_encode(['success' => false, 'message' => 'Could not determine user or current semester.']);
+            exit;
+        }
+
+        if (!$departmentId) {
+            error_log("generateSchedulesAjax: No department found for chair $chairId");
+            echo json_encode(['success' => false, 'message' => 'Could not determine department for chair.']);
+            exit;
+        }
+
+        if (!$collegeData || !$collegeData['college_id']) {
+            error_log("generateSchedulesAjax: No college data for chair $chairId");
+            echo json_encode(['success' => false, 'message' => 'Could not determine college for chair.']);
+            exit;
+        }
+        $collegeId = $collegeData['college_id'];
+
+        try {
+            $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
+            error_log("generateSchedulesAjax: Cached data loaded: " . json_encode(array_keys($cachedData)));
+
+            $curriculumId = $_POST['curriculum_id'];
+            error_log("generateSchedulesAjax: Processing curriculum ID: $curriculumId");
+
+            $yearLevels = $_POST['year_levels'] ?? [];
+            if (!is_array($yearLevels)) {
+                $yearLevels = array_map('trim', explode(',', $yearLevels));
+            }
+            $yearLevels = array_filter($yearLevels);
+            if (empty($yearLevels)) {
+                $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+                error_log("generateSchedulesAjax: No year levels provided, using default: " . implode(', ', $yearLevels));
+            } else {
+                error_log("generateSchedulesAjax: Year levels provided: " . implode(', ', $yearLevels));
+            }
+
+            $classrooms = $cachedData['classrooms'];
+            $faculty = $cachedData['faculty'];
+            error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
+
+            $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId);
+            $this->removeDuplicateSchedules($departmentId, $currentSemester);
+
+            $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
+            error_log("generateSchedulesAjax: Generated " . count($consolidatedSchedules) . " schedules");
+
+            $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
+            $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
+            $unassigned = !empty(array_diff($allCourseCodes, $assignedCourseCodes));
+
+            echo json_encode([
+                'success' => true,
+                'schedules' => $consolidatedSchedules,
+                'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses",
+                'unassigned' => $unassigned
+            ]);
+            exit;
+        } catch (Exception $e) {
+            error_log("generateSchedulesAjax: Exception - " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()]);
+            exit;
+        }
+    }
+
+    private function generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId)
+    {
+        $schedules = [];
+        error_log("generateSchedules: Started for curriculum $curriculumId, department $departmentId, semester " . $currentSemester['semester_name']);
+
+        $this->db->beginTransaction();
+        try {
+            $courses = $this->getCurriculumCourses($curriculumId);
+            error_log("generateSchedules: Fetched " . count($courses) . " courses for curriculum $curriculumId");
+
+            $sections = $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year']);
+            error_log("generateSchedules: Fetched " . count($sections) . " sections");
+
+            $matchingSections = array_filter($sections, fn($s) => isset($s['year_level']) && in_array($s['year_level'], $yearLevels) && ($s['curriculum_id'] == $curriculumId || !$s['curriculum_id']));
+            if (empty($matchingSections)) {
+                $matchingSections = array_filter($sections, fn($s) => isset($s['year_level']) && in_array($s['year_level'], $yearLevels));
+                error_log("generateSchedules: No exact curriculum match, using all sections for year levels: " . implode(', ', $yearLevels));
+            }
+            error_log("generateSchedules: Found " . count($matchingSections) . " matching sections");
+
+            $relevantCourses = array_filter(
+                $courses,
+                fn($c) => $c['curriculum_semester'] === $currentSemester['semester_name'] && in_array($c['curriculum_year'], $yearLevels)
+            );
+            $relevantCourses = array_values($relevantCourses);
+            error_log("generateSchedules: Found " . count($relevantCourses) . " relevant courses");
+
+            if (empty($matchingSections) || empty($relevantCourses)) {
+                error_log("generateSchedules: No sections or courses found for curriculum $curriculumId, semester {$currentSemester['semester_name']}");
+                return $schedules;
+            }
+
+            $dayPatterns = [
+                'MWF' => ['Monday', 'Wednesday', 'Friday'],
+                'TTH' => ['Tuesday', 'Thursday'],
+                'SAT' => ['Saturday']
+            ];
+
+            $flexibleTimeSlots = $this->generateFlexibleTimeSlots();
+            error_log("generateSchedules: Available time slots: " . print_r($flexibleTimeSlots, true));
+            $unassignedCourses = $relevantCourses;
+
+            $facultySpecializations = $this->getFacultySpecializations($departmentId, $collegeId);
+            error_log("generateSchedules: Faculty specializations count: " . count($facultySpecializations));
+
+            $facultyAssignments = [];
+            $roomAssignments = [];
+            $sectionScheduleTracker = [];
+            $onlineSlotTracker = [];
+            $usedTimeSlots = [];
+            $scheduledCourses = [];
+
+            foreach ($matchingSections as $section) {
+                $sectionScheduleTracker[$section['section_id']] = [];
+            }
+
+            $maxIterations = 10;
+            $iteration = 0;
+            $courseIndex = 0;
+
+            while (!empty($unassignedCourses) && $iteration < $maxIterations) {
+                $iteration++;
+                error_log("generateSchedules: Iteration $iteration, remaining courses: " . count($unassignedCourses));
+                $unassignedInThisIteration = [];
+
+                $professionalCourses = array_filter($unassignedCourses, fn($c) => ($this->getCourseDetails($c['course_id'])['subject_type'] ?? 'General Education') === 'Professional Course');
+                $generalCourses = array_filter($unassignedCourses, fn($c) => ($this->getCourseDetails($c['course_id'])['subject_type'] ?? 'General Education') !== 'Professional Course');
+                $coursesToProcess = array_merge(array_values($professionalCourses), array_values($generalCourses));
+
+                foreach ($coursesToProcess as $course) {
+                    $courseDetails = $this->getCourseDetails($course['course_id']);
+                    if (!$courseDetails) {
+                        error_log("generateSchedules: Skipping course with invalid details for course_id {$course['course_id']}");
+                        $unassignedInThisIteration[] = $course;
+                        continue;
+                    }
+
+                    $lectureHours = $courseDetails['lecture_hours'] ?? 0;
+                    $labHours = $courseDetails['lab_hours'] ?? 0;
+                    $units = $courseDetails['units'] ?? 3;
+                    $subjectType = $courseDetails['subject_type'] ?? 'General Education';
+                    $hasLab = $labHours > 0;
+                    $hasLecture = $lectureHours > 0;
+
+                    error_log("generateSchedules: Processing {$course['course_code']} - Lecture: $lectureHours, Lab: $labHours, Units: $units, Type: $subjectType");
+
+                    $sectionsForCourse = array_filter($matchingSections, fn($s) => $s['year_level'] === $course['curriculum_year']);
+                    $assignedThisCourse = false;
+
+                    $isNSTPCourse = preg_match('/^(NSTP 1|NSTP II|NSTP 1|NSTP 2|CWTS|ROTC|LTS)/i', $course['course_code']);
+                    $pattern = $isNSTPCourse ? 'SAT' : (($courseIndex % 2 === 0) ? 'MWF' : 'TTH');
+                    $targetDays = $dayPatterns[$pattern];
+
+                    if ($isNSTPCourse && !$this->areRoomsAvailableOnDays($departmentId, $sectionsForCourse, $targetDays, $flexibleTimeSlots, $roomAssignments, $schedules)) {
+                        $alternativeDays = array_diff(array_merge($dayPatterns['MWF'], $dayPatterns['TTH']), $targetDays);
+                        $targetDays = $alternativeDays ? [$alternativeDays[0]] : $targetDays;
+                        error_log("generateSchedules: Switching NSTP {$course['course_code']} to alternative day: " . $targetDays[0]);
+                    }
+
+                    $durationData = $this->calculateCourseDuration($courseDetails);
+                    error_log("generateSchedules: Duration data for {$courseDetails['course_code']}: " . print_r($durationData, true));
+                    $lectureDuration = $hasLecture ? ($lectureHours > 0 ? $lectureHours / count($targetDays) : $units / count($targetDays)) : 0;
+                    $labDuration = $hasLab ? ($labHours > 0 ? $labHours / count($targetDays) : $units / count($targetDays)) : 0;
+
+                    $filteredTimeSlots = array_filter(
+                        $flexibleTimeSlots,
+                        fn($slot) => ($hasLecture && abs($slot[2] - $lectureDuration) <= 0.5) ||
+                            ($hasLab && abs($slot[2] - $labDuration) <= 0.5) ||
+                            (!$hasLecture && !$hasLab && abs($slot[2] - ($units / count($targetDays))) <= 0.5)
+                    );
+                    $filteredTimeSlots = array_values($filteredTimeSlots);
+                    error_log("generateSchedules: Filtered time slots for {$course['course_code']}: " . print_r($filteredTimeSlots, true));
+
+                    if (empty($filteredTimeSlots)) {
+                        error_log("generateSchedules: No suitable time slots for {$course['course_code']} with durations Lecture: $lectureDuration, Lab: $labDuration, Units: $units");
+                        $unassignedInThisIteration[] = $course;
+                        continue;
+                    }
+
+                    usort($filteredTimeSlots, fn($a, $b) => $this->isTimeSlotUsed($a[0], $a[1], $targetDays, $usedTimeSlots) <=> $this->isTimeSlotUsed($b[0], $b[1], $targetDays, $usedTimeSlots));
+
+                    foreach ($sectionsForCourse as $section) {
+                        $key = $course['course_id'] . '-' . $section['section_id'];
+                        if (isset($scheduledCourses[$key])) {
+                            error_log("generateSchedules: Skipping already scheduled course-section pair: {$course['course_code']}-{$section['section_name']}");
+                            continue;
+                        }
+
+                        $forceF2F = in_array($subjectType, ['Professional Course', 'Major Course']);
+
+                        $timeSlot = reset($filteredTimeSlots);
+                        $startTime = $timeSlot[0];
+                        $endTime = $timeSlot[1];
+
+                        $facultyId = $this->findBestFaculty(
+                            $facultySpecializations,
+                            $course['course_id'],
+                            $targetDays,
+                            $startTime,
+                            $endTime,
+                            $collegeId,
+                            $departmentId,
+                            $schedules,
+                            $facultyAssignments,
+                            $courseDetails['course_code'],
+                            $section['section_id']
+                        );
+                        if (!$facultyId) {
+                            error_log("generateSchedules: No available faculty for {$courseDetails['course_code']} (section {$section['section_name']})");
+                            continue;
+                        }
+
+                        if ($hasLecture && $hasLab) {
+                            $lectureResult = $this->scheduleCourseSectionsInDifferentTimeSlots(
+                                $course,
+                                [$section],
+                                $targetDays,
+                                $filteredTimeSlots,
+                                $sectionScheduleTracker,
+                                $facultySpecializations,
+                                $facultyAssignments,
+                                $currentSemester,
+                                $departmentId,
+                                $schedules,
+                                $onlineSlotTracker,
+                                $roomAssignments,
+                                $usedTimeSlots,
+                                $subjectType,
+                                true,
+                                false,
+                                $forceF2F,
+                                'Lecture',
+                                $facultyId
+                            );
+                            $labResult = $this->scheduleCourseSectionsInDifferentTimeSlots(
+                                $course,
+                                [$section],
+                                $targetDays,
+                                $filteredTimeSlots,
+                                $sectionScheduleTracker,
+                                $facultySpecializations,
+                                $facultyAssignments,
+                                $currentSemester,
+                                $departmentId,
+                                $schedules,
+                                $onlineSlotTracker,
+                                $roomAssignments,
+                                $usedTimeSlots,
+                                $subjectType,
+                                false,
+                                true,
+                                $forceF2F,
+                                'Lab',
+                                $facultyId
+                            );
+                            $assignedThisCourse = $lectureResult && $labResult;
+                        } else {
+                            $result = $this->scheduleCourseSectionsInDifferentTimeSlots(
+                                $course,
+                                [$section],
+                                $targetDays,
+                                $filteredTimeSlots,
+                                $sectionScheduleTracker,
+                                $facultySpecializations,
+                                $facultyAssignments,
+                                $currentSemester,
+                                $departmentId,
+                                $schedules,
+                                $onlineSlotTracker,
+                                $roomAssignments,
+                                $usedTimeSlots,
+                                $subjectType,
+                                $hasLecture,
+                                $hasLab,
+                                $forceF2F,
+                                null,
+                                $facultyId
+                            );
+                            $assignedThisCourse = $result;
+                        }
+
+                        if ($assignedThisCourse) {
+                            $scheduledCourses[$key] = true;
+                            error_log("generateSchedules: ✅ All components for {$course['course_code']} scheduled for section {$section['section_name']} with faculty $facultyId");
+                        }
+                    }
+
+                    $assignedThisCourse = count($sectionsForCourse) === count(array_filter($sectionsForCourse, fn($s) => isset($scheduledCourses[$course['course_id'] . '-' . $s['section_id']])));
+                    if ($assignedThisCourse) {
+                        error_log("generateSchedules: ✅ All sections for {$course['course_code']} scheduled");
+                    } else {
+                        $unassignedInThisIteration[] = $course;
+                    }
+
+                    $courseIndex++;
+                }
+
+                $unassignedCourses = $unassignedInThisIteration;
+
+                if (count($unassignedCourses) === count($relevantCourses)) {
+                    error_log("generateSchedules: No progress in iteration $iteration, breaking loop");
+                    break;
+                }
+            }
+
+            if (!empty($unassignedCourses)) {
+                $unassignedDetails = array_map(fn($c) => "Course: {$c['course_code']} for year {$c['curriculum_year']}", $unassignedCourses);
+                error_log("generateSchedules: Warning: Unscheduled courses: \n" . implode("\n", $unassignedDetails));
+            } else {
+                error_log("generateSchedules: Success: All courses scheduled.");
+            }
+
+            $this->db->commit();
+            error_log("generateSchedules: Transaction committed, returning " . count($schedules) . " schedules");
+            return $schedules;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("generateSchedules: Transaction rolled back due to error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function scheduleCourseSectionsInDifferentTimeSlots($course, $sectionsForCourse, $targetDays, $timeSlots, &$sectionScheduleTracker, $facultySpecializations, &$facultyAssignments, $currentSemester, $departmentId, &$schedules, &$onlineSlotTracker, &$roomAssignments, &$usedTimeSlots, $subjectType, $isLecture = false, $isLab = false, $forceF2F = false, $component = null, $facultyId = null)
+    {
+        $scheduledSections = [];
+        $courseDetails = $this->getCourseDetails($course['course_id']);
+        $durationData = $this->calculateCourseDuration($courseDetails);
+        $durationHours = $durationData['duration_hours'] ?? 0;
+
+        foreach ($sectionsForCourse as $section) {
+            $sectionScheduledSuccessfully = false; // Initialize for each section
+
+            foreach ($timeSlots as $timeSlot) {
+                list($startTime, $endTime, $slotDuration) = $timeSlot;
+                if (abs($slotDuration - $durationHours) > 0.5) {
+                    error_log("Skipping time slot $startTime-$endTime for {$courseDetails['course_code']} (section {$section['section_name']}): duration mismatch");
+                    continue;
+                }
+
+                if (!$this->isScheduleSlotAvailable($section['section_id'], $targetDays, $startTime, $endTime, $sectionScheduleTracker)) {
+                    error_log("Section {$section['section_name']} busy at $startTime-$endTime on " . implode(', ', $targetDays));
+                    continue;
+                }
+
+                $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
+                $facultyId = $facultyId ?: $this->findBestFaculty(
+                    $facultySpecializations,
+                    $course['course_id'],
+                    $targetDays,
+                    $startTime,
+                    $endTime,
+                    $collegeId,
+                    $departmentId,
+                    $schedules,
+                    $facultyAssignments,
+                    $courseDetails['course_code'],
+                    $section['section_id']
+                );
+                if (!$facultyId) {
+                    error_log("No available faculty for {$courseDetails['course_code']} (section {$section['section_name']}) at $startTime-$endTime");
+                    continue;
+                }
+
+                if (!$this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                    error_log("Faculty $facultyId busy for {$courseDetails['course_code']} (section {$section['section_name']}) at $startTime-$endTime");
+                    continue;
+                }
+
+                $forceF2F = $forceF2F || in_array($subjectType, ['Professional Course', 'Major Course']);
+                $roomId = null;
+                $roomName = 'Online';
+                $scheduleType = 'Online';
+
+                if ($forceF2F) {
+                    $roomAssignmentDetails = $this->getRoomAssignments($departmentId, $section['max_students'], $targetDays, $startTime, $endTime, $schedules, $forceF2F);
+                    $availableRoom = array_filter($roomAssignmentDetails, fn($room) => $room['room_id'] && !$this->hasRoomConflictForAnySection($schedules, $room['room_id'], $targetDays, $startTime, $endTime));
+                    if (empty($availableRoom)) {
+                        error_log("No F2F room available for {$courseDetails['course_code']} (section {$section['section_name']}) at $startTime-$endTime");
+                        continue;
+                    }
+                    $roomDetail = reset($availableRoom);
+                    $roomId = $roomDetail['room_id'];
+                    $roomName = $roomDetail['room_name'];
+                    $scheduleType = 'F2F';
+                }
+
+                $sectionScheduledSuccessfully = true; // Set to true initially
+                foreach ($targetDays as $day) {
+                    $scheduleData = [
+                        'course_id' => $course['course_id'],
+                        'section_id' => $section['section_id'],
+                        'room_id' => $roomId,
+                        'semester_id' => $currentSemester['semester_id'],
+                        'faculty_id' => $facultyId,
+                        'schedule_type' => $scheduleType,
+                        'day_of_week' => $day,
+                        'start_time' => $startTime,
+                        'end_time' => $endTime,
+                        'status' => 'Pending',
+                        'is_public' => 1,
+                        'course_code' => $courseDetails['course_code'],
+                        'course_name' => $courseDetails['course_name'],
+                        'faculty_name' => $this->getFaculty($facultyId, $collegeId),
+                        'room_name' => $roomName,
+                        'section_name' => $section['section_name'],
+                        'year_level' => $section['year_level'],
+                        'department_id' => $departmentId,
+                        'days_pattern' => implode('', array_map(fn($d) => substr($d, 0, 1), $targetDays))
+                    ];
+
+                    $response = $this->saveScheduleToDB($scheduleData, $currentSemester);
+                    if ($response['code'] !== 200) {
+                        error_log("Failed to save schedule for {$courseDetails['course_code']} (section {$section['section_name']}) on $day: " . $response['message']);
+                        $sectionScheduledSuccessfully = false;
+                        break; // Exit day loop on failure
+                    }
+                    $schedules[] = array_merge($response['data'], $scheduleData);
+                    $this->updateSectionScheduleTracker($sectionScheduleTracker, $section['section_id'], $day, $startTime, $endTime);
+                    $facultyAssignments[] = ['faculty_id' => $facultyId, 'days' => [$day], 'start_time' => $startTime, 'end_time' => $endTime, 'course_code' => $courseDetails['course_code']];
+                    if ($roomId) {
+                        $this->updateRoomAssignments($roomAssignments, $roomId, $day, $startTime, $endTime);
+                    } else {
+                        $this->updateOnlineSlotTracker($onlineSlotTracker, $day, $startTime, $endTime, $section['max_students']);
+                    }
+                    $this->updateUsedTimeSlots($usedTimeSlots, $day, $startTime, $endTime);
+                }
+
+                if ($sectionScheduledSuccessfully) {
+                    $scheduledSections[] = $section['section_id'];
+                    error_log("✅ Scheduled {$courseDetails['course_code']} for section {$section['section_name']} at $startTime-$endTime");
+                    break; // Move to next section once scheduled
+                } else {
+                    error_log("❌ Failed to schedule {$courseDetails['course_code']} for section {$section['section_name']}");
+                }
+            }
+
+            if ($sectionScheduledSuccessfully) {
+                $scheduledSections[] = $section['section_id'];
+                error_log("✅ Scheduled {$courseDetails['course_code']} for section {$section['section_name']} at $startTime-$endTime");
+                break;
+            }
+        }
+
+        // Move the return outside the loop
+        return count($scheduledSections) === count($sectionsForCourse);
+    }
+
+    private function areRoomsAvailableOnDays($departmentId, $sections, $targetDays, $timeSlots, $roomAssignments, $schedules)
+    {
+        foreach ($timeSlots as $timeSlot) {
+            list($startTime, $endTime, $slotDuration) = $timeSlot;
+            foreach ($sections as $section) {
+                $available = $this->getRoomAssignments($departmentId, $section['max_students'], $targetDays, $startTime, $endTime, $schedules);
+                $conflicted = array_filter($available, fn($room) => $this->hasRoomConflictForAnySection($schedules, $room['room_id'], $targetDays, $startTime, $endTime));
+                if (empty($conflicted) && !empty($available)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // New helper method to check room conflicts across all sections
+    private function hasRoomConflictForAnySection($schedules, $roomId, $targetDays, $startTime, $endTime)
+    {
+        foreach ($schedules as $schedule) {
+            if ($schedule['room_id'] == $roomId) {
+                foreach ($targetDays as $day) {
+                    if ($schedule['day_of_week'] == $day && $this->timeOverlap($schedule['start_time'], $schedule['end_time'], $startTime, $endTime)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // Helper method to check if two time periods overlap
+    private function timesOverlap($start1, $end1, $start2, $end2)
+    {
+        return ($start1 < $end2) && ($start2 < $end1);
+    }
+
+    // Helper method to check if a schedule slot is available for a section
+    private function isScheduleSlotAvailable($sectionId, $days, $startTime, $endTime, $sectionScheduleTracker)
+    {
+        if (!isset($sectionScheduleTracker[$sectionId])) {
+            return true;
+        }
+
+        foreach ($days as $day) {
+            foreach ($sectionScheduleTracker[$sectionId] as $existingSchedule) {
+                if ($existingSchedule['day'] === $day) {
+                    if ($this->timesOverlap($startTime, $endTime, $existingSchedule['start_time'], $existingSchedule['end_time'])) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // Helper method to check if a time slot is already used
+    private function isTimeSlotUsed($startTime, $endTime, $days, $usedTimeSlots)
+    {
+        foreach ($days as $day) {
+            $slotKey = $day . '_' . $startTime . '_' . $endTime;
+            if (isset($usedTimeSlots[$slotKey])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Helper method to check online slot availability
+    private function isOnlineSlotAvailable($days, $startTime, $endTime, $onlineSlotTracker, $sectionSize)
+    {
+        $maxOnlineCapacity = 150; // Adjust based on your system's capacity
+
+        foreach ($days as $day) {
+            $slotKey = $day . '_' . $startTime . '_' . $endTime;
+            $currentLoad = $onlineSlotTracker[$slotKey] ?? 0;
+            if ($currentLoad + $sectionSize > $maxOnlineCapacity) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Helper method to update section schedule tracker
+    private function updateSectionScheduleTracker(&$tracker, $sectionId, $day, $startTime, $endTime)
+    {
+        if (!isset($tracker[$sectionId])) {
+            $tracker[$sectionId] = [];
+        }
+        $tracker[$sectionId][] = [
+            'day' => $day,
+            'start_time' => $startTime,
+            'end_time' => $endTime
         ];
     }
 
+    // Helper method to update room assignments
+    private function updateRoomAssignments(&$assignments, $roomId, $day, $startTime, $endTime)
+    {
+        $roomKey = $roomId . '_' . $day . '_' . $startTime . '_' . $endTime;
+        $assignments[$roomKey] = true;
+    }
+
+    // Helper method to update online slot tracker
+    private function updateOnlineSlotTracker(&$tracker, $day, $startTime, $endTime, $sectionSize)
+    {
+        $slotKey = $day . '_' . $startTime . '_' . $endTime;
+        $tracker[$slotKey] = ($tracker[$slotKey] ?? 0) + $sectionSize;
+    }
+
+    // Helper method to update used time slots globally
+    private function updateUsedTimeSlots(&$usedTimeSlots, $day, $startTime, $endTime)
+    {
+        $slotKey = $day . '_' . $startTime . '_' . $endTime;
+        $usedTimeSlots[$slotKey] = ($usedTimeSlots[$slotKey] ?? 0) + 1;
+    }
+
+    private function consolidateScheduleSlots($slots)
+    {
+        if (empty($slots)) return '';
+
+        // Group by time and room
+        $timeGroups = [];
+        foreach ($slots as $slot) {
+            $key = $slot['time'] . ' ' . $slot['room'];
+            if (!isset($timeGroups[$key])) {
+                $timeGroups[$key] = [];
+            }
+            $timeGroups[$key][] = substr($slot['day'], 0, 1); // First letter of day
+        }
+
+        $consolidatedSlots = [];
+        foreach ($timeGroups as $timeRoom => $days) {
+            // FIXED: Proper day sorting
+            $dayOrder = ['M' => 1, 'T' => 2, 'W' => 3, 'H' => 4, 'F' => 5, 'S' => 6]; // H for Thursday
+            usort($days, function ($a, $b) use ($dayOrder) {
+                // Handle Tuesday/Thursday distinction
+                if ($a === 'T' && $b === 'T') return 0;
+
+                $aValue = $dayOrder[$a] ?? 7;
+                $bValue = $dayOrder[$b] ?? 7;
+
+                return $aValue - $bValue;
+            });
+
+            // Remove duplicates and create pattern
+            $days = array_unique($days);
+            $dayPattern = implode('', $days);
+            $consolidatedSlots[] = $dayPattern . ' ' . $timeRoom;
+        }
+
+        return implode('; ', $consolidatedSlots);
+    }
+
+    private function getConsolidatedSchedules($departmentId, $currentSemester)
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                s.course_id,
+                c.course_code,
+                c.course_name AS subject_description,
+                c.units,
+                c.lecture_hours AS lec,
+                c.lab_hours AS lab,
+                GROUP_CONCAT(
+                    DISTINCT CONCAT(
+                        COALESCE(s.day_of_week, 'Unknown'), '|',
+                        s.start_time, '|',
+                        s.end_time, '|',
+                        COALESCE(r.room_name, 'Online'), '|',
+                        COALESCE(s.schedule_type, 'F2F')
+                    ) ORDER BY 
+                        FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'),
+                        s.start_time
+                    SEPARATOR '||'
+                ) AS schedule_details,
+                CONCAT(u.first_name, ' ', u.last_name) AS instructor,
+                GROUP_CONCAT(DISTINCT sec.section_name ORDER BY sec.section_name SEPARATOR ', ') AS sections
+            FROM schedules s 
+            JOIN courses c ON s.course_id = c.course_id 
+            JOIN curriculum_courses cd ON c.course_id = cd.course_id
+            JOIN sections sec ON s.section_id = sec.section_id 
+            JOIN faculty f ON s.faculty_id = f.faculty_id 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN classrooms r ON s.room_id = r.room_id 
+            WHERE s.semester_id = :semester_id 
+            GROUP BY s.course_id, s.faculty_id
+            ORDER BY c.course_code
+        ");
+
+        $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $consolidatedSchedules = [];
+
+        foreach ($results as $row) {
+            $scheduleDetails = explode('||', $row['schedule_details'] ?? '');
+            $lectureSchedule = '';
+            $labSchedule = '';
+            $lastValidDay = 'Monday'; // Default day for continuity
+
+            $lectureSlots = [];
+            $labSlots = [];
+
+            foreach ($scheduleDetails as $detail) {
+                if (empty($detail)) continue;
+
+                $detailParts = array_map('trim', explode('|', $detail));
+                if (count($detailParts) < 4) {
+                    error_log("Skipping invalid schedule detail format: $detail (expected at least 4 parts)");
+                    continue;
+                }
+
+                $day = isset($detailParts[0]) && $detailParts[0] !== 'Unknown' ? $detailParts[0] : $lastValidDay;
+                $lastValidDay = $day; // Update last valid day
+                $startTime = isset($detailParts[1]) && $this->isValidTimeFormat($detailParts[1]) ? $detailParts[1] : null;
+                $endTime = isset($detailParts[2]) && $this->isValidTimeFormat($detailParts[2]) ? $detailParts[2] : null;
+                $roomName = isset($detailParts[3]) ? $detailParts[3] : 'Online';
+                $scheduleType = isset($detailParts[4]) ? $detailParts[4] : 'F2F';
+
+                if (!$startTime || !$endTime) {
+                    error_log("Missing or invalid time in detail $detail - Day: $day, Start: $startTime, End: $endTime");
+                    continue;
+                }
+
+                $formattedTime = $this->formatTimeRange($startTime, $endTime);
+                if ($formattedTime === false) {
+                    error_log("Failed to format time range in detail $detail");
+                    continue;
+                }
+
+                $scheduleEntry = [
+                    'day' => $day,
+                    'time' => $formattedTime,
+                    'room' => $roomName,
+                    'full' => "$day $formattedTime $roomName"
+                ];
+
+                if (strtolower($scheduleType) === 'lab') {
+                    $labSlots[] = $scheduleEntry;
+                } else {
+                    $lectureSlots[] = $scheduleEntry;
+                }
+            }
+
+            if (!empty($lectureSlots)) {
+                $lectureSchedule = $this->consolidateScheduleSlots($lectureSlots);
+            }
+
+            if (!empty($labSlots)) {
+                $labSchedule = $this->consolidateScheduleSlots($labSlots);
+            }
+
+            $consolidatedSchedules[] = [
+                'course_code' => $row['course_code'] ?? 'Unknown',
+                'instructor' => $row['instructor'],
+                'days' => $lectureSchedule ? substr($lectureSchedule, 0, strpos($lectureSchedule, ' ')) : '',
+                'time' => $lectureSchedule ? substr($lectureSchedule, strpos($lectureSchedule, ' ') + 1, -4) : '',
+                'room' => $lectureSchedule ? substr($lectureSchedule, -4) : '',
+                'sections' => $row['sections']
+            ];
+        }
+
+        return $consolidatedSchedules;
+    }
+
+    private function isValidTimeFormat($time)
+    {
+        if (empty($time)) return false;
+        return (bool) DateTime::createFromFormat('H:i:s', $time);
+    }
+
+    // Fixed formatTimeRange method with error handling
+    private function formatTimeRange($startTime, $endTime)
+    {
+        // Validate input parameters
+        if (empty($startTime) || empty($endTime)) {
+            error_log("Empty time parameters - Start: '$startTime', End: '$endTime'");
+            return false;
+        }
+
+        // Create DateTime objects from time strings
+        $start = DateTime::createFromFormat('H:i:s', $startTime);
+        $end = DateTime::createFromFormat('H:i:s', $endTime);
+
+        // Check if DateTime creation was successful
+        if ($start === false) {
+            error_log("Failed to parse start time: $startTime");
+            return false;
+        }
+
+        if ($end === false) {
+            error_log("Failed to parse end time: $endTime");
+            return false;
+        }
+
+        try {
+            $startFormatted = $start->format('g:i');
+            $endFormatted = $end->format('g:i');
+            $period = $end->format('a');
+
+            // If both times are in same period, show period only once
+            if ($start->format('a') === $end->format('a')) {
+                return "$startFormatted-$endFormatted $period";
+            } else {
+                return $start->format('g:i a') . '-' . $end->format('g:i a');
+            }
+        } catch (Exception $e) {
+            error_log("Error formatting time range: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // NEW: Calculate course duration based on units and type
+    private function calculateCourseDuration($courseDetails)
+    {
+        $units = $courseDetails['units'];
+        $lectureHours = $courseDetails['lecture_hours'] ?: 1;
+
+        // Different durations based on course requirements
+        if ($units <= 1) {
+            return ['duration_hours' => 1, 'end_time_offset' => 3600]; // 1 hour
+        } elseif ($units <= 2) {
+            return ['duration_hours' => 1.5, 'end_time_offset' => 5400]; // 1.5 hours
+        } elseif ($units <= 3) {
+            return ['duration_hours' => 2, 'end_time_offset' => 7200]; // 2 hours
+        } else {
+            return ['duration_hours' => 2.5, 'end_time_offset' => 9000]; // 2.5 hours
+        }
+    }
+
+    private function generateFlexibleTimeSlots($baseDuration = 1)
+    {
+        $slots = [];
+        $startTimes = [
+            '07:30:00',
+            '08:00:00',
+            '08:30:00',
+            '09:00:00',
+            '10:30:00',
+            '12:30:00',
+            '13:00:00',
+            '14:30:00',
+            '16:00:00',
+            '17:30:00' // Added more options
+        ];
+
+        foreach ($startTimes as $start) {
+            $startTimestamp = strtotime($start);
+
+            $durations = [1, 1.5, 2]; // Focus on 1, 1.5, 2 hours
+            foreach ($durations as $duration) {
+                $endTimestamp = $startTimestamp + ($duration * 3600);
+                $endTime = date('H:i:s', $endTimestamp);
+
+                if ($endTimestamp <= strtotime('19:00:00')) {
+                    $slots[] = [$start, $endTime, $duration];
+                }
+            }
+        }
+
+        return $slots;
+    }
+
+    private function findBestFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $collegeId, $departmentId, $schedules, $facultyAssignments, $courseCode, $sectionId)
+    {
+        error_log("🎯 SMART SCHEDULING for $courseCode (ID: $courseId) - College: $collegeId, Department: $departmentId");
+        error_log("📋 Faculty Specializations input: " . print_r($facultySpecializations, true));
+
+        $availableFaculty = [];
+        $courseDetails = $this->getCourseDetails($courseId);
+        error_log("📚 Course Details for $courseId: " . print_r($courseDetails, true));
+        $subjectType = $courseDetails['subject_type'] ?? 'General Education';
+
+        // First pass: Prioritize specialized faculty
+        foreach ($facultySpecializations as $faculty) {
+            $facultyId = $faculty['faculty_id'];
+            $collegeIdFaculty = $faculty['college_id'] ?? null; // Explicitly handle null
+            $departmentIdFaculty = $faculty['department_id'] ?? null;
+            $additionalDepartmentId = $faculty['additional_department_id'] ?? null;
+            $isPrimary = $faculty['is_primary'] ?? 0;
+            $specializations = isset($faculty['course_id']) ? [$faculty['course_id']] : ($faculty['specializations'] ?? []);
+
+            error_log("🔍 Checking faculty $facultyId (college $collegeIdFaculty, dept $departmentIdFaculty, addl dept $additionalDepartmentId, primary: $isPrimary) for $courseCode (type: $subjectType)");
+            error_log("📋 Faculty $facultyId specializations: " . print_r($specializations, true));
+
+            // Allow null college_id faculty for general education, skip for professional unless matched
+            if ($collegeIdFaculty === null) {
+                if ($subjectType !== 'General Education') {
+                    error_log("⚠️ Faculty $facultyId with null college_id skipped for $courseCode (Professional)");
+                    continue;
+                }
+            } elseif ($collegeIdFaculty !== $collegeId) {
+                error_log("🚫 Faculty $facultyId from other college ($collegeIdFaculty) skipped for $courseCode (required: $collegeId)");
+                continue;
+            }
+
+            $isCurrentPrimaryDept = ($departmentIdFaculty == $departmentId && $isPrimary);
+            $isAdditionalDept = ($additionalDepartmentId == $departmentId);
+
+            if ($subjectType === 'Professional Course' && !$isCurrentPrimaryDept && !$isAdditionalDept) {
+                error_log("🚫 Faculty $facultyId from other department skipped for $courseCode (Professional)");
+                continue;
+            }
+
+            if (in_array($courseId, $specializations)) {
+                if ($this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                    $availableFaculty[$facultyId] = 'available';
+                    error_log("✅ Faculty $facultyId is available for $courseCode (section $sectionId) at $startTime-$endTime");
+                } else {
+                    error_log("⚡ Faculty $facultyId is busy - attempting SMART REASSIGNMENT. Assignments: " . print_r($facultyAssignments, true));
+                    if ($this->freeUpExpertFaculty($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments, $facultySpecializations, $collegeId, $schedules, $courseId)) {
+                        $availableFaculty[$facultyId] = 'reassigned';
+                        error_log("🎯 Successfully freed up faculty $facultyId for $courseCode!");
+                    } else {
+                        error_log("❌ Failed to free up faculty $facultyId for $courseCode");
+                    }
+                }
+            }
+        }
+
+        // Second pass: Fallback to any available faculty if no specialized ones are found
+        if (empty($availableFaculty)) {
+            $allFaculty = array_unique(array_column($facultySpecializations, 'faculty_id'));
+            foreach ($allFaculty as $facultyId) {
+                $faculty = array_filter($facultySpecializations, fn($f) => $f['faculty_id'] == $facultyId)[0] ?? ['college_id' => null];
+                $collegeIdFaculty = $faculty['college_id'] ?? null;
+
+                if ($this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                    if ($collegeIdFaculty === null && $subjectType === 'General Education') {
+                        $availableFaculty[$facultyId] = 'fallback';
+                        error_log("🔧 Faculty $facultyId with null college_id assigned as fallback for $courseCode (General Education)");
+                    } elseif ($collegeIdFaculty === $collegeId) {
+                        $availableFaculty[$facultyId] = 'fallback';
+                        error_log("🔧 Faculty $facultyId assigned as fallback for $courseCode due to no specialization");
+                    }
+                } else {
+                    error_log("⏰ Faculty $facultyId unavailable for fallback assignment for $courseCode");
+                }
+            }
+        }
+
+        if (!empty($availableFaculty)) {
+            $priorities = array_keys($availableFaculty, 'available', true);
+            if (empty($priorities)) {
+                $priorities = array_keys($availableFaculty, 'reassigned', true);
+            }
+            if (empty($priorities)) {
+                $priorities = array_keys($availableFaculty, 'fallback', true);
+            }
+            if (!empty($priorities)) {
+                $selectedFacultyId = $priorities[array_rand($priorities)];
+                error_log("🏆 Assigned faculty $selectedFacultyId for $courseCode (section $sectionId)");
+                return $selectedFacultyId;
+            }
+        }
+
+        error_log("⚠️ No available faculty for $courseCode (ID: $courseId) - Available faculty check: " . print_r($availableFaculty, true));
+        return null;
+    }
+
+    private function findBestNonExpertFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $departmentId, $schedules, $facultyAssignments)
+    {
+        $nonExpertFaculty = array_filter($facultySpecializations, fn($faculty) => !in_array($courseId, $this->getCourseDetails([$faculty], $courseId)));
+
+        if (!empty($nonExpertFaculty)) {
+            error_log("🔍 Found " . count($nonExpertFaculty) . " non-expert faculty for course $courseId");
+
+            foreach ($nonExpertFaculty as $faculty) {
+                $facultyId = $faculty['faculty_id'];
+                $isCurrentDept = $faculty['department_id'] == $departmentId;
+                $courseDetails = $this->getCourseDetails($courseId);
+                $subjectType = $courseDetails['subject_type'] ?? 'General Education';
+
+                // New Rule: Check department and course type compatibility
+                if ($isCurrentDept && $subjectType !== 'Professional Course') {
+                    error_log("🚫 Non-expert faculty $facultyId from current dept skipped for $courseDetails (not Professional)");
+                    continue;
+                }
+                if (!$isCurrentDept && $subjectType === 'Professional Course') {
+                    error_log("🚫 Non-expert faculty $facultyId from other dept skipped for $courseDetails (Professional)");
+                    continue;
+                }
+
+                if ($this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                    error_log("✅ Non-expert faculty $facultyId is available - ASSIGNED!");
+                    return $facultyId;
+                }
+            }
+        }
+
+        error_log("❌ No available non-expert faculty for course $courseId");
+        return null;
+    }
+
+    private function freeUpExpertFaculty($expertFacultyId, $targetDays, $startTime, $endTime, &$facultyAssignments, $facultySpecializations, $departmentId, $schedules, $expertCourseId)
+    {
+        error_log("🔄 Attempting to free up EXPERT faculty $expertFacultyId");
+
+        // Find conflicting assignments
+        $conflictingAssignments = $this->findConflictingAssignments($expertFacultyId, $targetDays, $startTime, $endTime, $facultyAssignments);
+
+        if (empty($conflictingAssignments)) {
+            return true; // Already free
+        }
+
+        error_log("📋 Found " . count($conflictingAssignments) . " conflicting assignments to reassign");
+
+        foreach ($conflictingAssignments as $assignment) {
+            if (!isset($assignment['course_id']) || !isset($assignment['day_of_week']) || !isset($assignment['schedule_id'])) {
+                error_log("⚠️ Missing required keys in assignment: " . print_r($assignment, true));
+                continue;
+            }
+
+            $conflictCourseId = $assignment['course_id'];
+
+            // Skip if expert in both courses
+            if ($this->isExpertInCourse($expertFacultyId, $conflictCourseId, $facultySpecializations)) {
+                error_log("⚠️ Cannot reassign course $conflictCourseId - faculty $expertFacultyId is EXPERT in both");
+                continue;
+            }
+
+            error_log("🔄 Trying to reassign course $conflictCourseId from expert faculty $expertFacultyId");
+
+            // Find alternative faculty
+            $alternativeFaculty = $this->findAlternativeFacultyForReassignment(
+                $conflictCourseId,
+                $assignment['day_of_week'],
+                $assignment['start_time'],
+                $assignment['end_time'],
+                $facultySpecializations,
+                $facultyAssignments,
+                $departmentId,
+                $expertFacultyId,
+                $collegeId = null
+            );
+
+            if ($alternativeFaculty) {
+                error_log("✅ Found alternative faculty $alternativeFaculty for course $conflictCourseId");
+                if ($this->reassignCourse($assignment, $alternativeFaculty, $facultyAssignments, $schedules, $collegeId)) {
+                    error_log("🎯 Successfully reassigned course $conflictCourseId to faculty $alternativeFaculty");
+                } else {
+                    error_log("❌ Failed to reassign course $conflictCourseId");
+                    return false;
+                }
+            } else {
+                // Try rescheduling
+                if ($this->rescheduleConflictingCourse($assignment, $facultyAssignments, $schedules, $departmentId)) {
+                    error_log("⏰ Successfully rescheduled conflicting course $conflictCourseId");
+                } else {
+                    error_log("❌ Could not find alternative for course $conflictCourseId");
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // Check if faculty is expert in a specific course
+    private function isExpertInCourse($facultyId, $courseId, $facultySpecializations)
+    {
+        foreach ($facultySpecializations as $spec) {
+            if (
+                $spec['faculty_id'] == $facultyId &&
+                $spec['course_id'] == $courseId &&
+                strtolower($spec['expertise_level']) === 'expert'
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function findConflictingAssignments($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)
+    {
+        $conflicts = [];
+
+        foreach ($facultyAssignments as $assignment) {
+            if (isset($assignment['faculty_id']) && $assignment['faculty_id'] == $facultyId) {
+                $assignmentDays = isset($assignment['day_of_week']) ? (array)$assignment['day_of_week'] : [];
+                $dayOverlap = array_intersect($targetDays, $assignmentDays);
+
+                if (
+                    !empty($dayOverlap) &&
+                    $this->hasTimeConflict($startTime, $endTime, $assignment['start_time'], $assignment['end_time'])
+                ) {
+                    $conflicts[] = array_merge($assignment, ['day_of_week' => $assignmentDays]); // Ensure day_of_week is set
+                    error_log("⚡ Conflict found: Course {$assignment['course_id']} on " . implode(',', $assignmentDays) . " at {$assignment['start_time']}-{$assignment['end_time']}");
+                }
+            }
+        }
+
+        return $conflicts;
+    }
+
+    private function findAlternativeFacultyForReassignment($courseId, $targetDays, $startTime, $endTime, $facultySpecializations, $facultyAssignments, $departmentId, $collegeId, $excludeFacultyId)
+    {
+        $suitableFaculty = array_filter($facultySpecializations, function ($spec) use ($courseId, $excludeFacultyId) {
+            return $spec['course_id'] == $courseId &&
+                $spec['faculty_id'] != $excludeFacultyId &&
+                in_array(strtolower($spec['expertise_level']), ['intermediate', 'advanced']);
+        });
+
+        usort($suitableFaculty, function ($a, $b) {
+            $levels = ['beginner' => 1, 'intermediate' => 2, 'advanced' => 3, 'expert' => 4];
+            return $levels[strtolower($b['expertise_level'])] - $levels[strtolower($a['expertise_level'])];
+        });
+
+        foreach ($suitableFaculty as $faculty) {
+            if ($this->isFacultyAvailable($faculty['faculty_id'], $targetDays, $startTime, $endTime, $facultyAssignments)) {
+                return $faculty['faculty_id'];
+            }
+        }
+
+        $allFaculty = $this->getFaculty($departmentId, $collegeId);
+        foreach ($allFaculty as $faculty) {
+            if (
+                $faculty['faculty_id'] != $excludeFacultyId &&
+                $this->isFacultyAvailable($faculty['faculty_id'], $targetDays, $startTime, $endTime, $facultyAssignments)
+            ) {
+                return $faculty['faculty_id'];
+            }
+        }
+
+        return null;
+    }
+
+    private function reassignCourse($assignment, $collegeId, $newFacultyId, &$facultyAssignments, &$schedules)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            UPDATE schedules 
+            SET faculty_id = :new_faculty_id
+            WHERE schedule_id = :schedule_id
+        ");
+
+            $result = $stmt->execute([
+                ':new_faculty_id' => $newFacultyId,
+                ':schedule_id' => $assignment['schedule_id']
+            ]);
+
+            if ($result) {
+                // Update in-memory arrays
+                foreach ($facultyAssignments as &$fa) {
+                    if ($fa['schedule_id'] == $assignment['schedule_id']) {
+                        $fa['faculty_id'] = $newFacultyId;
+                        $fa['faculty_name'] = $this->getFaculty($newFacultyId, $collegeId); // Fetch name if needed
+                        break;
+                    }
+                }
+
+                foreach ($schedules as &$schedule) {
+                    if ($schedule['schedule_id'] == $assignment['schedule_id']) {
+                        $schedule['faculty_id'] = $newFacultyId;
+                        $schedule['faculty_name'] = $this->getFaculty($newFacultyId, $collegeId); // Fetch name if needed
+                        break;
+                    }
+                }
+
+                return true;
+            }
+        } catch (Exception $e) {
+            error_log("❌ Error reassigning course: " . $e->getMessage());
+        }
+
+        return false;
+    }
+
+    // Helper method to check faculty availability
+    private function isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)
+    {
+        foreach ($facultyAssignments as $assignment) {
+            if ($assignment['faculty_id'] == $facultyId) {
+                foreach ($targetDays as $day) {
+                    if (
+                        in_array($day, (array)$assignment['days']) &&
+                        $this->hasTimeConflict($startTime, $endTime, $assignment['start_time'], $assignment['end_time'])
+                    ) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // Helper method to reschedule a conflicting course to different time
+    private function rescheduleConflictingCourse($assignment, &$facultyAssignments, &$schedules, $departmentId)
+    {
+        error_log("⏰ Attempting to reschedule course {$assignment['course_id']} to different time");
+
+        // Get available time slots (you might need to adjust this based on your time slot generation)
+        $alternativeTimeSlots = $this->getAlternativeTimeSlots($assignment['day_of_week']);
+
+        foreach ($alternativeTimeSlots as $timeSlot) {
+            $newStartTime = $timeSlot['start'];
+            $newEndTime = $timeSlot['end'];
+
+            // Check if faculty is available at new time
+            if ($this->isFacultyAvailable($assignment['faculty_id'], $assignment['day_of_week'], $newStartTime, $newEndTime, $facultyAssignments)) {
+                // Check if room is available at new time
+                $roomAvailable = $this->isRoomAvailable($assignment['room_id'], $assignment['day_of_week'], $newStartTime, $newEndTime, $schedules);
+
+                if ($roomAvailable) {
+                    // Update the schedule
+                    if ($this->updateScheduleTime($assignment['schedule_id'], $newStartTime, $newEndTime)) {
+                        // Update in-memory arrays
+                        foreach ($facultyAssignments as &$fa) {
+                            if ($fa['schedule_id'] == $assignment['schedule_id']) {
+                                $fa['start_time'] = $newStartTime;
+                                $fa['end_time'] = $newEndTime;
+                                break;
+                            }
+                        }
+
+                        foreach ($schedules as &$schedule) {
+                            if ($schedule['schedule_id'] == $assignment['schedule_id']) {
+                                $schedule['start_time'] = $newStartTime;
+                                $schedule['end_time'] = $newEndTime;
+                                break;
+                            }
+                        }
+
+                        error_log("✅ Successfully rescheduled course {$assignment['course_id']} to $newStartTime-$newEndTime");
+                        return true;
+                    }
+                }
+            }
+        }
+
+        error_log("❌ Could not find alternative time slot for course {$assignment['course_id']}");
+        return false;
+    }
+
+    // Get alternative time slots for rescheduling
+    private function getAlternativeTimeSlots($currentDays)
+    {
+        // Return common alternative time slots
+        return [
+            ['start' => '07:30:00', 'end' => '09:00:00'],
+            ['start' => '09:00:00', 'end' => '10:30:00'],
+            ['start' => '10:30:00', 'end' => '12:00:00'],
+            ['start' => '13:00:00', 'end' => '14:30:00'],
+            ['start' => '14:30:00', 'end' => '16:00:00'],
+            ['start' => '16:00:00', 'end' => '17:30:00'],
+            ['start' => '17:30:00', 'end' => '19:00:00']
+        ];
+    }
+
+    // Check if room is available at specific time
+    private function isRoomAvailable($roomId, $days, $startTime, $endTime, $schedules)
+    {
+        foreach ($schedules as $schedule) {
+            if ($schedule['room_id'] == $roomId) {
+                $scheduleDays = (array)$schedule['day_of_week'];
+                $dayOverlap = array_intersect((array)$days, $scheduleDays);
+
+                if (
+                    !empty($dayOverlap) &&
+                    $this->hasTimeConflict($startTime, $endTime, $schedule['start_time'], $schedule['end_time'])
+                ) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Update schedule time in database
+    private function updateScheduleTime($scheduleId, $newStartTime, $newEndTime)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            UPDATE schedules 
+            SET start_time = :start_time, end_time = :end_time 
+            WHERE schedule_id = :schedule_id
+        ");
+
+            return $stmt->execute([
+                ':start_time' => $newStartTime,
+                ':end_time' => $newEndTime,
+                ':schedule_id' => $scheduleId
+            ]);
+        } catch (Exception $e) {
+            error_log("❌ Error updating schedule time: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Enhanced hasTimeConflict method with logging
+    private function hasTimeConflict($startTime1, $endTime1, $startTime2, $endTime2)
+    {
+        // Convert time strings to comparable format (24-hour format)
+        $start1 = strtotime($startTime1);
+        $end1 = strtotime($endTime1);
+        $start2 = strtotime($startTime2);
+        $end2 = strtotime($endTime2);
+
+        // Check for overlap: two time periods overlap if one starts before the other ends
+        $hasConflict = ($start1 < $end2) && ($start2 < $end1);
+
+        return $hasConflict;
+    }
+
+    private function getRoomAssignments($departmentId, $maxStudents, $targetDays, $startTime, $endTime, $schedules, $forceF2F = false)
+    {
+        $assignments = [];
+
+        foreach ($targetDays as $day) {
+            $room = null;
+            $attempts = 0;
+            $maxAttempts = 3; // Retry for F2F or to find any available room
+
+            while ($attempts < $maxAttempts && !$room) {
+                $room = $this->getAvailableRoom($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $forceF2F);
+                if ($room && $room['room_id'] && !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                    break;
+                } elseif ($forceF2F) {
+                    $maxStudents = max($maxStudents - 5, 1); // Reduce capacity for retry
+                    $attempts++;
+                    error_log("Retry $attempts for F2F room on $day at $startTime-$endTime, adjusted maxStudents to $maxStudents");
+                } else {
+                    $attempts++; // Try next attempt for GE/NSTP to find any room
+                }
+            }
+
+            if ($room && $room['room_id']) {
+                $assignments[$day] = [
+                    'room_id' => $room['room_id'],
+                    'room_name' => $room['room_name'],
+                    'room_type' => $room['room_type']
+                ];
+                error_log("Assigned room {$room['room_name']} (ID: {$room['room_id']}) for day $day at $startTime-$endTime");
+            } elseif ($forceF2F) {
+                error_log("Critical: No room found for F2F course on $day at $startTime-$endTime despite retries");
+                throw new Exception("No available room for Professional Course on $day at $startTime-$endTime");
+            } else {
+                $assignments[$day] = [
+                    'room_id' => null,
+                    'room_name' => 'Online'
+                ];
+                error_log("No available room found for day $day at $startTime-$endTime, falling back to online for GE/NSTP");
+            }
+        }
+
+        return $assignments;
+    }
+
+    private function hasRoomConflict($schedules, $roomId, $day, $startTime, $endTime)
+    {
+        foreach ($schedules as $schedule) {
+            if (
+                $schedule['room_id'] == $roomId &&
+                $schedule['day_of_week'] == $day &&
+                $this->timeOverlap($schedule['start_time'], $schedule['end_time'], $startTime, $endTime)
+            ) {
+                error_log("Room conflict detected for room ID $roomId on $day at $startTime-$endTime with schedule: " . json_encode($schedule));
+                return true;
+            }
+        }
+        error_log("No conflict for room ID $roomId on $day at $startTime-$endTime");
+        return false;
+    }
+
+    private function timeOverlap($start1, $end1, $start2, $end2)
+    {
+        $start1Time = strtotime($start1);
+        $end1Time = strtotime($end1);
+        $start2Time = strtotime($start2);
+        $end2Time = strtotime($end2);
+        return $start1Time < $end2Time && $start2Time < $end1Time;
+    }
+
+    private function processManualSchedules($schedulesData, $currentSemester, $departmentId)
+    {
+        $schedules = [];
+        foreach ($schedulesData as $schedule) {
+            $errors = $this->validateSchedule($schedule, $departmentId);
+            if (empty($errors)) {
+                $response = $this->callSchedulingService('POST', 'schedules', [
+                    'course_id' => $schedule['course_id'],
+                    'faculty_id' => $schedule['faculty_id'],
+                    'room_id' => $schedule['room_id'],
+                    'section_id' => $schedule['section_id'],
+                    'day_of_week' => $schedule['day_of_week'],
+                    'start_time' => $schedule['start_time'],
+                    'end_time' => $schedule['end_time'],
+                    'semester_id' => $currentSemester['semester_id'],
+                    'curriculum_id' => $schedule['curriculum_id']
+                ]);
+                if ($response['code'] === 200) {
+                    $schedules[] = $response['data'];
+                }
+            } else {
+                $error = implode(", ", $errors);
+                error_log("Validation errors in manual schedule: " . $error);
+            }
+        }
+        return $schedules;
+    }
+
+    private function getFacultySpecializations($departmentId, $collegeId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT s.faculty_id, s.course_id, s.expertise_level, s.is_primary_specialization, u.department_id, u.college_id
+            FROM specializations s
+            JOIN faculty f ON s.faculty_id = f.faculty_id
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON s.faculty_id = fd.faculty_id
+            JOIN courses c ON s.course_id = c.course_id
+            WHERE fd.department_id = :department_id
+            ORDER BY s.expertise_level DESC, s.is_primary_specialization DESC
+        ");
+            $stmt->execute([':department_id' => $departmentId]);
+            $specializations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($specializations === false) {
+                error_log("fetchAll returned false for getFacultySpecializations, department $departmentId");
+                return [];
+            }
+
+            // Filter and log mismatches
+            $filteredSpecializations = [];
+            foreach ($specializations as $spec) {
+                $facultyCollegeId = $spec['college_id'] ?? null;
+                if ($facultyCollegeId && $facultyCollegeId != $collegeId) {
+                    error_log("⚠️ Faculty {$spec['faculty_id']} (college $facultyCollegeId) specialization mismatch with required college $collegeId");
+                } else {
+                    $filteredSpecializations[] = $spec;
+                }
+            }
+
+            error_log("getFacultySpecializations for department $departmentId, college $collegeId: found " . count($filteredSpecializations) . " matching specializations");
+            return $filteredSpecializations;
+        } catch (PDOException $e) {
+            error_log("getFacultySpecializations failed for department $departmentId, college $collegeId: " . $e->getMessage());
+            return [];
+        } catch (Exception $e) {
+            error_log("Unexpected error in getFacultySpecializations for department $departmentId, college $collegeId: " . $e->getMessage());
+            return [];
+        }
+    }
     
+    public function deleteSchedule()
+    {
+        if (isset($_POST['schedule_id'])) {
+            $stmt = $this->db->prepare("DELETE FROM schedules WHERE schedule_id = :schedule_id AND semester_id = :semester_id");
+            $stmt->execute([':schedule_id' => $_POST['schedule_id'], ':semester_id' => $_SESSION['current_semester']['semester_id']]);
+            echo json_encode(['success' => $stmt->rowCount() > 0]);
+        }
+        exit;
+    }
+
+    public function updateSchedule()
+    {
+        if (isset($_POST['schedule_id']) && isset($_POST['data'])) {
+            $data = json_decode($_POST['data'], true);
+            $stmt = $this->db->prepare("UPDATE schedules SET course_id = :course_id, section_id = :section_id, room_id = :room_id, faculty_id = :faculty_id, day_of_week = :day_of_week, start_time = :start_time, end_time = :end_time WHERE schedule_id = :schedule_id AND semester_id = :semester_id");
+            $stmt->execute([
+                ':schedule_id' => $_POST['schedule_id'],
+                ':course_id' => $data['course_id'],
+                ':section_id' => $data['section_id'],
+                ':room_id' => $data['room_id'] ?? null,
+                ':faculty_id' => $data['faculty_id'],
+                ':day_of_week' => $data['day_of_week'],
+                ':start_time' => $data['start_time'],
+                ':end_time' => $data['end_time'],
+                ':semester_id' => $_SESSION['current_semester']['semester_id']
+            ]);
+            echo json_encode(['success' => $stmt->rowCount() > 0]);
+        }
+        exit;
+    }
+
+    private function saveScheduleToDB($scheduleData, $currentSemester)
+    {
+        try {
+            $sql = "INSERT INTO schedules (course_id, section_id, room_id, semester_id, faculty_id, schedule_type, day_of_week, start_time, end_time,
+                     status, is_public, department_id) 
+                     VALUES (:course_id, :section_id, :room_id, :semester_id, :faculty_id, :schedule_type, :day_of_week, :start_time, :end_time, :status, :is_public, :department_id)";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':course_id' => $scheduleData['course_id'],
+                ':section_id' => $scheduleData['section_id'],
+                ':room_id' => $scheduleData['room_id'],
+                ':semester_id' => $scheduleData['semester_id'],
+                ':faculty_id' => $scheduleData['faculty_id'],
+                ':schedule_type' => $scheduleData['schedule_type'],
+                ':day_of_week' => $scheduleData['day_of_week'],
+                ':start_time' => $scheduleData['start_time'],
+                ':end_time' => $scheduleData['end_time'],
+                ':status' => $scheduleData['status'],
+                ':is_public' => $scheduleData['is_public'],
+                ':department_id' => $scheduleData['department_id']
+            ]);
+
+            return ['code' => 200, 'data' => ['schedule_id' => $this->db->lastInsertId()]];
+        } catch (PDOException $e) {
+            error_log("Database error in saveScheduleToDB: " . $e->getMessage());
+            return ['code' => 500, 'error' => 'Database error: ' . $e->getMessage()];
+        }
+    }
+
+    private function getAvailableRoom($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $forceF2F = false)
+    {
+        // First query: Department-specific rooms
+        $stmt = $this->db->prepare("
+        SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
+        FROM classrooms r
+        WHERE r.capacity >= :capacity AND r.department_id = :department_id
+        AND NOT EXISTS (
+            SELECT 1 FROM schedules s
+            WHERE s.room_id = r.room_id
+            AND s.day_of_week = :day
+            AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+            AND s.semester_id = :semester_id
+        )
+        ");
+        $stmt->execute([
+            ':department_id' => $departmentId,
+            ':capacity' => $maxStudents,
+            ':day' => $day,
+            ':start_time' => $startTime,
+            ':end_time' => $endTime,
+            ':semester_id' => $_SESSION['current_semester']['semester_id']
+        ]);
+
+        $availableRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($availableRooms as $room) {
+            if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                return $room;
+            } else {
+                error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
+            }
+        }
+
+        // If no department-specific room or not forcing F2F, try all rooms
+        if (!$forceF2F || empty($availableRooms)) {
+            $stmt = $this->db->prepare("
+            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
+            FROM classrooms r
+            WHERE r.capacity >= :capacity
+            AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.room_id = r.room_id
+                AND s.day_of_week = :day
+                AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+                AND s.semester_id = :semester_id
+            )
+        ");
+            $stmt->execute([
+                ':capacity' => $maxStudents,
+                ':day' => $day,
+                ':start_time' => $startTime,
+                ':end_time' => $endTime,
+                ':semester_id' => $_SESSION['current_semester']['semester_id']
+            ]);
+            $allRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($allRooms as $room) {
+                if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                    return $room;
+                } else {
+                    error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
+                }
+            }
+        }
+
+        error_log("No available room found for day $day at $startTime-$endTime with capacity >= $maxStudents");
+        return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
+    }
+
+    private function loadSchedules($departmentId, $currentSemester)
+    {
+        $stmt = $this->db->prepare("SELECT s.*, c.course_code, c.course_name, sec.section_name, sec.year_level, CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, r.room_name FROM schedules s JOIN courses c ON s.course_id = c.course_id JOIN sections sec ON s.section_id = sec.section_id JOIN faculty f ON s.faculty_id = f.faculty_id JOIN users u ON f.user_id = u.user_id LEFT JOIN classrooms r ON s.room_id = r.room_id WHERE s.semester_id = :semester_id");
+        $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function removeDuplicateSchedules($departmentId, $currentSemester)
+    {
+        try {
+            // Use a derived table to identify duplicates and delete them
+            $sql = "
+            DELETE s1 FROM schedules s1
+            INNER JOIN (
+                SELECT s2.schedule_id
+                FROM schedules s2
+                INNER JOIN (
+                    SELECT course_id, section_id, day_of_week, start_time, end_time, semester_id,
+                           MIN(schedule_id) as keep_id
+                    FROM schedules
+                    WHERE semester_id = :inner_semester_id
+                    AND department_id = :inner_department_id
+                    GROUP BY course_id, section_id, day_of_week, start_time, end_time, semester_id
+                    HAVING COUNT(*) > 1
+                ) dups ON s2.course_id = dups.course_id
+                       AND s2.section_id = dups.section_id
+                       AND s2.day_of_week = dups.day_of_week
+                       AND s2.start_time = dups.start_time
+                       AND s2.end_time = dups.end_time
+                       AND s2.semester_id = dups.semester_id
+                WHERE s2.schedule_id != dups.keep_id
+            ) dups_to_delete ON s1.schedule_id = dups_to_delete.schedule_id
+            WHERE s1.semester_id = :outer_semester_id
+            AND s1.department_id = :outer_department_id
+        ";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':inner_semester_id' => $currentSemester['semester_id'],
+                ':inner_department_id' => $departmentId,
+                ':outer_semester_id' => $currentSemester['semester_id'],
+                ':outer_department_id' => $departmentId
+            ]);
+
+            $rowsAffected = $stmt->rowCount();
+            error_log("Removed $rowsAffected duplicate schedules for department $departmentId, semester " . $currentSemester['semester_id']);
+        } catch (PDOException $e) {
+            error_log("Error removing duplicate schedules: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    private function validateSchedule($schedule, $departmentId)
+    {
+        $errors = [];
+        if (!$this->validateCurriculumCourse($schedule['curriculum_id'], $schedule['course_id'])) {
+            $errors[] = "Course doesn't belong to selected curriculum";
+        }
+        $stmt = $this->db->prepare("SELECT 1 FROM classrooms WHERE room_id = :room_id AND availability = 'available'");
+        $stmt->execute([':room_id' => $schedule['room_id']]);
+        if (!$stmt->fetchColumn()) {
+            $errors[] = "Selected room is not available";
+        }
+        return $errors;
+    }
 
     public function checkScheduleDeadlineStatus($userDepartmentId)
     {
@@ -927,6 +2616,7 @@ class ChairController
                     '4th Year' => []
                 ];
                 $currentSemester = null;
+                $previousSections = [];
                 require_once __DIR__ . '/../views/chair/sections.php';
                 return;
             }
@@ -944,6 +2634,7 @@ class ChairController
                     '3rd Year' => [],
                     '4th Year' => []
                 ];
+                $previousSections = [];
                 require_once __DIR__ . '/../views/chair/sections.php';
                 return;
             }
@@ -951,7 +2642,7 @@ class ChairController
             // Auto-transition sections from previous semesters to inactive
             $this->autoTransitionSections($departmentId, $currentSemester);
 
-            // Handle POST requests for add/remove/edit
+            // Handle POST requests for add/remove/edit/reuse
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (isset($_POST['add_section'])) {
                     $this->addSection($departmentId);
@@ -959,6 +2650,8 @@ class ChairController
                     $this->removeSection();
                 } elseif (isset($_POST['edit_section'])) {
                     $this->editSection($departmentId);
+                } elseif (isset($_POST['reuse_section'])) {
+                    $this->reuseSection($departmentId);
                 }
                 // Retrieve success/error messages after POST
                 $success = $_SESSION['success'] ?? null;
@@ -969,28 +2662,26 @@ class ChairController
 
             // Fetch ONLY current semester sections
             $query = "
-            SELECT s.*, p.program_name 
-            FROM sections s 
-            JOIN programs p ON s.department_id = p.department_id 
-            WHERE s.department_id = :department_id 
-                AND s.is_active = 1
-                AND s.semester = :semester
-                AND s.academic_year = :academic_year
-            ORDER BY 
-                CASE s.year_level
-                    WHEN '1st Year' THEN 1
-                    WHEN '2nd Year' THEN 2
-                    WHEN '3rd Year' THEN 3
-                    WHEN '4th Year' THEN 4
-                    ELSE 5
-                END,
-                s.section_name
-        ";
+            SELECT s.*, p.program_name
+            FROM sections s
+            JOIN programs p ON s.department_id = p.department_id
+            WHERE s.department_id = :department_id
+            AND s.is_active = 1
+            AND s.semester_id = :semester_id
+            ORDER BY
+            CASE s.year_level
+            WHEN '1st Year' THEN 1
+            WHEN '2nd Year' THEN 2
+            WHEN '3rd Year' THEN 3
+            WHEN '4th Year' THEN 4
+            ELSE 5
+            END,
+            s.section_name
+            ";
 
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
-            $stmt->bindParam(':semester', $currentSemester['semester_name'], PDO::PARAM_STR);
-            $stmt->bindParam(':academic_year', $currentSemester['academic_year'], PDO::PARAM_STR);
+            $stmt->bindParam(':semester_id', $currentSemester['semester_id'], PDO::PARAM_INT);
             $stmt->execute();
             $currentSemesterSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1008,7 +2699,55 @@ class ChairController
                 }
             }
 
-            error_log("sections: Found " . count($currentSemesterSections) . " sections for current semester");
+            // Fetch previous semester sections
+            $query = "
+            SELECT s.*, p.program_name, sm.semester_name, sm.academic_year
+            FROM sections s
+            JOIN programs p ON s.department_id = p.department_id
+            JOIN semesters sm ON s.semester_id = sm.semester_id
+            WHERE s.department_id = :department_id
+            AND s.semester_id != :current_semester_id
+            ORDER BY sm.academic_year DESC,
+            CASE sm.semester_name
+            WHEN '1st' THEN 1
+            WHEN '2nd' THEN 2
+            WHEN 'Summer' THEN 3
+            WHEN 'Mid Year' THEN 4
+            ELSE 5
+            END,
+            CASE s.year_level
+            WHEN '1st Year' THEN 1
+            WHEN '2nd Year' THEN 2
+            WHEN '3rd Year' THEN 3
+            WHEN '4th Year' THEN 4
+            ELSE 5
+            END,
+            s.section_name
+            ";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
+            $stmt->bindParam(':current_semester_id', $currentSemester['semester_id'], PDO::PARAM_INT);
+            $stmt->execute();
+            $previousSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Group previous sections by semester and year level
+            $groupedPreviousSections = [];
+            foreach ($previousSections as $section) {
+                $semesterKey = $section['semester_name'] . ' ' . $section['academic_year'];
+                if (!isset($groupedPreviousSections[$semesterKey])) {
+                    $groupedPreviousSections[$semesterKey] = [
+                        '1st Year' => [],
+                        '2nd Year' => [],
+                        '3rd Year' => [],
+                        '4th Year' => []
+                    ];
+                }
+                if (isset($groupedPreviousSections[$semesterKey][$section['year_level']])) {
+                    $groupedPreviousSections[$semesterKey][$section['year_level']][] = $section;
+                }
+            }
+
+            error_log("sections: Found " . count($currentSemesterSections) . " current sections and " . count($previousSections) . " previous sections for department $departmentId");
 
             require_once __DIR__ . '/../views/chair/sections.php';
         } catch (PDOException $e) {
@@ -1021,45 +2760,35 @@ class ChairController
                 '3rd Year' => [],
                 '4th Year' => []
             ];
-            $currentSemester = null;
+            $previousSections = [];
+            $groupedPreviousSections = [];
             require_once __DIR__ . '/../views/chair/sections.php';
         }
     }
 
-    /**
-     * Automatically transition sections from previous semesters to inactive status
-     * This runs every time the sections page is accessed
-     */
     private function autoTransitionSections($departmentId, $currentSemester)
     {
         try {
             error_log("autoTransitionSections: Starting auto-transition for department $departmentId");
 
-            // Find all active sections that are NOT in the current semester
+            // Deactivate sections not in the current semester
             $query = "
-            UPDATE sections 
-            SET is_active = 0, updated_at = NOW() 
-            WHERE department_id = :department_id 
-                AND is_active = 1 
-                AND (
-                    semester != :current_semester 
-                    OR academic_year != :current_academic_year
-                )
-        ";
-
+                                    UPDATE sections
+                                    SET is_active = 0, updated_at = NOW()
+                                    WHERE department_id = :department_id
+                                    AND is_active = 1
+                                    AND semester_id != :semester_id
+                                    ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
-                ':current_semester' => $currentSemester['semester_name'],
-                ':current_academic_year' => $currentSemester['academic_year']
+                ':semester_id' => $currentSemester['semester_id']
             ]);
 
             $transitionedCount = $stmt->rowCount();
 
             if ($transitionedCount > 0) {
                 error_log("autoTransitionSections: Transitioned $transitionedCount sections to inactive for department $departmentId");
-
-                // Optional: Add a session message to inform the user
                 if (!isset($_SESSION['auto_transition_notified'])) {
                     $_SESSION['info'] = "Sections from previous semesters have been automatically archived.";
                     $_SESSION['auto_transition_notified'] = true;
@@ -1067,21 +2796,29 @@ class ChairController
             }
         } catch (PDOException $e) {
             error_log("autoTransitionSections: Error - " . $e->getMessage());
-            // Don't throw error to user - this is a background process
         }
     }
 
     private function addSection($departmentId)
     {
-        error_log("addSection: Starting add section process");
+        error_log("addSection: Starting add section process for department $departmentId");
         try {
+            if (!isset($_POST['add_section'])) {
+                $_SESSION['error'] = "Invalid form submission.";
+                error_log("addSection: Missing add_section field");
+                header('Location: /chair/sections');
+                exit;
+            }
+
             $sectionName = trim($_POST['section_name'] ?? '');
             $yearLevel = trim($_POST['year_level'] ?? '');
             $maxStudents = (int)($_POST['max_students'] ?? 40);
+            $currentStudents =(int)($_POST['current_students'] ?? 0);
 
             // Input validation
             if (!$sectionName || !$yearLevel || $maxStudents < 1 || $maxStudents > 100) {
-                $_SESSION['error'] = "Invalid input data.";
+                $_SESSION['error'] = "Invalid input data. Please provide section name, year level, and valid max students (1-100).";
+                error_log("addSection: Validation failed - sectionName: '$sectionName', yearLevel: '$yearLevel', maxStudents: $maxStudents");
                 header('Location: /chair/sections');
                 exit;
             }
@@ -1090,35 +2827,47 @@ class ChairController
             $validYearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
             if (!in_array($yearLevel, $validYearLevels)) {
                 $_SESSION['error'] = "Invalid year level selected.";
+                error_log("addSection: Invalid year level: $yearLevel");
                 header('Location: /chair/sections');
                 exit;
             }
 
+            // Fetch current semester
             $currentSemester = $this->getCurrentSemester();
             if (!$currentSemester) {
                 $_SESSION['error'] = "Current semester not set. Please contact your administrator.";
+                error_log("addSection: No current semester found");
                 header('Location: /chair/sections');
                 exit;
             }
 
+            $semesterId = $currentSemester['semester_id'];
             $semesterName = $currentSemester['semester_name'];
             $academicYear = $currentSemester['academic_year'];
 
-            error_log("addSection: Adding section '$sectionName' for department $departmentId, semester $semesterName $academicYear");
+            // Validate semester_name
+            $validSemesters = ['1st', '2nd', 'Summer', 'Mid Year'];
+            if (!in_array($semesterName, $validSemesters)) {
+                $_SESSION['error'] = "Invalid semester name in current semester.";
+                error_log("addSection: Invalid semester name: $semesterName");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            error_log("addSection: Adding section '$sectionName' for department $departmentId, semester_id $semesterId, semester $semesterName, academic_year $academicYear");
 
             // Start transaction
             $this->db->beginTransaction();
 
-            // With the new constraint, we only need to check for active sections
-            // in the same department and academic year
+            // Check for duplicate section
             $query = "
-            SELECT COUNT(*) 
-            FROM sections 
-            WHERE department_id = :department_id 
-            AND section_name = :section_name 
-            AND academic_year = :academic_year 
-            AND is_active = 1
-        ";
+                    SELECT COUNT(*)
+                    FROM sections
+                    WHERE department_id = :department_id
+                    AND section_name = :section_name
+                    AND academic_year = :academic_year
+                    AND is_active = 1
+                    ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
@@ -1129,21 +2878,29 @@ class ChairController
             if ($stmt->fetchColumn() > 0) {
                 $this->db->rollBack();
                 $_SESSION['error'] = "A section with the name '$sectionName' already exists in this academic year.";
+                error_log("addSection: Duplicate section name '$sectionName' for academic year $academicYear");
                 header('Location: /chair/sections');
                 exit;
             }
 
             // Insert new section
             $query = "
-            INSERT INTO sections (department_id, section_name, year_level, max_students, semester, academic_year, is_active, created_at)
-            VALUES (:department_id, :section_name, :year_level, :max_students, :semester, :academic_year, 1, NOW())
-        ";
+                    INSERT INTO sections (
+                    department_id, section_name, year_level, max_students, current_students,
+                    semester_id, semester, academic_year, is_active, created_at
+                    ) VALUES (
+                    :department_id, :section_name, :year_level, :max_students, :current_students,
+                    :semester_id, :semester, :academic_year, 1, NOW()
+                    )
+                    ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
                 ':section_name' => $sectionName,
                 ':year_level' => $yearLevel,
                 ':max_students' => $maxStudents,
+                ':current_students' => $currentStudents,
+                ':semester_id' => $semesterId,
                 ':semester' => $semesterName,
                 ':academic_year' => $academicYear
             ]);
@@ -1152,21 +2909,19 @@ class ChairController
             $this->db->commit();
 
             $_SESSION['success'] = "Section '$sectionName' added successfully.";
-            error_log("addSection: Successfully added section '$sectionName'");
+            error_log("addSection: Successfully added section '$sectionName' with semester_id $semesterId");
         } catch (PDOException $e) {
-            // Rollback transaction on error
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             error_log("addSection: PDO Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to add section. Please try again.";
+            $_SESSION['error'] = "Failed to add section: " . $e->getMessage();
         } catch (Exception $e) {
-            // Rollback transaction on any other error
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             error_log("addSection: General Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to add section. Please try again.";
+            $_SESSION['error'] = "Failed to add section: " . $e->getMessage();
         }
 
         header('Location: /chair/sections');
@@ -1175,25 +2930,33 @@ class ChairController
 
     private function editSection($departmentId)
     {
-        error_log("editSection: Starting edit section process");
+        error_log("editSection: Starting edit section process for department $departmentId");
         try {
-            $section_id = (int)($_POST['section_id'] ?? 0);
-            $section_name = trim($_POST['section_name'] ?? '');
-            $year_level = trim($_POST['year_level'] ?? '');
-            $max_students = (int)($_POST['max_students'] ?? 40);
+            if (!isset($_POST['edit_section'])) {
+                $_SESSION['error'] = "Invalid form submission.";
+                error_log("editSection: Missing edit_section field");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $sectionId = (int)($_POST['section_id'] ?? 0);
+            $sectionName = trim($_POST['section_name'] ?? '');
+            $yearLevel = trim($_POST['year_level'] ?? '');
+            $maxStudents = (int)($_POST['max_students'] ?? 40);
+            $currentStudents = (int)($_POST['current_students'] ?? 0);
 
             // Validation
             $errors = [];
-            if ($section_id <= 0) {
+            if ($sectionId <= 0) {
                 $errors[] = "Invalid section ID.";
             }
-            if (empty($section_name)) {
+            if (empty($sectionName)) {
                 $errors[] = "Section name is required.";
             }
-            if (!in_array($year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year'])) {
+            if (!in_array($yearLevel, ['1st Year', '2nd Year', '3rd Year', '4th Year'])) {
                 $errors[] = "Invalid year level.";
             }
-            if ($max_students < 1 || $max_students > 100) {
+            if ($maxStudents < 1 || $maxStudents > 100) {
                 $errors[] = "Max students must be between 1 and 100.";
             }
 
@@ -1206,77 +2969,79 @@ class ChairController
 
             // Check if section exists, is active, and belongs to the department
             $query = "
-            SELECT section_name, semester, academic_year 
-            FROM sections 
-            WHERE section_id = :section_id 
-            AND department_id = :department_id 
-            AND is_active = 1
-        ";
+                            SELECT section_name, semester, academic_year, semester_id
+                            FROM sections
+                            WHERE section_id = :section_id
+                            AND department_id = :department_id
+                            AND is_active = 1
+                            ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
-                ':section_id' => $section_id,
+                ':section_id' => $sectionId,
                 ':department_id' => $departmentId
             ]);
             $section = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$section) {
-                error_log("editSection: Section ID $section_id not found or inactive for department_id: $departmentId");
+                error_log("editSection: Section ID $sectionId not found or inactive for department_id: $departmentId");
                 $_SESSION['error'] = "Section not found or not accessible.";
                 header('Location: /chair/sections');
                 exit;
             }
 
             // Check for duplicate section name (excluding current section)
-            // With new constraint, only check active sections
             $query = "
-            SELECT COUNT(*) 
-            FROM sections 
-            WHERE department_id = :department_id 
-            AND section_name = :section_name 
-            AND academic_year = :academic_year 
-            AND is_active = 1
-            AND section_id != :section_id
-        ";
+                            SELECT COUNT(*)
+                            FROM sections
+                            WHERE department_id = :department_id
+                            AND section_name = :section_name
+                            AND academic_year = :academic_year
+                            AND is_active = 1
+                            AND section_id != :section_id
+                            ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
-                ':section_name' => $section_name,
+                ':section_name' => $sectionName,
                 ':academic_year' => $section['academic_year'],
-                ':section_id' => $section_id
+                ':section_id' => $sectionId
             ]);
 
             if ($stmt->fetchColumn() > 0) {
                 $_SESSION['error'] = "A section with this name already exists for this academic year.";
+                error_log("editSection: Duplicate section name '$sectionName' for academic year {$section['academic_year']}");
                 header('Location: /chair/sections');
                 exit;
             }
 
             // Update section
             $query = "
-            UPDATE sections 
-            SET 
-                section_name = :section_name, 
-                year_level = :year_level, 
-                max_students = :max_students, 
-                updated_at = NOW()
-            WHERE section_id = :section_id
-        ";
+                            UPDATE sections
+                            SET
+                            section_name = :section_name,
+                            year_level = :year_level,
+                            max_students = :max_students,
+                            current_students = :current_students,
+                            updated_at = NOW()
+                            WHERE section_id = :section_id
+                            ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
-                ':section_name' => $section_name,
-                ':year_level' => $year_level,
-                ':max_students' => $max_students,
-                ':section_id' => $section_id
+                ':section_name' => $sectionName,
+                ':year_level' => $yearLevel,
+                ':current_students' => $currentStudents,
+                ':max_students' => $maxStudents,
+                ':section_id' => $sectionId
             ]);
 
-            $_SESSION['success'] = "Section '$section_name' updated successfully.";
-            error_log("editSection: Section ID $section_id updated to '$section_name' for department_id: $departmentId");
+            $_SESSION['success'] = "Section '$sectionName' updated successfully.";
+            error_log("editSection: Section ID $sectionId updated to '$sectionName' for department_id: $departmentId");
         } catch (PDOException $e) {
             error_log("editSection: PDO Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to update section. Please try again.";
+            $_SESSION['error'] = "Failed to update section: " . $e->getMessage();
         } catch (Exception $e) {
             error_log("editSection: General Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to update section. Please try again.";
+            $_SESSION['error'] = "Failed to update section: " . $e->getMessage();
         }
 
         header('Location: /chair/sections');
@@ -1287,13 +3052,20 @@ class ChairController
     {
         error_log("removeSection: Starting remove section process at " . date('Y-m-d H:i:s'));
         try {
-            $section_id = (int)($_POST['section_id'] ?? 0);
-            $chairId = $_SESSION['user_id'];
+            if (!isset($_POST['remove_section'])) {
+                $_SESSION['error'] = "Invalid form submission.";
+                error_log("removeSection: Missing remove_section field");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $sectionId = (int)($_POST['section_id'] ?? 0);
+            $chairId = $_SESSION['user_id'] ?? null;
             $departmentId = $this->getChairDepartment($chairId);
 
-            if ($section_id <= 0) {
-                error_log("removeSection: Invalid section ID: $section_id");
-                $_SESSION['error'] = "Invalid section ID.";
+            if ($sectionId <= 0 || !$chairId) {
+                error_log("removeSection: Invalid section ID: $sectionId or chair ID: $chairId");
+                $_SESSION['error'] = "Invalid section or user.";
                 header('Location: /chair/sections');
                 exit;
             }
@@ -1307,13 +3079,14 @@ class ChairController
             AND is_active = 1
         ";
             $stmt = $this->db->prepare($query);
-            $stmt->bindParam(':section_id', $section_id, PDO::PARAM_INT);
-            $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
-            $stmt->execute();
+            $stmt->execute([
+                ':section_id' => $sectionId,
+                ':department_id' => $departmentId
+            ]);
             $section = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$section) {
-                error_log("removeSection: Section ID $section_id not found or not accessible for department_id: $departmentId");
+                error_log("removeSection: Section ID $sectionId not found or not accessible for department_id: $departmentId");
                 $_SESSION['error'] = "Section not found or not accessible.";
                 header('Location: /chair/sections');
                 exit;
@@ -1322,36 +3095,168 @@ class ChairController
             // Start transaction
             $this->db->beginTransaction();
 
-            // Hard delete section
-            $query = "DELETE FROM sections WHERE section_id = :section_id";
+            // Soft delete section
+            $query = "
+                                UPDATE sections
+                                SET is_active = 0, updated_at = NOW()
+                                WHERE section_id = :section_id
+                                ";
             $stmt = $this->db->prepare($query);
-            $stmt->bindParam(':section_id', $section_id, PDO::PARAM_INT);
-            $success = $stmt->execute();
-
-            if (!$success) {
-                throw new PDOException("Failed to delete section.");
-            }
+            $stmt->execute([':section_id' => $sectionId]);
 
             // Commit transaction
             $this->db->commit();
 
-            $_SESSION['success'] = "Section '{$section['section_name']}' removed successfully.";
-            error_log("removeSection: Section ID $section_id ('{$section['section_name']}') deleted");
+            $_SESSION['success'] = "Section '{$section['section_name']}' archived successfully.";
+            error_log("removeSection: Section ID $sectionId ('{$section['section_name']}') archived");
         } catch (PDOException $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             error_log("removeSection: PDO Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to remove section. Please try again. Error: " . $e->getMessage();
+            $_SESSION['error'] = "Failed to archive section: " . $e->getMessage();
         } catch (Exception $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             error_log("removeSection: General Error - " . $e->getMessage());
-            $_SESSION['error'] = "Failed to remove section. Please try again.";
+            $_SESSION['error'] = "Failed to archive section: " . $e->getMessage();
         }
 
         header('Location: /chair/sections?refresh=1');
+        exit;
+    }
+
+    private function reuseSection($departmentId)
+    {
+        error_log("reuseSection: Starting reuse section process for department $departmentId");
+        try {
+            if (!isset($_POST['reuse_section'])) {
+                $_SESSION['error'] = "Invalid form submission.";
+                error_log("reuseSection: Missing reuse_section field");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $sectionId = (int)($_POST['section_id'] ?? 0);
+
+            // Input validation
+            if ($sectionId <= 0) {
+                $_SESSION['error'] = "Invalid section selected.";
+                error_log("reuseSection: Invalid section ID: $sectionId");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Fetch the section to reuse
+            $query = "
+            SELECT section_name, year_level, max_students, semester_id, semester, academic_year
+            FROM sections
+            WHERE section_id = :section_id AND department_id = :department_id
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':section_id' => $sectionId,
+                ':department_id' => $departmentId
+            ]);
+            $section = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$section) {
+                $_SESSION['error'] = "Selected section not found.";
+                error_log("reuseSection: Section ID $sectionId not found for department $departmentId");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Fetch current semester
+            $currentSemester = $this->getCurrentSemester();
+            if (!$currentSemester) {
+                $_SESSION['error'] = "Current semester not set. Please contact your administrator.";
+                error_log("reuseSection: No current semester found");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $semesterId = $currentSemester['semester_id'];
+            $semesterName = $currentSemester['semester_name'];
+            $academicYear = $currentSemester['academic_year'];
+
+            // Validate semester_name
+            $validSemesters = ['1st', '2nd', 'Summer', 'Mid Year'];
+            if (!in_array($semesterName, $validSemesters)) {
+                $_SESSION['error'] = "Invalid semester name in current semester.";
+                error_log("reuseSection: Invalid semester name: $semesterName");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Check for duplicate section in current semester
+            $query = "
+        SELECT COUNT(*)
+        FROM sections
+        WHERE department_id = :department_id
+        AND section_name = :section_name
+        AND academic_year = :academic_year
+        AND is_active = 1
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':section_name' => $section['section_name'],
+                ':academic_year' => $academicYear
+            ]);
+
+            if ($stmt->fetchColumn() > 0) {
+                $_SESSION['error'] = "A section with the name '{$section['section_name']}' already exists in the current academic year.";
+                error_log("reuseSection: Duplicate section name '{$section['section_name']}' for academic year $academicYear");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Start transaction
+            $this->db->beginTransaction();
+
+            // Insert new section for current semester
+            $query = "
+        INSERT INTO sections (
+        department_id, section_name, year_level, max_students,
+        semester_id, semester, academic_year, is_active, created_at
+        ) VALUES (
+        :department_id, :section_name, :year_level, :max_students,
+        :semester_id, :semester, :academic_year, 1, NOW()
+        )
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':section_name' => $section['section_name'],
+                ':year_level' => $section['year_level'],
+                ':max_students' => $section['max_students'],
+                ':semester_id' => $semesterId,
+                ':semester' => $semesterName,
+                ':academic_year' => $academicYear
+            ]);
+
+            // Commit transaction
+            $this->db->commit();
+
+            $_SESSION['success'] = "Section '{$section['section_name']}' reused successfully for the current semester.";
+            error_log("reuseSection: Successfully reused section ID $sectionId as '{$section['section_name']}' with semester_id $semesterId");
+        } catch (PDOException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("reuseSection: PDO Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to reuse section: " . $e->getMessage();
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("reuseSection: General Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to reuse section: " . $e->getMessage();
+        }
+
+        header('Location: /chair/sections');
         exit;
     }
 
