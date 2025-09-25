@@ -98,13 +98,13 @@ class AuthService
 
             // Insert into users table (all users pending approval)
             $query = "
-            INSERT INTO users (
-                employee_id, username, password_hash, email, first_name, middle_name,
-                last_name, suffix, role_id, department_id, college_id, is_active, created_at
-            ) VALUES (
-                :employee_id, :username, :password_hash, :email, :first_name, :middle_name,
-                :last_name, :suffix, :role_id, :department_id, :college_id, 0, NOW()
-            )";
+                INSERT INTO users (
+                    employee_id, username, password_hash, email, first_name, middle_name,
+                    last_name, suffix, role_id, department_id, college_id, is_active, created_at
+                ) VALUES (
+                    :employee_id, :username, :password_hash, :email, :first_name, :middle_name,
+                    :last_name, :suffix, :role_id, :department_id, :college_id, 0, NOW()
+                )";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':employee_id' => $data['employee_id'],
@@ -117,8 +117,7 @@ class AuthService
                 ':suffix' => $data['suffix'] ?? null,
                 ':role_id' => $data['role_id'],
                 ':department_id' => $data['department_id'],
-                ':college_id' => $data['college_id'],
-                ':is_active' => 0 // All users are inactive until approved
+                ':college_id' => $data['college_id']
             ]);
             $userId = $this->db->lastInsertId();
             error_log("register: Inserted user_id=$userId, employee_id={$data['employee_id']}, role_id={$data['role_id']}, is_active=0");
@@ -127,9 +126,9 @@ class AuthService
                 // For Director, insert into department_instructors
                 $startDate = $data['start_date'] ?? date('Y-m-d');
                 $query = "
-                INSERT INTO department_instructors (user_id, department_id, start_date, is_current)
-                VALUES (:user_id, :department_id, :start_date, 1)
-            ";
+                    INSERT INTO department_instructors (user_id, department_id, start_date, is_current)
+                    VALUES (:user_id, :department_id, :start_date, 1)
+                ";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
@@ -143,9 +142,9 @@ class AuthService
             if ($data['role_id'] == 4) {
                 $startDate = $data['start_date'] ?? date('Y-m-d');
                 $query = "
-                INSERT INTO deans (user_id, college_id, start_date, is_current)
-                VALUES (:user_id, :college_id, :start_date, 1)
-            ";
+                    INSERT INTO deans (user_id, college_id, start_date, is_current)
+                    VALUES (:user_id, :college_id, :start_date, 1)
+                ";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
@@ -158,11 +157,11 @@ class AuthService
             // For Program Chair (role_id = 5), insert into program_chairs if program_id is provided
             if ($data['role_id'] == 5 && !empty($data['program_id'])) {
                 $query = "
-                INSERT INTO program_chairs (
-                    user_id, program_id, is_current
-                ) VALUES (
-                    :user_id, :program_id, 1
-                )";
+                    INSERT INTO program_chairs (
+                        user_id, program_id, is_current
+                    ) VALUES (
+                        :user_id, :program_id, 1
+                    )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
@@ -174,17 +173,16 @@ class AuthService
             // For Faculty (role_id = 6), insert into faculty and faculty_departments
             if ($data['role_id'] == 6) {
                 $query = "
-                INSERT INTO faculty (
-                    user_id, employee_id, classification, academic_rank, employment_type, max_hours
-                ) VALUES (
-                    :user_id, :employee_id, :classification, :academic_rank, :employment_type, :max_hours
-                )";
+                    INSERT INTO faculty (
+                        user_id, employee_id, academic_rank, employment_type, max_hours
+                    ) VALUES (
+                        :user_id, :employee_id, :academic_rank, :employment_type, :max_hours
+                    )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':user_id' => $userId,
                     ':employee_id' => $data['employee_id'],
-                    ':classification' => $data['classification'] ?? 'TL',
-                    ':academic_rank' => $data['academic_rank'] ?? 'Instructor I',
+                    ':academic_rank' => $data['academic_rank'] ?? 'Instructor',
                     ':employment_type' => $data['employment_type'] ?? 'Part-time',
                     ':max_hours' => $data['max_hours'] ?? 18.00
                 ]);
@@ -192,11 +190,11 @@ class AuthService
                 error_log("register: Inserted faculty_id=$facultyId for user_id=$userId");
 
                 $query = "
-                INSERT INTO faculty_departments (
-                    faculty_id, department_id, is_primary
-                ) VALUES (
-                    :faculty_id, :department_id, 1
-                )";
+                    INSERT INTO faculty_departments (
+                        faculty_id, department_id, is_primary
+                    ) VALUES (
+                        :faculty_id, :department_id, 1
+                    )";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
                     ':faculty_id' => $facultyId,
