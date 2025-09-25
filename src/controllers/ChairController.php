@@ -434,7 +434,7 @@ class ChairController
             }
 
             $stmt = $this->db->prepare("
-            SELECT CONCAT(u.first_name, ' ', u.last_name) AS name, f.faculty_id, u.user_id, u.college_id, fd.department_id
+            SELECT CONCAT(u.title, ' ',u.first_name, ' ', u.last_name) AS name, f.faculty_id, u.user_id, u.college_id, fd.department_id
             FROM faculty f
             JOIN users u ON f.user_id = u.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
@@ -464,9 +464,8 @@ class ChairController
     private function getSections($departmentId, $semester, $academicYear)
     {
         $stmt = $this->db->prepare("
-            SELECT s.section_id, s.section_name, s.year_level, s.curriculum_id, s.max_students, s.semester, s.academic_year
+            SELECT s.section_id, s.section_name, s.year_level, s.semester_id, s.current_students, s.max_students, s.semester, s.academic_year
             FROM sections s
-            LEFT JOIN curricula c ON s.curriculum_id = c.curriculum_id
             WHERE s.department_id = :department_id 
             AND s.semester = :semester 
             AND s.academic_year = :academic_year 
@@ -479,20 +478,6 @@ class ChairController
             ':academic_year' => $academicYear
         ]);
         $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // If curriculum_id is still missing, attempt to infer it from the department's curriculum
-        if (empty(array_filter($sections, fn($s) => $s['curriculum_id']))) {
-            $curriculumStmt = $this->db->prepare("
-                SELECT curriculum_id FROM curricula WHERE department_id = :department_id AND status = 'Active' LIMIT 1
-            ");
-            $curriculumStmt->execute([':department_id' => $departmentId]);
-            $defaultCurriculumId = $curriculumStmt->fetchColumn();
-            if ($defaultCurriculumId) {
-                foreach ($sections as &$section) {
-                    $section['curriculum_id'] = $defaultCurriculumId;
-                }
-            }
-        }
 
         return $sections;
     }
@@ -646,7 +631,7 @@ class ChairController
             $jsData = [
                 'departmentId' => $departmentId,
                 'currentSemester' => $currentSemester,
-                'sectionsData' => $sections,
+                'sectionsData' => $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year']),
                 'currentAcademicYear' => $currentSemester['academic_year'] ?? '',
                 'faculty' => $this->getFaculty($departmentId, $collegeId), // Ensure this method returns data
                 'classrooms' => $this->getClassrooms($departmentId),
@@ -685,8 +670,8 @@ class ChairController
             }
         } else {
             $jsData = [
-                'departmentId' => null,
-                'currentSemester' => null,
+                'departmentId' => $departmentId,
+                'currentSemester' => $currentSemester,
                 'sectionsData' => [],
                 'currentAcademicYear' => '',
                 'faculty' => $this->getFaculty($departmentId, $collegeId), // Ensure this method returns data
@@ -797,7 +782,7 @@ class ChairController
             $sections = $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year']);
             error_log("generateSchedules: Fetched " . count($sections) . " sections");
 
-            $matchingSections = array_filter($sections, fn($s) => isset($s['year_level']) && in_array($s['year_level'], $yearLevels) && ($s['curriculum_id'] == $curriculumId || !$s['curriculum_id']));
+            $matchingSections = array_filter($sections, fn($s) => isset($s['year_level']) && in_array($s['year_level'], $yearLevels));
             if (empty($matchingSections)) {
                 $matchingSections = array_filter($sections, fn($s) => isset($s['year_level']) && in_array($s['year_level'], $yearLevels));
                 error_log("generateSchedules: No exact curriculum match, using all sections for year levels: " . implode(', ', $yearLevels));
@@ -873,7 +858,7 @@ class ChairController
                     $sectionsForCourse = array_filter($matchingSections, fn($s) => $s['year_level'] === $course['curriculum_year']);
                     $assignedThisCourse = false;
 
-                    $isNSTPCourse = preg_match('/^(NSTP 1|NSTP II|NSTP 1|NSTP 2|CWTS|ROTC|LTS)/i', $course['course_code']);
+                    $isNSTPCourse = $this->isNSTPCourse($course['course_code']);
                     $pattern = $isNSTPCourse ? 'SAT' : (($courseIndex % 2 === 0) ? 'MWF' : 'TTH');
                     $targetDays = $dayPatterns[$pattern];
 
@@ -1169,6 +1154,21 @@ class ChairController
 
         // Move the return outside the loop
         return count($scheduledSections) === count($sectionsForCourse);
+    }
+
+    private function isNSTPCourse($courseCode)
+    {
+        // Pattern matches course codes containing NSTP, CWTS, ROTC, or LTS, with optional suffixes
+        // - ^: Start of string
+        // - (?:NSTP|CWTS|ROTC|LTS): Non-capturing group for base NSTP terms
+        // - \s*-?\s*: Optional space or hyphen
+        // - (?:[0-9]+|I{1,3})?: Optional number (e.g., 1, 2) or Roman numeral (I, II, III)
+        // - \s*: Optional trailing space
+        // - i: Case-insensitive
+        $pattern = '/^(?:NSTP|CWTS|ROTC|LTS)\s*-?\s*(?:[0-9]+|I{1,3})?$/i';
+        $isNSTP = preg_match($pattern, trim($courseCode));
+        error_log("isNSTPCourse: Checking course_code '$courseCode' - " . ($isNSTP ? 'Matched as NSTP' : 'Not NSTP'));
+        return $isNSTP;
     }
 
     private function areRoomsAvailableOnDays($departmentId, $sections, $targetDays, $timeSlots, $roomAssignments, $schedules)
@@ -1939,6 +1939,74 @@ class ChairController
         return true;
     }
 
+    private function getAvailableRoom($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $forceF2F = false)
+    {
+        // First query: Department-specific rooms
+        $stmt = $this->db->prepare("
+        SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
+        FROM classrooms r
+        WHERE r.capacity >= :capacity AND r.department_id = :department_id
+        AND NOT EXISTS (
+            SELECT 1 FROM schedules s
+            WHERE s.room_id = r.room_id
+            AND s.day_of_week = :day
+            AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+            AND s.semester_id = :semester_id
+        )
+        ");
+        $stmt->execute([
+            ':department_id' => $departmentId,
+            ':capacity' => $maxStudents,
+            ':day' => $day,
+            ':start_time' => $startTime,
+            ':end_time' => $endTime,
+            ':semester_id' => $_SESSION['current_semester']['semester_id']
+        ]);
+
+        $availableRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($availableRooms as $room) {
+            if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                return $room;
+            } else {
+                error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
+            }
+        }
+
+        // If no department-specific room or not forcing F2F, try all rooms
+        if (!$forceF2F || empty($availableRooms)) {
+            $stmt = $this->db->prepare("
+            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
+            FROM classrooms r
+            WHERE r.capacity >= :capacity
+            AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.room_id = r.room_id
+                AND s.day_of_week = :day
+                AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+                AND s.semester_id = :semester_id
+            )
+        ");
+            $stmt->execute([
+                ':capacity' => $maxStudents,
+                ':day' => $day,
+                ':start_time' => $startTime,
+                ':end_time' => $endTime,
+                ':semester_id' => $_SESSION['current_semester']['semester_id']
+            ]);
+            $allRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($allRooms as $room) {
+                if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                    return $room;
+                } else {
+                    error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
+                }
+            }
+        }
+
+        error_log("No available room found for day $day at $startTime-$endTime with capacity >= $maxStudents");
+        return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
+    }
+
     // Update schedule time in database
     private function updateScheduleTime($scheduleId, $newStartTime, $newEndTime)
     {
@@ -2173,74 +2241,6 @@ class ChairController
             error_log("Database error in saveScheduleToDB: " . $e->getMessage());
             return ['code' => 500, 'error' => 'Database error: ' . $e->getMessage()];
         }
-    }
-
-    private function getAvailableRoom($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $forceF2F = false)
-    {
-        // First query: Department-specific rooms
-        $stmt = $this->db->prepare("
-        SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
-        FROM classrooms r
-        WHERE r.capacity >= :capacity AND r.department_id = :department_id
-        AND NOT EXISTS (
-            SELECT 1 FROM schedules s
-            WHERE s.room_id = r.room_id
-            AND s.day_of_week = :day
-            AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
-            AND s.semester_id = :semester_id
-        )
-        ");
-        $stmt->execute([
-            ':department_id' => $departmentId,
-            ':capacity' => $maxStudents,
-            ':day' => $day,
-            ':start_time' => $startTime,
-            ':end_time' => $endTime,
-            ':semester_id' => $_SESSION['current_semester']['semester_id']
-        ]);
-
-        $availableRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($availableRooms as $room) {
-            if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
-                return $room;
-            } else {
-                error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
-            }
-        }
-
-        // If no department-specific room or not forcing F2F, try all rooms
-        if (!$forceF2F || empty($availableRooms)) {
-            $stmt = $this->db->prepare("
-            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
-            FROM classrooms r
-            WHERE r.capacity >= :capacity
-            AND NOT EXISTS (
-                SELECT 1 FROM schedules s
-                WHERE s.room_id = r.room_id
-                AND s.day_of_week = :day
-                AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
-                AND s.semester_id = :semester_id
-            )
-        ");
-            $stmt->execute([
-                ':capacity' => $maxStudents,
-                ':day' => $day,
-                ':start_time' => $startTime,
-                ':end_time' => $endTime,
-                ':semester_id' => $_SESSION['current_semester']['semester_id']
-            ]);
-            $allRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($allRooms as $room) {
-                if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
-                    return $room;
-                } else {
-                    error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
-                }
-            }
-        }
-
-        error_log("No available room found for day $day at $startTime-$endTime with capacity >= $maxStudents");
-        return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
     }
 
     private function loadSchedules($departmentId, $currentSemester)

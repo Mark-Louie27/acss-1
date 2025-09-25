@@ -671,8 +671,11 @@ ob_start();
                 section_id: s.section_id ?? (index + 1),
                 section_name: s.section_name ?? '',
                 year_level: s.year_level ?? 'Unknown',
-                curriculum_id: s.curriculum_id ?? null,
-                academic_year: s.academic_year ?? ''
+                academic_year: s.academic_year ?? '',
+                current_students: s.current_students ?? 0,
+                max_students: s.max_students ?? 30,
+                semester: s.semester ?? '',
+                is_active: s.is_active ?? 1
             })) : [];
 
             // Validation check on page load
@@ -1539,6 +1542,7 @@ ob_start();
                 console.group('Sections Data Debug');
                 console.log('Raw sections data:', rawSectionsData);
                 console.log('Processed sections data:', sectionsData);
+                console.log('faculty data:', faculty);
                 console.log('Current academic year:', currentAcademicYear);
                 console.log('Available curricula:', curricula);
 
