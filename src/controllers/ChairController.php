@@ -461,25 +461,42 @@ class ChairController
         }
     }
 
-    private function getSections($departmentId, $semester, $academicYear)
+    private function getSections($departmentId, $semesterId)
     {
-        $stmt = $this->db->prepare("
-            SELECT s.section_id, s.section_name, s.year_level, s.semester_id, s.current_students, s.max_students, s.semester, s.academic_year
+        error_log("getSections: Fetching for department $departmentId, semester_id $semesterId");
+        try {
+            // Use provided $semesterId; fallback to current semester only if not provided
+            $effectiveSemesterId = $semesterId;
+            if (!$effectiveSemesterId) {
+                $currentSemester = $this->getCurrentSemester();
+                $effectiveSemesterId = $currentSemester['semester_id'] ?? null;
+                error_log("getSections: No semester_id provided, using current semester: " . $effectiveSemesterId);
+                if (!$effectiveSemesterId) {
+                    error_log("getSections: No valid semester_id found");
+                    return [];
+                }
+            }
+
+            $stmt = $this->db->prepare("
+            SELECT s.section_id, s.section_name, s.year_level, s.semester_id, 
+                   s.current_students, s.max_students, s.semester, s.academic_year
             FROM sections s
             WHERE s.department_id = :department_id 
-            AND s.semester = :semester 
-            AND s.academic_year = :academic_year 
+            AND s.semester_id = :semester_id
             AND s.is_active = 1
             ORDER BY FIELD(s.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), s.section_name
         ");
-        $stmt->execute([
-            ':department_id' => $departmentId,
-            ':semester' => $semester,
-            ':academic_year' => $academicYear
-        ]);
-        $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return $sections;
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':semester_id' => $effectiveSemesterId
+            ]);
+            $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("getSections: Found " . count($sections) . " sections: " . json_encode($sections));
+            return $sections;
+        } catch (PDOException $e) {
+            error_log("getSections: PDO Error - " . $e->getMessage());
+            return [];
+        }
     }
 
     private function getCourses($departmentId)
@@ -497,23 +514,38 @@ class ChairController
 
     private function getCurriculumCourses($curriculumId)
     {
-        $stmt = $this->db->prepare("SELECT c.course_id, c.course_code, c.units, c.lecture_units, c.lab_units, c.lab_hours, c.lecture_hours, c.course_name, cc.subject_type, cc.year_level 
-            AS curriculum_year, cc.semester AS curriculum_semester FROM curriculum_courses cc JOIN courses c ON cc.course_id = c.course_id 
-            JOIN curricula cr ON cc.curriculum_id = cr.curriculum_id WHERE cc.curriculum_id = :curriculum_id AND cr.status = 'Active' 
-            ORDER BY FIELD(cc.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), FIELD(cc.semester, '1st', '2nd', 'Mid Year'), c.course_code");
-        $stmt->execute([':curriculum_id' => $curriculumId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+        if (!$curriculumId) {
+            error_log("getCurriculumCourses: No curriculum_id provided");
+            return [];
+        }
 
-    private function loadCommonData($departmentId, $collegeId, $currentSemester)
-    {
-        return [
-            'curricula' => $this->getCurricula($departmentId),
-            'curriculumCourses' => $this->getCurriculumCourses($departmentId),
-            'classrooms' => $this->getClassrooms($departmentId),
-            'faculty' => $this->getFaculty($departmentId, $collegeId),
-            'sections' => $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year'])
-        ];
+        try {
+            $currentSemester = $this->getCurrentSemester();
+            $semesterName = $currentSemester['semester_name'] ?? '';
+
+            $stmt = $this->db->prepare("    
+            SELECT c.course_id, c.course_code, c.units, c.lecture_units, c.lab_units, 
+                   c.lab_hours, c.lecture_hours, c.course_name, cc.subject_type, 
+                   cc.year_level AS curriculum_year, cc.semester AS curriculum_semester 
+            FROM curriculum_courses cc 
+            JOIN courses c ON cc.course_id = c.course_id 
+            JOIN curricula cr ON cc.curriculum_id = cr.curriculum_id 
+            WHERE cc.curriculum_id = :curriculum_id 
+            AND cc.semester = :semester 
+            AND cr.status = 'Active' 
+            ORDER BY FIELD(cc.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), 
+                     FIELD(cc.semester, '1st', '2nd', 'Mid Year'), c.course_code
+        ");
+            $stmt->execute([
+                ':curriculum_id' => $curriculumId,
+                ':semester' => $semesterName
+            ]);
+            $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return $courses;
+        } catch (PDOException $e) {
+            error_log("getCurriculumCourses: PDO Error - " . $e->getMessage());
+            return [];
+        }
     }
 
     public function deleteAllSchedules()
@@ -603,12 +635,24 @@ class ChairController
         }
     }
 
+    private function loadCommonData($departmentId, $currentSemester, $collegeId)
+    {
+        return [
+            'curricula' => $this->getCurricula($departmentId),
+            'classrooms' => $this->getClassrooms($departmentId),
+            'faculty' => $this->getFaculty($departmentId, $collegeId),
+            'sections' => $this->getSections($departmentId, $currentSemester['semester_id']),
+            'curriculumCourses' => $this->getCurriculumCourses($currentSemester['curriculum_id']), // Default to curriculum_id 6 if needed
+            'semester' => $currentSemester
+        ];
+    }
+
     public function manageSchedule()
     {
         $chairId = $_SESSION['user_id'] ?? null;
         $departmentId = $this->getChairDepartment($chairId);
         $currentSemester = $this->getCurrentSemester();
-        $_SESSION['current_semester'] = $currentSemester; // Store for AJAX calls
+        $_SESSION['current_semester'] = $currentSemester;
         $activeTab = $_GET['tab'] ?? 'generate';
         $error = $success = null;
         $schedules = $this->loadSchedules($departmentId, $currentSemester);
@@ -617,7 +661,7 @@ class ChairController
         if ($departmentId) {
             if (!isset($_SESSION['schedule_cache'][$departmentId])) {
                 $_SESSION['schedule_cache'][$departmentId] = $this->loadCommonData($departmentId, $currentSemester, $collegeId);
-                error_log("Cache initialized for dept $departmentId: " . print_r($_SESSION['schedule_cache'][$departmentId], true));
+                error_log("manageSchedule: Cache initialized for dept $departmentId: " . json_encode(array_keys($_SESSION['schedule_cache'][$departmentId])));
             }
 
             $cachedData = $_SESSION['schedule_cache'][$departmentId];
@@ -625,58 +669,38 @@ class ChairController
             $classrooms = $cachedData['classrooms'];
             $faculty = $cachedData['faculty'];
             $sections = $cachedData['sections'];
+            $curriculumCourses = [];
 
-            $selectedCurriculumId = $_POST['curriculum_id'] ?? $_GET['curriculum_id'] ?? ($curricula[0]['curriculum_id'] ?? null);
+            // Only fetch courses if curriculum_id is explicitly provided
+            $selectedCurriculumId = $_POST['curriculum_id'] ?? $_GET['curriculum_id'] ?? null;
+            if ($selectedCurriculumId) {
+                $curriculumCourses = $this->getCurriculumCourses($selectedCurriculumId);
+            }
 
             $jsData = [
                 'departmentId' => $departmentId,
                 'currentSemester' => $currentSemester,
-                'sectionsData' => $this->getSections($departmentId, $currentSemester['semester_name'], $currentSemester['academic_year']),
+                'sectionsData' => $this->getSections($departmentId, $currentSemester['semester_id']),
                 'currentAcademicYear' => $currentSemester['academic_year'] ?? '',
-                'faculty' => $this->getFaculty($departmentId, $collegeId), // Ensure this method returns data
+                'faculty' => $this->getFaculty($departmentId, $collegeId),
                 'classrooms' => $this->getClassrooms($departmentId),
                 'curricula' => $curricula ?? [],
+                'curriculumCourses' => $curriculumCourses,
                 'schedules' => $schedules
             ];
 
-            // Handle download requests
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'download') {
-                $roomName = $_POST['room_name'] ?? 'All Rooms';
-                $semesterName = $currentSemester['semester_name'] ?? 'Current Semester';
-                $filename = 'schedule_' . str_replace(' ', '_', strtolower($roomName)) . '_' . date('Ymd_His', strtotime('08:27 PM PST')); // Current time: 08:27 PM PST, September 13, 2025
-
-                $format = $_POST['format'] ?? 'excel';
-                if ($format === 'excel') {
-                    $this->schedulingService->exportTimetableToExcel($schedules, $filename, $roomName, $semesterName);
-                } elseif ($format === 'pdf') {
-                    $this->schedulingService->exportTimetableToPDF($schedules, $filename, $roomName, $semesterName);
-                }
-                exit; // Exit after download
-            }
-
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tab'])) {
-                $tab = $_POST['tab'];
-                if ($tab === 'manual') {
-                    $schedulesData = json_decode($_POST['schedules'] ?? '[]', true);
-                    $schedules = $this->processManualSchedules($schedulesData, $currentSemester, $departmentId);
-                    $success = "Schedules saved successfully!";
-                } elseif ($tab === 'generate' && !empty($_POST['curriculum_id'])) {
-                    // Update schedules after generation
-                    $schedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
-                }
-            } elseif ($activeTab === 'schedule-list' && empty($schedules)) {
-                // Ensure schedules are loaded for view tab
-                $schedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
-            }
+            error_log("manageSchedule: jsData.sectionsData count: " . count($jsData['sectionsData']));
+            error_log("manageSchedule: jsData.curriculumCourses count: " . count($jsData['curriculumCourses']));
         } else {
             $jsData = [
                 'departmentId' => $departmentId,
                 'currentSemester' => $currentSemester,
                 'sectionsData' => [],
                 'currentAcademicYear' => '',
-                'faculty' => $this->getFaculty($departmentId, $collegeId), // Ensure this method returns data
-                'classrooms' => $this->getClassrooms($departmentId),
+                'faculty' => [],
+                'classrooms' => [],
                 'curricula' => [],
+                'curriculumCourses' => [],
                 'schedules' => []
             ];
             $error = "No department assigned to chair.";
@@ -743,6 +767,8 @@ class ChairController
 
             $classrooms = $cachedData['classrooms'];
             $faculty = $cachedData['faculty'];
+            $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
+            error_log("generateSchedulesAjax: Sections count: " . count($sections));
             error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
 
             $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId);
@@ -2652,6 +2678,8 @@ class ChairController
                     $this->editSection($departmentId);
                 } elseif (isset($_POST['reuse_section'])) {
                     $this->reuseSection($departmentId);
+                } elseif (isset($_POST['reuse_all_sections'])) {
+                    $this->reuseAllSections($departmentId);
                 }
                 // Retrieve success/error messages after POST
                 $success = $_SESSION['success'] ?? null;
@@ -3254,6 +3282,170 @@ class ChairController
             }
             error_log("reuseSection: General Error - " . $e->getMessage());
             $_SESSION['error'] = "Failed to reuse section: " . $e->getMessage();
+        }
+
+        header('Location: /chair/sections');
+        exit;
+    }
+
+    private function reuseAllSections($departmentId)
+    {
+        error_log("reuseAllSections: Starting reuse all sections process for department $departmentId");
+        try {
+            if (!isset($_POST['reuse_all_sections'])) {
+                $_SESSION['error'] = "Invalid form submission.";
+                error_log("reuseAllSections: Missing reuse_all_sections field");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $semesterKey = $_POST['reuse_all_sections'];
+            if (empty($semesterKey)) {
+                $_SESSION['error'] = "No semester selected for reuse.";
+                error_log("reuseAllSections: No semester selected");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Split semesterKey into semester_name and academic_year
+            $parts = explode(' ', $semesterKey, 2);
+            if (count($parts) !== 2) {
+                $_SESSION['error'] = "Invalid semester format.";
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            list($semesterName, $academicYear) = $parts;
+
+            // Fetch semester_id for the selected semester
+            $query = "
+            SELECT semester_id
+            FROM semesters
+            WHERE semester_name = :semester_name AND academic_year = :academic_year
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':semester_name' => $semesterName,
+                ':academic_year' => $academicYear
+            ]);
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$semester) {
+                $_SESSION['error'] = "Selected semester not found.";
+                error_log("reuseAllSections: Semester $semesterKey not found");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $semesterId = $semester['semester_id'];
+
+            // Fetch all sections for the selected semester and department
+            $query = "
+            SELECT section_id, section_name, year_level, max_students
+            FROM sections
+            WHERE department_id = :department_id AND semester_id = :semester_id
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':semester_id' => $semesterId
+            ]);
+            $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($sections)) {
+                $_SESSION['error'] = "No sections found for the selected semester.";
+                error_log("reuseAllSections: No sections found for semester $semesterKey, department $departmentId");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            // Get current semester
+            $currentSemester = $this->getCurrentSemester();
+            if (!$currentSemester) {
+                $_SESSION['error'] = "Current semester not set. Please contact your administrator.";
+                error_log("reuseAllSections: No current semester found");
+                header('Location: /chair/sections');
+                exit;
+            }
+
+            $currentSemesterId = $currentSemester['semester_id'];
+            $currentSemesterName = $currentSemester['semester_name'];
+            $currentAcademicYear = $currentSemester['academic_year'];
+
+            // Start transaction
+            $this->db->beginTransaction();
+
+            $reusedCount = 0;
+            $duplicateCount = 0;
+
+            foreach ($sections as $section) {
+                // Check for duplicate section in current semester
+                $query = "
+                SELECT COUNT(*)
+                FROM sections
+                WHERE department_id = :department_id
+                AND section_name = :section_name
+                AND academic_year = :academic_year
+                AND is_active = 1
+            ";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':department_id' => $departmentId,
+                    ':section_name' => $section['section_name'],
+                    ':academic_year' => $currentAcademicYear
+                ]);
+
+                if ($stmt->fetchColumn() > 0) {
+                    $duplicateCount++;
+                    continue; // Skip this section, it already exists
+                }
+
+                // Insert new section for current semester
+                $query = "
+                INSERT INTO sections (
+                    department_id, section_name, year_level, max_students, current_students,
+                    semester_id, semester, academic_year, is_active, created_at
+                ) VALUES (
+                    :department_id, :section_name, :year_level, :max_students, 0,
+                    :semester_id, :semester, :academic_year, 1, NOW()
+                )
+            ";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':department_id' => $departmentId,
+                    ':section_name' => $section['section_name'],
+                    ':year_level' => $section['year_level'],
+                    ':max_students' => $section['max_students'],
+                    ':semester_id' => $currentSemesterId,
+                    ':semester' => $currentSemesterName,
+                    ':academic_year' => $currentAcademicYear
+                ]);
+
+                $reusedCount++;
+            }
+
+            // Commit transaction
+            $this->db->commit();
+
+            $message = "Successfully reused $reusedCount sections from $semesterKey.";
+            if ($duplicateCount > 0) {
+                $message .= " $duplicateCount sections were skipped because they already exist.";
+            }
+
+            $_SESSION['success'] = $message;
+            error_log("reuseAllSections: Successfully reused $reusedCount sections from $semesterKey for department $departmentId. $duplicateCount duplicates skipped.");
+        } catch (PDOException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("reuseAllSections: PDO Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to reuse sections: " . $e->getMessage();
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("reuseAllSections: General Error - " . $e->getMessage());
+            $_SESSION['error'] = "Failed to reuse sections: " . $e->getMessage();
         }
 
         header('Location: /chair/sections');

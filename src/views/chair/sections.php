@@ -75,8 +75,13 @@ ob_start();
             color: var(--white);
         }
 
-        .btn-gold:hover {
+        .btn-gold:hover:not(:disabled) {
             background-color: #b8972e;
+        }
+
+        .btn-gold:disabled {
+            background-color: #d1d5db;
+            cursor: not-allowed;
         }
 
         .toast {
@@ -120,8 +125,11 @@ ob_start();
         .no-results {
             text-align: center;
             color: var(--gray-dark);
-            padding: 1rem;
-            font-size: 0.875rem;
+            padding: 2rem;
+            font-size: 1rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 0.5rem;
+            border: 2px dashed #e2e8f0;
         }
 
         .loading::after {
@@ -151,7 +159,6 @@ ob_start();
             background-color: #f9fafb;
         }
 
-        /* Responsive Design */
         .desktop-table {
             display: block;
         }
@@ -341,13 +348,18 @@ ob_start();
             }
         }
 
-        /* Empty state styles */
         .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            padding: 2rem;
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             border-radius: 1rem;
             border: 2px dashed #e2e8f0;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
         }
 
         .empty-state-icon {
@@ -374,6 +386,7 @@ ob_start();
             color: #64748b;
             margin-bottom: 2rem;
             font-size: 1.1rem;
+            max-width: 500px;
         }
 
         .empty-state-action {
@@ -406,6 +419,20 @@ ob_start();
             font-size: 0.875rem;
             border: none;
             box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+        }
+
+        .table-container.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+        }
+
+        .mobile-cards.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
         }
     </style>
 </head>
@@ -446,7 +473,6 @@ ob_start();
 
             <div class="p-6">
                 <?php if (empty($currentSemesterSections)): ?>
-                    <!-- Empty State -->
                     <div class="empty-state">
                         <div class="empty-state-icon">
                             <i class="fas fa-layer-group"></i>
@@ -467,8 +493,7 @@ ob_start();
                         </div>
                     </div>
                 <?php else: ?>
-                    <!-- Desktop Table -->
-                    <div class="desktop-table table-container">
+                    <div class="desktop-table table-container <?php echo empty($currentSemesterSections) ? 'empty' : ''; ?>">
                         <table class="mobile-table min-w-full divide-y divide-gray-light">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -485,7 +510,7 @@ ob_start();
                                 <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
                                     <?php if (!empty($groupedCurrentSections[$yearLevel])): ?>
                                         <tr class="collapsible-header bg-gray-100" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
-                                            <td colspan="6" class="px-6 py-3 text-sm font-semibold text-gray-dark">
+                                            <td colspan="7" class="px-6 py-3 text-sm font-semibold text-gray-dark">
                                                 <div class="flex items-center">
                                                     <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
                                                     <?php echo htmlspecialchars($yearLevel); ?> (<span class="section-count"><?php echo count($groupedCurrentSections[$yearLevel]); ?></span> Sections)
@@ -498,8 +523,8 @@ ob_start();
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['section_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['current_students']); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['semester'] . ' ' . $section['academic_year']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div class="flex space-x-2">
@@ -529,8 +554,7 @@ ob_start();
                         </table>
                     </div>
 
-                    <!-- Mobile Cards -->
-                    <div class="mobile-cards">
+                    <div class="mobile-cards <?php echo empty($currentSemesterSections) ? 'empty' : ''; ?>">
                         <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
                             <?php if (!empty($groupedCurrentSections[$yearLevel])): ?>
                                 <div class="year-header-mobile" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
@@ -592,7 +616,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Add Section Modal -->
         <div id="add-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -624,7 +647,7 @@ ob_start();
                             </select>
                         </div>
                         <div class="mb-4">
-                            <label for="max_students" class="block text-sm font-medium text-gray-dark mb-1">Current Students</label>
+                            <label for="current_students" class="block text-sm font-medium text-gray-dark mb-1">Current Students</label>
                             <input type="number" id="current_students" name="current_students"
                                 class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
                                 required min="1" max="100" value="40">
@@ -657,7 +680,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Edit Section Modal -->
         <div id="edit-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -688,7 +710,7 @@ ob_start();
                             </select>
                         </div>
                         <div class="mb-4">
-                            <label for="edit_max_students" class="block text-sm font-medium text-gray-dark mb-1">Current Students</label>
+                            <label for="edit_current_students" class="block text-sm font-medium text-gray-dark mb-1">Current Students</label>
                             <input type="number" id="edit_current_students" name="current_students"
                                 class="input-focus w-full px-4 py-2 border border-gray-light rounded-lg focus:outline-none focus:ring-2 focus:ring-gold"
                                 required min="1" max="100">
@@ -722,7 +744,6 @@ ob_start();
             </div>
         </div>
 
-        <!-- Reuse Section Modal -->
         <div id="reuse-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -760,72 +781,91 @@ ob_start();
                         </div>
                     </div>
                     <div class="max-h-96 overflow-y-auto">
-                        <table class="min-w-full divide-y divide-gray-light">
-                            <thead class="bg-gray-50 sticky top-0">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Section Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Year Level</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Current Students</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Max Students</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Semester</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="previous-sections-table" class="bg-white divide-y divide-gray-light">
-                                <?php foreach ($groupedPreviousSections as $semesterKey => $yearGroups): ?>
-                                    <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
-                                        <?php if (!empty($yearGroups[$yearLevel])): ?>
-                                            <tr class="collapsible-header bg-gray-100" data-semester="<?php echo htmlspecialchars($semesterKey); ?>" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
-                                                <td colspan="6" class="px-6 py-3 text-sm font-semibold text-gray-dark">
-                                                    <div class="flex items-center">
-                                                        <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
-                                                        <?php echo htmlspecialchars("$semesterKey - $yearLevel"); ?> (<span class="section-count"><?php echo count($yearGroups[$yearLevel]); ?></span> Sections)
-                                                    </div>
-                                                </td>
-                                            </tr>
-                            <tbody class="collapsible-content" data-semester="<?php echo htmlspecialchars($semesterKey); ?>" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
-                                <?php foreach ($yearGroups[$yearLevel] as $section): ?>
-                                    <tr class="hover:bg-gray-50 transition-all duration-200 section-row"
-                                        data-section-name="<?php echo htmlspecialchars($section['section_name']); ?>"
-                                        data-semester="<?php echo htmlspecialchars($section['semester_name'] . ' ' . $section['academic_year']); ?>"
-                                        data-year-level="<?php echo htmlspecialchars($section['year_level']); ?>">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['section_name']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['current_students']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['semester_name'] . ' ' . $section['academic_year']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <form action="/chair/sections" method="POST" class="inline">
-                                                <input type="hidden" name="section_id" value="<?php echo $section['section_id']; ?>">
-                                                <input type="hidden" name="reuse_section" value="1">
-                                                <button type="submit" class="btn-gold px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200">
-                                                    <i class="fas fa-recycle mr-1"></i> Reuse
-                                                </button>
-                                            </form>
-                                        </td>
+                        <?php if (empty($groupedPreviousSections)): ?>
+                            <div class="no-results">
+                                <div class="empty-state-icon">
+                                    <i class="fas fa-layer-group"></i>
+                                </div>
+                                <div class="empty-state-title">No Previous Sections</div>
+                                <div class="empty-state-description">
+                                    There are no previous sections available to reuse. Create a new section instead.
+                                </div>
+                                <button class="empty-state-action" id="createNewSectionBtn">
+                                    <i class="fas fa-plus"></i>
+                                    Create New Section
+                                </button>
+                            </div>
+                        <?php else: ?>
+                            <table class="min-w-full divide-y divide-gray-light">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Section Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Program</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Year Level</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Current Students</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Max Students</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Semester</th>
+                                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-dark uppercase tracking-wider">Action</th>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        <?php endif; ?>
+                                </thead>
+                                <tbody id="previous-sections-table" class="bg-white divide-y divide-gray-light">
+                                    <?php foreach ($groupedPreviousSections as $semesterKey => $yearGroups): ?>
+                                        <?php foreach (['1st Year', '2nd Year', '3rd Year', '4th Year'] as $yearLevel): ?>
+                                            <?php if (!empty($yearGroups[$yearLevel])): ?>
+                                                <tr class="collapsible-header bg-gray-100" data-semester="<?php echo htmlspecialchars($semesterKey); ?>" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
+                                                    <td colspan="7" class="px-6 py-3 text-sm font-semibold text-gray-dark">
+                                                        <div class="flex items-center">
+                                                            <i class="fas fa-chevron-down mr-2 transition-transform duration-200"></i>
+                                                            <?php echo htmlspecialchars("$semesterKey - $yearLevel"); ?> (<span class="section-count"><?php echo count($yearGroups[$yearLevel]); ?></span> Sections)
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                <tbody class="collapsible-content" data-semester="<?php echo htmlspecialchars($semesterKey); ?>" data-year-level="<?php echo htmlspecialchars($yearLevel); ?>">
+                                    <?php foreach ($yearGroups[$yearLevel] as $section): ?>
+                                        <tr class="hover:bg-gray-50 transition-all duration-200 section-row"
+                                            data-section-name="<?php echo htmlspecialchars($section['section_name']); ?>"
+                                            data-semester="<?php echo htmlspecialchars($section['semester_name'] . ' ' . $section['academic_year']); ?>"
+                                            data-year-level="<?php echo htmlspecialchars($section['year_level']); ?>">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['section_name']); ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['program_name']); ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['year_level']); ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['current_students']); ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['max_students']); ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark"><?php echo htmlspecialchars($section['semester_name'] . ' ' . $section['academic_year']); ?></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <form action="/chair/sections" method="POST" class="inline">
+                                                    <input type="hidden" name="section_id" value="<?php echo $section['section_id']; ?>">
+                                                    <input type="hidden" name="reuse_section" value="1">
+                                                    <button type="submit" class="btn-gold px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200">
+                                                        <i class="fas fa-recycle mr-1"></i> Reuse
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
                     <?php endforeach; ?>
-                <?php endforeach; ?>
-                </tbody>
-                        </table>
-                        <div id="no-results-message" class="no-results hidden">No sections found matching your criteria.</div>
+                    </tbody>
+                            </table>
+                            <div id="no-results-message" class="no-results hidden">No sections found matching your criteria.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
-                <div class="flex justify-end p-6 border-t border-gray-light">
+                <div class="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 p-6 border-t border-gray-light">
                     <button type="button" id="cancelReuseBtn"
-                        class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium">
+                        class="bg-gray-light text-gray-dark px-5 py-3 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium w-full sm:w-auto">
                         Cancel
+                    </button>
+                    <button type="button" id="reuseAllBtn"
+                        class="btn-gold px-5 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 font-medium w-full sm:w-auto">
+                        <i class="fas fa-recycle mr-2"></i>Reuse All Sections
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Remove Section Modal -->
         <div id="remove-modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 transform modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -915,13 +955,57 @@ ob_start();
             document.getElementById('cancelAddBtn').addEventListener('click', () => closeModal('add-modal'));
 
             // Reuse Section Modal handlers
-            document.getElementById('openReuseModalBtn').addEventListener('click', () => openModal('reuse-modal'));
+            document.getElementById('openReuseModalBtn').addEventListener('click', () => {
+                openModal('reuse-modal');
+                setTimeout(filterSections, 100); // Ensure modal is rendered before filtering
+            });
             const emptyStateReuseBtn = document.getElementById('emptyStateReuseBtn');
             if (emptyStateReuseBtn) {
-                emptyStateReuseBtn.addEventListener('click', () => openModal('reuse-modal'));
+                emptyStateReuseBtn.addEventListener('click', () => {
+                    openModal('reuse-modal');
+                    setTimeout(filterSections, 100);
+                });
             }
             document.getElementById('closeReuseModalBtn').addEventListener('click', () => closeModal('reuse-modal'));
             document.getElementById('cancelReuseBtn').addEventListener('click', () => closeModal('reuse-modal'));
+
+            // Create New Section from Reuse Modal
+            const createNewSectionBtn = document.getElementById('createNewSectionBtn');
+            if (createNewSectionBtn) {
+                createNewSectionBtn.addEventListener('click', () => {
+                    closeModal('reuse-modal');
+                    openModal('add-modal');
+                });
+            }
+
+            // Reuse All Sections handler
+            const reuseAllBtn = document.getElementById('reuseAllBtn');
+            reuseAllBtn.addEventListener('click', () => {
+                const semesterFilter = document.getElementById('semester-filter').value;
+                if (!semesterFilter) {
+                    showToast('Please select a semester to reuse all sections.', 'bg-red-500');
+                    return;
+                }
+
+                if (!confirm(`Are you sure you want to reuse all sections from ${semesterFilter}? This action cannot be undone.`)) {
+                    return;
+                }
+
+                reuseAllBtn.disabled = true;
+                reuseAllBtn.classList.add('loading');
+                reuseAllBtn.textContent = 'Reusing Sections...';
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/chair/sections';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'reuse_all_sections';
+                input.value = semesterFilter;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            });
 
             // Edit Section Modal
             function attachEditHandlers() {
@@ -1032,16 +1116,23 @@ ob_start();
             const sectionSearch = document.getElementById('section-search');
             const semesterFilter = document.getElementById('semester-filter');
             const yearFilter = document.getElementById('year-filter');
-            const sectionsTable = document.getElementById('previous-sections-table');
             const noResultsMessage = document.getElementById('no-results-message');
 
             function filterSections() {
+                const sectionsTable = document.getElementById('previous-sections-table');
+                if (!sectionsTable) {
+                    if (noResultsMessage) {
+                        noResultsMessage.classList.remove('hidden');
+                    }
+                    return;
+                }
+
                 const searchTerm = sectionSearch.value.toLowerCase();
                 const selectedSemester = semesterFilter.value;
                 const selectedYear = yearFilter.value;
                 let visibleRows = 0;
 
-                document.querySelectorAll('#previous-sections-table .section-row').forEach(row => {
+                sectionsTable.querySelectorAll('.section-row').forEach(row => {
                     const sectionName = row.dataset.sectionName.toLowerCase();
                     const semester = row.dataset.semester;
                     const yearLevel = row.dataset.yearLevel;
@@ -1058,38 +1149,58 @@ ob_start();
                     }
                 });
 
-                // Show/hide collapsible headers based on visible sections
-                document.querySelectorAll('#previous-sections-table .collapsible-header').forEach(header => {
+                // Fixed the null check issue here
+                sectionsTable.querySelectorAll('.collapsible-header').forEach(header => {
                     const semester = header.dataset.semester;
                     const yearLevel = header.dataset.yearLevel;
                     const content = header.nextElementSibling;
-                    const rows = content.querySelectorAll('.section-row:not(.hidden)');
-                    if (rows.length > 0) {
-                        header.classList.remove('hidden');
-                        content.classList.remove('hidden');
+
+                    // Add null check before calling querySelectorAll
+                    if (content) {
+                        const rows = content.querySelectorAll('.section-row:not(.hidden)');
+                        if (rows.length > 0) {
+                            header.classList.remove('hidden');
+                            content.classList.remove('hidden');
+                        } else {
+                            header.classList.add('hidden');
+                            content.classList.add('hidden');
+                        }
                     } else {
+                        // If no content sibling, hide the header
                         header.classList.add('hidden');
-                        content.classList.add('hidden');
                     }
                 });
 
-                noResultsMessage.classList.toggle('hidden', visibleRows > 0);
+                if (noResultsMessage) {
+                    noResultsMessage.classList.toggle('hidden', visibleRows > 0);
+                }
             }
 
-            sectionSearch.addEventListener('input', filterSections);
-            semesterFilter.addEventListener('change', filterSections);
-            yearFilter.addEventListener('change', filterSections);
+            // Debounced filter to handle rapid changes
+            let filterTimeout;
+
+            function debouncedFilterSections() {
+                clearTimeout(filterTimeout);
+                filterTimeout = setTimeout(filterSections, 100);
+            }
+
+            sectionSearch.addEventListener('input', debouncedFilterSections);
+            semesterFilter.addEventListener('change', debouncedFilterSections);
+            yearFilter.addEventListener('change', debouncedFilterSections);
 
             // Collapsible headers for previous sections
-            document.querySelectorAll('#previous-sections-table .collapsible-header').forEach(header => {
-                header.addEventListener('click', () => {
-                    const content = header.nextElementSibling;
-                    const icon = header.querySelector('.fas');
-                    content.classList.toggle('hidden');
-                    icon.classList.toggle('fa-chevron-down');
-                    icon.classList.toggle('fa-chevron-up');
+            const sectionsTable = document.getElementById('previous-sections-table');
+            if (sectionsTable) {
+                sectionsTable.querySelectorAll('.collapsible-header').forEach(header => {
+                    header.addEventListener('click', () => {
+                        const content = header.nextElementSibling;
+                        const icon = header.querySelector('.fas');
+                        content.classList.toggle('hidden');
+                        icon.classList.toggle('fa-chevron-down');
+                        icon.classList.toggle('fa-chevron-up');
+                    });
                 });
-            });
+            }
         });
     </script>
 </body>
