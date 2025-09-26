@@ -121,19 +121,19 @@ ob_start();
                         </div>
 
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Courses for Selected Curriculum</h3>
-                            <div id="courses-list">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Courses</h3>
+                            <div id="courses-list" class="bg-white border border-gray-200 rounded-lg shadow-sm p-4 h-80 overflow-y-auto">
                                 <p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>
                             </div>
                         </div>
 
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Sections for Current Semester</h3>
-                            <div id="sections-list">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Available Sections</h3>
+                            <div id="sections-list" class="bg-white border scroll-auto border-gray-200 rounded-lg shadow-sm p-4 h-80 overflow-y-auto">
                                 <?php if (!empty($jsData['sectionsData'])): ?>
                                     <ul class="list-disc pl-5 text-sm text-gray-700">
                                         <?php foreach ($jsData['sectionsData'] as $section): ?>
-                                            <li>
+                                            <li class="py-1">
                                                 <?php echo htmlspecialchars($section['section_name']); ?> -
                                                 <?php echo htmlspecialchars($section['year_level']); ?>
                                                 (Students: <?php echo htmlspecialchars($section['current_students']); ?>/<?php echo htmlspecialchars($section['max_students']); ?>)

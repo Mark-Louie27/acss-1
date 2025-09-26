@@ -182,60 +182,69 @@ function clearValidationErrors() {
 
 // Update courses list based on selected curriculum
 function updateCourses() {
-  const curriculumId = document.getElementById("curriculum_id").value;
-  const coursesList = document.getElementById("courses-list");
-  if (!coursesList) {
-    console.error("Courses list element not found");
-    return;
-  }
-
-  console.log("updateCourses called with curriculum:", curriculumId);
-
-  if (!curriculumId) {
-    coursesList.innerHTML = '<p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>';
-    return;
-  }
-
-  // Show loading state
-  coursesList.innerHTML = '<p class="text-sm text-gray-600">Loading courses...</p>';
-
-  fetch(`/chair/get-curriculum-courses?curriculum_id=${curriculumId}&semester_id=${window.currentSemester.semester_id}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  })
-    .then((response) => {
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
+    const curriculumId = document.getElementById("curriculum_id").value;
+    const coursesList = document.getElementById("courses-list");
+    if (!coursesList) {
+        console.error("Courses list element not found");
+        return;
+    }
+    console.log("updateCourses called with curriculum:", curriculumId);
+    if (!curriculumId) {
+        coursesList.innerHTML = '<p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>';
+        return;
+    }
+    coursesList.innerHTML = '<p class="text-sm text-gray-600">Loading courses...</p>';
+    fetch("/chair/generate-schedules", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+            action: "get_curriculum_courses",
+            curriculum_id: curriculumId,
+            semester_id: window.currentSemester.semester_id,
+            department_id: window.departmentId,
+            college_id: window.jsData.collegeId
+        }),
     })
-    .then((data) => {
-      window.curriculumCourses = data.courses || [];
-      console.log("Fetched courses:", window.curriculumCourses);
-
-      if (window.curriculumCourses.length === 0) {
-        coursesList.innerHTML = '<p class="text-sm text-red-600">No courses found for the selected curriculum and semester.</p>';
-      } else {
-        coursesList.innerHTML = `
-          <ul class="list-disc pl-5 text-sm text-gray-700">
-            ${window.curriculumCourses
-              .map(
-                (course) => `
-                  <li>
-                    ${escapeHtml(course.course_code)} - ${escapeHtml(course.course_name)}
-                    (Year: ${escapeHtml(course.curriculum_year)}, Semester: ${escapeHtml(course.curriculum_semester)})
-                  </li>
-                `
-              )
-              .join("")}
-          </ul>
-        `;
-      }
+    .then((response) => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.text();
+    })
+    .then((text) => {
+        console.log("Raw response:", text); // Debug raw response
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("JSON parse error:", e, "Response:", text);
+            throw new Error("Invalid JSON response: " + e.message);
+        }
+        console.log("Fetched courses:", data.courses);
+        window.curriculumCourses = data.courses || [];
+        if (window.curriculumCourses.length === 0) {
+            coursesList.innerHTML = '<p class="text-sm text-red-600">No courses found for the selected curriculum and semester.</p>';
+        } else {
+            coursesList.innerHTML = `
+                <ul class="list-disc pl-5 text-sm text-gray-700">
+                    ${window.curriculumCourses
+                        .map(
+                            (course) => `
+                                <li>
+                                    ${escapeHtml(course.course_code)} - ${escapeHtml(course.course_name)}
+                                    (Year: ${escapeHtml(course.curriculum_year)}, Semester: ${escapeHtml(course.curriculum_semester)})
+                                </li>
+                            `
+                        )
+                        .join("")}
+                </ul>
+            `;
+        }
     })
     .catch((error) => {
-      console.error("Error fetching courses:", error);
-      coursesList.innerHTML = '<p class="text-sm text-red-600">Error loading courses. Please try again.</p>';
-      showValidationToast(["Error loading courses: " + error.message]);
+        console.error("Error fetching courses:", error);
+        coursesList.innerHTML = '<p class="text-sm text-red-600">Error loading courses. Please try again.</p>';
+        showValidationToast(["Error loading courses: " + error.message]);
     });
 }
 

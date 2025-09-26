@@ -669,31 +669,26 @@ class ChairController
             $classrooms = $cachedData['classrooms'];
             $faculty = $cachedData['faculty'];
             $sections = $cachedData['sections'];
-            $curriculumCourses = [];
-
-            // Only fetch courses if curriculum_id is explicitly provided
-            $selectedCurriculumId = $_POST['curriculum_id'] ?? $_GET['curriculum_id'] ?? null;
-            if ($selectedCurriculumId) {
-                $curriculumCourses = $this->getCurriculumCourses($selectedCurriculumId);
-            }
 
             $jsData = [
                 'departmentId' => $departmentId,
+                'collegeId' => $collegeId,
                 'currentSemester' => $currentSemester,
                 'sectionsData' => $this->getSections($departmentId, $currentSemester['semester_id']),
                 'currentAcademicYear' => $currentSemester['academic_year'] ?? '',
-                'faculty' => $this->getFaculty($departmentId, $collegeId),
-                'classrooms' => $this->getClassrooms($departmentId),
-                'curricula' => $curricula ?? [],
-                'curriculumCourses' => $curriculumCourses,
+                'faculty' => $faculty,
+                'classrooms' => $classrooms,
+                'curricula' => $curricula,
+                'curriculumCourses' => [], // Populated via AJAX
                 'schedules' => $schedules
             ];
 
             error_log("manageSchedule: jsData.sectionsData count: " . count($jsData['sectionsData']));
-            error_log("manageSchedule: jsData.curriculumCourses count: " . count($jsData['curriculumCourses']));
+            error_log("manageSchedule: jsData.curriculumCourses count: 0 (populated via AJAX)");
         } else {
             $jsData = [
                 'departmentId' => $departmentId,
+                'collegeId' => $collegeId,
                 'currentSemester' => $currentSemester,
                 'sectionsData' => [],
                 'currentAcademicYear' => '',
@@ -706,6 +701,7 @@ class ChairController
             $error = "No department assigned to chair.";
         }
 
+        define('IN_MANAGE_SCHEDULE', true);
         require_once __DIR__ . '/../views/chair/schedule_management.php';
     }
 
@@ -714,9 +710,10 @@ class ChairController
         header('Content-Type: application/json');
         error_log("generateSchedulesAjax: Request received at " . date('Y-m-d H:i:s'));
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['curriculum_id'])) {
-            error_log("generateSchedulesAjax: Invalid request - Method: {$_SERVER['REQUEST_METHOD']}, curriculum_id: " . ($_POST['curriculum_id'] ?? 'Missing'));
-            echo json_encode(['success' => false, 'message' => 'Invalid request method or missing parameters.']);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            error_log("generateSchedulesAjax: Invalid request method: {$_SERVER['REQUEST_METHOD']}");
+            echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+            ob_end_flush();
             exit;
         }
 
@@ -724,75 +721,121 @@ class ChairController
         $departmentId = $this->getChairDepartment($chairId);
         $currentSemester = $this->getCurrentSemester();
         $collegeData = $this->getChairCollege($chairId);
+        $collegeId = $collegeData['college_id'] ?? null;
 
-        error_log("generateSchedulesAjax: Chair ID: $chairId, Department ID: $departmentId, Semester: " . json_encode($currentSemester));
+        error_log("generateSchedulesAjax: Chair ID: $chairId, Department ID: $departmentId, College ID: $collegeId, Semester: " . json_encode($currentSemester));
 
         if (!$chairId || !$currentSemester) {
             error_log("generateSchedulesAjax: Missing chairId or currentSemester");
-            echo json_encode(['success' => false, 'message' => 'Could not determine user or current semester.']);
+            echo json_encode(['success' => false, 'message' => 'Could not determine user or current semester']);
+            ob_end_flush();
             exit;
         }
 
         if (!$departmentId) {
             error_log("generateSchedulesAjax: No department found for chair $chairId");
-            echo json_encode(['success' => false, 'message' => 'Could not determine department for chair.']);
+            echo json_encode(['success' => false, 'message' => 'Could not determine department for chair']);
+            ob_end_flush();
             exit;
         }
 
-        if (!$collegeData || !$collegeData['college_id']) {
-            error_log("generateSchedulesAjax: No college data for chair $chairId");
-            echo json_encode(['success' => false, 'message' => 'Could not determine college for chair.']);
+        if (!$collegeId) {
+            error_log("generateSchedulesAjax: No college found for chair $chairId");
+            echo json_encode(['success' => false, 'message' => 'Could not determine college for chair']);
+            ob_end_flush();
             exit;
         }
-        $collegeId = $collegeData['college_id'];
 
-        try {
-            $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
-            error_log("generateSchedulesAjax: Cached data loaded: " . json_encode(array_keys($cachedData)));
+        $action = $_POST['action'] ?? '';
+        error_log("generateSchedulesAjax: Action: $action");
 
-            $curriculumId = $_POST['curriculum_id'];
-            error_log("generateSchedulesAjax: Processing curriculum ID: $curriculumId");
+        switch ($action) {
+            case 'get_curriculum_details':
+                $curriculumId = $_POST['curriculum_id'] ?? null;
+                if ($curriculumId) {
+                    $details = $this->getCurriculumCourses($departmentId, $collegeId, $curriculumId);
+                    error_log("generateSchedulesAjax: get_curriculum_details returned: " . json_encode($details));
+                    echo json_encode($details);
+                } else {
+                    error_log("generateSchedulesAjax: Missing curriculum ID for get_curriculum_details");
+                    echo json_encode(['success' => false, 'message' => 'Missing curriculum ID']);
+                }
+                break;
 
-            $yearLevels = $_POST['year_levels'] ?? [];
-            if (!is_array($yearLevels)) {
-                $yearLevels = array_map('trim', explode(',', $yearLevels));
-            }
-            $yearLevels = array_filter($yearLevels);
-            if (empty($yearLevels)) {
-                $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-                error_log("generateSchedulesAjax: No year levels provided, using default: " . implode(', ', $yearLevels));
-            } else {
-                error_log("generateSchedulesAjax: Year levels provided: " . implode(', ', $yearLevels));
-            }
+            case 'get_curriculum_courses':
+                $curriculumId = $_POST['curriculum_id'] ?? null;
+                $semesterId = $_POST['semester_id'] ?? null;
+                if ($curriculumId && $semesterId) {
+                    $courses = $this->getCurriculumCourses($curriculumId, $semesterId);
+                    error_log("generateSchedulesAjax: get_curriculum_courses returned " . count($courses) . " courses for curriculum $curriculumId, semester $semesterId");
+                    echo json_encode(['success' => true, 'courses' => $courses]);
+                } else {
+                    error_log("generateSchedulesAjax: Missing curriculum_id or semester_id for get_curriculum_courses");
+                    echo json_encode(['success' => false, 'message' => 'Missing curriculum ID or semester ID']);
+                }
+                break;
 
-            $classrooms = $cachedData['classrooms'];
-            $faculty = $cachedData['faculty'];
-            $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
-            error_log("generateSchedulesAjax: Sections count: " . count($sections));
-            error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
+            case 'generate_schedule':
+                $curriculumId = $_POST['curriculum_id'] ?? null;
+                $yearLevels = $_POST['year_levels'] ?? [];
+                if (!is_array($yearLevels)) {
+                    $yearLevels = array_map('trim', explode(',', $yearLevels));
+                }
+                $yearLevels = array_filter($yearLevels);
+                if (empty($yearLevels)) {
+                    $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+                    error_log("generateSchedulesAjax: No year levels provided, using default: " . implode(', ', $yearLevels));
+                } else {
+                    error_log("generateSchedulesAjax: Year levels provided: " . implode(', ', $yearLevels));
+                }
 
-            $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId);
-            $this->removeDuplicateSchedules($departmentId, $currentSemester);
+                if ($curriculumId) {
+                    $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
+                    $classrooms = $cachedData['classrooms'];
+                    $faculty = $cachedData['faculty'];
+                    $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
+                    error_log("generateSchedulesAjax: Sections count: " . count($sections));
+                    error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
 
-            $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
-            error_log("generateSchedulesAjax: Generated " . count($consolidatedSchedules) . " schedules");
+                    $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId);
+                    $this->removeDuplicateSchedules($departmentId, $currentSemester);
 
-            $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
-            $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
-            $unassigned = !empty(array_diff($allCourseCodes, $assignedCourseCodes));
+                    $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
+                    error_log("generateSchedulesAjax: Generated " . count($consolidatedSchedules) . " schedules");
 
-            echo json_encode([
-                'success' => true,
-                'schedules' => $consolidatedSchedules,
-                'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses",
-                'unassigned' => $unassigned
-            ]);
-            exit;
-        } catch (Exception $e) {
-            error_log("generateSchedulesAjax: Exception - " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()]);
-            exit;
+                    $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
+                    $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
+                    $unassigned = !empty(array_diff($allCourseCodes, $assignedCourseCodes));
+
+                    echo json_encode([
+                        'success' => true,
+                        'schedules' => $consolidatedSchedules,
+                        'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses",
+                        'unassigned' => $unassigned
+                    ]);
+                } else {
+                    error_log("generateSchedulesAjax: Missing curriculum ID for generate_schedule");
+                    echo json_encode(['success' => false, 'message' => 'Missing curriculum ID']);
+                }
+                break;
+
+            case 'delete_schedules':
+                if (isset($_POST['confirm']) && $_POST['confirm']) {
+                    $result = $this->deleteAllSchedules($departmentId);
+                    error_log("generateSchedulesAjax: delete_schedules result: " . json_encode($result));
+                    echo json_encode($result);
+                } else {
+                    error_log("generateSchedulesAjax: Confirmation required for delete_schedules");
+                    echo json_encode(['success' => false, 'message' => 'Confirmation required']);
+                }
+                break;
+
+            default:
+                error_log("generateSchedulesAjax: Invalid action: $action");
+                echo json_encode(['success' => false, 'message' => 'Invalid action']);
         }
+     
+        exit;
     }
 
     private function generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId)
