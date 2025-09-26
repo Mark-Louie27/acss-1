@@ -443,6 +443,14 @@ if ($path === 'api/load_data') {
     exit;
 }
 
+if (preg_match('#^api/departments/(\d+)/programs$#', $path, $matches)) {
+    error_log("Routing to ApiController::getPrograms for department_id: " . $matches[1]);
+    require_once __DIR__ . '/../src/controllers/ApiController.php';
+    $controller = new ApiController();
+    $controller->getPrograms($matches[1]);
+    exit;
+}
+
 // Get user role from session
 $roleId = $_SESSION['role_id'] ?? null;
 

@@ -316,17 +316,26 @@ ob_start();
                                                     </span>
                                                 </td>
                                                 <td class="py-4 px-6 text-right">
-                                                    <form method="POST" class="inline action-form">
-                                                        <input type="hidden" name="user_id" value="<?php echo $chair['user_id']; ?>">
-                                                        <input type="hidden" name="action" value="<?php echo $chair['is_active'] ? 'deactivate' : 'activate'; ?>">
-                                                        <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white <?php echo $chair['is_active'] ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'; ?> focus:outline-none focus:ring-2 focus:ring-offset-2 <?php echo $chair['is_active'] ? 'focus:ring-red-500' : 'focus:ring-green-500'; ?>">
-                                                            <?php if ($chair['is_active']): ?>
-                                                                <i class="fas fa-user-times mr-1"></i> Deactivate
-                                                            <?php else: ?>
-                                                                <i class="fas fa-user-check mr-1"></i> Activate
-                                                            <?php endif; ?>
-                                                        </button>
-                                                    </form>
+                                                    <div class="flex justify-end space-x-2">
+                                                        <form method="POST" class="inline action-form">
+                                                            <input type="hidden" name="user_id" value="<?php echo $chair['user_id']; ?>">
+                                                            <input type="hidden" name="action" value="<?php echo $chair['is_active'] ? 'deactivate' : 'activate'; ?>">
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white <?php echo $chair['is_active'] ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'; ?> focus:outline-none focus:ring-2 focus:ring-offset-2 <?php echo $chair['is_active'] ? 'focus:ring-red-500' : 'focus:ring-green-500'; ?>">
+                                                                <?php if ($chair['is_active']): ?>
+                                                                    <i class="fas fa-user-times mr-1"></i> Deactivate
+                                                                <?php else: ?>
+                                                                    <i class="fas fa-user-check mr-1"></i> Activate
+                                                                <?php endif; ?>
+                                                            </button>
+                                                        </form>
+                                                        <form method="POST" class="inline action-form">
+                                                            <input type="hidden" name="user_id" value="<?php echo $chair['user_id']; ?>">
+                                                            <input type="hidden" name="action" value="demote">
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
+                                                                <i class="fas fa-arrow-down mr-1"></i> Demote
+                                                            </button>
+                                                        </form>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -412,17 +421,27 @@ ob_start();
                                                     </span>
                                                 </td>
                                                 <td class="py-4 px-6 text-right">
-                                                    <form method="POST" class="inline action-form">
-                                                        <input type="hidden" name="user_id" value="<?php echo $member['user_id']; ?>">
-                                                        <input type="hidden" name="action" value="<?php echo $member['is_active'] ? 'deactivate' : 'activate'; ?>">
-                                                        <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white <?php echo $member['is_active'] ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'; ?> focus:outline-none focus:ring-2 focus:ring-offset-2 <?php echo $member['is_active'] ? 'focus:ring-red-500' : 'focus:ring-green-500'; ?>">
-                                                            <?php if ($member['is_active']): ?>
-                                                                <i class="fas fa-user-times mr-1"></i> Deactivate
-                                                            <?php else: ?>
-                                                                <i class="fas fa-user-check mr-1"></i> Activate
-                                                            <?php endif; ?>
-                                                        </button>
-                                                    </form>
+                                                    <div class="flex justify-end space-x-2">
+                                                        <form method="POST" class="inline action-form">
+                                                            <input type="hidden" name="user_id" value="<?php echo $member['user_id']; ?>">
+                                                            <input type="hidden" name="action" value="<?php echo $member['is_active'] ? 'deactivate' : 'activate'; ?>">
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white <?php echo $member['is_active'] ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'; ?> focus:outline-none focus:ring-2 focus:ring-offset-2 <?php echo $member['is_active'] ? 'focus:ring-red-500' : 'focus:ring-green-500'; ?>">
+                                                                <?php if ($member['is_active']): ?>
+                                                                    <i class="fas fa-user-times mr-1"></i> Deactivate
+                                                                <?php else: ?>
+                                                                    <i class="fas fa-user-check mr-1"></i> Activate
+                                                                <?php endif; ?>
+                                                            </button>
+                                                        </form>
+                                                        <form method="POST" class="inline action-form">
+                                                            <input type="hidden" name="user_id" value="<?php echo $member['user_id']; ?>">
+                                                            <input type="hidden" name="action" value="promote">
+                                                            <input type="hidden" name="program_id" value="0"> <!-- Placeholder, will be updated dynamically -->
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                                <i class="fas fa-arrow-up mr-1"></i> Promote
+                                                            </button>
+                                                        </form>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -515,6 +534,116 @@ ob_start();
     </div>
 
     <script>
+        // Fetch programs for promotion modal
+        async function fetchPrograms(departmentId) {
+            try {
+                const response = await fetch('/api/departments/' + departmentId + '/programs', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const programs = await response.json();
+                return programs;
+            } catch (error) {
+                console.error('Error fetching programs:', error);
+                return [];
+            }
+        }
+
+        // Show promotion modal for selecting program
+        async function showPromotionModal(userId, departmentId) {
+            const modal = document.getElementById('userModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            modalTitle.textContent = 'Select Program for Promotion';
+            const programs = await fetchPrograms(departmentId);
+
+            if (programs.length === 0) {
+                modalBody.innerHTML = '<p>No programs available for this department.</p>';
+                modal.style.display = 'block';
+                return;
+            }
+
+            modalBody.innerHTML = `
+        <form id="promoteForm" method="POST" class="space-y-4">
+            <input type="hidden" name="user_id" value="${userId}">
+            <input type="hidden" name="action" value="promote">
+            <div>
+                <label for="program_id" class="block text-sm font-medium text-gray-600 mb-1">Select Program</label>
+                <select id="program_id" name="program_id" class="w-full px-3 py-2 border border-gray-200 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-gold-500" required>
+                    <option value="">Select a program</option>
+                    ${programs.map(program => `<option value="${program.program_id}">${program.program_name}</option>`).join('')}
+                </select>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <i class="fas fa-arrow-up mr-1"></i> Confirm Promotion
+                </button>
+                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500" onclick="document.getElementById('userModal').style.display='none'">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    `;
+            modal.style.display = 'block';
+
+            // Handle promotion form submission
+            document.getElementById('promoteForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                try {
+                    const response = await fetch('/dean/faculty', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast(data.message || 'Promotion successful', 'bg-green-500');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        showToast(data.error || 'Promotion failed', 'bg-red-500');
+                    }
+                    modal.style.display = 'none';
+                } catch (error) {
+                    showToast('Request failed: ' + error.message, 'bg-red-500');
+                }
+            });
+        }
+
+        // Modify action-form submission to handle promote/demote
+        document.querySelectorAll('.action-form').forEach(form => {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(form);
+                const action = formData.get('action');
+                const userId = formData.get('user_id');
+
+                if (action === 'promote') {
+                    const row = form.closest('tr');
+                    const departmentId = row.getAttribute('data-department');
+                    showPromotionModal(userId, departmentId);
+                } else {
+                    try {
+                        const response = await fetch('/dean/faculty', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast(data.message || 'Action successful', 'bg-green-500');
+                            setTimeout(() => location.reload(), 2000);
+                        } else {
+                            showToast(data.error || 'Action failed', 'bg-red-500');
+                        }
+                    } catch (error) {
+                        showToast('Request failed: ' + error.message, 'bg-red-500');
+                    }
+                }
+            });
+        });
+
         // Show toast notification
         function showToast(message, bgColor) {
             const toast = document.createElement('div');

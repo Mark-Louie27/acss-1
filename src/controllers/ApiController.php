@@ -227,4 +227,25 @@ class ApiController
             echo json_encode([]);
         }
     }
+
+    public function getPrograms($departmentId)
+    {
+        header('Content-Type: application/json');
+        try {
+            $departmentId = filter_var($departmentId, FILTER_VALIDATE_INT);
+            if (!$departmentId) {
+                throw new Exception('Invalid department ID');
+            }
+            require_once __DIR__ . '/../models/UserModel.php';
+            $userModel = new UserModel($this->db);
+            $programs = $userModel->getProgramsByDepartment($departmentId);
+            echo json_encode($programs);
+        } catch (Exception $e) {
+            error_log("getPrograms: Error - " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to fetch programs: ' . $e->getMessage()]);
+        }
+    }
+
 }
+
