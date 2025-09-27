@@ -251,57 +251,167 @@ function saveAllChanges() {
         });
 }
 
-function deleteSchedule(scheduleId) {
-    if (!confirm('Are you sure you want to delete this schedule?')) return;
+// Replace the existing openDeleteModal function
+function openDeleteModal() {
+    console.log('Opening delete modal...');
+    const modal = document.getElementById('delete-confirmation-modal');
+    
+    if (!modal) {
+        console.error('Delete confirmation modal element not found!');
+        // Fallback to simple confirm dialog
+        if (confirm('Are you sure you want to delete all schedules? This action cannot be undone.')) {
+            confirmDeleteSchedules();
+        }
+        return;
+    }
+    
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    console.log('Modal should now be visible');
+}
 
-    fetch('/chair/deleteSchedule', {
+// Replace the existing closeDeleteModal function
+function closeDeleteModal() {
+    console.log('Closing delete modal...');
+    const modal = document.getElementById('delete-confirmation-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+}
+
+// Replace the existing deleteAllSchedules function
+function deleteAllSchedules() {
+    console.log('Delete all schedules function called');
+    openDeleteModal();
+}
+
+// Replace the existing confirmDeleteSchedules function
+function confirmDeleteSchedules() {
+    console.log('Confirming delete schedules...');
+    
+    const deleteButton = document.querySelector('#delete-confirmation-modal button[onclick="confirmDeleteSchedules()"]');
+    let originalText = '';
+    
+    if (deleteButton) {
+        originalText = deleteButton.innerHTML;
+        deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+        deleteButton.disabled = true;
+    }
+
+    fetch('/chair/generate-schedules', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({ schedule_id: scheduleId })
+        body: new URLSearchParams({
+            action: 'delete_schedules',
+            confirm: 'true'
+        }),
     })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.scheduleData = window.scheduleData.filter(s => s.schedule_id != scheduleId);
-                updateScheduleDisplay(window.scheduleData);
-                showNotification('Schedule deleted successfully!', 'success');
-                initializeDragAndDrop();
-            } else {
-                showNotification(data.message || 'Failed to delete schedule.', 'error');
+    .then(response => {
+        console.log('Delete response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Delete response data:', data);
+        if (data.success) {
+            showNotification('All schedules have been deleted successfully.', 'success');
+            window.scheduleData = [];
+            updateScheduleDisplay([]);
+            
+            const generationResults = document.getElementById('generation-results');
+            if (generationResults) {
+                generationResults.classList.add('hidden');
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showNotification('Error deleting schedule: ' + error.message, 'error');
-        });
+        } else {
+            showNotification('Error deleting schedules: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Delete error:', error);
+        showNotification('Error deleting schedules: ' + error.message, 'error');
+    })
+    .finally(() => {
+        if (deleteButton) {
+            deleteButton.innerHTML = originalText;
+            deleteButton.disabled = false;
+        }
+        closeDeleteModal();
+    });
+}
+
+function deleteSchedule(scheduleId) {
+  if (!confirm("Are you sure you want to delete this schedule?")) return;
+
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      action: "delete_schedule",
+      schedule_id: scheduleId,
+    }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        window.scheduleData = window.scheduleData.filter(
+          (s) => s.schedule_id != scheduleId
+        );
+        updateScheduleDisplay(window.scheduleData);
+        showNotification("Schedule deleted successfully!", "success");
+        initializeDragAndDrop();
+      } else {
+        showNotification(data.message || "Failed to delete schedule.", "error");
+      }
+    })
+    .catch((error) => {
+      console.error("Error:", error);
+      showNotification("Error deleting schedule: " + error.message, "error");
+    });
 }
 
 function deleteAllSchedules() {
-    if (!confirm('Are you sure you want to delete all schedules? This action cannot be undone.')) return;
+  if (
+    !confirm(
+      "Are you sure you want to delete all schedules? This action cannot be undone."
+    )
+  )
+    return;
 
-    fetch('/chair/delete-all-schedules', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      action: "delete_schedules",
+      confirm: "true",
+    }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        window.scheduleData = [];
+        updateScheduleDisplay(window.scheduleData);
+        showNotification("All schedules deleted successfully!", "success");
+        initializeDragAndDrop();
+      } else {
+        showNotification(
+          data.message || "Failed to delete all schedules.",
+          "error"
+        );
+      }
     })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.scheduleData = [];
-                updateScheduleDisplay(window.scheduleData);
-                showNotification('All schedules deleted successfully!', 'success');
-                initializeDragAndDrop();
-            } else {
-                showNotification(data.message || 'Failed to delete all schedules.', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showNotification('Error deleting all schedules: ' + error.message, 'error');
-        });
+    .catch((error) => {
+      console.error("Error:", error);
+      showNotification(
+        "Error deleting all schedules: " + error.message,
+        "error"
+      );
+    });
 }
 
 function filterSchedulesManual() {

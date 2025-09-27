@@ -628,7 +628,7 @@ ob_start();
                                 ${includable.map(result => `
                                     <tr class="hover:bg-gray-50 transition-all duration-200">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employee_id || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.title} ${result.first_name} ${result.middle_name} ${result.last_name} ${result.suffix}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.title || ''} ${result.first_name} ${result.middle_name || ''} ${result.last_name} ${result.suffix || ''}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.college_name || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_names || 'N/A'}</td>
                                         <td class="px-6 py-4 text-sm text-gray-dark specialization">${result.specialization || 'N/A'}</td>
@@ -693,7 +693,7 @@ ob_start();
                                 <div class="flex items-start space-x-6 mb-8 pb-6 border-b border-gray-100">
                                     <div class="flex-shrink-0">
                                         <div class="relative">
-                                            <img src="${details.profile_picture || 'http://localhost:8000/uploads/faculty/default.jpg'}" 
+                                            <img src="${details.profile_picture}" 
                                                 alt="Profile picture of ${details.first_name} ${details.last_name}" 
                                                 class="w-20 h-20 rounded-full object-cover ring-4 ring-gray-50 shadow-sm"
                                                 onerror="replaceWithIcon(this, 'profile-icon-large')">
@@ -703,7 +703,7 @@ ob_start();
                                         </div>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <h4 class="text-2xl font-bold text-gray-900 mb-2">${details.title} ${details.first_name} ${details.middle_name} ${details.last_name} ${details.suffix}</h4>
+                                        <h4 class="text-2xl font-bold text-gray-900 mb-2">${details.title || ''} ${details.first_name} ${details.middle_name || ''} ${details.last_name} ${details.suffix || ''}</h4>
                                         <div class="flex flex-wrap gap-2 mb-3">
                                             ${details.academic_rank ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">${details.academic_rank}</span>` : ''}
                                             ${details.employment_type ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">${details.employment_type}</span>` : ''}
