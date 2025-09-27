@@ -624,6 +624,9 @@
   .h-64 {
     height: calc(var(--spacing) * 64);
   }
+  .h-80 {
+    height: calc(var(--spacing) * 80);
+  }
   .h-full {
     height: 100%;
   }
@@ -1059,6 +1062,9 @@
   }
   .overflow-y-auto {
     overflow-y: auto;
+  }
+  .scroll-auto {
+    scroll-behavior: auto;
   }
   .rounded {
     border-radius: 0.25rem;

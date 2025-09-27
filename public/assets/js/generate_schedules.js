@@ -194,13 +194,15 @@ function updateCourses() {
         return;
     }
     coursesList.innerHTML = '<p class="text-sm text-gray-600">Loading courses...</p>';
+    
+    // FIX: Add the missing 'action' parameter
     fetch("/chair/generate-schedules", {
         method: "POST",
         headers: {
             "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-            action: "get_curriculum_courses",
+            action: "get_curriculum_courses",  // <- This was missing!
             curriculum_id: curriculumId,
             semester_id: window.currentSemester.semester_id,
             department_id: window.departmentId,
@@ -302,7 +304,9 @@ function generateSchedules() {
     loadingOverlay.classList.remove("hidden");
   }
 
+  // FIX: Add the missing 'action' parameter
   const data = {
+    action: "generate_schedule",  // <- This was missing!
     curriculum_id: curriculumId,
     semester_id: formData.get("semester_id"),
     tab: "generate",

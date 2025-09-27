@@ -626,6 +626,45 @@ ob_start();
             </div>
         </div>
 
+        <!-- Delete Confirmation Modal -->
+        <div id="delete-confirmation-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm items-center justify-center z-50 hidden modal-overlay">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 modal-content">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="bg-red-100 p-2 rounded-full mr-3">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">Delete All Schedules</h3>
+                    </div>
+                    <button onclick="closeDeleteModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="mb-6">
+                    <p class="text-gray-700 mb-4">
+                        Are you sure you want to delete <strong>ALL schedules</strong> for your department? This action cannot be undone.
+                    </p>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+                            <span class="text-sm font-medium text-yellow-800">This will permanently remove all generated schedules for the current semester.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-4">
+                    <button onclick="closeDeleteModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="confirmDeleteSchedules()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
+                        <i class="fas fa-trash mr-2"></i>
+                        Delete All Schedules
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <script>
             // Global data
             window.scheduleData = <?php echo json_encode($schedules); ?> || [];
@@ -649,6 +688,81 @@ ob_start();
                 semester: s.semester ?? '',
                 is_active: s.is_active ?? 1
             })) : [];
+
+            function openDeleteModal() {
+                document.getElementById('delete-confirmation-modal').classList.remove('hidden');
+                document.getElementById('delete-confirmation-modal').classList.add('flex');
+            }
+
+            function closeDeleteModal() {
+                document.getElementById('delete-confirmation-modal').classList.add('hidden');
+                document.getElementById('delete-confirmation-modal').classList.remove('flex');
+            }
+
+            // Updated delete function with confirmation
+            function deleteAllSchedules() {
+                openDeleteModal();
+            }
+
+            function confirmDeleteSchedules() {
+                // Show loading state
+                const deleteButton = document.querySelector('#delete-confirmation-modal button[onclick="confirmDeleteSchedules()"]');
+                const originalText = deleteButton.innerHTML;
+                deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+                deleteButton.disabled = true;
+
+                fetch('/chair/generate-schedules', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            action: 'delete_schedules',
+                            confirm: 'true'
+                        }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification('All schedules have been deleted successfully.', 'success');
+
+                            // Update the schedule display
+                            window.scheduleData = [];
+                            updateScheduleDisplay([]);
+
+                            // Hide generation results if visible
+                            const generationResults = document.getElementById('generation-results');
+                            if (generationResults) {
+                                generationResults.classList.add('hidden');
+                            }
+
+                        } else {
+                            showNotification('Error deleting schedules: ' + (data.message || 'Unknown error'), 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Delete error:', error);
+                        showNotification('Error deleting schedules: ' + error.message, 'error');
+                    })
+                    .finally(() => {
+                        // Restore button state and close modal
+                        deleteButton.innerHTML = originalText;
+                        deleteButton.disabled = false;
+                        closeDeleteModal();
+                    });
+            }
+
+            // Close modal when clicking outside
+            document.addEventListener('DOMContentLoaded', function() {
+                const modal = document.getElementById('delete-confirmation-modal');
+                if (modal) {
+                    modal.addEventListener('click', function(e) {
+                        if (e.target === modal) {
+                            closeDeleteModal();
+                        }
+                    });
+                }
+            });
 
             // Shared utility functions
             function switchTab(tabName) {
