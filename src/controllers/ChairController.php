@@ -126,96 +126,179 @@ class ChairController
             error_log("dashboard: Department fetched - department_id: $departmentId");
 
             // Get department name
-            $deptStmt = $this->db->prepare("SELECT department_name FROM departments WHERE department_id = :department_id");
-            $deptStmt->execute([':department_id' => $departmentId]);
+            $deptStmt = $this->db->prepare("SELECT department_name FROM departments WHERE department_id = ?");
+            $deptStmt->execute([$departmentId]);
             $departmentName = $deptStmt->fetchColumn();
 
             // Get current semester
-            $currentSemesterStmt = $this->db->query("SELECT semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
+            $currentSemesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
             $currentSemester = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
             $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} Semester A.Y {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
+            $currentSemesterId = $currentSemester['semester_id'] ?? null;
 
-            // Get counts for dashboard
-            $schedulesCount = $this->db->query("SELECT COUNT(*) FROM schedules s 
-                                                JOIN courses c ON s.course_id = c.course_id 
-                                                WHERE c.department_id = " . (int)$departmentId)->fetchColumn();
-            $facultyCount = $this->db->query("SELECT COUNT(*) FROM faculty f 
-                                            JOIN users u ON f.user_id = u.user_id 
-                                            WHERE u.department_id = " . (int)$departmentId)->fetchColumn();
-            $coursesCount = $this->db->query("SELECT COUNT(*) FROM courses WHERE department_id = " . (int)$departmentId)->fetchColumn();
+            // Get counts for dashboard - FIXED PARAMETERS
+            $schedulesCountStmt = $this->db->prepare("
+            SELECT COUNT(*) FROM schedules s 
+            JOIN courses c ON s.course_id = c.course_id 
+            WHERE c.department_id = ?
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : ""));
+
+            $params = [$departmentId];
+            if ($currentSemesterId) {
+                $params[] = $currentSemesterId;
+            }
+            $schedulesCountStmt->execute($params);
+            $schedulesCount = $schedulesCountStmt->fetchColumn();
+
+            $facultyCountStmt = $this->db->prepare("
+            SELECT COUNT(*) FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            WHERE u.department_id = ?
+        ");
+            $facultyCountStmt->execute([$departmentId]);
+            $facultyCount = $facultyCountStmt->fetchColumn();
+
+            $coursesCountStmt = $this->db->prepare("
+            SELECT COUNT(*) FROM courses WHERE department_id = ?
+        ");
+            $coursesCountStmt->execute([$departmentId]);
+            $coursesCount = $coursesCountStmt->fetchColumn();
 
             error_log("dashboard: Counts - schedules: $schedulesCount, faculty: $facultyCount, courses: $coursesCount");
 
             // Get curricula with active status
             $curriculaStmt = $this->db->prepare("
-                SELECT c.curriculum_id, c.curriculum_name, c.total_units, c.status, p.program_name 
-                FROM curricula c 
-                JOIN programs p ON c.department_id = p.department_id 
-                WHERE c.department_id = :department_id
-                ORDER BY c.curriculum_name
-            ");
-            $curriculaStmt->execute([':department_id' => $departmentId]);
+            SELECT c.curriculum_id, c.curriculum_name, c.total_units, c.status, p.program_name 
+            FROM curricula c 
+            JOIN programs p ON c.department_id = p.department_id 
+            WHERE c.department_id = ?
+            ORDER BY c.curriculum_name
+        ");
+            $curriculaStmt->execute([$departmentId]);
             $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
 
             error_log("dashboard: Fetched " . count($curricula) . " curricula");
 
-            // Get recent schedules for current semester only
+            // FIXED: Get recent schedules with grouped days and user title
             $recentSchedulesStmt = $this->db->prepare("
-                SELECT s.schedule_id, c.course_name, c.course_code, CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, 
-                    r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, sec.section_name,
-                    sem.semester_name, sem.academic_year
-                FROM schedules s
-                JOIN courses c ON s.course_id = c.course_id
-                JOIN faculty f ON s.faculty_id = f.faculty_id
-                JOIN users u ON f.user_id = u.user_id
-                LEFT JOIN sections sec ON s.section_id = sec.section_id
-                LEFT JOIN classrooms r ON s.room_id = r.room_id
-                LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
-                WHERE c.department_id = :department_id 
-                    AND sem.is_current = 1
-                ORDER BY s.created_at DESC
-                LIMIT 5
-            ");
-            $recentSchedulesStmt->execute([':department_id' => $departmentId]);
+            SELECT 
+                s.schedule_id, 
+                c.course_name, 
+                c.course_code, 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+                r.room_name, 
+                GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                    CASE s.day_of_week 
+                        WHEN 'Monday' THEN 1
+                        WHEN 'Tuesday' THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday' THEN 4
+                        WHEN 'Friday' THEN 5
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 7
+                    END
+                    SEPARATOR ', '
+                ) as day_of_week,
+                s.start_time, 
+                s.end_time, 
+                s.schedule_type, 
+                sec.section_name,
+                sem.semester_name, 
+                sem.academic_year
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN faculty f ON s.faculty_id = f.faculty_id
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
+            WHERE c.department_id = ?
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+            GROUP BY c.course_id, s.faculty_id, s.start_time, s.end_time, s.schedule_type, sec.section_name, r.room_name
+            ORDER BY s.created_at DESC
+            LIMIT 5
+        ");
+
+            $params = [$departmentId];
+            if ($currentSemesterId) {
+                $params[] = $currentSemesterId;
+            }
+            $recentSchedulesStmt->execute($params);
             $recentSchedules = $recentSchedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Process the day format to show MWF, TTH format
+            foreach ($recentSchedules as &$schedule) {
+                $schedule['day_of_week'] = $this->formatScheduleDays($schedule['day_of_week']);
+            }
+
             $schedules = $recentSchedules;
 
             error_log("dashboard: Fetched " . count($recentSchedules) . " recent schedules");
 
-            // Get schedule distribution data for chart
+            // Get schedule distribution data for chart - FIXED
             $scheduleDistStmt = $this->db->prepare("
-                SELECT s.day_of_week, COUNT(*) as count 
-                FROM schedules s 
-                JOIN courses c ON s.course_id = c.course_id 
-                WHERE c.department_id = :department_id 
-                GROUP BY s.day_of_week
-            ");
-            $scheduleDistStmt->execute([':department_id' => $departmentId]);
+            SELECT s.day_of_week, COUNT(*) as count 
+            FROM schedules s 
+            JOIN courses c ON s.course_id = c.course_id 
+            WHERE c.department_id = ?
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+            GROUP BY s.day_of_week
+            ORDER BY 
+                CASE s.day_of_week 
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END
+        ");
+
+            $params = [$departmentId];
+            if ($currentSemesterId) {
+                $params[] = $currentSemesterId;
+            }
+            $scheduleDistStmt->execute($params);
             $scheduleDistData = $scheduleDistStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             $scheduleDist = array_fill_keys($days, 0);
             foreach ($scheduleDistData as $row) {
-                $scheduleDist[$row['day_of_week']] = (int)$row['count'];
+                if (isset($scheduleDist[$row['day_of_week']])) {
+                    $scheduleDist[$row['day_of_week']] = (int)$row['count'];
+                }
             }
             $scheduleDistJson = json_encode(array_values($scheduleDist));
 
             error_log("dashboard: Schedule distribution - " . $scheduleDistJson);
 
-            // Get faculty workload data for chart
+            // FIXED: Get faculty workload data for chart
             $workloadStmt = $this->db->prepare("
-                SELECT CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, COUNT(s.schedule_id) as course_count
-                FROM faculty f
-                JOIN users u ON f.user_id = u.user_id
-                LEFT JOIN schedules s ON f.faculty_id = s.faculty_id
-                JOIN courses c ON s.course_id = c.course_id
-                WHERE u.department_id = :department_id
-                GROUP BY f.faculty_id, u.first_name, u.last_name
-                ORDER BY course_count DESC
-                LIMIT 5
-            ");
-            $workloadStmt->execute([':department_id' => $departmentId]);
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+                COUNT(DISTINCT s.schedule_id) as course_count
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id AND s.semester_id = ?
+            WHERE u.department_id = ?
+            GROUP BY f.faculty_id, u.title, u.first_name, u.last_name
+            HAVING course_count > 0
+            ORDER BY course_count DESC
+            LIMIT 5
+        ");
+
+            $workloadParams = [$currentSemesterId, $departmentId];
+            $workloadStmt->execute($workloadParams);
             $workloadData = $workloadStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // If no data, provide sample data for testing
+            if (empty($workloadData)) {
+                error_log("dashboard: No faculty workload data found");
+                $workloadData = [
+                    ['faculty_name' => 'No assignments yet', 'course_count' => 0]
+                ];
+            }
 
             $workloadLabels = array_column($workloadData, 'faculty_name');
             $workloadCounts = array_column($workloadData, 'course_count');
@@ -238,10 +321,71 @@ class ChairController
             require_once $viewPath;
         } catch (Exception $e) {
             error_log("dashboard: Full error: " . $e->getMessage());
+            error_log("dashboard: Stack trace: " . $e->getTraceAsString());
             http_response_code(500);
             echo "Error loading dashboard: " . htmlspecialchars($e->getMessage());
             exit;
         }
+    }
+
+    /**
+     * Format schedule days to show MWF, TTH format instead of listing individually
+     */
+    private function formatScheduleDays($dayString)
+    {
+        if (empty($dayString)) {
+            return 'TBD';
+        }
+
+        $days = explode(', ', $dayString);
+        $dayAbbrev = [];
+
+        foreach ($days as $day) {
+            switch (trim($day)) {
+                case 'Monday':
+                    $dayAbbrev[] = 'M';
+                    break;
+                case 'Tuesday':
+                    $dayAbbrev[] = 'T';
+                    break;
+                case 'Wednesday':
+                    $dayAbbrev[] = 'W';
+                    break;
+                case 'Thursday':
+                    $dayAbbrev[] = 'Th';
+                    break;
+                case 'Friday':
+                    $dayAbbrev[] = 'F';
+                    break;
+                case 'Saturday':
+                    $dayAbbrev[] = 'S';
+                    break;
+                case 'Sunday':
+                    $dayAbbrev[] = 'Su';
+                    break;
+            }
+        }
+
+        // Common patterns
+        $dayStr = implode('', $dayAbbrev);
+
+        // Replace common patterns for better readability
+        $patterns = [
+            'MWF' => 'MWF',
+            'TTh' => 'TTH',
+            'MW' => 'MW',
+            'ThF' => 'THF',
+            'MThF' => 'MTHF',
+            'TWThF' => 'TWTHF'
+        ];
+
+        foreach ($patterns as $pattern => $replacement) {
+            if ($dayStr == $pattern) {
+                return $replacement;
+            }
+        }
+
+        return $dayStr ?: 'TBD';
     }
 
     public function mySchedule()
@@ -250,14 +394,18 @@ class ChairController
             $chairId = $_SESSION['user_id'];
             error_log("mySchedule: Starting mySchedule method for user_id: $chairId");
 
-            // Fetch faculty ID and name with join to users table
+            // Fetch faculty ID and complete faculty info with join to users table
             $facultyStmt = $this->db->prepare("
-            SELECT f.faculty_id, CONCAT(u.title, ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name, ' ', u.suffix) AS faculty_name 
+            SELECT f.*, 
+                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                          COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                          COALESCE(u.suffix, '')) AS faculty_name,
+                   u.first_name, u.middle_name, u.last_name, u.title, u.suffix
             FROM faculty f 
             JOIN users u ON f.user_id = u.user_id 
-            WHERE u.user_id = :user_id
-            ");
-            $facultyStmt->execute([':user_id' => $chairId]);
+            WHERE u.user_id = ?
+        ");
+            $facultyStmt->execute([$chairId]);
             $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$faculty) {
@@ -265,13 +413,11 @@ class ChairController
                 require_once __DIR__ . '/../views/chair/my_schedule.php';
                 return;
             }
-            $facultyId = $faculty['faculty_id'];
-            $facultyName = $faculty['faculty_name'];
 
-            // fetch faculty position and employment stautus
-            $positionStmt = $this->db->prepare("SELECT academic_rank FROM faculty WHERE faculty_id = :faculty_id");
-            $positionStmt->execute([':faculty_id' => $facultyId]);
-            $facultyPosition = $positionStmt->fetch(PDO::FETCH_ASSOC) ?: 'Not Specified';
+            $facultyId = $faculty['faculty_id'];
+            $facultyName = trim($faculty['faculty_name']);
+            $facultyPosition = $faculty['academic_rank'] ?? 'Not Specified';
+            $employmentType = $faculty['employment_type'] ?? 'Regular';
 
             // Get department and college details
             $deptStmt = $this->db->prepare("
@@ -281,9 +427,9 @@ class ChairController
             JOIN programs p ON pc.program_id = p.program_id 
             JOIN departments d ON p.department_id = d.department_id 
             JOIN colleges c ON d.college_id = c.college_id 
-            WHERE f.user_id = :user_id AND pc.is_current = 1
-            ");
-            $deptStmt->execute([':user_id' => $chairId]);
+            WHERE f.user_id = ? AND pc.is_current = 1
+        ");
+            $deptStmt->execute([$chairId]);
             $department = $deptStmt->fetch(PDO::FETCH_ASSOC);
             $departmentName = $department['department_name'] ?? 'Not Assigned';
             $collegeName = $department['college_name'] ?? 'Not Assigned';
@@ -297,58 +443,165 @@ class ChairController
                 require_once __DIR__ . '/../views/chair/my_schedule.php';
                 return;
             }
+
             $semesterId = $semester['semester_id'];
             $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
             error_log("mySchedule: Current semester ID: $semesterId, Name: $semesterName");
 
+            // UPDATED: Get schedules with grouped days and better data structure
             $schedulesStmt = $this->db->prepare("
-            SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, 
-                   s.start_time, s.end_time, s.schedule_type, COALESCE(sec.section_name, 'N/A') AS section_name,
-                   TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+            SELECT s.schedule_id, c.course_code, c.course_name, c.units,
+                   r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, 
+                   COALESCE(sec.section_name, 'N/A') AS section_name, sec.current_students,
+                   TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours,
+                    sec.year_level,
+                   CASE 
+                       WHEN s.schedule_type = 'Laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60
+                       ELSE 0 
+                   END AS lab_hours,
+                   CASE 
+                       WHEN s.schedule_type = 'Lecture' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60
+                       ELSE 0 
+                   END AS lecture_hours,
+                   COUNT(sec.current_students) as student_count
             FROM schedules s
             LEFT JOIN courses c ON s.course_id = c.course_id
             LEFT JOIN sections sec ON s.section_id = sec.section_id
             LEFT JOIN classrooms r ON s.room_id = r.room_id
-            WHERE s.faculty_id = :faculty_id AND s.semester_id = :semester_id
-            ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
-            ");
-            $schedulesStmt->execute([':faculty_id' => $facultyId, ':semester_id' => $semesterId]);
-            $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
-            error_log("mySchedule: Fetched " . count($schedules) . " schedules for faculty_id $facultyId in semester $semesterId");
+            
+            WHERE s.faculty_id = ? AND s.semester_id = ?
+            GROUP BY s.schedule_id, c.course_code, c.course_name, r.room_name, 
+                     s.start_time, s.end_time, s.schedule_type, sec.section_name
+            ORDER BY c.course_code, s.start_time
+        ");
+            $schedulesStmt->execute([$facultyId, $semesterId]);
+            $rawSchedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Group schedules by course, time, and room to combine days
+            $groupedSchedules = [];
+            $scheduleKey = [];
+
+            foreach ($rawSchedules as $schedule) {
+                $key = $schedule['course_code'] . '|' . $schedule['start_time'] . '|' . $schedule['end_time'] . '|' . $schedule['schedule_type'] . '|' . $schedule['section_name'];
+
+                if (!isset($groupedSchedules[$key])) {
+                    $groupedSchedules[$key] = $schedule;
+                    $groupedSchedules[$key]['days'] = [];
+                }
+
+                $groupedSchedules[$key]['days'][] = $schedule['day_of_week'];
+            }
+
+            // Format days and create final schedule array
+            $schedules = [];
+            foreach ($groupedSchedules as $schedule) {
+                $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                unset($schedule['days']);
+                $schedules[] = $schedule;
+            }
+
+            error_log("mySchedule: Fetched " . count($schedules) . " grouped schedules for faculty_id $facultyId in semester $semesterId");
 
             $showAllSchedules = false;
             if (empty($schedules)) {
                 error_log("mySchedule: No schedules found for current semester, trying to fetch all schedules");
+                // Repeat the same process for all semesters
                 $schedulesStmt = $this->db->prepare("
-                SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, 
-                       s.start_time, s.end_time, s.schedule_type, COALESCE(sec.section_name, 'N/A') AS section_name,
-                       TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+                SELECT s.schedule_id, c.course_code, c.course_name, c.units,
+                       r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, 
+                       COALESCE(sec.section_name, 'N/A') AS section_name, sec.current_students,
+                       TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours,
+                       sec.year_level,
+                       CASE 
+                           WHEN s.schedule_type = 'Laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60
+                           ELSE 0 
+                       END AS lab_hours,
+                       CASE 
+                           WHEN s.schedule_type = 'Lecture' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60
+                           ELSE 0 
+                       END AS lecture_hours,
+                       COUNT(sec.current_students) as student_count
                 FROM schedules s
                 LEFT JOIN courses c ON s.course_id = c.course_id
                 LEFT JOIN sections sec ON s.section_id = sec.section_id
                 LEFT JOIN classrooms r ON s.room_id = r.room_id
-                WHERE s.faculty_id = :faculty_id
-                ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), s.start_time
+                
+                WHERE s.faculty_id = ?
+                GROUP BY s.schedule_id, c.course_code, c.course_name, r.room_name, 
+                         s.start_time, s.end_time, s.schedule_type, sec.section_name
+                ORDER BY c.course_code, s.start_time
             ");
-                $schedulesStmt->execute([':faculty_id' => $facultyId]);
-                $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+                $schedulesStmt->execute([$facultyId]);
+                $rawSchedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Same grouping logic
+                $groupedSchedules = [];
+                foreach ($rawSchedules as $schedule) {
+                    $key = $schedule['course_code'] . '|' . $schedule['start_time'] . '|' . $schedule['end_time'] . '|' . $schedule['schedule_type'] . '|' . $schedule['section_name'];
+
+                    if (!isset($groupedSchedules[$key])) {
+                        $groupedSchedules[$key] = $schedule;
+                        $groupedSchedules[$key]['days'] = [];
+                    }
+
+                    $groupedSchedules[$key]['days'][] = $schedule['day_of_week'];
+                }
+
+                $schedules = [];
+                foreach ($groupedSchedules as $schedule) {
+                    $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                    unset($schedule['days']);
+                    $schedules[] = $schedule;
+                }
+
                 $showAllSchedules = true;
-                error_log("mySchedule: Fetched " . count($schedules) . " total schedules for faculty_id $facultyId");
+                error_log("mySchedule: Fetched " . count($schedules) . " total grouped schedules for faculty_id $facultyId");
             }
 
-            if (empty($schedules)) {
-                error_log("mySchedule: No schedules found after fallback. Checking raw data...");
-                $debugStmt = $this->db->prepare("SELECT * FROM schedules WHERE faculty_id = :faculty_id");
-                $debugStmt->execute([':faculty_id' => $facultyId]);
-                $debugSchedules = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
-                error_log("mySchedule: Debug - Found " . count($debugSchedules) . " raw schedules for faculty_id $facultyId");
-            }
-
+            // Calculate totals
             $totalHours = 0;
+            $totalLectureHours = 0;
+            $totalLabHours = 0;
+            $preparations = [];
+
             foreach ($schedules as $schedule) {
                 $totalHours += $schedule['duration_hours'];
+                $totalLectureHours += $schedule['lecture_hours'];
+                $totalLabHours += $schedule['lab_hours'];
+                $preparations[$schedule['course_code']] = true;
             }
-            error_log("mySchedule: Total hours calculated: $totalHours");
+
+            $totalLabHoursX075 = $totalLabHours * 0.75;
+            $noOfPreparations = count($preparations);
+            $actualTeachingLoad = $totalLectureHours + $totalLabHoursX075;
+            $equivalTeachingLoad = $faculty['equiv_teaching_load'] ?? 0;
+            $totalWorkingLoad = $actualTeachingLoad + $equivalTeachingLoad;
+            $excessHours = max(0, $totalWorkingLoad - 24);
+
+            error_log("mySchedule: Calculations - Total hours: $totalHours, Lecture: $totalLectureHours, Lab: $totalLabHours, Preparations: $noOfPreparations");
+
+            // Pass all data to view
+            $facultyData = [
+                'faculty_id' => $facultyId,
+                'faculty_name' => $facultyName,
+                'academic_rank' => $facultyPosition,
+                'employment_type' => $employmentType,
+                'bachelor_degree' => $faculty['bachelor_degree'] ?? 'Not specified',
+                'master_degree' => $faculty['master_degree'] ?? 'Not specified',
+                'doctorate_degree' => $faculty['doctorate_degree'] ?? 'Not specified',
+                'post_doctorate_degree' => $faculty['post_doctorate_degree'] ?? 'Not applicable',
+                'designation' => $faculty['designation'] ?? 'Not specified',
+                'classification' => $faculty['classification'] ?? 'Not specified',
+                'advisory_class' => $faculty['advisory_class'] ?? 'Not assigned',
+                'total_lecture_hours' => $totalLectureHours,
+                'total_laboratory_hours' => $totalLabHours,
+                'total_laboratory_hours_x075' => $totalLabHoursX075,
+                'no_of_preparation' => $noOfPreparations,
+                'actual_teaching_load' => $actualTeachingLoad,
+                'equiv_teaching_load' => $equivalTeachingLoad,
+                'total_working_load' => $totalWorkingLoad,
+                'excess_hours' => $excessHours
+            ];
 
             require_once __DIR__ . '/../views/chair/my_schedule.php';
         } catch (Exception $e) {
@@ -357,7 +610,6 @@ class ChairController
             echo "Error loading schedule: " . htmlspecialchars($e->getMessage());
             exit;
         }
-        require_once __DIR__ . '/../views/chair/my_schedule.php';
     }
 
     private function getCurrentSemester()

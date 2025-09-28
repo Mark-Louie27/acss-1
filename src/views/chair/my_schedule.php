@@ -63,7 +63,7 @@ ob_start();
                     </div>
                     <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 w-full lg:w-auto">
                         <button
-                            onclick="printOfficialSchedule({facultyName: 'FACULTY NAME', position: 'Assistant Professor I'})"
+                            onclick="printOfficialSchedule()"
                             class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-gray-800 bg-yellow-400 hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-all duration-200 w-full sm:w-auto">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
@@ -147,13 +147,16 @@ ob_start();
                                 Room
                             </th>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-800 uppercase tracking-wider">
-                                Day
+                                Days
                             </th>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-800 uppercase tracking-wider">
                                 Time
                             </th>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-800 uppercase tracking-wider">
                                 Type
+                            </th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-800 uppercase tracking-wider">
+                                Students
                             </th>
                         </tr>
                     </thead>
@@ -182,8 +185,8 @@ ob_start();
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            <?php echo htmlspecialchars($schedule['day_of_week'] ?? 'N/A'); ?>
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 font-bold">
+                                            <?php echo htmlspecialchars($schedule['day_of_week'] ?? 'TBD'); ?>
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
@@ -205,11 +208,16 @@ ob_start();
                                             <?php echo ucfirst($schedule['schedule_type'] ?? 'Lecture'); ?>
                                         </span>
                                     </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">
+                                            <?php echo htmlspecialchars($schedule['student_count'] ?? 'N/A'); ?>
+                                        </div>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="7" class="px-6 py-16 text-center">
+                                <td colspan="8" class="px-6 py-16 text-center">
                                     <div class="flex flex-col items-center">
                                         <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
                                             <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,82 +245,72 @@ ob_start();
     </div>
 </div>
 
-<!-- Enhanced JavaScript -->
+<!-- Enhanced JavaScript with Complete Faculty Data -->
 <script>
-    function printOfficialSchedule(options = {}) {
-        const {
-            facultyName = 'FACULTY NAME',
-                position = 'Assistant Professor I',
-                employmentStatus = 'Regular',
-                campusName = 'Main Campus',
-                campusAddress = 'Iba',
-                collegeName = 'College of Communication and Information Technology',
-                studentCounts = {},
-                additionalInfo = {}
-        } = options;
-
-        // Safely retrieve PHP variables with fallback
-        const semesterName = '<?php echo htmlspecialchars($currentSemester["semester_name"] ?? "Fall") . " " . htmlspecialchars($currentSemester["academic_year"] ?? "2025"); ?>';
-        const departmentName = '<?php echo htmlspecialchars($departmentName ?? "College of Communication and Information Technology"); ?>';
-        const collegeNameFromPHP = '<?php echo htmlspecialchars($collegeName ?? "College of Communication and Information Technology"); ?>';
-        const totalHours = parseFloat(<?php echo json_encode($totalHours ?? 0); ?>);
-        const facultyNameFromPHP = '<?php echo htmlspecialchars($facultyName ?? "Not Assigned"); ?>';
+    function printOfficialSchedule() {
+        // Get faculty data from PHP with proper fallbacks
+        const facultyData = <?php echo json_encode($facultyData ?? []); ?>;
+        const semesterInfo = <?php echo json_encode($semesterName ?? 'Current Semester'); ?>;
+        const departmentName = <?php echo json_encode($departmentName ?? 'Not Assigned'); ?>;
+        const collegeName = <?php echo json_encode($collegeName ?? 'Not Assigned'); ?>;
+        const showAllSchedules = <?php echo json_encode($showAllSchedules ?? false); ?>;
         let schedules = [];
+
         try {
-            schedules = JSON.parse('<?php echo json_encode($schedules ?? []); ?>');
+            schedules = <?php echo json_encode($schedules ?? []); ?>;
         } catch (e) {
-            console.error('Error parsing schedules JSON:', e);
+            console.error('Error parsing schedules:', e);
             schedules = [];
         }
-        const showAllSchedules = <?php echo json_encode($showAllSchedules ?? false); ?>;
 
-        // Use values from PHP if available, otherwise fallback to options
-        const finalFacultyName = facultyNameFromPHP !== 'Not Assigned' ? facultyNameFromPHP : facultyName;
-        const finalCollegeName = collegeNameFromPHP !== 'College of Communication and Information Technology' ? collegeNameFromPHP : collegeName;
+        // Faculty information with complete data
+        const facultyName = facultyData.faculty_name || 'Faculty Name';
+        const academicRank = facultyData.academic_rank || 'Instructor I';
+        const employmentType = facultyData.employment_type || 'Regular';
+        const bachelorDegree = facultyData.bachelor_degree || 'Not specified';
+        const masterDegree = facultyData.master_degree || 'Not specified';
+        const doctorateDegree = facultyData.doctorate_degree || 'Not specified';
+        const postDocDegree = facultyData.post_doctorate_degree || 'Not applicable';
+        const designation = facultyData.designation || 'Not specified';
+        const classification = facultyData.classification || 'TL';
+        const advisoryClass = facultyData.advisory_class || 'Not assigned';
 
-        // Calculate teaching load data
-        let totalLectureHours = 0;
-        let totalLabHours = 0;
-        let preparations = new Set();
-
-        if (Array.isArray(schedules)) {
-            schedules.forEach(schedule => {
-                const hours = parseFloat(schedule.lab_hours || 0);
-                totalLabHours += hours;
-                preparations.add(schedule.course_code);
-            });
-        }
-
-        const totalLabHoursAdjusted = totalLabHours * 0.75;
-        const actualTeachingLoad = totalLectureHours + totalLabHoursAdjusted;
-        const totalWorkingLoad = actualTeachingLoad; // ETL is 0 in example
-        const excess = totalWorkingLoad - 24;
+        // Teaching load calculations
+        const totalLectureHours = parseFloat(facultyData.total_lecture_hours || 0);
+        const totalLabHours = parseFloat(facultyData.total_laboratory_hours || 0);
+        const totalLabHoursX075 = parseFloat(facultyData.total_laboratory_hours_x075 || 0);
+        const noOfPreparations = parseInt(facultyData.no_of_preparation || 0);
+        const actualTeachingLoad = parseFloat(facultyData.actual_teaching_load || 0);
+        const equivTeachingLoad = parseFloat(facultyData.equiv_teaching_load || 0);
+        const totalWorkingLoad = parseFloat(facultyData.total_working_load || 0);
+        const excessHours = parseFloat(facultyData.excess_hours || 0);
 
         // Generate schedule rows with proper table structure
         let scheduleRows = '';
         let currentRow = 0;
-
-        // Faculty name section (first few rows)
-        const numScheduleRows = Math.max(3, schedules.length);
+        const numScheduleRows = Math.max(4, schedules.length + 1);
 
         if (Array.isArray(schedules) && schedules.length > 0) {
             schedules.forEach((schedule, index) => {
                 const timeRange = `${schedule.start_time || ''}-${schedule.end_time || ''}`;
                 const courseInfo = `${schedule.course_code || 'N/A'} ${schedule.course_name || 'N/A'}`;
-                const studentCount = studentCounts[schedule.course_code] || schedule.student_count || '-';
-                const sectionDetail = `${schedule.section_name || 'N/A'}`;
+                const studentCount = schedule.student_count || '-';
+                const sectionDetail = `${schedule.program_code || 'BSCS'}/${schedule.year_level || '1'}/${schedule.section_name || 'A'}`;
+                const units = schedule.units || '3';
+                const labHours = schedule.schedule_type === 'Laboratory' ? (schedule.duration_hours || '3') : '-';
+                const lecHours = schedule.schedule_type === 'Lecture' ? (schedule.duration_hours || '3') : '-';
 
                 scheduleRows += `
                 <tr>
-                    ${index === 0 ? `<td rowspan="${numScheduleRows + 1}" style="border: 1px solid #000; padding: 4px; font-size: 10px; vertical-align: top; font-weight: bold;">${finalFacultyName.toUpperCase()}</td>` : ''}
+                    ${index === 0 ? `<td rowspan="${numScheduleRows}" style="border: 1px solid #000; padding: 4px; font-size: 10px; vertical-align: top; font-weight: bold; width: 20%;">${facultyName.toUpperCase()}</td>` : ''}
                     <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${timeRange}</td>
-                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.day_of_week || 'MW'}</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.day_of_week || 'MWF'}</td>
                     <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">${courseInfo}</td>
-                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">-</td>
-                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">-</td>
-                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.units || '1'}</td>
-                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.lab_hours || '3'}</td>
-                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.room_name || 'LAB'}</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.schedule_type === 'Lecture' ? units : '-'}</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${lecHours}</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.schedule_type === 'Laboratory' ? units : '-'}</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${labHours}</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${schedule.room_name || 'TBD'}</td>
                     <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${sectionDetail}</td>
                     <td style="border: 1px solid #000; padding: 2px; text-align: center; font-size: 10px;">${studentCount}</td>
                 </tr>`;
@@ -322,7 +320,7 @@ ob_start();
             // Show faculty name with empty schedule
             scheduleRows = `
             <tr>
-                <td rowspan="4" style="border: 1px solid #000; padding: 4px; font-size: 10px; vertical-align: top; font-weight: bold;">${finalFacultyName.toUpperCase()}</td>
+                <td rowspan="${numScheduleRows}" style="border: 1px solid #000; padding: 4px; font-size: 10px; vertical-align: top; font-weight: bold; width: 20%;">${facultyName.toUpperCase()}</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
@@ -333,19 +331,13 @@ ob_start();
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            </tr>
-            <tr>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-                <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            </tr>
+            </tr>`;
+            currentRow = 1;
+        }
+
+        // Add remaining empty rows to complete faculty section
+        while (currentRow < numScheduleRows - 1) {
+            scheduleRows += `
             <tr>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
@@ -358,76 +350,34 @@ ob_start();
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
                 <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
             </tr>`;
-            currentRow = 3;
+            currentRow++;
         }
 
-        // Add empty row to complete faculty section
-        scheduleRows += `
-        <tr>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-        </tr>`;
-
-        // Add faculty rank and note rows
-        scheduleRows += `
-        <tr>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">Rank(?) of Faculty</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-        </tr>
-        <tr>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">Note: Don't leave each item blank.</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-        </tr>`;
-
-        // Faculty information section (large merged cell)
+        // Faculty information section with complete data
         const facultyInfoContent = `
         <div style="font-size: 9px; line-height: 1.3;">
-            <strong>Employment Status:</strong> ${employmentStatus}<br/>
-            <strong>VSL:</strong> ☐Yes ☐No<br/>
-            <strong>Academic Rank:</strong> ${position}<br/>
-            <strong>Bachelor's Degree:</strong> ${additionalInfo.bachelors || 'BS in Computer Science'}<br/>
-            <strong>Master's Degree:</strong> ${additionalInfo.masters || 'MS in Computer Science'}<br/>
-            <strong>Doctorate Degree:</strong> ${additionalInfo.doctorate || 'Ph.D. TEM (On-going)'}<br/>
-            <strong>Post Doctorate Degree:</strong> ${additionalInfo.postDoc || 'Not Applicable'}<br/>
-            <strong>Designation:</strong> ${additionalInfo.designation || 'Adviser, SDC / Internal'}<br/>
-            <strong>Schedule Equiv. Teaching Load (ETL):</strong> 0<br/>
+            <strong>Employment Status:</strong> ${employmentType}<br/>
+            <strong>VSL:</strong> ${classification === 'VSL' ? '☑' : '☐'}Yes ${classification === 'TL' ? '☑' : '☐'}No<br/>
+            <strong>Academic Rank:</strong> ${academicRank}<br/>
+            <strong>Bachelor's Degree:</strong> ${bachelorDegree}<br/>
+            <strong>Master's Degree:</strong> ${masterDegree}<br/>
+            <strong>Doctorate Degree:</strong> ${doctorateDegree}<br/>
+            <strong>Post Doctorate Degree:</strong> ${postDocDegree}<br/>
+            <strong>Designation:</strong> ${designation}<br/>
+            <strong>Schedule Equiv. Teaching Load (ETL):</strong> ${equivTeachingLoad}<br/>
             <strong>Total Lecture Hours:</strong> ${totalLectureHours}<br/>
             <strong>Total Laboratory Hours:</strong> ${totalLabHours}<br/>
-            <strong>Total Lab Hours x 0.75:</strong> ${totalLabHoursAdjusted.toFixed(2)}<br/>
-            <strong>No. of Preparation:</strong> ${preparations.size}<br/>
-            <strong>Advisory Class:</strong> ${additionalInfo.advisoryClass || 'N/A'}<br/>
+            <strong>Total Lab Hours x 0.75:</strong> ${totalLabHoursX075.toFixed(2)}<br/>
+            <strong>No. of Preparation:</strong> ${noOfPreparations}<br/>
+            <strong>Advisory Class:</strong> ${advisoryClass}<br/>
             <strong>Equiv. Units for Prep:</strong> 0<br/>
             <strong>Actual Teaching Load (ATL):</strong> ${actualTeachingLoad.toFixed(2)}<br/>
             <strong>Total Working Load (ETL+ATL):</strong> ${totalWorkingLoad.toFixed(2)}<br/>
-            <strong>Excess (24 Hours):</strong> ${excess.toFixed(2)}
+            <strong>Excess (24 Hours):</strong> ${excessHours.toFixed(2)}
         </div>
         `;
 
-        // Add faculty information section (12 rows for better spacing)
+        // Add faculty information section (12 rows)
         scheduleRows += `
         <tr>
             <td rowspan="12" style="border: 1px solid #000; padding: 8px; font-size: 9px; vertical-align: top; width: 25%;">
@@ -444,7 +394,7 @@ ob_start();
             <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
         </tr>`;
 
-        // Add remaining 10 empty rows for the faculty info section
+        // Add 10 more empty rows for faculty info section
         for (let i = 0; i < 10; i++) {
             scheduleRows += `
             <tr>
@@ -460,12 +410,10 @@ ob_start();
             </tr>`;
         }
 
-        // Add the missing row with colspan="10" as shown in prototype
+        // Final row with colspan
         scheduleRows += `
         <tr>
             <td colspan="10" style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
-            <td style="border: 1px solid #000; padding: 2px; font-size: 10px;">&nbsp;</td>
         </tr>`;
 
         // Header section with logo
@@ -479,19 +427,21 @@ ob_start();
                 <div style="font-size: 12px; font-weight: bold; margin-bottom: 2px;">PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</div>
                 <div style="font-size: 8px; font-style: italic; margin-bottom: 5px;">(formerly Ramon Magsaysay Technological University)</div>
                 <div style="font-size: 10px; font-weight: bold; margin-bottom: 2px;">Iba, Zambales</div>
+                <div style="font-size: 14px; font-weight: bold; margin-top: 10px;">FACULTY TEACHING LOAD</div>
+                <div style="font-size: 12px; margin-top: 5px;">${semesterInfo}</div>
             </div>
         </div>
         `;
 
-        // Combined table with header and data rows for proper alignment
+        // Complete table structure
         const completeTable = `
         <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 10px;">
             <thead>
                 <tr>
                     <td rowspan="3" style="border: 1px solid #000; padding: 4px; font-size: 10px; vertical-align: top; width: 20%;">
-                        <p><strong>Campus:</strong> ${campusName}</p>
-                        <p><strong>Address:</strong> ${campusAddress}</p>
-                        <p><strong>College:</strong> ${finalCollegeName}</p>
+                        <p><strong>Campus:</strong> Main Campus</p>
+                        <p><strong>Address:</strong> Iba</p>
+                        <p><strong>College:</strong> ${collegeName}</p>
                     </td>
                     <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold; font-size: 10px; width: 8%;">Time</td>
                     <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold; font-size: 10px; width: 6%;">Day/s</td>
@@ -518,33 +468,39 @@ ob_start();
         </table>
         `;
 
-        // Signature section matching prototype exactly
+        // Signature section
         const signatureSection = `
         <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin: 20px 0;">
             <tr>
-                <td style="border: 1px solid #000; padding: 4px; font-weight: bold; font-size: 10px;">Prepared:</td>
-                <td colspan="5" style="border: 1px solid #000; padding: 4px; font-weight: bold; font-size: 10px;">Recommending Approval:</td>
-                <td colspan="6" style="border: 1px solid #000; padding: 4px; font-weight: bold; font-size: 10px;">Approved</td>
+                <td style="border: 1px solid #000; padding: 4px; font-weight: bold; font-size: 10px; text-align: center; width: 16.67%;">Prepared:</td>
+                <td colspan="5" style="border: 1px solid #000; padding: 4px; font-weight: bold; font-size: 10px; text-align: center;">Recommending Approval:</td>
+                <td colspan="6" style="border: 1px solid #000; padding: 4px; font-weight: bold; font-size: 10px; text-align: center;">Approved</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #000; padding: 10px; font-size: 10px; text-align: center;">
-                    <p><strong>MENCHIE A. DELA CRUZ, Ph.D.</strong></p>
-                    <p>Dean, CCIT</p>
+                <td style="border: 1px solid #000; padding: 15px; font-size: 10px; text-align: center; vertical-align: bottom;">
+                    <div style="border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;">
+                        <strong>MENCHIE A. DELA CRUZ, Ph.D.</strong><br/>
+                        Dean, CCIT
+                    </div>
                 </td>
-                <td colspan="5" style="border: 1px solid #000; padding: 10px; font-size: 10px; text-align: center;">
-                    <p><strong>NEMIA M. GALANG, Ph.D.</strong></p>
-                    <p>Director for Instruction</p>
+                <td colspan="5" style="border: 1px solid #000; padding: 15px; font-size: 10px; text-align: center; vertical-align: bottom;">
+                    <div style="border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;">
+                        <strong>NEMIA M. GALANG, Ph.D.</strong><br/>
+                        Director for Instruction
+                    </div>
                 </td>
-                <td colspan="6" style="border: 1px solid #000; padding: 10px; font-size: 10px; text-align: center;">
-                    <p><strong>LILIAN F. UY, Ed.D.</strong></p>
-                    <p>Vice President for Academic Affairs</p>
+                <td colspan="6" style="border: 1px solid #000; padding: 15px; font-size: 10px; text-align: center; vertical-align: bottom;">
+                    <div style="border-top: 1px solid #000; margin-top: 30px; padding-top: 5px;">
+                        <strong>LILIAN F. UY, Ed.D.</strong><br/>
+                        Vice President for Academic Affairs
+                    </div>
                 </td>
             </tr>
         </table>
         `;
 
         const printContent = `
-        <div style="width: 100%; font-family: Arial, sans-serif; font-size: 10px; color: #000; background: white; padding: 10px;">
+        <div style="width: 100%; font-family: Arial, sans-serif; font-size: 10px; color: #000; background: white; padding: 20px;">
             ${headerSection}
             ${completeTable}
             ${signatureSection}
@@ -602,7 +558,7 @@ ob_start();
                     this.classList.add('loading');
                     const originalHTML = this.innerHTML;
 
-                    // Add loading spinner
+                    // Add loading spinner for buttons
                     if (this.tagName === 'BUTTON') {
                         this.innerHTML = `
                             <svg class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -631,7 +587,7 @@ ob_start();
                 row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
                 row.style.opacity = '1';
                 row.style.transform = 'translateY(0)';
-            }, index * 100);
+            }, index * 50);
         });
     });
 </script>

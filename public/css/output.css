@@ -1179,6 +1179,9 @@
   .border-gray-300 {
     border-color: var(--color-gray-300);
   }
+  .border-gray-400 {
+    border-color: var(--color-gray-400);
+  }
   .border-gray-700 {
     border-color: var(--color-gray-700);
   }
@@ -2389,6 +2392,13 @@
     &:hover {
       @media (hover: hover) {
         border-color: var(--color-yellow-400);
+      }
+    }
+  }
+  .hover\:border-yellow-500 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: var(--color-yellow-500);
       }
     }
   }
