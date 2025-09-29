@@ -1082,14 +1082,12 @@ class ChairController
                     error_log("generateSchedulesAjax: Sections count: " . count($sections));
                     error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
 
-                    // FIXED: Properly determine semester type from current semester
                     $semesterName = strtolower($currentSemester['semester_name'] ?? '');
                     $isMidYearSummer = in_array($semesterName, ['midyear', 'summer', 'mid-year', 'mid year', '3rd']);
                     $semesterType = $isMidYearSummer ? $semesterName : 'regular';
 
                     error_log("generateSchedulesAjax: Current semester name: '{$currentSemester['semester_name']}', detected type: '$semesterType'");
 
-                    // FIXED: Pass parameters in correct order
                     $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId, $semesterType);
                     $this->removeDuplicateSchedules($departmentId, $currentSemester);
 
@@ -1098,13 +1096,23 @@ class ChairController
 
                     $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
                     $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
-                    $unassigned = !empty(array_diff($allCourseCodes, $assignedCourseCodes));
+                    $unassignedCourses = array_map(function ($course) {
+                        return ['course_code' => $course['course_code']];
+                    }, array_filter($this->getCurriculumCourses($curriculumId), fn($c) => !in_array($c['course_code'], $assignedCourseCodes)));
+
+                    $totalCourses = count($allCourseCodes);
+                    $totalSections = count(array_unique(array_column($consolidatedSchedules, 'section_id')));
+                    $successRate = $totalCourses > 0 ? (count($assignedCourseCodes) / $totalCourses) * 100 : 0;
+                    $successRate = number_format($successRate, 2) . '%';
 
                     echo json_encode([
                         'success' => true,
                         'schedules' => $consolidatedSchedules,
-                        'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses",
-                        'unassigned' => $unassigned
+                        'unassignedCourses' => $unassignedCourses,
+                        'totalCourses' => $totalCourses,
+                        'totalSections' => $totalSections,
+                        'successRate' => $successRate,
+                        'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses"
                     ]);
                 } else {
                     error_log("generateSchedulesAjax: Missing curriculum ID for generate_schedule");

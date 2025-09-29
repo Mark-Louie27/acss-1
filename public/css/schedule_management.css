@@ -157,6 +157,29 @@ input:focus {
   }
 }
 
+.pulsing-loader {
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, #f59e0b 30%, rgba(245, 158, 11, 0.3) 70%);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+}
+
 .modal-overlay {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);

@@ -498,12 +498,30 @@ ob_start();
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Loading Overlay -->
-            <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-                <div class="bg-white p-8 rounded-lg shadow-xl text-center">
-                    <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-yellow-500 mx-auto mb-4"></div>
-                    <p class="text-gray-700 font-medium">Generating schedules...</p>
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-8 rounded-lg shadow-xl text-center">
+                <div class="pulsing-loader mx-auto mb-4"></div>
+                <p class="text-gray-700 font-medium">Generating schedules...</p>
+            </div>
+        </div>
+
+        <!-- Generation Report Modal -->
+        <div id="report-modal" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900" id="report-title">Schedule Generation Report</h3>
+                    <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div id="report-content" class="mb-6 text-gray-700">
+                    <!-- Report content will be dynamically updated -->
+                </div>
+                <div class="flex justify-end">
+                    <button onclick="closeReportModal()" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Close</button>
                 </div>
             </div>
         </div>
@@ -1023,13 +1041,114 @@ ob_start();
                 }
             }
 
+            document.getElementById('generate-btn').addEventListener('click', function() {
+                const form = document.getElementById('generate-form');
+                const curriculumId = form.querySelector('#curriculum_id').value;
+                if (!curriculumId) {
+                    showNotification('Please select a curriculum.', 'error');
+                    return;
+                }
+
+                // Show loading overlay
+                const loadingOverlay = document.getElementById('loading-overlay');
+                loadingOverlay.classList.remove('hidden');
+
+                fetch('/chair/generate-schedules', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams(new FormData(form))
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        loadingOverlay.classList.add('hidden');
+
+                        // Update schedule data
+                        window.scheduleData = data.schedules || [];
+                        updateScheduleDisplay(window.scheduleData);
+
+                        // Show report modal
+                        const reportModal = document.getElementById('report-modal');
+                        const reportContent = document.getElementById('report-content');
+                        const reportTitle = document.getElementById('report-title');
+                        let statusText, statusClass;
+
+                        if (!data.schedules || data.schedules.length === 0) {
+                            statusText = 'No schedule has been created.';
+                            statusClass = 'text-red-600 bg-red-50 border-red-200';
+                        } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
+                            statusText = 'Incomplete schedule. Some courses could not be scheduled: ' + data.unassignedCourses.map(c => c.course_code).join(', ');
+                            statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                        } else {
+                            statusText = 'Completed generating schedule.';
+                            statusClass = 'text-green-600 bg-green-50 border-green-200';
+                        }
+
+                        reportContent.innerHTML = `
+                        <div class="p-4 ${statusClass} border rounded-lg mb-4">
+                            <p class="font-semibold">${statusText}</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div class="bg-white p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-courses">${data.totalCourses || 0}</div>
+                                <div class="text-gray-600">Courses Scheduled</div>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-sections">${data.totalSections || 0}</div>
+                                <div class="text-gray-600">Sections</div>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-success-rate">${data.successRate || '0%'}</div>
+                                <div class="text-gray-600">Success Rate</div>
+                            </div>
+                        </div>
+                    `;
+                        reportTitle.className = `text-lg font-semibold ${statusClass.replace('bg-', 'text-')}`;
+                        reportModal.classList.remove('hidden');
+
+                        // Update generation results if visible
+                        const generationResults = document.getElementById('generation-results');
+                        if (generationResults) {
+                            if (data.schedules && data.schedules.length > 0) {
+                                generationResults.classList.remove('hidden');
+                                document.getElementById('total-courses').textContent = data.totalCourses || 0;
+                                document.getElementById('total-sections').textContent = data.totalSections || 0;
+                                document.getElementById('success-rate').textContent = data.successRate || '0%';
+                            } else {
+                                generationResults.classList.add('hidden');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        loadingOverlay.classList.add('hidden');
+                        console.error('Generate error:', error);
+                        showNotification('Error generating schedules: ' + error.message, 'error');
+                    });
+            });
+
+            function closeReportModal() {
+                const reportModal = document.getElementById('report-modal');
+                reportModal.classList.add('hidden');
+            }
+
             // Initialize page
             document.addEventListener('DOMContentLoaded', function() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const tab = urlParams.get('tab');
+                const reportModal = document.getElementById('report-modal');
+
                 if (tab === 'schedule-list') switchTab('schedule');
                 else if (tab === 'manual') switchTab('manual');
                 else switchTab('generate');
+
+                if (reportModal) {
+                    reportModal.addEventListener('click', function(e) {
+                        if (e.target === reportModal) {
+                            closeReportModal();
+                        }
+                    });
+                }
             });
         </script>
 
