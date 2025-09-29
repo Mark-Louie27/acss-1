@@ -293,8 +293,8 @@ ob_start();
                                         </td>
                                         <td class="px-4 py-3 space-x-2">
                                             <?php if ($classroom['room_status'] === 'Owned'): ?>
-                                                <button onclick="editClassroom(<?= htmlspecialchars(json_encode($classroom)) ?>)"
-                                                    class="text-yellow hover:text-dark-gray focus:outline-none">
+                                                <button class="edit-classroom-btn text-yellow hover:text-dark-gray focus:outline-none"
+                                                    data-classroom='<?= json_encode($classroom) ?>'>
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                             <?php elseif ($classroom['room_status'] === 'Included'): ?>
@@ -885,8 +885,8 @@ ob_start();
                         <td class="px-4 py-3 text-sm text-dark-gray">${classroom.current_semester_usage} schedules</td>
                         <td class="px-4 py-3 space-x-2">
                             ${classroom.room_status === 'Owned' ? `
-                                <button onclick="editClassroom(${JSON.stringify(classroom)})"
-                                    class="text-yellow hover:text-dark-gray focus:outline-none">
+                                <button class="edit-classroom-btn text-yellow hover:text-dark-gray focus:outline-none"
+                                    data-classroom='${JSON.stringify(classroom).replace(/'/g, "&#39;")}'>
                                     <i class="fas fa-edit"></i>
                                 </button>
                             ` : (classroom.room_status === 'Included' ? `
@@ -947,6 +947,13 @@ ob_start();
                 }
             });
 
+            document.querySelectorAll('.edit-classroom-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const classroom = JSON.parse(this.dataset.classroom);
+                    editClassroom(classroom);
+                });
+            });
+
             document.getElementById('editClassroomForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
@@ -983,6 +990,11 @@ ob_start();
             document.addEventListener('click', (e) => {
                 if (!suggestions.contains(e.target) && e.target !== searchInput) {
                     suggestions.classList.add('hidden');
+                }
+                const editBtn = e.target.closest('.edit-classroom-btn');
+                if (editBtn) {
+                    const classroom = JSON.parse(editBtn.dataset.classroom);
+                    editClassroom(classroom);
                 }
             });
         });

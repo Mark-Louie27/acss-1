@@ -3773,10 +3773,7 @@ class ChairController
             // Fetch classrooms with usage
             $fetchClassrooms = function ($departmentId) {
                 $currentSemester = $this->getCurrentSemester();
-                if ($currentSemester === null) {
-                    error_log("classroom: No current semester found");
-                    return [];
-                }
+                
                 $currentSemesterId = $currentSemester['semester_id']; // Extract the ID from the array
 
                 $query = "
@@ -3813,7 +3810,7 @@ class ChairController
                     ORDER BY c.room_name
                 ";
                 $stmt = $this->db->prepare($query);
-                error_log("classroom: Preparing query: $query with department_id=$departmentId, semester_id=$currentSemesterId");
+
                 $params = [
                     ':department_id1' => $departmentId,
                     ':department_id2' => $departmentId,
@@ -4073,36 +4070,57 @@ class ChairController
                     case 'search_shared_rooms':
                         try {
                             $searchTerm = isset($_POST['search']) ? '%' . $_POST['search'] . '%' : '%';
+
+                            error_log("classroom: Starting search_shared_rooms with searchTerm=$searchTerm, departmentId=$departmentId");
+
                             $query = "
-                                SELECT 
-                                    c.*,
-                                    d.department_name,
-                                    cl.college_name,
-                                    'Shared' AS room_status
-                                FROM classrooms c
-                                JOIN departments d ON c.department_id = d.department_id
-                                JOIN colleges cl ON d.college_id = cl.college_id
-                                WHERE 
-                                    c.shared = 1
-                                    AND c.department_id != :department_id
-                                    AND (c.room_name LIKE :search OR c.building LIKE :search OR d.department_name LIKE :search)
-                                ORDER BY c.room_name
-                            ";
+            SELECT 
+                c.*,
+                d.department_name,
+                cl.college_name,
+                'Shared' AS room_status
+            FROM classrooms c
+            JOIN departments d ON c.department_id = d.department_id
+            JOIN colleges cl ON d.college_id = cl.college_id
+            WHERE 
+                c.shared = 1
+                AND c.department_id != :department_id
+                AND (c.room_name LIKE :search1 OR c.building LIKE :search2 OR d.department_name LIKE :search3)
+            ORDER BY c.room_name
+        ";
+
+                            error_log("classroom: Preparing search query");
                             $stmt = $this->db->prepare($query);
-                            $stmt->execute([
+
+                            $params = [
                                 ':department_id' => $departmentId,
-                                ':search' => $searchTerm
-                            ]);
+                                ':search1' => $searchTerm,
+                                ':search2' => $searchTerm,
+                                ':search3' => $searchTerm
+                            ];
+
+                            error_log("classroom: Executing search with params: " . json_encode($params));
+                            $stmt->execute($params);
+
                             $searchResults = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                            error_log("classroom: Search shared rooms with term=$searchTerm, found " . count($searchResults) . " results");
+                            error_log("classroom: Search completed, found " . count($searchResults) . " results");
+
                             ob_clean();
                             echo json_encode([
                                 'success' => true,
                                 'searchResults' => $searchResults
                             ]);
                             exit;
-                        } catch (PDOException | Exception $e) {
-                            error_log("classroom: Search Error: " . $e->getMessage());
+                        } catch (PDOException $e) {
+                            error_log("classroom: PDO Search Error: " . $e->getMessage());
+                            ob_clean();
+                            echo json_encode([
+                                'success' => false,
+                                'message' => "Search failed: " . htmlspecialchars($e->getMessage())
+                            ]);
+                            exit;
+                        } catch (Exception $e) {
+                            error_log("classroom: General Search Error: " . $e->getMessage());
                             ob_clean();
                             echo json_encode([
                                 'success' => false,
