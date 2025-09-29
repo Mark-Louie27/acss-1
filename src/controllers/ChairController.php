@@ -3530,88 +3530,626 @@ class ChairController
     /**
      * Manage classrooms
      */
-    public function classroom()
+    public function setClassroomsAvailableForSemester($departmentId, $semesterId)
     {
-        error_log("classroom: Starting classroom method");
         try {
-            $chairId = $_SESSION['user_id'];
-            $departmentId = $this->getChairDepartment($chairId);
-            $classrooms = [];
-            $departments = []; // Initialize departments array
-            $error = null;
-
-            $departmentInfo = null;
-
-            // Get department and college info for the chair's department
-            if ($departmentId) {
-                $stmt = $this->db->prepare("
-                SELECT d.*, cl.college_name 
-                FROM departments d
-                JOIN colleges cl ON d.college_id = cl.college_id
-                WHERE d.department_id = ?
-            ");
-                $stmt->execute([$departmentId]);
-                $departmentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$departmentId || !$semesterId) {
+                throw new Exception("Invalid department ID or semester ID.");
             }
 
-            // Fetch all departments for the dropdown
-            $deptStmt = $this->db->prepare("SELECT department_id, department_name FROM departments ORDER BY department_name");
-            $deptStmt->execute();
-            $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Fetch classrooms (own department + shared)
             $query = "
-            SELECT c.*, d.department_name, cl.college_name 
-            FROM classrooms c
-            JOIN departments d ON c.department_id = d.department_id
-            JOIN colleges cl ON d.college_id = cl.college_id
-            WHERE c.department_id = :department_id OR c.shared = 1
-        ";
-            $params = [':department_id' => $departmentId];
-
-            // Handle search via GET
-            if (isset($_GET['search']) && !empty($_GET['search'])) {
-                $searchTerm = '%' . $_GET['search'] . '%';
-                $query .= " AND (c.room_name LIKE :search OR c.building LIKE :search)";
-                $params[':search'] = $searchTerm;
-            }
-
-            $query .= " ORDER BY c.room_name";
+                UPDATE classrooms c
+                LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id
+                JOIN departments d ON c.department_id = d.department_id
+                SET c.availability = 'available'
+                WHERE (
+                    c.department_id = :department_id1
+                    OR (
+                        c.shared = 0 
+                        AND d.college_id = (
+                            SELECT college_id 
+                            FROM departments 
+                            WHERE department_id = :department_id2
+                        )
+                    )
+                    OR (
+                        c.shared = 1 
+                        AND cd.department_id = :department_id3
+                    )
+                )
+            ";
             $stmt = $this->db->prepare($query);
+            $params = [
+                ':department_id1' => $departmentId,
+                ':department_id2' => $departmentId,
+                ':department_id3' => $departmentId
+            ];
+            $stmt->execute($params);
+            $affectedRows = $stmt->rowCount();
+            error_log("setClassroomsAvailableForSemester: Set $affectedRows classrooms to available for semester_id=$semesterId, department_id=$departmentId");
+
+            $this->logActivity(null, $departmentId, 'Set Classrooms Available', "Set all classrooms to available for semester_id=$semesterId", 'classrooms', null);
+            return [
+                'success' => true,
+                'message' => "All classrooms set to available for semester ID $semesterId."
+            ];
+        } catch (PDOException | Exception $e) {
+            error_log("setClassroomsAvailableForSemester: Error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => "Failed to set classrooms available: " . htmlspecialchars($e->getMessage())
+            ];
+        }
+    }
+
+    public function checkClassroomAvailability($departmentId)
+    {
+        try {
+            if (!$departmentId) {
+                throw new Exception("Invalid department ID.");
+            }
+            $currentSemester = $this->getCurrentSemester();
+            if (!$currentSemester || !isset($currentSemester['semester_id'])) {
+                throw new Exception("No current semester found.");
+            }
+            $currentSemesterId = $currentSemester['semester_id'];
+
+            // Get all relevant classrooms (labs and shared rooms)
+            $query = "
+            SELECT 
+                c.room_id,
+                c.room_type,
+                c.shared,
+                c.availability AS current_availability,
+                COUNT(s.schedule_id) AS schedule_count,
+                GROUP_CONCAT(s.time_slot) AS time_slots
+            FROM classrooms c
+            LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id
+            JOIN departments d ON c.department_id = d.department_id
+            LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
+            WHERE (
+                c.department_id = :department_id1
+                OR (
+                    c.shared = 0 
+                    AND d.college_id = (
+                        SELECT college_id 
+                        FROM departments 
+                        WHERE department_id = :department_id2
+                    )
+                )
+                OR (
+                    c.shared = 1 
+                    AND cd.department_id = :department_id3
+                )
+            )
+            AND (c.room_type = 'laboratory' OR c.shared = 1)
+            GROUP BY c.room_id, c.room_type, c.shared, c.current_availability
+        ";
+            $stmt = $this->db->prepare($query);
+            $params = [
+                ':current_semester_id' => $currentSemesterId,
+                ':department_id1' => $departmentId,
+                ':department_id2' => $departmentId,
+                ':department_id3' => $departmentId
+            ];
             $stmt->execute($params);
             $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Handle missing department
-            if (!$departmentId) {
-                error_log("classroom: No department found for chairId: $chairId");
-                $classrooms = [];
-                $error = "No department assigned to this chair.";
+            $updatedCount = 0;
+            $days = ['M', 'T', 'W', 'R', 'F']; // Monday to Friday only
+
+            foreach ($classrooms as $classroom) {
+                $roomId = $classroom['room_id'];
+                $scheduleCount = $classroom['schedule_count'];
+                $timeSlots = $classroom['time_slots'] ? explode(',', $classroom['time_slots']) : [];
+                $currentAvailability = $classroom['current_availability'];
+
+                error_log("Processing room_id=$roomId, schedule_count=$scheduleCount, current_availability=$currentAvailability");
+
+                // Skip if under_maintenance
+                if ($currentAvailability === 'under_maintenance') {
+                    error_log("Skipping room_id=$roomId due to under_maintenance");
+                    continue;
+                }
+
+                // If no schedules, set to available
+                if ($scheduleCount == 0) {
+                    $newAvailability = 'available';
+                } else {
+                    // Initialize availability per day
+                    $availabilityByDay = array_fill_keys($days, ['morning' => true, 'afternoon' => true]);
+
+                    foreach ($timeSlots as $slot) {
+                        preg_match('/([MTWRF]+) (\d{1,2}:\d{2})-(\d{1,2}:\d{2})/', $slot, $matches);
+                        if (count($matches) >= 4) {
+                            $slotDays = str_split($matches[1]);
+                            $startTime = strtotime($matches[2]);
+                            $endTime = strtotime($matches[3]);
+                            $startMinutes = (int)date('H', $startTime) * 60 + (int)date('i', $startTime);
+                            $endMinutes = (int)date('H', $endTime) * 60 + (int)date('i', $endTime);
+
+                            // Morning: 7:00 AM (420 min) - 12:00 PM (720 min)
+                            // Afternoon: 12:00 PM (720 min) - 6:00 PM (1080 min)
+                            foreach ($slotDays as $day) {
+                                if (!in_array($day, $days)) continue;
+                                if ($startMinutes < 720 && $endMinutes <= 720) {
+                                    $availabilityByDay[$day]['morning'] = false;
+                                } elseif ($startMinutes >= 720 && $endMinutes <= 1080) {
+                                    $availabilityByDay[$day]['afternoon'] = false;
+                                } elseif ($startMinutes < 720 && $endMinutes > 720) {
+                                    $availabilityByDay[$day]['morning'] = false;
+                                    $availabilityByDay[$day]['afternoon'] = false;
+                                }
+                            }
+                        }
+                    }
+
+                    // Classroom is available if any time slot on any day is free
+                    $isAvailable = array_reduce($availabilityByDay, function ($carry, $slots) {
+                        return $carry || $slots['morning'] || $slots['afternoon'];
+                    }, false);
+                    $newAvailability = $isAvailable ? 'available' : 'unavailable';
+                }
+
+                error_log("room_id=$roomId, schedule_count=$scheduleCount, newAvailability=$newAvailability");
+
+                // Update only if availability changes
+                if ($newAvailability !== $currentAvailability) {
+                    $updateQuery = "
+                    UPDATE classrooms
+                    SET availability = :availability
+                    WHERE room_id = :room_id
+                ";
+                    $updateStmt = $this->db->prepare($updateQuery);
+                    $updateStmt->execute([
+                        ':availability' => $newAvailability,
+                        ':room_id' => $roomId
+                    ]);
+                    $updatedCount += $updateStmt->rowCount();
+                    error_log("Updated room_id=$roomId to availability=$newAvailability");
+                } else {
+                    error_log("No change for room_id=$roomId, current=$currentAvailability, new=$newAvailability");
+                }
             }
 
-            // Pass variables to the view
+            error_log("checkClassroomAvailability: Updated $updatedCount classrooms for semester_id=$currentSemesterId, department_id=$departmentId");
+            $this->logActivity(null, $departmentId, 'Check Classroom Availability', "Updated $updatedCount classrooms for semester_id=$currentSemesterId", 'classrooms', null);
+            return [
+                'success' => true,
+                'message' => "Classroom availability updated for semester ID $currentSemesterId."
+            ];
+        } catch (PDOException | Exception $e) {
+            error_log("checkClassroomAvailability: Error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => "Failed to check classroom availability: " . htmlspecialchars($e->getMessage())
+            ];
+        }
+    }
+
+    public function classroom()
+    {
+        error_log("classroom: Starting classroom method");
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        try {
+            $chairId = $_SESSION['user_id'] ?? null;
+            $departmentId = $this->getChairDepartment($chairId);
+            $classrooms = [];
+            $departments = [];
+            $error = null;
+            $success = null;
+            $searchResults = [];
+
+            // Get department and college info
+            if ($departmentId) {
+                $stmt = $this->db->prepare("
+                    SELECT d.*, cl.college_id, cl.college_name 
+                    FROM departments d
+                    JOIN colleges cl ON d.college_id = cl.college_id
+                    WHERE d.department_id = ?
+                ");
+                error_log("classroom: Preparing department query");
+                $stmt->execute([$departmentId]);
+                error_log("classroom: Executed department query with department_id=$departmentId");
+                $departmentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$departmentInfo['college_id']) {
+                    $error = "No college assigned to this department.";
+                    error_log("classroom: No college found for department_id=$departmentId");
+                }
+            } else {
+                $error = "No department assigned to this chair.";
+                error_log("classroom: No department found for chairId=$chairId");
+            }
+
+            // Fetch all departments
+            $deptStmt = $this->db->prepare("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
+            $deptStmt->execute();
+            $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch classrooms with usage
+            $fetchClassrooms = function ($departmentId) {
+                $currentSemester = $this->getCurrentSemester();
+                if ($currentSemester === null) {
+                    error_log("classroom: No current semester found");
+                    return [];
+                }
+                $currentSemesterId = $currentSemester['semester_id']; // Extract the ID from the array
+
+                $query = "
+                    SELECT 
+                        c.*,
+                        d.department_name,
+                        cl.college_name,
+                        CASE 
+                            WHEN c.department_id = :department_id1 THEN 'Owned'
+                            WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
+                            WHEN c.shared = 0 AND d.college_id = (
+                                SELECT college_id 
+                                FROM departments 
+                                WHERE department_id = :department_id2
+                            ) THEN 'College-Shared'
+                            ELSE 'Shared'
+                        END AS room_status,
+                        COUNT(s.schedule_id) AS current_semester_usage
+                    FROM classrooms c
+                    JOIN departments d ON c.department_id = d.department_id
+                    JOIN colleges cl ON d.college_id = cl.college_id
+                    LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id3
+                    LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id AND s.room_id IS NOT NULL
+                    WHERE (
+                        c.department_id = :department_id4
+                        OR (c.shared = 0 AND d.college_id = (
+                            SELECT college_id 
+                            FROM departments 
+                            WHERE department_id = :department_id5
+                        ))
+                        OR (c.shared = 1 AND cd.department_id IS NOT NULL)
+                    )
+                    GROUP BY c.room_id
+                    ORDER BY c.room_name
+                ";
+                $stmt = $this->db->prepare($query);
+                error_log("classroom: Preparing query: $query with department_id=$departmentId, semester_id=$currentSemesterId");
+                $params = [
+                    ':department_id1' => $departmentId,
+                    ':department_id2' => $departmentId,
+                    ':department_id3' => $departmentId,
+                    ':department_id4' => $departmentId,
+                    ':department_id5' => $departmentId,
+                    ':current_semester_id' => $currentSemesterId // Now using the extracted ID
+                ];
+                error_log("classroom: Executing query with params: " . json_encode($params));
+                $stmt->execute($params);
+                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                error_log("classroom: Fetched " . count($results) . " classrooms for department_id=$departmentId");
+                return $results;
+            };
+
+            if ($departmentId) {
+                $classrooms = $fetchClassrooms($departmentId);
+            }
+
+            // Handle POST actions
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+                switch ($_POST['action']) {
+                    case 'add':
+                        try {
+                            if (!$departmentId) {
+                                throw new Exception("Invalid department.");
+                            }
+                            $room_name = $_POST['room_name'] ?? '';
+                            $building = $_POST['building'] ?? '';
+                            $capacity = (int)($_POST['capacity'] ?? 0);
+                            $room_type = $_POST['room_type'] ?? 'lecture';
+                            $shared = isset($_POST['shared']) ? 1 : 0;
+                            $availability = $_POST['availability'] ?? 'available';
+
+                            if (empty($room_name) || empty($building) || $capacity < 1) {
+                                throw new Exception("Room name, building, and valid capacity are required.");
+                            }
+
+                            $stmt = $this->db->prepare("
+                                INSERT INTO classrooms 
+                                (room_name, building, capacity, room_type, shared, availability, department_id, created_at, updated_at) 
+                                VALUES (:room_name, :building, :capacity, :room_type, :shared, :availability, :department_id, NOW(), NOW())
+                            ");
+                            $stmt->execute([
+                                ':room_name' => $room_name,
+                                ':building' => $building,
+                                ':capacity' => $capacity,
+                                ':room_type' => $room_type,
+                                ':shared' => $shared,
+                                ':availability' => $availability,
+                                ':department_id' => $departmentId
+                            ]);
+                            $roomId = $this->db->lastInsertId();
+                            error_log("classroom: Added room_id=$roomId for department_id=$departmentId");
+
+                            $classrooms = $fetchClassrooms($departmentId);
+                            $response = [
+                                'success' => true,
+                                'message' => "Classroom added successfully.",
+                                'classrooms' => $classrooms
+                            ];
+                            $this->logActivity($chairId, $departmentId, 'Add Classroom', "Added classroom $room_name", 'classrooms', $roomId);
+                        } catch (PDOException | Exception $e) {
+                            $response = [
+                                'success' => false,
+                                'message' => "Failed to add classroom: " . htmlspecialchars($e->getMessage())
+                            ];
+                            error_log("classroom: Add Error: " . $e->getMessage());
+                        }
+                        if ($isAjax) {
+                            ob_clean();
+                            echo json_encode($response);
+                            exit;
+                        }
+                        $success = $response['message'];
+                        break;
+
+                    case 'edit':
+                        try {
+                            $room_id = (int)($_POST['room_id'] ?? 0);
+                            $room_name = $_POST['room_name'] ?? '';
+                            $building = $_POST['building'] ?? '';
+                            $capacity = (int)($_POST['capacity'] ?? 0);
+                            $room_type = $_POST['room_type'] ?? 'lecture';
+                            $shared = isset($_POST['shared']) ? 1 : 0;
+                            $availability = $_POST['availability'] ?? 'available';
+
+                            if (empty($room_name) || empty($building) || $capacity < 1 || !$room_id) {
+                                throw new Exception("Room name, building, capacity, and valid room ID are required.");
+                            }
+
+                            $checkStmt = $this->db->prepare("SELECT department_id FROM classrooms WHERE room_id = :room_id");
+                            $checkStmt->execute([':room_id' => $room_id]);
+                            if ($checkStmt->fetchColumn() != $departmentId) {
+                                throw new Exception("You can only edit classrooms owned by your department.");
+                            }
+
+                            $stmt = $this->db->prepare("
+                                UPDATE classrooms SET 
+                                    room_name = :room_name,
+                                    building = :building,
+                                    capacity = :capacity,
+                                    room_type = :room_type,
+                                    shared = :shared,
+                                    availability = :availability,
+                                    updated_at = NOW()
+                                WHERE room_id = :room_id AND department_id = :department_id
+                            ");
+                            $stmt->execute([
+                                ':room_id' => $room_id,
+                                ':room_name' => $room_name,
+                                ':building' => $building,
+                                ':capacity' => $capacity,
+                                ':room_type' => $room_type,
+                                ':shared' => $shared,
+                                ':availability' => $availability,
+                                ':department_id' => $departmentId
+                            ]);
+                            error_log("classroom: Updated room_id=$room_id for department_id=$departmentId");
+
+                            $classrooms = $fetchClassrooms($departmentId);
+                            $response = [
+                                'success' => true,
+                                'message' => "Classroom updated successfully.",
+                                'classrooms' => $classrooms
+                            ];
+                            $this->logActivity($chairId, $departmentId, 'Edit Classroom', "Edited classroom $room_name", 'classrooms', $room_id);
+                        } catch (PDOException | Exception $e) {
+                            $response = [
+                                'success' => false,
+                                'message' => "Failed to update classroom: " . htmlspecialchars($e->getMessage())
+                            ];
+                            error_log("classroom: Edit Error: " . $e->getMessage());
+                        }
+                        if ($isAjax) {
+                            ob_clean();
+                            echo json_encode($response);
+                            exit;
+                        }
+                        $success = $response['message'];
+                        break;
+
+                    case 'include_room':
+                        try {
+                            $room_id = (int)($_POST['room_id'] ?? 0);
+                            if (!$room_id || !$departmentId) {
+                                throw new Exception("Invalid room ID or department ID.");
+                            }
+
+                            $checkStmt = $this->db->prepare("
+                                SELECT shared, department_id 
+                                FROM classrooms 
+                                WHERE room_id = :room_id
+                            ");
+                            $checkStmt->execute([':room_id' => $room_id]);
+                            $room = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                            if (!$room) {
+                                throw new Exception("Room not found.");
+                            }
+                            if ($room['department_id'] == $departmentId) {
+                                throw new Exception("Cannot include a room owned by your department.");
+                            }
+                            if ($room['shared'] != 1) {
+                                throw new Exception("This room is not shared with other colleges.");
+                            }
+
+                            $checkInclusionStmt = $this->db->prepare("
+                                SELECT classroom_department_id 
+                                FROM classroom_departments 
+                                WHERE classroom_id = :room_id AND department_id = :department_id
+                            ");
+                            $checkInclusionStmt->execute([
+                                ':room_id' => $room_id,
+                                ':department_id' => $departmentId
+                            ]);
+                            if ($checkInclusionStmt->fetchColumn()) {
+                                throw new Exception("This room is already included in your department.");
+                            }
+
+                            $stmt = $this->db->prepare("
+                                INSERT INTO classroom_departments (classroom_id, department_id, created_at)
+                                VALUES (:room_id, :department_id, NOW())
+                            ");
+                            $stmt->execute([
+                                ':room_id' => $room_id,
+                                ':department_id' => $departmentId
+                            ]);
+                            $classroomDepartmentId = $this->db->lastInsertId();
+                            error_log("classroom: Included room_id=$room_id for department_id=$departmentId");
+
+                            $classrooms = $fetchClassrooms($departmentId);
+                            $response = [
+                                'success' => true,
+                                'message' => "Room included successfully.",
+                                'classrooms' => $classrooms
+                            ];
+                            $this->logActivity($chairId, $departmentId, 'Include Room', "Included room_id=$room_id", 'classroom_departments', $classroomDepartmentId);
+                        } catch (PDOException | Exception $e) {
+                            $response = [
+                                'success' => false,
+                                'message' => "Failed to include room: " . htmlspecialchars($e->getMessage())
+                            ];
+                            error_log("classroom: Include Room Error: " . $e->getMessage());
+                        }
+                        ob_clean();
+                        echo json_encode($response);
+                        exit;
+                        break;
+
+                    case 'remove_room':
+                        try {
+                            $room_id = (int)($_POST['room_id'] ?? 0);
+                            if (!$room_id || !$departmentId) {
+                                throw new Exception("Invalid room ID or department ID.");
+                            }
+
+                            $checkStmt = $this->db->prepare("
+                                SELECT classroom_department_id 
+                                FROM classroom_departments 
+                                WHERE classroom_id = :room_id AND department_id = :department_id
+                            ");
+                            $checkStmt->execute([
+                                ':room_id' => $room_id,
+                                ':department_id' => $departmentId
+                            ]);
+                            $classroomDepartmentId = $checkStmt->fetchColumn();
+                            if (!$classroomDepartmentId) {
+                                throw new Exception("This room is not included in your department.");
+                            }
+
+                            $stmt = $this->db->prepare("
+                                DELETE FROM classroom_departments 
+                                WHERE classroom_department_id = :classroom_department_id
+                            ");
+                            $stmt->execute([':classroom_department_id' => $classroomDepartmentId]);
+                            error_log("classroom: Removed room_id=$room_id from department_id=$departmentId");
+
+                            $classrooms = $fetchClassrooms($departmentId);
+                            $response = [
+                                'success' => true,
+                                'message' => "Room removed successfully.",
+                                'classrooms' => $classrooms
+                            ];
+                            $this->logActivity($chairId, $departmentId, 'Remove Room', "Removed room_id=$room_id", 'classroom_departments', $classroomDepartmentId);
+                        } catch (PDOException | Exception $e) {
+                            $response = [
+                                'success' => false,
+                                'message' => "Failed to remove room: " . htmlspecialchars($e->getMessage())
+                            ];
+                            error_log("classroom: Remove Room Error: " . $e->getMessage());
+                        }
+                        ob_clean();
+                        echo json_encode($response);
+                        exit;
+                        break;
+
+                    case 'search_shared_rooms':
+                        try {
+                            $searchTerm = isset($_POST['search']) ? '%' . $_POST['search'] . '%' : '%';
+                            $query = "
+                                SELECT 
+                                    c.*,
+                                    d.department_name,
+                                    cl.college_name,
+                                    'Shared' AS room_status
+                                FROM classrooms c
+                                JOIN departments d ON c.department_id = d.department_id
+                                JOIN colleges cl ON d.college_id = cl.college_id
+                                WHERE 
+                                    c.shared = 1
+                                    AND c.department_id != :department_id
+                                    AND (c.room_name LIKE :search OR c.building LIKE :search OR d.department_name LIKE :search)
+                                ORDER BY c.room_name
+                            ";
+                            $stmt = $this->db->prepare($query);
+                            $stmt->execute([
+                                ':department_id' => $departmentId,
+                                ':search' => $searchTerm
+                            ]);
+                            $searchResults = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            error_log("classroom: Search shared rooms with term=$searchTerm, found " . count($searchResults) . " results");
+                            ob_clean();
+                            echo json_encode([
+                                'success' => true,
+                                'searchResults' => $searchResults
+                            ]);
+                            exit;
+                        } catch (PDOException | Exception $e) {
+                            error_log("classroom: Search Error: " . $e->getMessage());
+                            ob_clean();
+                            echo json_encode([
+                                'success' => false,
+                                'message' => "Search failed: " . htmlspecialchars($e->getMessage())
+                            ]);
+                            exit;
+                        }
+                        break;
+                }
+            }
+            if ($isAjax) {
+                ob_clean();
+                echo json_encode([
+                    'success' => $success,
+                    'error' => $error,
+                    'classrooms' => $classrooms,
+                    'departmentInfo' => $departmentInfo,
+                    'departments' => $departments,
+                    'searchResults' => $searchResults
+                ]);
+                exit;
+            }
+
             $viewData = [
                 'classrooms' => $classrooms,
                 'departmentInfo' => $departmentInfo,
                 'departments' => $departments,
-                'error' => $error
-            ];
-            extract($viewData); // Extract variables into the current scope
-            require_once __DIR__ . '/../views/chair/classroom.php';
-        } catch (PDOException $e) {
-            error_log("classroom: Error - " . $e->getMessage());
-            $error = "Failed to load classrooms.";
-            $departments = []; // Fallback in case of error
-            $viewData = [
-                'classrooms' => [],
-                'departmentInfo' => null,
-                'departments' => $departments,
-                'error' => $error
+                'error' => $error,
+                'success' => $success
             ];
             extract($viewData);
             require_once __DIR__ . '/../views/chair/classroom.php';
+        } catch (Exception $e) {
+            error_log("classroom: General Error: " . $e->getMessage());
+            if ($isAjax) {
+                ob_clean();
+                echo json_encode([
+                    'success' => false,
+                    'message' => "An error occurred: " . htmlspecialchars($e->getMessage())
+                ]);
+                exit;
+            }
+            $error = "An error occurred: " . htmlspecialchars($e->getMessage());
+            require_once __DIR__ . '/../views/chair/classroom.php';
         }
     }
-
+    
     public function sections()
     {
         error_log("sections: Starting sections method");
