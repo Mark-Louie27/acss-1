@@ -509,7 +509,7 @@ ob_start();
         </div>
 
         <!-- Generation Report Modal -->
-        <div id="report-modal" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
+        <div id="report-modal" class="fixed inset-0 bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-semibold text-gray-900" id="report-title">Schedule Generation Report</h3>
@@ -1068,56 +1068,64 @@ ob_start();
                         window.scheduleData = data.schedules || [];
                         updateScheduleDisplay(window.scheduleData);
 
-                        // Show report modal
-                        const reportModal = document.getElementById('report-modal');
-                        const reportContent = document.getElementById('report-content');
-                        const reportTitle = document.getElementById('report-title');
-                        let statusText, statusClass;
+                        // Ensure data is processed before showing modal
+                        if (data.success) {
+                            // Add a small delay to allow UI update
+                            setTimeout(() => {
+                                // Show report modal
+                                const reportModal = document.getElementById('report-modal');
+                                const reportContent = document.getElementById('report-content');
+                                const reportTitle = document.getElementById('report-title');
+                                let statusText, statusClass;
 
-                        if (!data.schedules || data.schedules.length === 0) {
-                            statusText = 'No schedule has been created.';
-                            statusClass = 'text-red-600 bg-red-50 border-red-200';
-                        } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
-                            statusText = 'Incomplete schedule. Some courses could not be scheduled: ' + data.unassignedCourses.map(c => c.course_code).join(', ');
-                            statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                                if (!data.schedules || data.schedules.length === 0) {
+                                    statusText = 'No schedule has been created.';
+                                    statusClass = 'text-red-600 bg-red-50 border-red-200';
+                                } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
+                                    statusText = 'Incomplete schedule. Some courses could not be scheduled: ' + data.unassignedCourses.map(c => c.course_code).join(', ');
+                                    statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                                } else {
+                                    statusText = 'Completed generating schedule.';
+                                    statusClass = 'text-green-600 bg-green-50 border-green-200';
+                                }
+
+                                reportContent.innerHTML = `
+                                    <div class="p-4 ${statusClass} border rounded-lg mb-4">
+                                        <p class="font-semibold">${statusText}</p>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                        <div class="bg-white p-3 rounded-lg text-center">
+                                            <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-courses">${data.totalCourses || 0}</div>
+                                            <div class="text-gray-600">Courses Scheduled</div>
+                                        </div>
+                                        <div class="bg-white p-3 rounded-lg text-center">
+                                            <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-sections">${data.totalSections || 0}</div>
+                                            <div class="text-gray-600">Sections</div>
+                                        </div>
+                                        <div class="bg-white p-3 rounded-lg text-center">
+                                            <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-success-rate">${data.successRate || '0%'}</div>
+                                            <div class="text-gray-600">Success Rate</div>
+                                        </div>
+                                    </div>
+                                `;
+                                reportTitle.className = `text-lg font-semibold ${statusClass.replace('bg-', 'text-')}`;
+                                reportModal.classList.remove('hidden');
+
+                                // Update generation results if visible
+                                const generationResults = document.getElementById('generation-results');
+                                if (generationResults) {
+                                    if (data.schedules && data.schedules.length > 0) {
+                                        generationResults.classList.remove('hidden');
+                                        document.getElementById('total-courses').textContent = data.totalCourses || 0;
+                                        document.getElementById('total-sections').textContent = data.totalSections || 0;
+                                        document.getElementById('success-rate').textContent = data.successRate || '0%';
+                                    } else {
+                                        generationResults.classList.add('hidden');
+                                    }
+                                }
+                            }, 500); // 500ms delay to allow data to settle
                         } else {
-                            statusText = 'Completed generating schedule.';
-                            statusClass = 'text-green-600 bg-green-50 border-green-200';
-                        }
-
-                        reportContent.innerHTML = `
-                        <div class="p-4 ${statusClass} border rounded-lg mb-4">
-                            <p class="font-semibold">${statusText}</p>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div class="bg-white p-3 rounded-lg text-center">
-                                <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-courses">${data.totalCourses || 0}</div>
-                                <div class="text-gray-600">Courses Scheduled</div>
-                            </div>
-                            <div class="bg-white p-3 rounded-lg text-center">
-                                <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-sections">${data.totalSections || 0}</div>
-                                <div class="text-gray-600">Sections</div>
-                            </div>
-                            <div class="bg-white p-3 rounded-lg text-center">
-                                <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-success-rate">${data.successRate || '0%'}</div>
-                                <div class="text-gray-600">Success Rate</div>
-                            </div>
-                        </div>
-                    `;
-                        reportTitle.className = `text-lg font-semibold ${statusClass.replace('bg-', 'text-')}`;
-                        reportModal.classList.remove('hidden');
-
-                        // Update generation results if visible
-                        const generationResults = document.getElementById('generation-results');
-                        if (generationResults) {
-                            if (data.schedules && data.schedules.length > 0) {
-                                generationResults.classList.remove('hidden');
-                                document.getElementById('total-courses').textContent = data.totalCourses || 0;
-                                document.getElementById('total-sections').textContent = data.totalSections || 0;
-                                document.getElementById('success-rate').textContent = data.successRate || '0%';
-                            } else {
-                                generationResults.classList.add('hidden');
-                            }
+                            showNotification(data.message || 'Error generating schedules', 'error');
                         }
                     })
                     .catch(error => {

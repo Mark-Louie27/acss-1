@@ -1176,13 +1176,17 @@ class ChairController
 
             if (empty($matchingSections) || empty($relevantCourses)) {
                 error_log("generateSchedules: No sections or courses found for curriculum $curriculumId, semester {$currentSemester['semester_name']}");
+                $this->db->commit(); // Commit even if empty to avoid rollback
                 return $schedules;
             }
 
             $dayPatterns = [
                 'MWF' => ['Monday', 'Wednesday', 'Friday'],
                 'TTH' => ['Tuesday', 'Thursday'],
-                'SAT' => ['Saturday']
+                'SAT' => ['Saturday'],
+                'SUN' => ['Sunday'],
+                'MW' => ['Monday', 'Wednesday'],
+                'TF' => ['Tuesday', 'Friday']
             ];
 
             $flexibleTimeSlots = $this->generateFlexibleTimeSlots();
@@ -1260,14 +1264,25 @@ class ChairController
                     $sectionsForCourse = array_filter($matchingSections, fn($s) => $s['year_level'] === $course['curriculum_year']);
                     $assignedThisCourse = false;
 
-                    $isNSTPCourse = $this->isNSTPCourse($course['course_code']);
-                    $pattern = $isNSTPCourse ? 'SAT' : (($courseIndex % 2 === 0) ? 'MWF' : 'TTH');
+                    // Check weekday availability first
+                    $hasWeekdaySlots = $this->hasAvailableWeekdaySlots($sectionsForCourse, $flexibleTimeSlots, $sectionScheduleTracker, $usedTimeSlots);
+
+                    // Select pattern based on availability
+                    $pattern = $this->selectDayPattern($course, $courseDetails, $courseIndex, $hasWeekdaySlots);
                     $targetDays = $dayPatterns[$pattern];
 
+                    if (!$hasWeekdaySlots && in_array($pattern, ['SAT', 'SUN'])) {
+                        error_log("generateSchedules: Using weekend pattern '$pattern' for {$course['course_code']} - weekdays exhausted");
+                    }
+
+                    $isNSTPCourse = $this->isNSTPCourse($course['course_code']);
                     if ($isNSTPCourse && !$this->areRoomsAvailableOnDays($departmentId, $sectionsForCourse, $targetDays, $flexibleTimeSlots, $roomAssignments, $schedules)) {
-                        $alternativeDays = array_diff(array_merge($dayPatterns['MWF'], $dayPatterns['TTH']), $targetDays);
-                        $targetDays = $alternativeDays ? [$alternativeDays[0]] : $targetDays;
-                        error_log("generateSchedules: Switching NSTP {$course['course_code']} to alternative day: " . $targetDays[0]);
+                        if ($hasWeekdaySlots) {
+                            $targetDays = ['Saturday'];
+                            error_log("generateSchedules: Switching NSTP {$course['course_code']} to Saturday");
+                        } else {
+                            error_log("generateSchedules: Switching NSTP {$course['course_code']} ");
+                        }
                     }
 
                     $durationData = $this->calculateCourseDuration($courseDetails);
@@ -1459,6 +1474,32 @@ class ChairController
     {
         $scheduledSections = [];
         $courseDetails = $this->getCourseDetails($course['course_id']);
+        $hasLecture = ($courseDetails['lecture_hours'] ?? 0) > 0;
+        $hasLab = ($courseDetails['lab_hours'] ?? 0) > 0;
+
+        // UNIFIED FACULTY: If course has both lecture and lab, ensure same faculty
+        if ($hasLecture && $hasLab && !$facultyId) {
+            error_log("UNIFIED FACULTY: Course {$courseDetails['course_code']} needs single faculty for both lecture and lab");
+
+            $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
+            $facultyId = $this->findBestFaculty(
+                $facultySpecializations,
+                $course['course_id'],
+                $targetDays,
+                $timeSlots[0][0],
+                $timeSlots[0][1],
+                $collegeId,
+                $departmentId,
+                $schedules,
+                $facultyAssignments,
+                $courseDetails['course_code'],
+                $sectionsForCourse[0]['section_id']
+            );
+
+            if ($facultyId) {
+                error_log("UNIFIED FACULTY: Selected faculty $facultyId for both components of {$courseDetails['course_code']}");
+            }
+        }
 
         // Determine duration based on component type
         if ($isLecture) {
@@ -1510,20 +1551,21 @@ class ChairController
                     continue;
                 }
 
-                // IMPROVED: Separate room assignment logic for lecture vs lab
+                // ENHANCED: Room assignment with shared lab support
                 $roomAssignmentSuccess = true;
                 $dayRoomAssignments = [];
+                $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
 
                 foreach ($targetDays as $day) {
                     $roomId = null;
                     $roomName = 'Online';
                     $scheduleType = 'Online';
 
-                    // Determine room requirements based on component
                     if ($forceF2F || $subjectType === 'Professional Course') {
                         $needsLabRoom = $isLab || ($courseDetails['lab_hours'] ?? 0) > 0;
                         $roomPreference = $needsLabRoom ? 'laboratory' : 'classroom';
 
+                        // ENHANCED: Use shared lab room support
                         $room = $this->getSpecificRoomType(
                             $departmentId,
                             $section['max_students'],
@@ -1532,13 +1574,19 @@ class ChairController
                             $endTime,
                             $schedules,
                             $roomPreference,
-                            $component // Pass component type (Lecture/Lab)
+                            $component,
+                            $collegeId
                         );
 
                         if ($room && $room['room_id']) {
                             $roomId = $room['room_id'];
                             $roomName = $room['room_name'];
                             $scheduleType = 'F2F';
+
+                            // Log shared lab usage
+                            if ($needsLabRoom && isset($room['access_type']) && $room['access_type'] === 'SHARED_LAB') {
+                                error_log("SHARED LAB ASSIGNED: {$roomName} for {$courseDetails['course_code']} ({$component})");
+                            }
                         } else {
                             error_log("No suitable {$roomPreference} room available for {$courseDetails['course_code']} ({$component}) on $day");
                             $roomAssignmentSuccess = false;
@@ -1578,12 +1626,12 @@ class ChairController
                         'is_public' => 1,
                         'course_code' => $courseDetails['course_code'],
                         'course_name' => $courseDetails['course_name'],
-                        'faculty_name' => $this->getFaculty($facultyId, $this->getChairCollege($_SESSION['user_id'])['college_id']),
+                        'faculty_name' => $this->getFaculty($facultyId, $collegeId),
                         'room_name' => $roomAssignment['room_name'],
                         'section_name' => $section['section_name'],
                         'year_level' => $section['year_level'],
                         'department_id' => $departmentId,
-                        'component_type' => $component, // Add component type
+                        'component_type' => $component,
                         'days_pattern' => implode('', array_map(fn($d) => substr($d, 0, 1), $targetDays))
                     ];
 
@@ -1626,7 +1674,7 @@ class ChairController
                     $scheduledSections[] = $section['section_id'];
                     $sectionScheduledSuccessfully = true;
 
-                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} at $startTime-$endTime");
+                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} with faculty $facultyId");
                     break; // Move to next section
                 } else {
                     // Rollback saved schedules for this failed attempt
@@ -1645,62 +1693,218 @@ class ChairController
     }
 
     // NEW: Specific room type assignment
-    private function getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $roomPreference = 'classroom', $component = null)
+    private function getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $roomPreference = 'classroom', $component = null, $collegeId = null, $sectionScheduleTracker = [])
     {
-        error_log("Looking for {$roomPreference} room for {$component} component on $day at $startTime-$endTime");
+        error_log("getSpecificRoomType: Looking for {$roomPreference} room for {$component} on $day at $startTime-$endTime");
 
-        // Build room type condition
-        $roomTypeCondition = '';
         $params = [
-            ':department_id' => $departmentId,
             ':capacity' => $maxStudents,
             ':day' => $day,
             ':start_time' => $startTime,
             ':end_time' => $endTime,
-            ':semester_id' => $_SESSION['current_semester']['semester_id']
+            ':semester_id' => $_SESSION['current_semester']['semester_id'],
+            ':department_id' => $departmentId
         ];
 
         if ($roomPreference === 'laboratory') {
-            $roomTypeCondition = "AND (r.room_type LIKE '%lab%' OR r.room_name LIKE '%lab%')";
-        } elseif ($roomPreference === 'classroom') {
-            $roomTypeCondition = "AND (r.room_type NOT LIKE '%lab%' AND r.room_name NOT LIKE '%lab%')";
-        }
+            error_log("LABORATORY SEARCH: Checking lab rooms with shared=1 support");
 
-        // First try: Department-specific rooms with type preference
-        $stmt = $this->db->prepare("
-        SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
-        FROM classrooms r
-        WHERE r.capacity >= :capacity 
-        AND r.department_id = :department_id
-        {$roomTypeCondition}
-        AND NOT EXISTS (
-            SELECT 1 FROM schedules s
-            WHERE s.room_id = r.room_id
-            AND s.day_of_week = :day
-            AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
-            AND s.semester_id = :semester_id
-        )
-        ORDER BY r.capacity ASC
+            // Priority 1: Department-owned lab rooms
+            $stmt = $this->db->prepare("
+            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id, r.shared, 'DEPARTMENT_OWNED' as access_type
+            FROM classrooms r
+            WHERE r.capacity >= :capacity 
+            AND r.department_id = :department_id
+            AND (r.room_type LIKE '%lab%' OR r.room_name LIKE '%lab%')
+            AND r.availability = 'available'
+            AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.room_id = r.room_id
+                AND s.day_of_week = :day
+                AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+                AND s.semester_id = :semester_id
+            )
+            ORDER BY r.capacity ASC
         ");
+            $stmt->execute($params);
+            $departmentLabs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmt->execute($params);
-        $availableRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($departmentLabs as $room) {
+                if (
+                    !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                    !$this->hasSectionConflict($sectionScheduleTracker, $day, $startTime, $endTime, $room['room_id'])
+                ) {
+                    error_log("Assigned DEPARTMENT LAB: {$room['room_name']} for {$component}");
+                    return $room;
+                }
+            }
 
-        foreach ($availableRooms as $room) {
-            if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
-                error_log("Assigned {$roomPreference} room: {$room['room_name']} for {$component}");
-                return $room;
+            // Priority 2: SHARED lab rooms from other departments
+            $stmt = $this->db->prepare("
+            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id, r.shared, d.department_name, 'SHARED_LAB' as access_type
+            FROM classrooms r
+            JOIN departments d ON r.department_id = d.department_id
+            WHERE r.capacity >= :capacity 
+            AND r.department_id != :department_id
+            AND r.shared = 1
+            AND (r.room_type LIKE '%lab%' OR r.room_name LIKE '%lab%')
+            AND r.availability = 'available'
+            AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.room_id = r.room_id
+                AND s.day_of_week = :day
+                AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+                AND s.semester_id = :semester_id
+            )
+            ORDER BY r.capacity ASC
+        ");
+            $stmt->execute($params);
+            $sharedLabs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($sharedLabs as $room) {
+                if (
+                    !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                    !$this->hasSectionConflict($sectionScheduleTracker, $day, $startTime, $endTime, $room['room_id'])
+                ) {
+                    error_log("Assigned SHARED LAB: {$room['room_name']} from {$room['department_name']} department for {$component}");
+                    return $room;
+                }
+            }
+
+            error_log("No lab rooms available (department or shared) for {$component} on $day at $startTime-$endTime");
+        } else {
+            // REGULAR CLASSROOM SEARCH (non-lab) - similar enhancement
+            $roomTypeCondition = ($roomPreference === 'classroom')
+                ? "AND (r.room_type NOT LIKE '%lab%' AND r.room_name NOT LIKE '%lab%')"
+                : "";
+
+            $stmt = $this->db->prepare("
+            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id, r.shared
+            FROM classrooms r
+            WHERE r.capacity >= :capacity 
+            AND r.department_id = :department_id
+            AND r.availability = 'available'
+            {$roomTypeCondition}
+            AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.room_id = r.room_id
+                AND s.day_of_week = :day
+                AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+                AND s.semester_id = :semester_id
+            )
+            ORDER BY r.capacity ASC
+        ");
+            $stmt->execute($params);
+            $departmentRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($departmentRooms as $room) {
+                if (
+                    !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                    !$this->hasSectionConflict($sectionScheduleTracker, $day, $startTime, $endTime, $room['room_id'])
+                ) {
+                    error_log("Assigned department {$roomPreference}: {$room['room_name']} for {$component}");
+                    return $room;
+                }
+            }
+
+            if ($roomPreference === 'classroom') {
+                $stmt = $this->db->prepare("
+                SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id, r.shared, d.department_name
+                FROM classrooms r
+                JOIN departments d ON r.department_id = d.department_id
+                WHERE r.capacity >= :capacity 
+                AND r.department_id != :department_id
+                AND r.shared = 1
+                AND r.availability = 'available'
+                AND (r.room_type NOT LIKE '%lab%' AND r.room_name NOT LIKE '%lab%')
+                AND NOT EXISTS (
+                    SELECT 1 FROM schedules s
+                    WHERE s.room_id = r.room_id
+                    AND s.day_of_week = :day
+                    AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
+                    AND s.semester_id = :semester_id
+                )
+                ORDER BY r.capacity ASC
+            ");
+                $stmt->execute($params);
+                $sharedClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($sharedClassrooms as $room) {
+                    if (
+                        !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                        !$this->hasSectionConflict($sectionScheduleTracker, $day, $startTime, $endTime, $room['room_id'])
+                    ) {
+                        error_log("Assigned SHARED classroom: {$room['room_name']} from {$room['department_name']} for {$component}");
+                        return $room;
+                    }
+                }
             }
         }
 
-        // Second try: Any available room from department if specific type not found
-        if ($roomPreference !== 'any') {
-            error_log("No {$roomPreference} rooms available, trying any room type");
-            return $this->getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, 'any', $component);
+        error_log("No {$roomPreference} rooms available for {$component} on $day at $startTime-$endTime");
+        return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
+    }
+
+    // New helper method to check conflicts with section schedule tracker
+    private function hasSectionConflict($sectionScheduleTracker, $day, $startTime, $endTime, $roomId)
+    {
+        foreach ($sectionScheduleTracker as $sectionId => $schedules) {
+            foreach ($schedules as $schedule) {
+                if ($schedule['day'] === $day && $this->timeOverlap($schedule['start_time'], $schedule['end_time'], $startTime, $endTime)) {
+                    error_log("Section conflict detected for room $roomId on $day at $startTime-$endTime with section $sectionId");
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private function selectDayPattern($course, $courseDetails, $courseIndex, $availableWeekdaySlots = true)
+    {
+        $courseCode = $course['course_code'];
+        $subjectType = $courseDetails['subject_type'] ?? 'General Education';
+        $hasLab = ($courseDetails['lab_hours'] ?? 0) > 0;
+
+        if ($availableWeekdaySlots) {
+            if ($this->isNSTPCourse($courseCode)) {
+                $patterns = ['MWF', 'TTH', 'MW', 'TF'];
+                return $patterns[$courseIndex % 4];
+            }
+            if ($hasLab) {
+                return ($courseIndex % 2 === 0) ? 'MWF' : 'TTH';
+            }
+            return ($courseIndex % 2 === 0) ? 'MWF' : 'TTH';
         }
 
-        error_log("No rooms available for {$component} on $day at $startTime-$endTime");
-        return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
+        // Weekends only when weekdays exhausted
+        error_log("Weekday slots exhausted, using weekend for {$courseCode}");
+        if ($this->isNSTPCourse($courseCode)) {
+            return 'SAT';
+        }
+        return ($courseIndex % 2 === 0) ? 'SAT' : 'SUN';
+    }
+
+    private function hasAvailableWeekdaySlots($sectionsForCourse, $flexibleTimeSlots, $sectionScheduleTracker, $usedTimeSlots)
+    {
+        $weekdayPatterns = [
+            ['Monday', 'Wednesday', 'Friday'],
+            ['Tuesday', 'Thursday'],
+            ['Monday', 'Wednesday'],
+            ['Tuesday', 'Friday']
+        ];
+
+        foreach ($weekdayPatterns as $patternDays) {
+            foreach ($flexibleTimeSlots as $slot) {
+                foreach ($sectionsForCourse as $section) {
+                    if ($this->isScheduleSlotAvailable($section['section_id'], $patternDays, $slot[0], $slot[1], $sectionScheduleTracker)) {
+                        if (!$this->isTimeSlotUsed($slot[0], $slot[1], $patternDays, $usedTimeSlots)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     // Helper method to delete schedule from database (for rollback)
