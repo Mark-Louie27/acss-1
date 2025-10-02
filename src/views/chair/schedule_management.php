@@ -1044,6 +1044,7 @@ ob_start();
             document.getElementById('generate-btn').addEventListener('click', function() {
                 const form = document.getElementById('generate-form');
                 const curriculumId = form.querySelector('#curriculum_id').value;
+
                 if (!curriculumId) {
                     showNotification('Please select a curriculum.', 'error');
                     return;
@@ -1053,80 +1054,47 @@ ob_start();
                 const loadingOverlay = document.getElementById('loading-overlay');
                 loadingOverlay.classList.remove('hidden');
 
+                // Build form data
+                const formData = new URLSearchParams({
+                    action: 'generate_schedule',
+                    curriculum_id: curriculumId,
+                    semester_id: form.querySelector('[name="semester_id"]').value
+                });
+
                 fetch('/chair/generate-schedules', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
                         },
-                        body: new URLSearchParams(new FormData(form))
+                        body: formData
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        // Check if response is ok
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
+                        console.log('Received data:', data); // Debug log
+
+                        // Hide loading overlay
                         loadingOverlay.classList.add('hidden');
 
-                        // Update schedule data
+                        if (!data.success) {
+                            showNotification(data.message || 'Error generating schedules', 'error');
+                            return; // Stop here if generation failed
+                        }
+
+                        // Update schedule data ONLY if successful
                         window.scheduleData = data.schedules || [];
+
+                        // Update display first
                         updateScheduleDisplay(window.scheduleData);
 
-                        // Ensure data is processed before showing modal
-                        if (data.success) {
-                            // Add a small delay to allow UI update
-                            setTimeout(() => {
-                                // Show report modal
-                                const reportModal = document.getElementById('report-modal');
-                                const reportContent = document.getElementById('report-content');
-                                const reportTitle = document.getElementById('report-title');
-                                let statusText, statusClass;
+                        // THEN show modal after display is updated
+                        showReportModal(data);
 
-                                if (!data.schedules || data.schedules.length === 0) {
-                                    statusText = 'No schedule has been created.';
-                                    statusClass = 'text-red-600 bg-red-50 border-red-200';
-                                } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
-                                    statusText = 'Incomplete schedule. Some courses could not be scheduled: ' + data.unassignedCourses.map(c => c.course_code).join(', ');
-                                    statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
-                                } else {
-                                    statusText = 'Completed generating schedule.';
-                                    statusClass = 'text-green-600 bg-green-50 border-green-200';
-                                }
-
-                                reportContent.innerHTML = `
-                                    <div class="p-4 ${statusClass} border rounded-lg mb-4">
-                                        <p class="font-semibold">${statusText}</p>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                        <div class="bg-white p-3 rounded-lg text-center">
-                                            <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-courses">${data.totalCourses || 0}</div>
-                                            <div class="text-gray-600">Courses Scheduled</div>
-                                        </div>
-                                        <div class="bg-white p-3 rounded-lg text-center">
-                                            <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-total-sections">${data.totalSections || 0}</div>
-                                            <div class="text-gray-600">Sections</div>
-                                        </div>
-                                        <div class="bg-white p-3 rounded-lg text-center">
-                                            <div class="text-2xl font-bold ${statusClass.replace('text-', 'text-')}" id="report-success-rate">${data.successRate || '0%'}</div>
-                                            <div class="text-gray-600">Success Rate</div>
-                                        </div>
-                                    </div>
-                                `;
-                                reportTitle.className = `text-lg font-semibold ${statusClass.replace('bg-', 'text-')}`;
-                                reportModal.classList.remove('hidden');
-
-                                // Update generation results if visible
-                                const generationResults = document.getElementById('generation-results');
-                                if (generationResults) {
-                                    if (data.schedules && data.schedules.length > 0) {
-                                        generationResults.classList.remove('hidden');
-                                        document.getElementById('total-courses').textContent = data.totalCourses || 0;
-                                        document.getElementById('total-sections').textContent = data.totalSections || 0;
-                                        document.getElementById('success-rate').textContent = data.successRate || '0%';
-                                    } else {
-                                        generationResults.classList.add('hidden');
-                                    }
-                                }
-                            }, 500); // 500ms delay to allow data to settle
-                        } else {
-                            showNotification(data.message || 'Error generating schedules', 'error');
-                        }
                     })
                     .catch(error => {
                         loadingOverlay.classList.add('hidden');
@@ -1134,6 +1102,74 @@ ob_start();
                         showNotification('Error generating schedules: ' + error.message, 'error');
                     });
             });
+
+            // NEW: Separate function to show report modal
+            function showReportModal(data) {
+                const reportModal = document.getElementById('report-modal');
+                const reportContent = document.getElementById('report-content');
+                const reportTitle = document.getElementById('report-title');
+
+                let statusText, statusClass;
+
+                // Determine status based on results
+                if (!data.schedules || data.schedules.length === 0) {
+                    statusText = 'No schedules were created. Please check if there are available sections, courses, faculty, and rooms.';
+                    statusClass = 'text-red-600 bg-red-50 border-red-200';
+                    reportTitle.textContent = 'Schedule Generation Failed';
+                } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
+                    statusText = `Partial success. ${data.unassignedCourses.length} courses could not be scheduled: ${data.unassignedCourses.map(c => c.course_code).join(', ')}`;
+                    statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                    reportTitle.textContent = 'Schedule Generation Partially Complete';
+                } else {
+                    statusText = 'All schedules generated successfully!';
+                    statusClass = 'text-green-600 bg-green-50 border-green-200';
+                    reportTitle.textContent = 'Schedule Generation Complete';
+                }
+
+                // Build report content
+                reportContent.innerHTML = `
+                    <div class="p-4 ${statusClass} border rounded-lg mb-4">
+                        <p class="font-semibold">${statusText}</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
+                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalCourses || 0}</div>
+                            <div class="text-gray-600 mt-1">Total Courses</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
+                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalSections || 0}</div>
+                            <div class="text-gray-600 mt-1">Sections</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
+                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.successRate || '0%'}</div>
+                            <div class="text-gray-600 mt-1">Success Rate</div>
+                        </div>
+                    </div>
+                    ${data.unassignedCourses && data.unassignedCourses.length > 0 ? `
+                        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="text-sm font-medium text-yellow-800 mb-2">Unscheduled Courses:</p>
+                            <ul class="text-sm text-yellow-700 list-disc list-inside">
+                                ${data.unassignedCourses.map(c => `<li>${c.course_code}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                `;
+
+                reportTitle.className = `text-lg font-semibold ${statusClass.split(' ')[0]}`;
+
+                // Show the modal
+                reportModal.classList.remove('hidden');
+                reportModal.classList.add('flex');
+
+                // Update generation results card if it exists
+                const generationResults = document.getElementById('generation-results');
+                if (generationResults && data.schedules && data.schedules.length > 0) {
+                    generationResults.classList.remove('hidden');
+                    document.getElementById('total-courses').textContent = data.totalCourses || 0;
+                    document.getElementById('total-sections').textContent = data.totalSections || 0;
+                    document.getElementById('success-rate').textContent = data.successRate || '0%';
+                }
+            }
 
             function closeReportModal() {
                 const reportModal = document.getElementById('report-modal');
