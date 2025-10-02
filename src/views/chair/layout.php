@@ -689,11 +689,18 @@ $modal_content = $modal_content ?? '';
                 <span>Profile</span>
             </a>
 
-            <!-- Reports -->
+            <!-- Settings -->
+            <a href="/chair/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/settings') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/chair/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Settings</span>
+            </a>
+
+            <!-- Reports
             <a href="/chair/reports" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/reports') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                 <i class="fas fa-chart-bar w-5 mr-3 <?= strpos($currentUri, '/chair/reports') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Reports</span>
             </a>
+             -->
         </nav>
 
         <!-- Sidebar Footer -->

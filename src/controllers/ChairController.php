@@ -142,7 +142,6 @@ class ChairController
             JOIN courses c ON s.course_id = c.course_id 
             WHERE c.department_id = ?
             " . ($currentSemesterId ? "AND s.semester_id = ?" : ""));
-
             $params = [$departmentId];
             if ($currentSemesterId) {
                 $params[] = $currentSemesterId;
@@ -150,12 +149,15 @@ class ChairController
             $schedulesCountStmt->execute($params);
             $schedulesCount = $schedulesCountStmt->fetchColumn();
 
+            // Fixed faculty count to include all faculty in the department, not just primary
             $facultyCountStmt = $this->db->prepare("
-            SELECT COUNT(*) FROM faculty f 
-            JOIN users u ON f.user_id = u.user_id 
-            WHERE u.department_id = ?
+            SELECT COUNT(DISTINCT f.faculty_id) as faculty_count
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            WHERE fd.department_id = :department_id
         ");
-            $facultyCountStmt->execute([$departmentId]);
+            $facultyCountStmt->execute([':department_id' => $departmentId]);
             $facultyCount = $facultyCountStmt->fetchColumn();
 
             $coursesCountStmt = $this->db->prepare("
@@ -179,8 +181,14 @@ class ChairController
 
             error_log("dashboard: Fetched " . count($curricula) . " curricula");
 
-            // FIXED: Get recent schedules with grouped days and user title
-            $recentSchedulesStmt = $this->db->prepare("
+            // Get my schedules (filtered by chair's faculty_id)
+            $chairFacultyIdStmt = $this->db->prepare("
+            SELECT faculty_id FROM faculty WHERE user_id = ?
+        ");
+            $chairFacultyIdStmt->execute([$chairId]);
+            $chairFacultyId = $chairFacultyIdStmt->fetchColumn();
+
+            $mySchedulesStmt = $this->db->prepare("
             SELECT 
                 s.schedule_id, 
                 c.course_name, 
@@ -212,28 +220,28 @@ class ChairController
             LEFT JOIN sections sec ON s.section_id = sec.section_id
             LEFT JOIN classrooms r ON s.room_id = r.room_id
             LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
-            WHERE c.department_id = ?
+            WHERE s.faculty_id = ?
             " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
             GROUP BY c.course_id, s.faculty_id, s.start_time, s.end_time, s.schedule_type, sec.section_name, r.room_name
             ORDER BY s.created_at DESC
             LIMIT 5
         ");
 
-            $params = [$departmentId];
+            $params = [$chairFacultyId];
             if ($currentSemesterId) {
                 $params[] = $currentSemesterId;
             }
-            $recentSchedulesStmt->execute($params);
-            $recentSchedules = $recentSchedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+            $mySchedulesStmt->execute($params);
+            $mySchedules = $mySchedulesStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Process the day format to show MWF, TTH format
-            foreach ($recentSchedules as &$schedule) {
+            foreach ($mySchedules as &$schedule) {
                 $schedule['day_of_week'] = $this->formatScheduleDays($schedule['day_of_week']);
             }
 
-            $schedules = $recentSchedules;
+            $schedules = $mySchedules;
 
-            error_log("dashboard: Fetched " . count($recentSchedules) . " recent schedules");
+            error_log("dashboard: Fetched " . count($mySchedules) . " my schedules");
 
             // Get schedule distribution data for chart - FIXED
             $scheduleDistStmt = $this->db->prepare("
@@ -262,7 +270,7 @@ class ChairController
             $scheduleDistStmt->execute($params);
             $scheduleDistData = $scheduleDistStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
             $scheduleDist = array_fill_keys($days, 0);
             foreach ($scheduleDistData as $row) {
                 if (isset($scheduleDist[$row['day_of_week']])) {
@@ -7144,4 +7152,93 @@ class ChairController
             return "Error: Failed to upload file.";
         }
     }
+
+    public function settings()
+    {
+        if (!$this->authService->isLoggedIn()) {
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to access settings'];
+            header('Location: /login');
+            exit;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $chairId = $_SESSION['chair_id'];
+        $departmentId = $_SESSION['department_id'];
+        $csrfToken = $this->authService->generateCsrfToken();
+        $error = '';
+        $success = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                header('Location: /chair/settings');
+                exit;
+            }
+
+            $currentPassword = $_POST['current_password'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+            $newEmail = $_POST['new_email'] ?? '';
+
+            // Handle password update
+            if (!empty($newPassword) || !empty($confirmPassword)) {
+                if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+                    $error = 'All password fields are required.';
+                } elseif ($newPassword !== $confirmPassword) {
+                    $error = 'New password and confirmation do not match.';
+                } elseif (strlen($newPassword) < 8) {
+                    $error = 'New password must be at least 8 characters long.';
+                } else {
+                    $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
+                    $stmt->execute([':user_id' => $userId]);
+                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$row || !password_verify($currentPassword, $row['password_hash'])) {
+                        $error = 'Current password is incorrect.';
+                    } else {
+                        $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+                        $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
+                        if ($updateStmt->execute([':password_hash' => $newHash, ':user_id' => $userId])) {
+                            $success = 'Password updated successfully.';
+                            $this->logActivity($chairId, $departmentId, 'Change Password', 'Changed account password', 'users', $userId);
+                        } else {
+                            $error = 'Failed to update password. Please try again.';
+                        }
+                    }
+                }
+            }
+
+            // Handle email update
+            if (!empty($newEmail)) {
+                if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                    $error = 'Invalid email format.';
+                } else {
+                    $checkStmt = $this->db->prepare("SELECT user_id FROM users WHERE email = :email AND user_id != :user_id");
+                    $checkStmt->execute([':email' => $newEmail, ':user_id' => $userId]);
+                    if ($checkStmt->fetch()) {
+                        $error = 'Email is already in use.';
+                    } else {
+                        $updateEmailStmt = $this->db->prepare("UPDATE users SET email = :email, updated_at = NOW() WHERE user_id = :user_id");
+                        if ($updateEmailStmt->execute([':email' => $newEmail, ':user_id' => $userId])) {
+                            $success = $success ? "$success Email updated successfully." : 'Email updated successfully.';
+                            $this->logActivity($chairId, $departmentId, 'Change Email', 'Changed account email', 'users', $userId);
+                        } else {
+                            $error = 'Failed to update email. Please try again.';
+                        }
+                    }
+                }
+            }
+
+            if (!empty($error)) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => $error];
+            } elseif (!empty($success)) {
+                $_SESSION['flash'] = ['type' => 'success', 'message' => $success];
+            }
+            header('Location: /chair/settings');
+            exit;
+        }
+
+        require_once __DIR__ . '/../views/chair/settings.php';
+    }
+
 }

@@ -283,6 +283,10 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::profile");
             $controller->searchCourses();
             exit;
+        case '/chair/settings':
+            error_log("Routing to ChairController::settings");
+            $controller->settings();
+            exit;
         case '/chair/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';

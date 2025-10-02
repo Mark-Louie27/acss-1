@@ -453,46 +453,65 @@ function openViewCoursesModal(courses, curriculumName, curriculumId) {
 }
 
 function printCourses(curriculumId) {
-    // Create a new window for printing
-    const printWindow = window.open('', '', 'height=600,width=800');
-    if (!printWindow) {
-        alert('Please allow popups to print the curriculum.');
-        return;
+  // Create a new window for printing
+  const printWindow = window.open("", "", "height=600,width=800");
+  if (!printWindow) {
+    alert("Please allow popups to print the curriculum.");
+    return;
+  }
+
+  // Fetch courses data from the table rows in #coursesContainer
+  const courses = [];
+  const curricula = {
+    curriculum_name:
+      document
+        .getElementById("viewCoursesTitle")
+        ?.textContent.replace(/Courses for |Curriculum Courses - Print/g, "")
+        .trim() || "Unnamed Curriculum",
+  };
+  const rows = document.querySelectorAll("#coursesContainer tbody tr");
+  if (rows.length === 0) {
+    printWindow.document.write(
+      "<html><body><p>No courses available to print.</p></body></html>"
+    );
+    printWindow.print();
+    printWindow.close();
+    return;
+  }
+
+  rows.forEach((row) => {
+    const cells = row.getElementsByTagName("td");
+    if (cells.length >= 4) {
+      courses.push({
+        code: cells[0].textContent.trim() || "N/A",
+        name: cells[1].textContent.trim() || "N/A",
+        units: cells[2].textContent.trim() || "N/A",
+        subjectType:
+          cells[3].querySelector("span")?.textContent.trim() || "N/A",
+        yearLevel:
+          row
+            .closest("table")
+            .previousElementSibling?.textContent.split("-")[0]
+            .trim() || "N/A",
+        semester:
+          row
+            .closest("table")
+            .previousElementSibling?.textContent.split("-")[1]
+            .trim() || "N/A",
+      });
     }
+  });
 
-    // Fetch courses data from the table rows in #coursesContainer
-    const courses = [];
-    const curricula = { curriculum_name: document.getElementById('viewCoursesTitle').textContent.replace('Courses for ', '') };
-    const rows = document.querySelectorAll('#coursesContainer tbody tr');
-    if (rows.length === 0) {
-        printWindow.document.write('<html><body><p>No courses available to print.</p></body></html>');
-        printWindow.print();
-        printWindow.close();
-        return;
-    }
+  // Get current user's name (fallback to 'Anonymous' if not available)
+  const printedBy =
+    window.currentUser?.name ||
+    document.getElementById("userName")?.textContent.trim() ||
+    "Anonymous";
 
-    rows.forEach(row => {
-        const cells = row.getElementsByTagName('td');
-        if (cells.length >= 4) {
-            courses.push({
-                code: cells[0].textContent.trim() || 'N/A',
-                name: cells[1].textContent.trim() || 'N/A',
-                units: cells[2].textContent.trim() || 'N/A',
-                subjectType: cells[3].querySelector('span')?.textContent.trim() || 'N/A',
-                yearLevel: row.closest('table').previousElementSibling?.textContent.split('-')[0].trim() || 'N/A',
-                semester: row.closest('table').previousElementSibling?.textContent.split('-')[1].trim() || 'N/A'
-            });
-        }
-    });
-
-    // Get current user's name (fallback to 'Anonymous' if not available)
-    const printedBy = window.currentUser?.name || document.getElementById('userName')?.textContent.trim() || 'Anonymous';
-
-    // Generate printable HTML content
-    let htmlContent = `
+  // Generate printable HTML content
+  let htmlContent = `
         <html>
         <head>
-            <title>Curriculum Courses - Print</title>
             <style>
                 body {
                     font-family: Arial, sans-serif;
@@ -503,26 +522,27 @@ function printCourses(curriculumId) {
                     text-align: center;
                     margin-bottom: 20mm;
                     display: flex;
-                    flex-direction: column;
+                    justify-content: space-between;
                     align-items: center;
+                    width: 100%;
                 }
                 .header img {
                     max-width: 100px;
                     max-height: 100px;
-                    margin-bottom: 10px;
+                }
+                .header .logo-left {
+                    margin-right: auto;
+                }
+                .header .logo-right {
+                    margin-left: auto;
+                }
+                .header-text {
+                    flex-grow: 1;
+                    text-align: center;
                 }
                 .header h1 {
                     font-size: 24px;
                     margin: 5px 0;
-                }
-                .header h2 {
-                    font-size: 18px;
-                    margin: 5px 0;
-                    color: #444;
-                }
-                .header p {
-                    font-size: 14px;
-                    color: #666;
                 }
                 table {
                     width: 100%;
@@ -563,9 +583,12 @@ function printCourses(curriculumId) {
         </head>
         <body>
             <div class="header">
-                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" onerror="this.style.display='none'">
-                <h1>President Ramon Magsaysay State University</h1>
-                <h2>${curricula.curriculum_name}</h2>
+                <img src="/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="logo-left" onerror="this.style.display='none'">
+                <div class="header-text">
+                    <h1>President Ramon Magsaysay State University</h1>
+                    <h2>${curricula.curriculum_name}</h2>
+                </div>
+                <img src="/logo/college_logo/college_image.png" alt="College Logo" class="logo-right" onerror="this.style.display='none'">
             </div>
             <table>
                 <thead>
@@ -581,8 +604,8 @@ function printCourses(curriculumId) {
                 <tbody>
     `;
 
-    courses.forEach(course => {
-        htmlContent += `
+  courses.forEach((course) => {
+    htmlContent += `
             <tr>
                 <td>${course.yearLevel}</td>
                 <td>${course.semester}</td>
@@ -592,25 +615,24 @@ function printCourses(curriculumId) {
                 <td>${course.subjectType}</td>
             </tr>
         `;
-    });
+  });
 
-    htmlContent += `
+  htmlContent += `
                 </tbody>
             </table>
             <div class="footer">
-                <p>Generated by Curriculum Management System - ${new Date().toLocaleDateString()}</p>
                 <p>Printed by: ${printedBy}</p>
             </div>
         </body>
         </html>
     `;
 
-    // Write content to print window and trigger print
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+  // Write content to print window and trigger print
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
 }
 
 function fetchCoursesAndRefreshModal(curriculumId, curriculumName) {

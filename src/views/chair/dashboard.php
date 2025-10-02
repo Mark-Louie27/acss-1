@@ -127,7 +127,7 @@ ob_start();
         <!-- Recent Schedules -->
         <div class="xl:col-span-2 bg-white rounded-xl shadow-md p-6">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-bold text-gray-900">Recent Schedules</h3>
+                <h3 class="text-lg font-bold text-gray-900">My Schedules</h3>
                 <div class="text-sm text-gray-500 flex items-center">
                     <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
