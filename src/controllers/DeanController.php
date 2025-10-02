@@ -598,18 +598,18 @@ class DeanController
 
             // Fetch Faculty
             $queryFaculty = "
-SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
-       f.academic_rank, f.employment_type, COALESCE(d.department_name, 'No Department') AS department_name, COALESCE(d.department_id, 0) AS department_id, c.college_name,
-       co.course_name AS specialization, s.expertise_level
-FROM users u
-JOIN colleges c ON u.college_id = c.college_id
-JOIN faculty f ON u.user_id = f.user_id
-LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.is_primary = 1
-LEFT JOIN departments d ON fd.department_id = d.department_id
-LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
-LEFT JOIN courses co ON s.course_id = co.course_id
-WHERE u.college_id = :college_id AND u.role_id = 6
-ORDER BY u.last_name, u.first_name";
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
+                f.academic_rank, f.employment_type, COALESCE(d.department_name, 'No Department') AS department_name, COALESCE(d.department_id, 0) AS department_id, c.college_name,
+                co.course_name AS specialization, s.expertise_level
+            FROM users u
+            JOIN colleges c ON u.college_id = c.college_id
+            JOIN faculty f ON u.user_id = f.user_id
+            LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.is_primary = 1
+            LEFT JOIN departments d ON fd.department_id = d.department_id
+            LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
+            LEFT JOIN courses co ON s.course_id = co.course_id
+            WHERE u.college_id = :college_id AND u.role_id = 6
+            ORDER BY u.last_name, u.first_name";
             $stmtFaculty = $this->db->prepare($queryFaculty);
             if (!$stmtFaculty) {
                 throw new PDOException("Failed to prepare queryFaculty: " . implode(', ', $this->db->errorInfo()));
@@ -1696,7 +1696,7 @@ ORDER BY u.last_name, u.first_name";
                     return ['error' => 'File size exceeds 2MB limit'];
                 }
 
-                $uploadDir = __DIR__ . '/../public/uploads/colleges/';
+                $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/assets/logo/college_logo/';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
@@ -1705,7 +1705,7 @@ ORDER BY u.last_name, u.first_name";
                 $uploadPath = $uploadDir . $fileName;
 
                 if (move_uploaded_file($_FILES['college_logo']['tmp_name'], $uploadPath)) {
-                    $logoPath = '/uploads/colleges/' . $fileName;
+                    $logoPath = '/assets/logo/college_logo/' . $fileName;
                 } else {
                     error_log("Failed to move uploaded college logo");
                     return ['error' => 'Failed to upload logo'];

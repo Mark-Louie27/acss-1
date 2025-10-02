@@ -230,13 +230,6 @@ $error = isset($error) ? htmlspecialchars($error, ENT_QUOTES, 'UTF-8') : null;
                     </div>
                 </div>
 
-                <button type="button"
-                    onclick="addProgramField()"
-                    class="mb-6 bg-primary-yellow-light text-dark-gray px-4 py-2 rounded-lg hover:bg-yellow-200 transition-colors flex items-center gap-2">
-                    <i class="fas fa-plus"></i>
-                    Add Another Program
-                </button>
-
                 <div class="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                     <button type="button"
                         onclick="closeModal('addDepartmentProgramModal')"
@@ -283,13 +276,6 @@ $error = isset($error) ? htmlspecialchars($error, ENT_QUOTES, 'UTF-8') : null;
                 <div id="editProgramFields">
                     <!-- Program fields will be dynamically populated -->
                 </div>
-
-                <button type="button"
-                    onclick="addEditProgramField()"
-                    class="mb-6 bg-primary-yellow-light text-dark-gray px-4 py-2 rounded-lg hover:bg-yellow-200 transition-colors flex items-center gap-2">
-                    <i class="fas fa-plus"></i>
-                    Add Another Program
-                </button>
 
                 <div class="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                     <button type="button"
