@@ -146,7 +146,8 @@ ob_start();
                                             <?php echo htmlspecialchars($schedule['room_name'] ?? 'TBD'); ?>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            <?php echo htmlspecialchars($this->formatScheduleDays($schedule['day_of_week'])); ?>
+                                            <div class="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block"><?php echo htmlspecialchars($schedule['day_of_week'] ?? 'TBD'); ?></div>
+                                            <div class="text-xs text-gray-500 mt-1"><?php echo htmlspecialchars(($schedule['start_time'] ?? '') . ' - ' . ($schedule['end_time'] ?? '')); ?></div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                             <?php echo htmlspecialchars($schedule['start_time'] . ' - ' . $schedule['end_time']); ?>

@@ -26,6 +26,47 @@ class DeanController
         $this->emailService = new EmailService();
     }
 
+    private function getCurrentSemester()
+    {
+        try {
+            error_log("getCurrentSemester: Querying for current semester");
+            // First, try to find the semester marked as current
+            $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                WHERE is_current = 1
+            ");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                error_log("getCurrentSemester: Found current semester - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
+                return $semester;
+            }
+
+            error_log("getCurrentSemester: No semester with is_current = 1, checking date range");
+            // Fall back to date range
+            $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                WHERE CURRENT_DATE BETWEEN start_date AND end_date
+            ");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                error_log("getCurrentSemester: Found semester by date range - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
+            } else {
+                error_log("getCurrentSemester: No semester found for current date");
+            }
+
+            return $semester ?: null;
+        } catch (PDOException $e) {
+            error_log("getCurrentSemester: Error - " . $e->getMessage());
+            return null;
+        }
+    }
+
     private function restrictToDean()
     {
         error_log("restrictToDean: Checking session - user_id: " . ($_SESSION['user_id'] ?? 'none') . ", role_id: " . ($_SESSION['role_id'] ?? 'none'));
@@ -133,9 +174,25 @@ class DeanController
 
         if ($faculty) {
             $scheduleQuery = "
-            SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year
+            SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year,
+            CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+            GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                    CASE s.day_of_week 
+                        WHEN 'Monday' THEN 1
+                        WHEN 'Tuesday' THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday' THEN 4
+                        WHEN 'Friday' THEN 5
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 7
+                    END
+                    SEPARATOR ', '
+                ) as day_of_week
             FROM schedules s
             JOIN courses c ON s.course_id = c.course_id
+             JOIN faculty f ON s.faculty_id = f.faculty_id
+             JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
             LEFT JOIN classrooms r ON s.room_id = r.room_id
             JOIN semesters se ON s.semester_id = se.semester_id
             WHERE s.faculty_id = :faculty_id AND se.is_current = 1
@@ -143,6 +200,10 @@ class DeanController
             $scheduleStmt = $this->db->prepare($scheduleQuery);
             $scheduleStmt->execute([':faculty_id' => $faculty['faculty_id']]);
             $schedules = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($schedules as &$schedule) {
+                $schedule['formatted_days'] = $this->formatScheduleDays($schedule['day_of_week']);
+            }
         }
 
         // Fetch dashboard statistics
@@ -329,7 +390,9 @@ class DeanController
             'MW' => 'MW',
             'ThF' => 'THF',
             'MThF' => 'MTHF',
-            'TWThF' => 'TWTHF'
+            'TWThF' => 'TWTHF',
+            'MTWThF' => 'MTWTHF',
+            'SSu' => 'SSu',
         ];
 
         foreach ($patterns as $pattern => $replacement) {
@@ -556,27 +619,126 @@ class DeanController
     {
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
-        $stmt = $this->db->prepare("SELECT department_id, department_name FROM departments WHERE college_id = :college_id");
+
+        // Handle approval/rejection actions
+        if (isset($_POST['action']) && in_array($_POST['action'], ['approve', 'reject'])) {
+            $scheduleIdsStr = $_POST['schedule_ids'] ?? $_POST['schedule_id'] ?? '';
+            $status = $_POST['action'] === 'approve' ? 'Approved' : 'Rejected';
+            $isPublic = $_POST['action'] === 'approve' ? 1 : 0;
+
+            // Get current semester ID for validation
+            $currentSemesterStmt = $this->db->prepare("SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1");
+            $currentSemesterStmt->execute();
+            $currentSemesterId = $currentSemesterStmt->fetchColumn();
+
+            if ($currentSemesterId && !empty($scheduleIdsStr)) {
+                $scheduleIds = array_map('intval', explode(',', $scheduleIdsStr));
+                $placeholders = implode(',', array_fill(0, count($scheduleIds), '?'));
+
+                $stmt = $this->db->prepare("
+                UPDATE schedules 
+                SET status = ?, approved_by = ?, approval_date = NOW(), is_public = ?, updated_at = NOW()
+                WHERE schedule_id IN ($placeholders) AND semester_id = ?
+                ");
+                $params = array_merge([$status, $userId, $isPublic], $scheduleIds, [$currentSemesterId]);
+                $result = $stmt->execute($params);
+
+                if ($result) {
+                    $_SESSION['success'] = "Schedule(s) {$status} successfully.";
+                } else {
+                    $_SESSION['error'] = "Failed to update schedule(s).";
+                }
+            } else {
+                $_SESSION['error'] = "No current semester found or invalid schedule IDs.";
+            }
+
+            // Redirect to prevent form resubmission (adjust URL to match your routing)
+            header('Location: ' . $_SERVER['REQUEST_URI']);
+            exit;
+        }
+
+        // Get current semester details
+        $currentSemesterStmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
+        $currentSemesterStmt->execute();
+        $currentSemesterId = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$currentSemesterId) {
+            error_log("No current semester found for manageSchedule");
+            $departments = [];
+            $schedules = [];
+            require_once __DIR__ . '/../views/dean/manage_schedules.php';
+            return;
+        }
+
+        // Fetch departments with college name
+        $stmt = $this->db->prepare("
+        SELECT d.department_id, d.department_name
+        FROM departments d
+        JOIN colleges c ON d.college_id = c.college_id
+        WHERE d.college_id = :college_id
+        ");
         $stmt->execute([':college_id' => $collegeId]);
         $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Get college details for the dean
+        $query = "
+        SELECT d.college_id, c.college_name 
+        FROM deans d
+        JOIN colleges c ON d.college_id = c.college_id
+        WHERE d.user_id = :user_id AND d.is_current = 1";
+            $stmt = $this->db->prepare($query);
+        $stmt->execute([':user_id' => $userId]);
+        $college = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Single query for all schedules across departments in the college, current semester only
+        // Group by course/section/room/time/type to consolidate multi-day schedules
+        $stmt = $this->db->prepare("
+        SELECT 
+            GROUP_CONCAT(DISTINCT s.schedule_id) as schedule_ids,
+            s.department_id, d.department_name, s.start_time, s.end_time,
+            c.course_code, cl.room_name, sec.section_name, s.schedule_type, s.status,
+            CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name) AS faculty_name, 
+            GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                CASE s.day_of_week 
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END
+                SEPARATOR ', '
+            ) as day_of_week
+        FROM schedules s
+        JOIN faculty f ON s.faculty_id = f.faculty_id
+        JOIN users u ON f.user_id = u.user_id
+        JOIN courses c ON s.course_id = c.course_id
+        LEFT JOIN classrooms cl ON s.room_id = cl.room_id
+        JOIN sections sec ON s.section_id = sec.section_id
+        JOIN departments d ON s.department_id = d.department_id
+        WHERE d.college_id = :college_id AND s.semester_id = :semester_id
+        GROUP BY s.department_id, d.department_name, c.course_code, sec.section_name, s.schedule_type,
+                u.title, u.first_name, u.middle_name, u.last_name, cl.room_name, s.start_time, s.end_time
+        ORDER BY d.department_name, c.course_code, s.start_time
+        ");
+        $stmt->execute([':college_id' => $collegeId, ':semester_id' => $currentSemesterId['semester_id']]);
+        $allSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Group schedules by department_id
         $schedules = [];
-        foreach ($departments as $dept) {
-            $deptId = $dept['department_id'];
-            $stmt = $this->db->prepare("
-                SELECT s.schedule_id, s.department_id, d.department_name, s.day_of_week, s.start_time, s.end_time,
-                    c.course_code, cm.room_name, st.section_name, cl.college_name, s.schedule_type
-                FROM schedules s
-                JOIN courses c ON s.course_id = c.course_id
-                JOIN classrooms cm ON s.room_id = cm.room_id
-                JOIN sections st ON s.section_id = s.section_id
-                JOIN departments d ON s.department_id = d.department_id
-                JOIN colleges cl ON d.college_id = cl.college_id
-                WHERE s.department_id = :dept_id
-            ");
-            $stmt->execute([':dept_id' => $deptId]);
-            $schedules[$deptId] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($allSchedules as $schedule) {
+            $deptId = $schedule['department_id'];
+            if (!isset($schedules[$deptId])) {
+                $schedules[$deptId] = [];
+            }
+
+            // Format the days for compact display (e.g., "MWF")
+            $schedule['formatted_days'] = $this->formatScheduleDays($schedule['day_of_week']);
+            $schedules[$deptId][] = $schedule;
         }
+
+        error_log("manageSchedule: Fetched " . count($allSchedules) . " grouped schedules for college $collegeId, grouped into " . count($schedules) . " departments");
 
         require_once __DIR__ . '/../views/dean/manage_schedules.php';
     }
