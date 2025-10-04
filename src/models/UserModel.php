@@ -656,7 +656,7 @@ class UserModel
         }
     }
 
-    public function promoteToProgramChair($userId, $programId)
+    public function promoteToProgramChair($userId, $departmentId)
     {
         try {
             // Verify user is a faculty member and active
@@ -669,13 +669,53 @@ class UserModel
                 return ['success' => false, 'error' => 'User is not a valid or active faculty member'];
             }
 
-            // Verify program exists and belongs to the same college
-            $query = "SELECT p.program_id FROM programs p JOIN departments d ON p.department_id = d.department_id WHERE p.program_id = :program_id AND d.college_id = :college_id";
+            // Verify department exists and belongs to the same college
+            $query = "SELECT d.department_id FROM departments d WHERE d.department_id = :department_id AND d.college_id = :college_id";
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':program_id' => $programId, ':college_id' => $user['college_id']]);
+            $stmt->execute([':department_id' => $departmentId, ':college_id' => $user['college_id']]);
             if (!$stmt->fetch()) {
-                error_log("promoteToProgramChair: Invalid program_id=$programId for college_id={$user['college_id']}");
-                return ['success' => false, 'error' => 'Invalid program selected'];
+                error_log("promoteToProgramChair: Invalid department_id=$departmentId for college_id={$user['college_id']}");
+                return ['success' => false, 'error' => 'Invalid department selected'];
+            }
+
+            // Check for existing current program chair in the department
+            $query = "
+            SELECT CONCAT(u.first_name, ' ', u.last_name) AS chair_name
+            FROM program_chairs pc
+            JOIN users u ON pc.user_id = u.user_id
+            JOIN programs p ON pc.program_id = p.program_id
+            WHERE p.department_id = :department_id AND pc.is_current = 1
+            LIMIT 1
+        ";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':department_id' => $departmentId]);
+            $existingChair = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingChair) {
+                error_log("promoteToProgramChair: Department $departmentId already has a program chair: {$existingChair['chair_name']}");
+                return [
+                    'success' => false,
+                    'error' => "Department already has a Program Chair: {$existingChair['chair_name']}. Please demote the current chair before promoting a new one."
+                ];
+            }
+
+            // Fetch faculty_id for the user
+            $query = "SELECT faculty_id FROM faculty WHERE user_id = :user_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':user_id' => $userId]);
+            $facultyId = $stmt->fetchColumn();
+            if (!$facultyId) {
+                return ['success' => false, 'error' => 'Faculty record not found for the user'];
+            }
+
+            // Fetch all programs in the department
+            $query = "SELECT program_id FROM programs WHERE department_id = :department_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':department_id' => $departmentId]);
+            $allPrograms = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (empty($allPrograms)) {
+                return ['success' => false, 'error' => 'No programs found in the department'];
             }
 
             // Update user role to Program Chair (role_id = 5)
@@ -683,12 +723,30 @@ class UserModel
             $stmt = $this->db->prepare($query);
             $stmt->execute([':user_id' => $userId]);
 
-            // Add to program_chairs table
-            $query = "INSERT INTO program_chairs (user_id, program_id, is_current, created_at) VALUES (:user_id, :program_id, 1, NOW())";
+            // Deactivate any previous program chair assignments for this user
+            $query = "UPDATE program_chairs SET is_current = 0 WHERE user_id = :user_id";
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':user_id' => $userId, ':program_id' => $programId]);
+            $stmt->execute([':user_id' => $userId]);
 
-            return ['success' => true];
+            // Add to program_chairs table for all programs in the department, including faculty_id
+            $query = "INSERT INTO program_chairs (user_id, faculty_id, program_id, is_current, created_at) 
+                      VALUES (:user_id, :faculty_id, :program_id, 1, NOW())";
+            $stmt = $this->db->prepare($query);
+            $insertedCount = 0;
+            foreach ($allPrograms as $progId) {
+                $result = $stmt->execute([
+                    ':user_id' => $userId,
+                    ':faculty_id' => $facultyId,
+                    ':program_id' => $progId
+                ]);
+                if ($result) {
+                    $insertedCount++;
+                }
+            }
+
+            error_log("promoteToProgramChair: Promoted user_id=$userId (faculty_id=$facultyId) to chair for $insertedCount programs in department $departmentId");
+
+            return ['success' => true, 'message' => "Promoted to Program Chair for $insertedCount programs in the department."];
         } catch (PDOException $e) {
             error_log("promoteToProgramChair: PDO Error - " . $e->getMessage());
             return ['success' => false, 'error' => 'Database error: ' . $e->getMessage()];
@@ -736,11 +794,8 @@ class UserModel
                 $exists = $stmt->fetchColumn();
 
                 if ($exists) {
-                    // Update existing entry to is_primary = 1
-                    $updateQuery = "UPDATE faculty_departments SET is_primary = 1 WHERE faculty_id = :faculty_id AND department_id = :dept_id";
-                    $stmt = $this->db->prepare($updateQuery);
-                    $stmt->execute([':faculty_id' => $facultyId, ':dept_id' => $deptId]);
-                    error_log("demoteProgramChair: Updated faculty_departments to is_primary=1 for faculty_id=$facultyId, dept_id=$deptId");
+                    // Do not change existing entry; leave is_primary as-is
+                    error_log("demoteProgramChair: faculty_departments entry already exists for faculty_id=$facultyId, dept_id=$deptId; no changes made");
                 } else {
                     // Insert new entry if none exists
                     $insertQuery = "INSERT INTO faculty_departments (faculty_id, department_id, is_primary, created_at) VALUES (:faculty_id, :dept_id, 1, NOW())";
