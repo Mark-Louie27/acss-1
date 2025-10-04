@@ -122,7 +122,7 @@ class DeanController
         $semesterStmt->execute();
         $currentSemester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
         $currentSemesterDisplay = $currentSemester ?
-            "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : 'Not Set';
+            "{$currentSemester['semester_name']} Semester, A.Y {$currentSemester['academic_year']}" : 'Not Set';
 
         // Fetch dean's schedule
         $schedules = [];
@@ -159,6 +159,66 @@ class DeanController
         // Pass semester, schedules, and logins to the view
         $currentSemester = $currentSemesterDisplay;
         require_once __DIR__ . '/../views/dean/dashboard.php';
+    }
+
+    /**
+     * Format schedule days to show MWF, TTH format instead of listing individually
+     */
+    private function formatScheduleDays($dayString)
+    {
+        if (empty($dayString)) {
+            return 'TBD';
+        }
+
+        $days = explode(', ', $dayString);
+        $dayAbbrev = [];
+
+        foreach ($days as $day) {
+            switch (trim($day)) {
+                case 'Monday':
+                    $dayAbbrev[] = 'M';
+                    break;
+                case 'Tuesday':
+                    $dayAbbrev[] = 'T';
+                    break;
+                case 'Wednesday':
+                    $dayAbbrev[] = 'W';
+                    break;
+                case 'Thursday':
+                    $dayAbbrev[] = 'Th';
+                    break;
+                case 'Friday':
+                    $dayAbbrev[] = 'F';
+                    break;
+                case 'Saturday':
+                    $dayAbbrev[] = 'S';
+                    break;
+                case 'Sunday':
+                    $dayAbbrev[] = 'Su';
+                    break;
+            }
+        }
+
+        // Common patterns
+        $dayStr = implode('', $dayAbbrev);
+
+        // Replace common patterns for better readability
+        $patterns = [
+            'MWF' => 'MWF',
+            'TTh' => 'TTH',
+            'MW' => 'MW',
+            'ThF' => 'THF',
+            'MThF' => 'MTHF',
+            'TWThF' => 'TWTHF'
+        ];
+
+        foreach ($patterns as $pattern => $replacement) {
+            if ($dayStr == $pattern) {
+                return $replacement;
+            }
+        }
+
+        return $dayStr ?: 'TBD';
     }
 
     public function activities()

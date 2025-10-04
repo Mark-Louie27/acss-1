@@ -20,6 +20,20 @@ if (!$profilePicture) {
     }
 }
 
+// Fetch college logo based on dean's college ID
+$collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
+try {
+    $db = (new Database())->connect();
+    $stmt = $db->prepare("SELECT logo_path FROM colleges WHERE college_id = (SELECT college_id FROM users WHERE user_id = :user_id)");
+    $stmt->execute([':user_id' => $_SESSION['user_id']]);
+    $logoPath = $stmt->fetchColumn();
+    if ($logoPath) {
+        $collegeLogoPath = $logoPath;
+    }
+} catch (PDOException $e) {
+    error_log("layout: Error fetching college logo - " . $e->getMessage());
+}
+
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
 ?>
@@ -529,7 +543,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <a href="/dean/dashboard" class="flex items-center gap-3">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
+                    <img src="<?php echo htmlspecialchars($collegeLogoPath); ?>" alt="College Logo" class="university-logo" onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png'; console.log('Fallback to university logo due to error')">
                     <span class="logo-text">ACSS</span>
                 </a>
             </div>

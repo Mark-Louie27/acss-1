@@ -32,6 +32,22 @@ if (!$userDepartmentId) {
     $_SESSION['department_id'] = $userDepartmentId;
 }
 
+        // Fetch college logo based on department ID
+        $collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
+        if ($userDepartmentId) {
+            try {
+                $db = (new Database())->connect();
+                $stmt = $db->prepare("SELECT c.logo_path FROM colleges c JOIN departments d ON c.college_id = d.college_id WHERE d.department_id = :department_id");
+                $stmt->execute([':department_id' => $userDepartmentId]);
+                $logoPath = $stmt->fetchColumn();
+                if ($logoPath) {
+                    $collegeLogoPath = $logoPath;
+                }
+            } catch (PDOException $e) {
+                error_log("layout: Error fetching college logo - " . $e->getMessage());
+            }
+        }
+
 $chairController = new ChairController();
 $deadlineStatus = $chairController->checkScheduleDeadlineStatus($userDepartmentId);
 $isScheduleLocked = $deadlineStatus['locked'] ?? false;
@@ -494,7 +510,7 @@ $modal_content = $modal_content ?? '';
 
                 <!-- Logo - Always visible -->
                 <a href="/chair/dashboard" class="flex items-center">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
+                    <img src="<?php echo htmlspecialchars($collegeLogoPath); ?>" alt="College Logo" class="university-logo" onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png'; console.log('Fallback to university logo due to error')">
                     <span class="text-lg font-heading text-gray-800 ml-2 hidden-mobile sm:inline">ACSS</span>
                 </a>
             </div>
