@@ -575,6 +575,12 @@ if (!$profilePicture) {
                 <i class="fas fa-user-circle w-5 mr-3 flex-shrink-0 <?php echo strpos($currentUri, '/faculty/profile') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Profile</span>
             </a>
+
+            <!-- Settings Link -->
+            <a href="/faculty/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/faculty/settings') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-cog w-5 mr-3 flex-shrink-0 <?php echo strpos($currentUri, '/faculty/settings') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
+                <span>Settings</span>
+            </a>
         </nav>
 
         <!-- Sidebar Footer -->

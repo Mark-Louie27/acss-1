@@ -113,7 +113,7 @@ ob_start();
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         <!-- Metrics Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <!-- Teaching Load Card -->
             <div class="metric-card bg-white rounded-xl custom-shadow hover-lift cursor-pointer slide-in"
                 onclick="window.location.href='/faculty/schedule'"
@@ -135,26 +135,7 @@ ob_start();
                 </div>
             </div>
 
-            <!-- Pending Requests Card -->
-            <div class="metric-card bg-white rounded-xl custom-shadow hover-lift cursor-pointer slide-in"
-                onclick="window.location.href='/faculty/schedule/requests'"
-                style="animation-delay: 0.2s">
-                <div class="p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-600 mb-1">Pending Requests</p>
-                            <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($pendingRequests); ?></p>
-                            <p class="text-xs text-gray-500 mt-1">
-                                <i class="fas fa-clock mr-1"></i>
-                                Awaiting approval
-                            </p>
-                        </div>
-                        <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-hourglass-half text-yellow-600 text-lg"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            
 
             <!-- Total Courses Card -->
             <div class="metric-card bg-white rounded-xl custom-shadow hover-lift slide-in"
@@ -411,5 +392,5 @@ ob_start();
 <?php
 // Capture the content and pass it to layout
 $content = ob_get_clean();
-require_once __DIR__ . '/../../views/faculty/layout.php';
+require_once __DIR__ . '/layout.php';
 ?>

@@ -7162,7 +7162,7 @@ class ChairController
         }
 
         $userId = $_SESSION['user_id'];
-        $chairId = $_SESSION['chair_id'];
+        $chairId = $this->getChairDepartment($userId);
         $departmentId = $_SESSION['department_id'];
         $csrfToken = $this->authService->generateCsrfToken();
         $error = '';

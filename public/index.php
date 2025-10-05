@@ -352,6 +352,9 @@ function handleFacultyRoutes($path)
             require_once __DIR__ . '/../src/controllers/AuthController.php';
             (new AuthController())->logout();
             exit;
+        case '/faculty/settings':
+            $controller->settings();
+            exit;
         default:
             error_log("No matching faculty route for: $normalizedPath");
             http_response_code(404);
