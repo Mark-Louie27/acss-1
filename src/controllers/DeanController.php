@@ -1975,6 +1975,13 @@ class DeanController
                         } else {
                             $success = $result['success'];
                         }
+                    } elseif (isset($_POST['change_password'])) {
+                        $result = $this->changePassword($_POST, $userId);
+                        if (isset($result['error'])) {
+                            $error = $result['error'];
+                        } else {
+                            $success = $result['success'];
+                        }
                     }
                 }
             }
@@ -2014,6 +2021,47 @@ class DeanController
             $error = $e->getMessage();
             http_response_code(500);
             require_once __DIR__ . '/../views/dean/settings.php';
+        }
+    }
+
+    // Add this method for password change
+    private function changePassword($data, $userId)
+    {
+        try {
+            $currentPassword = trim($data['current_password'] ?? '');
+            $newPassword = trim($data['new_password'] ?? '');
+            $confirmPassword = trim($data['confirm_password'] ?? '');
+
+            if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+                return ['error' => 'All password fields are required'];
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                return ['error' => 'New password and confirmation do not match'];
+            }
+
+            if (strlen($newPassword) < 8) {
+                return ['error' => 'New password must be at least 8 characters'];
+            }
+
+            // Fetch current password hash
+            $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
+            $stmt->execute([':user_id' => $userId]);
+            $hash = $stmt->fetchColumn();
+
+            if (!$hash || !password_verify($currentPassword, $hash)) {
+                return ['error' => 'Current password is incorrect'];
+            }
+
+            // Update password
+            $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $stmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
+            $stmt->execute([':password' => $newHash, ':user_id' => $userId]);
+
+            return ['success' => 'Password changed successfully'];
+        } catch (PDOException $e) {
+            error_log("changePassword: PDO Error - " . $e->getMessage());
+            return ['error' => 'Failed to change password'];
         }
     }
 
