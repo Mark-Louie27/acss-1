@@ -924,10 +924,13 @@ class DeanController
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             $error = null;
 
+            // FIXED: Use NULL instead of invalid directory path for default profile picture
             $queryChairs = "
-            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
-                   pc.program_id, p.program_name, d.department_name, d.department_id, c.college_name
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
+                u.profile_picture, u.is_active, 
+                pc.program_id, p.program_name, f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name
             FROM users u
+            JOIN faculty f ON u.user_id = f.user_id
             JOIN program_chairs pc ON u.user_id = pc.user_id
             JOIN programs p ON pc.program_id = p.program_id
             JOIN departments d ON p.department_id = d.department_id
@@ -938,10 +941,12 @@ class DeanController
             $stmtdeans->execute([':college_id' => $collegeId]);
             $programChairs = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
 
-            // Fetch Faculty
+            // Fetch Faculty - FIXED: Remove COALESCE with invalid path
             $queryFaculty = "
-            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
-                f.academic_rank, f.employment_type, COALESCE(d.department_name, 'No Department') AS department_name, COALESCE(d.department_id, 0) AS department_id, c.college_name,
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
+                u.profile_picture, u.is_active, 
+                f.academic_rank, f.employment_type, COALESCE(d.department_name, 'No Department') AS department_name, 
+                COALESCE(d.department_id, 0) AS department_id, c.college_name,
                 co.course_name AS specialization, s.expertise_level
             FROM users u
             JOIN colleges c ON u.college_id = c.college_id
@@ -960,9 +965,11 @@ class DeanController
             $faculty = $stmtFaculty->fetchAll(PDO::FETCH_ASSOC);
             error_log("faculty: Fetched " . count($faculty) . " faculty members");
 
+            // FIXED: Remove COALESCE with invalid path for pending users
             $queryPending = "
-            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, u.profile_picture, u.is_active, 
-                   u.role_id, r.role_name, f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name
+            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
+                u.profile_picture, u.is_active, 
+                u.role_id, r.role_name, f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name
             FROM users u
             JOIN faculty f ON u.user_id = f.user_id
             JOIN roles r ON u.role_id = r.role_id
@@ -975,19 +982,19 @@ class DeanController
             $pendingUsers = $stmtPending->fetchAll(PDO::FETCH_ASSOC);
 
             $queryDepartments = "
-            SELECT department_id, department_name
-            FROM departments
-            WHERE college_id = :college_id
-            ORDER BY department_name";
+        SELECT department_id, department_name
+        FROM departments
+        WHERE college_id = :college_id
+        ORDER BY department_name";
             $stmtDepartments = $this->db->prepare($queryDepartments);
             $stmtDepartments->execute([':college_id' => $collegeId]);
             $departments = $stmtDepartments->fetchAll(PDO::FETCH_ASSOC);
 
             $querySemester = "
-            SELECT semester_name, academic_year
-            FROM semesters
-            WHERE is_current = 1
-            LIMIT 1";
+        SELECT semester_name, academic_year
+        FROM semesters
+        WHERE is_current = 1
+        LIMIT 1";
             $stmtSemester = $this->db->prepare($querySemester);
             $stmtSemester->execute();
             $currentSemester = $stmtSemester->fetch(PDO::FETCH_ASSOC) ?: ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
