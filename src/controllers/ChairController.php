@@ -3900,7 +3900,7 @@ class ChairController
             $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $updatedCount = 0;
-            $days = ['M', 'T', 'W', 'R', 'F']; // Monday to Friday only
+            $days = ['M', 'T', 'W', 'R', 'F', 'S']; // Monday to Friday + Sunday
 
             foreach ($classrooms as $classroom) {
                 $roomId = $classroom['room_id'];
@@ -3940,10 +3940,18 @@ class ChairController
                                     $availabilityByDay[$day]['morning'] = false;
                                 } elseif ($startMinutes >= 720 && $endMinutes <= 1080) {
                                     $availabilityByDay[$day]['afternoon'] = false;
+                                } elseif ($startMinutes >= 1080 && $endMinutes <= 1260) {
+                                    // NEW: Evening check
+                                    $availabilityByDay[$day]['evening'] = false;
+                                } elseif ($startMinutes < 1080 && $endMinutes > 1080) {
+                                    // NEW: Cross-afternoon/evening
+                                    $availabilityByDay[$day]['afternoon'] = false;
+                                    $availabilityByDay[$day]['evening'] = false;
                                 } elseif ($startMinutes < 720 && $endMinutes > 720) {
                                     $availabilityByDay[$day]['morning'] = false;
                                     $availabilityByDay[$day]['afternoon'] = false;
                                 }
+                                // Add more cross-period checks if needed (e.g., morning-afternoon-evening span)
                             }
                         }
                     }

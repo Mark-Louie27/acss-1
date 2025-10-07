@@ -143,43 +143,42 @@ class PublicController
         $search = isset($_POST['search']) ? trim($_POST['search']) : '';
 
         $query = "
-            SELECT 
-                s.schedule_id, 
-                c.course_code, 
-                c.course_name, 
-                sec.section_name,
-                sec.year_level,
-                r.room_name, 
-                r.building, 
-                s.day_of_week, 
-                s.start_time, 
-                s.end_time, 
-                s.schedule_type, 
-                CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
-                d.department_name,
-                col.college_name
-            FROM schedules s
-            JOIN courses c ON s.course_id = c.course_id
-            JOIN sections sec ON s.section_id = sec.section_id
-            JOIN semesters sem ON s.semester_id = sem.semester_id
-            LEFT JOIN classrooms r ON s.room_id = r.room_id
-            JOIN faculty f ON s.faculty_id = f.faculty_id
-            JOIN users u ON f.user_id = u.user_id
-            JOIN departments d ON sec.department_id = d.department_id
-            JOIN colleges col ON d.college_id = col.college_id
-            WHERE s.is_public = 1
-            AND sem.semester_id = ?
-            AND (? = 0 OR col.college_id = ?)
-            AND (? = 0 OR d.department_id = ?)
-            AND (? = '' OR sec.year_level = ?)
-            AND (? = 0 OR sec.section_id = ?)
-            AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
-            ORDER BY s.day_of_week, s.start_time
-        ";
+        SELECT 
+            s.schedule_id, 
+            c.course_code, 
+            c.course_name, 
+            sec.section_name,
+            sec.year_level,
+            r.room_name, 
+            r.building, 
+            s.day_of_week, 
+            s.start_time, 
+            s.end_time, 
+            s.schedule_type, 
+            TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,  -- FIXED: COALESCE + TRIM for null titles
+            d.department_name,
+            col.college_name
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.course_id
+        JOIN sections sec ON s.section_id = sec.section_id
+        JOIN semesters sem ON s.semester_id = sem.semester_id
+        LEFT JOIN classrooms r ON s.room_id = r.room_id
+        JOIN faculty f ON s.faculty_id = f.faculty_id
+        JOIN users u ON f.user_id = u.user_id
+        JOIN departments d ON sec.department_id = d.department_id
+        JOIN colleges col ON d.college_id = col.college_id
+        WHERE s.is_public = 1
+        AND sem.semester_id = ?
+        AND (? = 0 OR col.college_id = ?)
+        AND (? = 0 OR d.department_id = ?)
+        AND (? = '' OR sec.year_level = ?)
+        AND (? = 0 OR sec.section_id = ?)
+        AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
+        ORDER BY s.day_of_week, s.start_time
+    ";
 
         try {
             $stmt = $this->db->prepare($query);
-
             $searchPattern = '%' . $search . '%';
 
             $stmt->execute([
@@ -199,6 +198,14 @@ class PublicController
 
             $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // UPDATED: Log with filters (helps debug why only Monday)
+            $dayCounts = [];
+            foreach ($schedules as $sch) {
+                $day = $sch['day_of_week'];
+                $dayCounts[$day] = ($dayCounts[$day] ?? 0) + 1;
+            }
+            error_log("SearchSchedules DEBUG: Total: " . count($schedules) . ", Filters: college=$college_id, dept=$department_id, year='$year_level', section=$section_id, search='$search' | By Day: " . json_encode($dayCounts));
+
             $total = count($schedules);
             $perPage = 10;
             $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
@@ -210,7 +217,8 @@ class PublicController
                 'schedules' => $pagedSchedules,
                 'total' => $total,
                 'page' => $page,
-                'per_page' => $perPage
+                'per_page' => $perPage,
+                'debug_days' => $dayCounts  // For JS console
             ]);
         } catch (PDOException $e) {
             error_log("Search Schedules Error: " . $e->getMessage());

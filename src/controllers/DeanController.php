@@ -599,7 +599,8 @@ class DeanController
         $schedules = [];
         if ($faculty) {
             $query = "
-                SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year
+                SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year,
+                f.academic_rank, f.employment_type,
                 FROM schedules s
                 JOIN courses c ON s.course_id = c.course_id
                 LEFT JOIN classrooms r ON s.room_id = r.room_id
@@ -611,7 +612,7 @@ class DeanController
             $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        // Load schedule view
+        // Load schedule view 
         require_once __DIR__ . '/../views/dean/schedule.php';
     }
 
