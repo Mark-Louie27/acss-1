@@ -360,3 +360,49 @@ body.modal-open {
     font-weight: 600;
   }
 }
+
+/* Full Screen Mode Styles */
+.fullscreen-mode .bg-white.rounded-xl {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+.fullscreen-mode .max-w-7xl {
+    max-width: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.fullscreen-mode #content-manual,
+.fullscreen-mode #content-schedule {
+    height: 100vh;
+    overflow: auto;
+}
+
+.fullscreen-mode .overflow-x-auto {
+    height: calc(100vh - 120px);
+}
+
+/* Ensure proper spacing in full screen */
+.fullscreen-mode .p-6 {
+    padding: 1.5rem;
+}
+
+.fullscreen-mode .mb-6 {
+    margin-bottom: 1.5rem;
+}
+
+/* Responsive adjustments for full screen */
+@media (max-width: 768px) {
+    .fullscreen-mode .flex.items-center.space-x-4 {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .fullscreen-mode .flex.items-center.space-x-4 > * {
+        margin-bottom: 0.5rem;
+    }
+}

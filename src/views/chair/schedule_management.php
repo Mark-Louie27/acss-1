@@ -182,74 +182,142 @@ ob_start();
         <!-- Manual Edit Tab -->
         <div id="content-manual" class="tab-content <?php echo $activeTab !== 'manual' ? 'hidden' : ''; ?>">
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center">
-                        <div class="bg-yellow-500 p-2 rounded-lg mr-3">
-                            <i class="fas fa-edit text-white"></i>
+                <!-- Header Section -->
+                <div class="mb-6">
+                    <!-- Title Row -->
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                        <div class="flex items-center">
+                            <div class="bg-yellow-500 p-2 rounded-lg mr-3">
+                                <i class="fas fa-edit text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-900">Manual Schedule Editor</h2>
+                                <p class="text-sm text-gray-600 mt-1">Drag and drop to edit schedules</p>
+                            </div>
                         </div>
-                        <h2 class="text-xl font-bold text-gray-900">Manual Schedule Editor</h2>
+
+                        <!-- Full Screen Buttons -->
+                        <div class="flex items-center space-x-2">
+                            <button id="fullscreen-manual-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="toggleFullScreen('manual')">
+                                <i class="fas fa-expand mr-1"></i>
+                                <span class="hidden sm:inline">Full Screen</span>
+                            </button>
+                            <button id="exit-fullscreen-manual-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors hidden text-sm" onclick="toggleFullScreen('manual')">
+                                <i class="fas fa-compress mr-1"></i>
+                                <span class="hidden sm:inline">Exit Full Screen</span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="flex items-center space-x-4 no-print">
-                        <select id="filter-year-manual" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedulesManual()">
-                            <option value="">All Year Levels</option>
-                            <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
-                            <?php foreach ($yearLevels as $year): ?>
-                                <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select id="filter-section-manual" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedulesManual()">
-                            <option value="">All Sections</option>
-                            <?php $sectionNames = array_unique(array_column($schedules, 'section_name')); ?>
-                            <?php foreach ($sectionNames as $section): ?>
-                                <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select id="filter-room-manual" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedulesManual()">
-                            <option value="">All Rooms</option>
-                            <?php $rooms = array_unique(array_column($schedules, 'room_name')); ?>
-                            <?php foreach ($rooms as $room): ?>
-                                <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button id="add-schedule-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="openAddModal()">
-                            <i class="fas fa-plus"></i>
-                            <span>Add Schedule</span>
-                        </button>
-                        <button id="save-changes-btn" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="saveAllChanges()">
-                            <i class="fas fa-save"></i>
-                            <span>Save Changes</span>
-                        </button>
-                        <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="deleteAllSchedules()">
-                            <i class="fas fa-trash"></i>
-                            <span>Delete All Schedules</span>
-                        </button>
+
+                    <!-- Filters Row -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                            <i class="fas fa-filter mr-2 text-yellow-600"></i>
+                            Filter Schedules
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Year Level</label>
+                                <select id="filter-year-manual" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm" onchange="filterSchedulesManual()">
+                                    <option value="">All Year Levels</option>
+                                    <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
+                                    <?php foreach ($yearLevels as $year): ?>
+                                        <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Section</label>
+                                <select id="filter-section-manual" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm" onchange="filterSchedulesManual()">
+                                    <option value="">All Sections</option>
+                                    <?php $sectionNames = array_unique(array_column($schedules, 'section_name')); ?>
+                                    <?php foreach ($sectionNames as $section): ?>
+                                        <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Room</label>
+                                <select id="filter-room-manual" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm" onchange="filterSchedulesManual()">
+                                    <option value="">All Rooms</option>
+                                    <?php $rooms = array_unique(array_column($schedules, 'room_name')); ?>
+                                    <?php foreach ($rooms as $room): ?>
+                                        <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="flex items-end">
+                                <button onclick="clearFiltersManual()" class="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                                    <i class="fas fa-times mr-1"></i>
+                                    Clear Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons Row -->
+                    <div class="flex flex-wrap gap-2 justify-between items-center">
+                        <div class="flex flex-wrap gap-2">
+                            <button id="add-schedule-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="openAddModal()">
+                                <i class="fas fa-plus"></i>
+                                <span>Add Schedule</span>
+                            </button>
+
+                            <button id="save-changes-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="saveAllChanges()">
+                                <i class="fas fa-save"></i>
+                                <span>Save Changes</span>
+                            </button>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="deleteAllSchedules()">
+                                <i class="fas fa-trash"></i>
+                                <span>Delete All</span>
+                            </button>
+
+                            <button onclick="refreshManualView()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm">
+                                <i class="fas fa-sync-alt"></i>
+                                <span>Refresh</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Schedule Table -->
                 <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="min-w-full">
                         <!-- Header with days -->
                         <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                            <div class="px-4 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50">
-                                Time
+                            <div class="px-3 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
+                                <span class="hidden sm:inline">Time</span>
+                                <span class="sm:hidden">⌚</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Monday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Monday</span>
+                                <span class="sm:hidden">Mon</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Tuesday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Tuesday</span>
+                                <span class="sm:hidden">Tue</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Wednesday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Wednesday</span>
+                                <span class="sm:hidden">Wed</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Thursday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Thursday</span>
+                                <span class="sm:hidden">Thu</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Friday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Friday</span>
+                                <span class="sm:hidden">Fri</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700">
-                                Saturday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                                <span class="hidden sm:inline">Saturday</span>
+                                <span class="sm:hidden">Sat</span>
                             </div>
                         </div>
 
@@ -293,11 +361,12 @@ ob_start();
                                 $rowSpan = $duration / 7200;
                                 ?>
                                 <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
-                                    <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
-                                        <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                    <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10" rowspan="<?php echo $rowSpan; ?>">
+                                        <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                        <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
                                     </div>
                                     <?php foreach ($days as $day): ?>
-                                        <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative drop-zone"
+                                        <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative drop-zone"
                                             data-day="<?php echo $day; ?>"
                                             data-start-time="<?php echo $time[0]; ?>"
                                             data-end-time="<?php echo $time[1]; ?>">
@@ -322,11 +391,11 @@ ob_start();
                                                         data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
                                                         data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
                                                         data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>">
-                                                        <div class="flex justify-between items-start mb-2">
-                                                            <div class="font-semibold text-xs truncate mb-1">
+                                                        <div class="flex justify-between items-start mb-1">
+                                                            <div class="font-semibold text-xs truncate">
                                                                 <?php echo htmlspecialchars($schedule['course_code']); ?>
                                                             </div>
-                                                            <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print">
+                                                            <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print flex-shrink-0 ml-1">
                                                                 <i class="fas fa-edit"></i>
                                                             </button>
                                                         </div>
@@ -339,7 +408,7 @@ ob_start();
                                                         <div class="text-xs opacity-75 truncate">
                                                             <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
                                                         </div>
-                                                        <div class="text-xs font-medium mt-1">
+                                                        <div class="text-xs font-medium mt-1 hidden sm:block">
                                                             <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
                                                         </div>
                                                     </div>
@@ -348,8 +417,8 @@ ob_start();
                                             }
                                             if (empty($schedulesForSlot)) {
                                                 ?>
-                                                <button onclick="openAddModalForSlot('<?php echo $day; ?>', '<?php echo $time[0]; ?>', '<?php echo $time[1]; ?>')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print">
-                                                    <i class="fas fa-plus text-lg"></i>
+                                                <button onclick="openAddModalForSlot('<?php echo $day; ?>', '<?php echo $time[0]; ?>', '<?php echo $time[1]; ?>')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-2">
+                                                    <i class="fas fa-plus text-sm"></i>
                                                 </button>
                                             <?php
                                             }
@@ -376,6 +445,16 @@ ob_start();
                         <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
                     </div>
                     <div class="flex items-center space-x-4 no-print">
+                        <!-- Full Screen Button -->
+                        <button id="fullscreen-view-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="toggleFullScreen('view')">
+                            <i class="fas fa-expand mr-2"></i>
+                            <span>Full Screen</span>
+                        </button>
+                        <button id="exit-fullscreen-view-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors hidden" onclick="toggleFullScreen('view')">
+                            <i class="fas fa-compress mr-2"></i>
+                            <span>Exit Full Screen</span>
+                        </button>
+
                         <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
                             <option value="">All Year Levels</option>
                             <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
@@ -782,23 +861,188 @@ ob_start();
                 }
             });
 
-            // Shared utility functions
-            function switchTab(tabName) {
+            // Clear filters for manual tab
+            function clearFiltersManual() {
+                document.getElementById('filter-year-manual').value = '';
+                document.getElementById('filter-section-manual').value = '';
+                document.getElementById('filter-room-manual').value = '';
+                filterSchedulesManual();
+            }
+
+            // Refresh manual view
+            function refreshManualView() {
+                // You can add refresh logic here
+                location.reload(); // Simple refresh for now
+            }
+
+            // Filter schedules for manual tab
+            function filterSchedulesManual() {
+                const yearLevel = document.getElementById('filter-year-manual').value;
+                const section = document.getElementById('filter-section-manual').value;
+                const room = document.getElementById('filter-room-manual').value;
+
+                const scheduleCards = document.querySelectorAll('#schedule-grid .schedule-card');
+
+                scheduleCards.forEach(card => {
+                    const cardYearLevel = card.getAttribute('data-year-level');
+                    const cardSectionName = card.getAttribute('data-section-name');
+                    const cardRoomName = card.getAttribute('data-room-name');
+
+                    const matchesYear = !yearLevel || cardYearLevel === yearLevel;
+                    const matchesSection = !section || cardSectionName === section;
+                    const matchesRoom = !room || cardRoomName === room;
+
+                    if (matchesYear && matchesSection && matchesRoom) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+
+            // Full Screen Functionality
+            function toggleFullScreen(tab) {
+                const sidebar = document.getElementById('sidebar');
+                const mainContent = document.querySelector('.main-content');
+                const header = document.querySelector('header');
+                const fullscreenBtn = document.getElementById(`fullscreen-${tab}-btn`);
+                const exitFullscreenBtn = document.getElementById(`exit-fullscreen-${tab}-btn`);
+
+                if (sidebar.style.display !== 'none') {
+                    // Enter full screen mode
+                    sidebar.style.display = 'none';
+                    header.style.display = 'none';
+                    mainContent.style.marginLeft = '0';
+                    mainContent.style.padding = '0';
+                    mainContent.classList.add('fullscreen-mode');
+
+                    // Update buttons
+                    fullscreenBtn.classList.add('hidden');
+                    exitFullscreenBtn.classList.remove('hidden');
+
+                    // Add fullscreen styles
+                    document.body.style.overflow = 'hidden';
+                    mainContent.style.width = '100vw';
+                    mainContent.style.height = '100vh';
+                    mainContent.style.position = 'fixed';
+                    mainContent.style.top = '0';
+                    mainContent.style.left = '0';
+                    mainContent.style.zIndex = '1000';
+                    mainContent.style.backgroundColor = 'white';
+
+                } else {
+                    // Exit full screen mode
+                    sidebar.style.display = '';
+                    header.style.display = '';
+                    mainContent.style.marginLeft = '';
+                    mainContent.style.padding = '';
+                    mainContent.classList.remove('fullscreen-mode');
+
+                    // Update buttons
+                    fullscreenBtn.classList.remove('hidden');
+                    exitFullscreenBtn.classList.add('hidden');
+
+                    // Remove fullscreen styles
+                    document.body.style.overflow = '';
+                    mainContent.style.width = '';
+                    mainContent.style.height = '';
+                    mainContent.style.position = '';
+                    mainContent.style.top = '';
+                    mainContent.style.left = '';
+                    mainContent.style.zIndex = '';
+                    mainContent.style.backgroundColor = '';
+                }
+            }
+
+            // Handle ESC key to exit full screen
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    const sidebar = document.getElementById('sidebar');
+                    if (sidebar.style.display === 'none') {
+                        // Exit full screen for both tabs
+                        const manualFullscreenBtn = document.getElementById('fullscreen-manual-btn');
+                        const viewFullscreenBtn = document.getElementById('fullscreen-view-btn');
+
+                        if (!manualFullscreenBtn.classList.contains('hidden')) {
+                            toggleFullScreen('manual');
+                        } else if (!viewFullscreenBtn.classList.contains('hidden')) {
+                            toggleFullScreen('view');
+                        }
+                    }
+                }
+            });
+
+            // Handle browser fullscreen API (optional enhancement)
+            function toggleNativeFullScreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            }
+
+            // Store the original switchTab function BEFORE redefining it
+            const originalSwitchTab = window.switchTab;
+
+            // Enhanced switchTab function with full screen handling
+            window.switchTab = function(tabName) {
+                // If we're in full screen mode, exit it first
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar.style.display === 'none') {
+                    // Exit full screen for current tab
+                    const currentTab = document.querySelector('.tab-content:not(.hidden)').id.replace('content-', '');
+                    toggleFullScreen(currentTab);
+
+                    // Small delay to ensure DOM updates before switching tabs
+                    setTimeout(() => {
+                        performTabSwitch(tabName);
+                    }, 50);
+                } else {
+                    performTabSwitch(tabName);
+                }
+            };
+
+            // Separate function to handle the actual tab switching
+            function performTabSwitch(tabName) {
+                // Remove active classes from all tabs
                 document.querySelectorAll('.tab-button').forEach(btn => {
                     btn.classList.remove('bg-yellow-500', 'text-white');
                     btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
                 });
-                document.getElementById(`tab-${tabName}`).classList.add('bg-yellow-500', 'text-white');
-                document.getElementById(`tab-${tabName}`).classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
 
+                // Add active class to selected tab
+                const targetTab = document.getElementById(`tab-${tabName}`);
+                if (targetTab) {
+                    targetTab.classList.add('bg-yellow-500', 'text-white');
+                    targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                }
+
+                // Hide all tab contents
                 document.querySelectorAll('.tab-content').forEach(content => {
                     content.classList.add('hidden');
                 });
-                document.getElementById(`content-${tabName}`).classList.remove('hidden');
 
+                // Show selected tab content
+                const targetContent = document.getElementById(`content-${tabName}`);
+                if (targetContent) {
+                    targetContent.classList.remove('hidden');
+                }
+
+                // Update URL
                 const url = new URL(window.location);
                 url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
                 window.history.pushState({}, '', url);
+            }
+
+            // Make sure the original switchTab function exists
+            if (typeof window.switchTab === 'undefined') {
+                window.switchTab = function(tabName) {
+                    performTabSwitch(tabName);
+                };
             }
 
             function formatTime(time) {

@@ -937,9 +937,57 @@ class ChairController
             'classrooms' => $this->getClassrooms($departmentId),
             'faculty' => $this->getFaculty($departmentId, $collegeId),
             'sections' => $this->getSections($departmentId, $currentSemester['semester_id']),
-            'curriculumCourses' => $this->getCurriculumCourses($currentSemester['curriculum_id']),
+            'curriculumCourses' => [],
             'semester' => $currentSemester
         ];
+    }
+
+    private function loadSchedules($departmentId, $currentSemester)
+    {
+        if (!$departmentId || !$currentSemester) {
+            error_log("loadSchedules: Missing departmentId or currentSemester - departmentId: $departmentId");
+            return [];
+        }
+
+        try {
+            $sql = "SELECT 
+                    s.*, 
+                    c.course_code, 
+                    c.course_name, 
+                    sec.section_name, 
+                    sec.year_level,
+                    sec.department_id,
+                    CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, 
+                    r.room_name 
+                FROM schedules s 
+                JOIN courses c ON s.course_id = c.course_id 
+                JOIN sections sec ON s.section_id = sec.section_id 
+                JOIN faculty f ON s.faculty_id = f.faculty_id 
+                JOIN users u ON f.user_id = u.user_id 
+                LEFT JOIN classrooms r ON s.room_id = r.room_id 
+                WHERE sec.department_id = :department_id 
+                AND s.semester_id = :semester_id
+                ORDER BY 
+                    sec.year_level,
+                    sec.section_name,
+                    FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'),
+                    s.start_time";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':semester_id' => $currentSemester['semester_id']
+            ]);
+
+            $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            error_log("loadSchedules: Loaded " . count($schedules) . " schedules for department $departmentId, semester {$currentSemester['semester_id']}");
+
+            return $schedules;
+        } catch (PDOException $e) {
+            error_log("loadSchedules Error: " . $e->getMessage());
+            return [];
+        }
     }
 
     public function manageSchedule()
@@ -3521,13 +3569,6 @@ class ChairController
             error_log("Database error in saveScheduleToDB: " . $e->getMessage());
             return ['code' => 500, 'error' => 'Database error: ' . $e->getMessage()];
         }
-    }
-
-    private function loadSchedules($departmentId, $currentSemester)
-    {
-        $stmt = $this->db->prepare("SELECT s.*, c.course_code, c.course_name, sec.section_name, sec.year_level, CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, r.room_name FROM schedules s JOIN courses c ON s.course_id = c.course_id JOIN sections sec ON s.section_id = sec.section_id JOIN faculty f ON s.faculty_id = f.faculty_id JOIN users u ON f.user_id = u.user_id LEFT JOIN classrooms r ON s.room_id = r.room_id WHERE s.semester_id = :semester_id");
-        $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     private function removeDuplicateSchedules($departmentId, $currentSemester)
