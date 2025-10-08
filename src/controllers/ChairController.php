@@ -694,7 +694,9 @@ class ChairController
             }
 
             $stmt = $this->db->prepare("
-            SELECT CONCAT(u.title, ' ',u.first_name, ' ', u.last_name) AS name, f.faculty_id, u.user_id, u.college_id, fd.department_id
+            SELECT CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                          COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                          COALESCE(u.suffix, '')) AS name, f.faculty_id, u.user_id, u.college_id, fd.department_id
             FROM faculty f
             JOIN users u ON f.user_id = u.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
@@ -957,7 +959,9 @@ class ChairController
                     sec.section_name, 
                     sec.year_level,
                     sec.department_id,
-                    CONCAT(u.first_name, ' ', u.last_name) AS faculty_name, 
+                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                          COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                          COALESCE(u.suffix, '')) AS faculty_name,
                     r.room_name 
                 FROM schedules s 
                 JOIN courses c ON s.course_id = c.course_id 
@@ -1114,7 +1118,6 @@ class ChairController
                 }
                 break;
 
-            // In your generateSchedulesAjax method, replace the generate_schedule case with:
 
             case 'generate_schedule':
                 $curriculumId = $_POST['curriculum_id'] ?? null;

@@ -32,21 +32,21 @@ if (!$userDepartmentId) {
     $_SESSION['department_id'] = $userDepartmentId;
 }
 
-        // Fetch college logo based on department ID
-        $collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
-        if ($userDepartmentId) {
-            try {
-                $db = (new Database())->connect();
-                $stmt = $db->prepare("SELECT c.logo_path FROM colleges c JOIN departments d ON c.college_id = d.college_id WHERE d.department_id = :department_id");
-                $stmt->execute([':department_id' => $userDepartmentId]);
-                $logoPath = $stmt->fetchColumn();
-                if ($logoPath) {
-                    $collegeLogoPath = $logoPath;
-                }
-            } catch (PDOException $e) {
-                error_log("layout: Error fetching college logo - " . $e->getMessage());
-            }
+// Fetch college logo based on department ID
+$collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
+if ($userDepartmentId) {
+    try {
+        $db = (new Database())->connect();
+        $stmt = $db->prepare("SELECT c.logo_path FROM colleges c JOIN departments d ON c.college_id = d.college_id WHERE d.department_id = :department_id");
+        $stmt->execute([':department_id' => $userDepartmentId]);
+        $logoPath = $stmt->fetchColumn();
+        if ($logoPath) {
+            $collegeLogoPath = $logoPath;
         }
+    } catch (PDOException $e) {
+        error_log("layout: Error fetching college logo - " . $e->getMessage());
+    }
+}
 
 $chairController = new ChairController();
 $deadlineStatus = $chairController->checkScheduleDeadlineStatus($userDepartmentId);
