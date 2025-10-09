@@ -623,104 +623,151 @@ ob_start();
 
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Course Code</label>
-                        <input type="text" id="course-code" name="course_code" list="course-codes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required oninput="syncCourseName()">
+                        <input type="text" id="course-code" name="course_code" list="course-codes"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                            required oninput="autoFillCourseName(this.value)">
                         <datalist id="course-codes">
-                            <?php foreach (array_unique(array_column($schedules, 'course_code')) as $code): ?>
-                                <option value="<?php echo htmlspecialchars($code); ?>"></option>
-                            <?php endforeach; ?>
+                            <?php
+                            $curriculumCourses = $jsData['curriculumCourses'] ?? [];
+                            foreach ($curriculumCourses as $course): ?>
+                                <option value="<?php echo htmlspecialchars($course['course_code']); ?>"
+                                    data-name="<?php echo htmlspecialchars($course['course_name']); ?>"
+                                    data-year-level="<?php echo htmlspecialchars($course['curriculum_year']); ?>"
+                                    data-course-id="<?php echo htmlspecialchars($course['course_id']); ?>">
+                                <?php endforeach; ?>
                         </datalist>
                     </div>
 
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
-                        <input type="text" id="course-name" name="course_name" list="course-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required oninput="syncCourseCode()">
-                        <datalist id="course-names">
-                            <?php foreach (array_unique(array_column($schedules, 'course_name')) as $name): ?>
-                                <option value="<?php echo htmlspecialchars($name); ?>"></option>
-                            <?php endforeach; ?>
-                        </datalist>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
-                        <input type="text" id="faculty-name" name="faculty_name" list="faculty-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
-                        <datalist id="faculty-names">
-                            <?php foreach (array_unique(array_column($schedules, 'faculty_name')) as $faculty): ?>
-                                <option value="<?php echo htmlspecialchars($faculty); ?>"></option>
-                            <?php endforeach; ?>
-                        </datalist>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
-                        <input type="text" id="room-name" name="room_name" list="room-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        <datalist id="room-names">
-                            <?php foreach (array_unique(array_column(array_filter($schedules, fn($s) => $s['room_name']), 'room_name')) as $room): ?>
-                                <option value="<?php echo htmlspecialchars($room); ?>"></option>
-                            <?php endforeach; ?>
-                        </datalist>
+                        <input type="text" id="course-name" name="course_name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                            required readonly>
                     </div>
 
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
-                        <input type="text" id="section-name" name="section_name" list="section-names" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" required>
-                        <datalist id="section-names">
-                            <?php foreach (array_unique(array_column($schedules, 'section_name')) as $section): ?>
-                                <option value="<?php echo htmlspecialchars($section); ?>"></option>
+                        <select id="section-name" name="section_name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                            required onchange="filterSectionsByYearLevel()">
+                            <option value="">Select Section</option>
+                            <?php
+                            $sectionsByYear = [];
+                            foreach ($sections as $section) {
+                                $yearLevel = $section['year_level'];
+                                if (!isset($sectionsByYear[$yearLevel])) {
+                                    $sectionsByYear[$yearLevel] = [];
+                                }
+                                $sectionsByYear[$yearLevel][] = $section;
+                            }
+
+                            foreach ($sectionsByYear as $yearLevel => $yearSections): ?>
+                                <optgroup label="<?php echo htmlspecialchars($yearLevel); ?>">
+                                    <?php foreach ($yearSections as $section): ?>
+                                        <option value="<?php echo htmlspecialchars($section['section_name']); ?>"
+                                            data-year-level="<?php echo htmlspecialchars($section['year_level']); ?>">
+                                            <?php echo htmlspecialchars($section['section_name']); ?>
+                                            (<?php echo htmlspecialchars($section['current_students']); ?>/<?php echo htmlspecialchars($section['max_students']); ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
                             <?php endforeach; ?>
-                        </datalist>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
+                        <select id="faculty-name" name="faculty_name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                            required>
+                            <option value="">Select Faculty</option>
+                            <?php foreach ($faculty as $fac): ?>
+                                <option value="<?php echo htmlspecialchars($fac['name']); ?>">
+                                    <?php echo htmlspecialchars($fac['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
+                        <select id="room-name" name="room_name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <option value="Online">Online</option>
+                            <?php foreach ($classrooms as $room): ?>
+                                <option value="<?php echo htmlspecialchars($room['room_name']); ?>">
+                                    <?php echo htmlspecialchars($room['room_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
-                            <select id="start-time" name="start_time_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="document.getElementById('modal-start-time').value=this.value">
+                            <select id="start-time" name="start_time_display"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                                onchange="updateTimeFields()">
                                 <option value="07:30">7:30 AM</option>
                                 <option value="08:30">8:30 AM</option>
+                                <option value="09:00">9:00 AM</option>
                                 <option value="10:00">10:00 AM</option>
                                 <option value="11:00">11:00 AM</option>
-                                <option value="12:30">12:30 PM</option>
-                                <option value="13:30">1:30 PM</option>
-                                <option value="14:30">2:30 PM</option>
-                                <option value="15:30">3:30 PM</option>
+                                <option value="12:00">12:00 PM</option>
+                                <option value="13:00">1:00 PM</option>
+                                <option value="14:00">2:00 PM</option>
+                                <option value="15:00">3:00 PM</option>
+                                <option value="16:00">4:00 PM</option>
                                 <option value="17:00">5:00 PM</option>
                                 <option value="18:00">6:00 PM</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
-                            <select id="end-time" name="end_time_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="document.getElementById('modal-end-time').value=this.value">
+                            <select id="end-time" name="end_time_display"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                                onchange="updateTimeFields()">
                                 <option value="08:30">8:30 AM</option>
-                                <option value="10:00">10:00 AM</option>
-                                <option value="11:00">11:00 AM</option>
+                                <option value="09:30">9:30 AM</option>
+                                <option value="10:30">10:30 AM</option>
+                                <option value="11:30">11:30 AM</option>
                                 <option value="12:30">12:30 PM</option>
                                 <option value="13:30">1:30 PM</option>
                                 <option value="14:30">2:30 PM</option>
                                 <option value="15:30">3:30 PM</option>
-                                <option value="17:00">5:00 PM</option>
-                                <option value="18:00">6:00 PM</option>
+                                <option value="16:30">4:30 PM</option>
+                                <option value="17:30">5:30 PM</option>
+                                <option value="18:30">6:30 PM</option>
+                                <option value="19:30">7:30 PM</option>
                             </select>
                         </div>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Day</label>
-                        <select id="day-select" name="day_select_display" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="document.getElementById('modal-day').value=this.value">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Day Pattern</label>
+                        <select id="day-select" name="day_select_display"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                            onchange="updateDayField()">
                             <option value="Monday">Monday</option>
                             <option value="Tuesday">Tuesday</option>
                             <option value="Wednesday">Wednesday</option>
                             <option value="Thursday">Thursday</option>
                             <option value="Friday">Friday</option>
                             <option value="Saturday">Saturday</option>
+                            <option value="MWF">MWF (Mon, Wed, Fri)</option>
+                            <option value="TTH">TTH (Tue, Thu)</option>
+                            <option value="MW">MW (Mon, Wed)</option>
+                            <option value="TTHS">TTHS (Tue, Thu, Sat)</option>
                         </select>
                     </div>
 
                     <div>
-                        <label for="" class="block text-sm font-semibold text-gray-700 mb-2">Schedule Type</label>
-                        <select name="" id="" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                            <option value="">Select Schedule Type</option>
-                            <option value="">Face to Face (F2F)</option>
-                            <option value="">Online</option>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Schedule Type</label>
+                        <select id="schedule-type" name="schedule_type"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <option value="f2f">Face to Face (F2F)</option>
+                            <option value="online">Online</option>
+                            <option value="hybrid">Hybrid</option>
                         </select>
                     </div>
 
@@ -782,6 +829,8 @@ ob_start();
             window.faculty = window.jsData.faculty || [];
             window.classrooms = window.jsData.classrooms || [];
             window.curricula = window.jsData.curricula || [];
+            // Get curriculum courses from jsData
+            window.curriculumCourses = window.jsData.curriculumCourses || [];
 
             // Transform sections data
             window.sectionsData = Array.isArray(window.rawSectionsData) ? window.rawSectionsData.map((s, index) => ({

@@ -725,14 +725,13 @@ class ChairController
 
     private function getSections($departmentId, $semesterId)
     {
-        error_log("getSections: Fetching for department $departmentId, semester_id $semesterId");
         try {
             // Use provided $semesterId; fallback to current semester only if not provided
             $effectiveSemesterId = $semesterId;
             if (!$effectiveSemesterId) {
                 $currentSemester = $this->getCurrentSemester();
                 $effectiveSemesterId = $currentSemester['semester_id'] ?? null;
-                error_log("getSections: No semester_id provided, using current semester: " . $effectiveSemesterId);
+                
                 if (!$effectiveSemesterId) {
                     error_log("getSections: No valid semester_id found");
                     return [];
@@ -934,12 +933,13 @@ class ChairController
 
     private function loadCommonData($departmentId, $currentSemester, $collegeId)
     {
+        $curriculumCourses = [];
         return [
             'curricula' => $this->getCurricula($departmentId),
             'classrooms' => $this->getClassrooms($departmentId),
             'faculty' => $this->getFaculty($departmentId, $collegeId),
             'sections' => $this->getSections($departmentId, $currentSemester['semester_id']),
-            'curriculumCourses' => [],
+            'curriculumCourses' => $curriculumCourses, // Include curriculum courses
             'semester' => $currentSemester
         ];
     }
@@ -993,6 +993,530 @@ class ChairController
             return [];
         }
     }
+
+    public function addSchedule()
+    {
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+            exit;
+        }
+
+        $chairId = $_SESSION['user_id'] ?? null;
+        $departmentId = $this->getChairDepartment($chairId);
+        $currentSemester = $this->getCurrentSemester();
+        $collegeData = $this->getChairCollege($chairId);
+        $collegeId = $collegeData['college_id'] ?? null;
+
+        if (!$departmentId || !$currentSemester) {
+            echo json_encode(['success' => false, 'message' => 'Could not determine department or semester']);
+            exit;
+        }
+
+        try {
+            $data = $_POST;
+
+            // Validate required fields
+            $required = ['course_code', 'course_name', 'section_name', 'faculty_name', 'day_of_week', 'start_time', 'end_time'];
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    echo json_encode(['success' => false, 'message' => "Missing required field: $field"]);
+                    exit;
+                }
+            }
+
+            // Get course_id from course_code using curriculum courses ONLY
+            $courseId = null;
+            $curricula = $this->getCurricula($departmentId);
+
+            if (empty($curricula)) {
+                echo json_encode(['success' => false, 'message' => 'No active curriculum found for department']);
+                exit;
+            }
+
+            // Use the first curriculum (you can modify this logic if needed)
+            $firstCurriculumId = $curricula[0]['curriculum_id'];
+            $curriculumCourses = $this->getCurriculumCourses($firstCurriculumId);
+
+            error_log("Curriculum courses for curriculum $firstCurriculumId: " . count($curriculumCourses) . " courses found");
+
+            foreach ($curriculumCourses as $course) {
+                error_log("Checking course: " . $course['course_code'] . " vs " . $data['course_code']);
+                if ($course['course_code'] === $data['course_code']) {
+                    $courseId = $course['course_id'];
+                    error_log("Found course ID: " . $courseId . " for course: " . $data['course_code']);
+                    break;
+                }
+            }
+
+            if (!$courseId) {
+                error_log("Course not found in curriculum: " . $data['course_code']);
+                echo json_encode(['success' => false, 'message' => 'Invalid course code or course not in current semester curriculum: ' . $data['course_code']]);
+                exit;
+            }
+
+            // Get faculty_id from faculty name using your existing getFaculty function
+            $facultyId = null;
+            $facultyList = $this->getFaculty($departmentId, $collegeId);
+            foreach ($facultyList as $facultyMember) {
+                if (strpos($facultyMember['name'], $data['faculty_name']) !== false) {
+                    $facultyId = $facultyMember['faculty_id'];
+                    break;
+                }
+            }
+
+            if (!$facultyId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid faculty name: ' . $data['faculty_name']]);
+                exit;
+            }
+
+            // Get section_id from section name using your existing getSections function
+            $sectionId = null;
+            $sectionsList = $this->getSections($departmentId, $currentSemester['semester_id']);
+            foreach ($sectionsList as $section) {
+                if ($section['section_name'] === $data['section_name']) {
+                    $sectionId = $section['section_id'];
+                    break;
+                }
+            }
+
+            if (!$sectionId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid section name: ' . $data['section_name']]);
+                exit;
+            }
+
+            // Get room_id if room is specified using your existing getClassrooms function
+            $roomId = null;
+            if (!empty($data['room_name']) && $data['room_name'] !== 'Online') {
+                $classroomsList = $this->getClassrooms($departmentId);
+                foreach ($classroomsList as $room) {
+                    if ($room['room_name'] === $data['room_name']) {
+                        $roomId = $room['room_id'];
+                        break;
+                    }
+                }
+            }
+
+            // Check for conflicts
+            $conflicts = $this->checkScheduleConflicts(
+                $sectionId,
+                $facultyId,
+                $roomId,
+                $data['day_of_week'],
+                $data['start_time'],
+                $data['end_time'],
+                null, // No schedule_id for new schedule
+                $currentSemester['semester_id']
+            );
+
+            if (!empty($conflicts)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Schedule conflicts detected',
+                    'conflicts' => $conflicts
+                ]);
+                exit;
+            }
+
+            // Insert the schedule
+            $stmt = $this->db->prepare("
+            INSERT INTO schedules 
+            (course_id, section_id, faculty_id, room_id, day_of_week, start_time, end_time, semester_id, department_id, schedule_type, created_at, updated_at)
+            VALUES (:course_id, :section_id, :faculty_id, :room_id, :day_of_week, :start_time, :end_time, :semester_id, :department_id, :schedule_type, NOW(), NOW())
+        ");
+
+            $scheduleType = $data['schedule_type'] ?? 'f2f';
+
+            $stmt->execute([
+                ':course_id' => $courseId,
+                ':section_id' => $sectionId,
+                ':faculty_id' => $facultyId,
+                ':room_id' => $roomId,
+                ':day_of_week' => $data['day_of_week'],
+                ':start_time' => $data['start_time'],
+                ':end_time' => $data['end_time'],
+                ':semester_id' => $currentSemester['semester_id'],
+                ':department_id' => $departmentId,
+                ':schedule_type' => $scheduleType
+            ]);
+
+            $scheduleId = $this->db->lastInsertId();
+
+            // Reload all schedules to get the updated schedule with full details
+            $allSchedules = $this->loadSchedules($departmentId, $currentSemester);
+
+            // Find the newly created schedule
+            $newSchedule = null;
+            foreach ($allSchedules as $schedule) {
+                if ($schedule['schedule_id'] == $scheduleId) {
+                    $newSchedule = $schedule;
+                    break;
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Schedule added successfully',
+                'schedule' => $newSchedule,
+                'allSchedules' => $allSchedules // Return all schedules for frontend update
+            ]);
+        } catch (Exception $e) {
+            error_log("addSchedule error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error adding schedule: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateSchedule()
+    {
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+            exit;
+        }
+
+        $chairId = $_SESSION['user_id'] ?? null;
+        $departmentId = $this->getChairDepartment($chairId);
+        $currentSemester = $this->getCurrentSemester();
+        $collegeData = $this->getChairCollege($chairId);
+        $collegeId = $collegeData['college_id'] ?? null;
+
+        if (!$departmentId || !$currentSemester) {
+            echo json_encode(['success' => false, 'message' => 'Could not determine department or semester']);
+            exit;
+        }
+
+        try {
+            $data = $_POST;
+            $scheduleId = $data['schedule_id'] ?? null;
+
+            if (!$scheduleId) {
+                echo json_encode(['success' => false, 'message' => 'Missing schedule ID']);
+                exit;
+            }
+
+            // Verify schedule belongs to department
+            if (!$this->verifyScheduleOwnership($scheduleId, $departmentId)) {
+                echo json_encode(['success' => false, 'message' => 'Schedule not found or access denied']);
+                exit;
+            }
+
+            // Get course_id from course_code using your existing functions
+            $courseId = null;
+            $curricula = $this->getCurricula($departmentId);
+            if (!empty($curricula)) {
+                $firstCurriculumId = $curricula[0]['curriculum_id'];
+                $curriculumCourses = $this->getCurriculumCourses($firstCurriculumId);
+
+                foreach ($curriculumCourses as $course) {
+                    if ($course['course_code'] === $data['course_code']) {
+                        $courseId = $course['course_id'];
+                        break;
+                    }
+                }
+            }
+
+            // Fallback to all courses if not found in curriculum
+            if (!$courseId) {
+                $allCourses = $this->getCourses($departmentId);
+                foreach ($allCourses as $course) {
+                    if ($course['course_code'] === $data['course_code']) {
+                        $courseId = $course['course_id'];
+                        break;
+                    }
+                }
+            }
+
+            if (!$courseId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid course code: ' . $data['course_code']]);
+                exit;
+            }
+
+            // Get faculty_id from faculty name using your existing getFaculty function
+            $facultyId = null;
+            $facultyList = $this->getFaculty($departmentId, $collegeId);
+            foreach ($facultyList as $facultyMember) {
+                if (strpos($facultyMember['name'], $data['faculty_name']) !== false) {
+                    $facultyId = $facultyMember['faculty_id'];
+                    break;
+                }
+            }
+
+            if (!$facultyId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid faculty name: ' . $data['faculty_name']]);
+                exit;
+            }
+
+            // Get section_id from section name using your existing getSections function
+            $sectionId = null;
+            $sectionsList = $this->getSections($departmentId, $currentSemester['semester_id']);
+            foreach ($sectionsList as $section) {
+                if ($section['section_name'] === $data['section_name']) {
+                    $sectionId = $section['section_id'];
+                    break;
+                }
+            }
+
+            if (!$sectionId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid section name: ' . $data['section_name']]);
+                exit;
+            }
+
+            // Get room_id if room is specified using your existing getClassrooms function
+            $roomId = null;
+            if (!empty($data['room_name']) && $data['room_name'] !== 'Online') {
+                $classroomsList = $this->getClassrooms($departmentId);
+                foreach ($classroomsList as $room) {
+                    if ($room['room_name'] === $data['room_name']) {
+                        $roomId = $room['room_id'];
+                        break;
+                    }
+                }
+            }
+
+            // Check for conflicts (excluding current schedule)
+            $conflicts = $this->checkScheduleConflicts(
+                $sectionId,
+                $facultyId,
+                $roomId,
+                $data['day_of_week'],
+                $data['start_time'],
+                $data['end_time'],
+                $scheduleId, // Exclude current schedule
+                $currentSemester['semester_id']
+            );
+
+            if (!empty($conflicts)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Schedule conflicts detected',
+                    'conflicts' => $conflicts
+                ]);
+                exit;
+            }
+
+            // Update the schedule
+            $stmt = $this->db->prepare("
+            UPDATE schedules 
+            SET course_id = :course_id, 
+                section_id = :section_id, 
+                faculty_id = :faculty_id, 
+                room_id = :room_id, 
+                day_of_week = :day_of_week, 
+                start_time = :start_time, 
+                end_time = :end_time,
+                schedule_type = :schedule_type,
+                updated_at = NOW()
+            WHERE schedule_id = :schedule_id
+        ");
+
+            $scheduleType = $data['schedule_type'] ?? 'f2f';
+
+            $stmt->execute([
+                ':course_id' => $courseId,
+                ':section_id' => $sectionId,
+                ':faculty_id' => $facultyId,
+                ':room_id' => $roomId,
+                ':day_of_week' => $data['day_of_week'],
+                ':start_time' => $data['start_time'],
+                ':end_time' => $data['end_time'],
+                ':schedule_type' => $scheduleType,
+                ':schedule_id' => $scheduleId
+            ]);
+
+            // Reload all schedules to get the updated schedule with full details
+            $allSchedules = $this->loadSchedules($departmentId, $currentSemester);
+
+            // Find the updated schedule
+            $updatedSchedule = null;
+            foreach ($allSchedules as $schedule) {
+                if ($schedule['schedule_id'] == $scheduleId) {
+                    $updatedSchedule = $schedule;
+                    break;
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Schedule updated successfully',
+                'schedule' => $updatedSchedule,
+                'allSchedules' => $allSchedules // Return all schedules for frontend update
+            ]);
+        } catch (Exception $e) {
+            error_log("updateSchedule error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error updating schedule: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    private function verifyScheduleOwnership($scheduleId, $departmentId)
+    {
+        $stmt = $this->db->prepare("
+        SELECT s.schedule_id 
+        FROM schedules s
+        JOIN sections sec ON s.section_id = sec.section_id
+        WHERE s.schedule_id = :schedule_id 
+        AND sec.department_id = :department_id
+        ");
+        $stmt->execute([
+            ':schedule_id' => $scheduleId,
+            ':department_id' => $departmentId
+        ]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) !== false;
+    }
+
+    // Enhanced conflict detection with day pattern support
+    private function checkScheduleConflicts($sectionId, $facultyId, $roomId, $dayOfWeek, $startTime, $endTime, $excludeScheduleId = null, $semesterId)
+    {
+        $conflicts = [];
+
+        // Convert day patterns to individual days
+        $daysToCheck = $this->expandDayPattern($dayOfWeek);
+
+        if (empty($daysToCheck)) {
+            $daysToCheck = [$dayOfWeek]; // Fallback to single day
+        }
+
+        foreach ($daysToCheck as $day) {
+            // Check section conflicts
+            $sectionConflicts = $this->checkEntityConflicts('section_id', $sectionId, $day, $startTime, $endTime, $excludeScheduleId, $semesterId);
+            if (!empty($sectionConflicts)) {
+                $conflicts = array_merge($conflicts, $sectionConflicts);
+            }
+
+            // Check faculty conflicts
+            $facultyConflicts = $this->checkEntityConflicts('faculty_id', $facultyId, $day, $startTime, $endTime, $excludeScheduleId, $semesterId);
+            if (!empty($facultyConflicts)) {
+                $conflicts = array_merge($conflicts, $facultyConflicts);
+            }
+
+            // Check room conflicts (only if room is specified and not online)
+            if ($roomId) {
+                $roomConflicts = $this->checkEntityConflicts('room_id', $roomId, $day, $startTime, $endTime, $excludeScheduleId, $semesterId);
+                if (!empty($roomConflicts)) {
+                    $conflicts = array_merge($conflicts, $roomConflicts);
+                }
+            }
+        }
+
+        return array_unique($conflicts);
+    }
+
+    private function checkEntityConflicts($entityField, $entityId, $dayOfWeek, $startTime, $endTime, $excludeScheduleId, $semesterId)
+    {
+        $conflicts = [];
+
+        $sql = "
+        SELECT 
+            s.schedule_id,
+            c.course_code,
+            sec.section_name,
+            CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+            r.room_name,
+            s.day_of_week,
+            s.start_time,
+            s.end_time
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.course_id
+        JOIN sections sec ON s.section_id = sec.section_id
+        JOIN faculty f ON s.faculty_id = f.faculty_id
+        JOIN users u ON f.user_id = u.user_id
+        LEFT JOIN classrooms r ON s.room_id = r.room_id
+        WHERE s.{$entityField} = :entity_id
+        AND s.semester_id = :semester_id
+        AND s.day_of_week = :day_of_week
+        AND (
+            (s.start_time < :end_time AND s.end_time > :start_time)
+        )
+        ";
+
+        $params = [
+            ':entity_id' => $entityId,
+            ':semester_id' => $semesterId,
+            ':day_of_week' => $dayOfWeek,
+            ':start_time' => $startTime,
+            ':end_time' => $endTime
+        ];
+
+        if ($excludeScheduleId) {
+            $sql .= " AND s.schedule_id != :exclude_schedule_id";
+            $params[':exclude_schedule_id'] = $excludeScheduleId;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $existingSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($existingSchedules as $schedule) {
+            $entityType = $this->getEntityType($entityField);
+            $conflicts[] = "{$entityType} conflict: {$schedule['course_code']} with {$schedule['section_name']} at {$schedule['start_time']}-{$schedule['end_time']}";
+        }
+
+        return $conflicts;
+    }
+
+    private function getEntityType($entityField)
+    {
+        switch ($entityField) {
+            case 'section_id':
+                return 'Section';
+            case 'faculty_id':
+                return 'Faculty';
+            case 'room_id':
+                return 'Room';
+            default:
+                return 'Unknown';
+        }
+    }
+
+    // Enhanced day pattern expansion
+    private function expandDayPattern($dayPattern)
+    {
+        $pattern = strtoupper(trim($dayPattern));
+        $dayMap = [
+            'M' => 'Monday',
+            'T' => 'Tuesday',
+            'W' => 'Wednesday',
+            'TH' => 'Thursday',
+            'F' => 'Friday',
+            'S' => 'Saturday',
+            'SU' => 'Sunday'
+        ];
+
+        $patterns = [
+            'MWF' => ['Monday', 'Wednesday', 'Friday'],
+            'TTH' => ['Tuesday', 'Thursday'],
+            'MW' => ['Monday', 'Wednesday'],
+            'TTHS' => ['Tuesday', 'Thursday', 'Saturday'],
+            'DAILY' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        ];
+
+        // Check for predefined patterns
+        if (isset($patterns[$pattern])) {
+            return $patterns[$pattern];
+        }
+
+        // Check for individual day codes
+        if (isset($dayMap[$pattern])) {
+            return [$dayMap[$pattern]];
+        }
+
+        // Handle comma-separated days
+        if (strpos($pattern, ',') !== false) {
+            $days = array_map('trim', explode(',', $pattern));
+            $expanded = [];
+            foreach ($days as $day) {
+                $expanded = array_merge($expanded, $this->expandDayPattern($day));
+            }
+            return array_unique($expanded);
+        }
+
+        // If no pattern matched, return as single day
+        return [$dayPattern];
+    }
+
 
     public function manageSchedule()
     {
@@ -3517,27 +4041,6 @@ class ChairController
         if (isset($_POST['schedule_id'])) {
             $stmt = $this->db->prepare("DELETE FROM schedules WHERE schedule_id = :schedule_id AND semester_id = :semester_id");
             $stmt->execute([':schedule_id' => $_POST['schedule_id'], ':semester_id' => $_SESSION['current_semester']['semester_id']]);
-            echo json_encode(['success' => $stmt->rowCount() > 0]);
-        }
-        exit;
-    }
-
-    public function updateSchedule()
-    {
-        if (isset($_POST['schedule_id']) && isset($_POST['data'])) {
-            $data = json_decode($_POST['data'], true);
-            $stmt = $this->db->prepare("UPDATE schedules SET course_id = :course_id, section_id = :section_id, room_id = :room_id, faculty_id = :faculty_id, day_of_week = :day_of_week, start_time = :start_time, end_time = :end_time WHERE schedule_id = :schedule_id AND semester_id = :semester_id");
-            $stmt->execute([
-                ':schedule_id' => $_POST['schedule_id'],
-                ':course_id' => $data['course_id'],
-                ':section_id' => $data['section_id'],
-                ':room_id' => $data['room_id'] ?? null,
-                ':faculty_id' => $data['faculty_id'],
-                ':day_of_week' => $data['day_of_week'],
-                ':start_time' => $data['start_time'],
-                ':end_time' => $data['end_time'],
-                ':semester_id' => $_SESSION['current_semester']['semester_id']
-            ]);
             echo json_encode(['success' => $stmt->rowCount() > 0]);
         }
         exit;
