@@ -1030,8 +1030,6 @@ class ChairController
                 'schedules' => $schedules
             ];
 
-            error_log("manageSchedule: jsData.sectionsData count: " . count($jsData['sectionsData']));
-            error_log("manageSchedule: jsData.curriculumCourses count: 0 (populated via AJAX)");
         } else {
             $jsData = [
                 'departmentId' => $departmentId,

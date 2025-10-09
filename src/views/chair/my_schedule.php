@@ -448,7 +448,7 @@ ob_start();
                     <div style="font-size: 9px; font-weight: bold; margin-bottom: 1px;">PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</div>
                     <div style="font-size: 6px; font-style: italic; margin-bottom: 2px;">(formerly Ramon Magsaysay Technological University)</div>
                     <div style="font-size: 7px; font-weight: bold; margin-bottom: 1px;">Iba, Zambales</div>
-                    <div style="font-size: 10px; font-weight: bold; margin-top: 5px;">FACULTY TEACHING LOAD</div>
+                    <div style="font-size: 10px; font-weight: bold; margin-top: 5px;">PROGRAM CHAIR TEACHING LOAD</div>
                     <div style="font-size: 8px; margin-top: 2px;">${semesterInfo}</div>
                 </td>
                 <td style="width: 50px; border: none;"></td>

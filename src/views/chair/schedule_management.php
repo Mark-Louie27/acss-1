@@ -715,6 +715,15 @@ ob_start();
                         </select>
                     </div>
 
+                    <div>
+                        <label for="" class="block text-sm font-semibold text-gray-700 mb-2">Schedule Type</label>
+                        <select name="" id="" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <option value="">Select Schedule Type</option>
+                            <option value="">Face to Face (F2F)</option>
+                            <option value="">Online</option>
+                        </select>
+                    </div>
+
                     <div class="flex justify-end space-x-4 pt-4">
                         <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
                         <button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Save Schedule</button>
