@@ -9,7 +9,6 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($data['title']); ?></title>
-    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
     <style>
         :root {
             --primary-yellow: #F4C029;
@@ -68,7 +67,7 @@ ob_start();
 
         .main-content {
             background: transparent;
-            min-height: 100vh;
+           
         }
 
         .dashboard-header {
@@ -256,7 +255,7 @@ ob_start();
 
 <body>
     <!-- Main Content -->
-    <div class="main-content p-4 md:p-6 min-h-screen">
+    <div class=" min-h-screen">
         <!-- Mobile Menu Toggle -->
         <button id="menuToggle" class="md:hidden fixed top-4 left-4 z-50 bg-yellow-600 text-white p-3 rounded-xl shadow-lg hover:bg-yellow-700 transition-all duration-300">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
