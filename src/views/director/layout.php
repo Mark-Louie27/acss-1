@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['r
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
 
-
 // Fetch profile picture from session or database
 $profilePicture = $_SESSION['profile_picture'] ?? null;
 if (!$profilePicture) {
@@ -269,6 +268,92 @@ if (!$profilePicture) {
                 opacity: 0;
             }
         }
+
+        /* Responsive enhancements */
+        @media (max-width: 767px) {
+
+            /* Mobile sidebar overlay */
+            .sidebar-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 15;
+                display: none;
+            }
+
+            .sidebar-overlay.active {
+                display: block;
+            }
+
+            .sidebar {
+                width: 280px;
+                z-index: 20;
+            }
+
+            /* Header adjustments for mobile */
+            header {
+                left: 0 !important;
+                z-index: 30;
+            }
+
+            /* Main content adjustments for mobile */
+            main {
+                margin-left: 0 !important;
+                padding-top: 5rem;
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            /* Breadcrumb adjustments */
+            .breadcrumb {
+                font-size: 0.875rem;
+            }
+
+            .breadcrumb ol {
+                flex-wrap: wrap;
+            }
+
+            /* Dropdown menu positioning for mobile */
+            .dropdown-menu {
+                right: 0;
+                left: auto;
+            }
+        }
+
+        @media (min-width: 768px) and (max-width: 1023px) {
+
+            /* Tablet adjustments */
+            .sidebar {
+                width: 240px;
+            }
+
+            main {
+                margin-left: 240px;
+            }
+
+            header {
+                left: 240px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+
+            /* Desktop - keep original layout */
+            .sidebar {
+                width: 256px;
+            }
+
+            main {
+                margin-left: 256px;
+            }
+
+            header {
+                left: 256px;
+            }
+        }
     </style>
 </head>
 
@@ -276,8 +361,11 @@ if (!$profilePicture) {
     <!-- Toast notifications container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-4"></div>
 
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
     <!-- Header -->
-    <header class="fixed top-0 left-55 right-0 bg-white header-shadow z-30">
+    <header class="fixed top-0 left-0 md:left-64 right-0 bg-white header-shadow z-30 transition-all duration-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <!-- Left: Sidebar Toggle and Logo -->
             <div class="flex items-center">
@@ -286,7 +374,7 @@ if (!$profilePicture) {
                 </button>
                 <a href="/director/dashboard" class="flex items-center">
                     <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
-                    <span class="text-lg font-heading text-gray-800">ACSS</span>
+                    <span class="text-lg font-heading text-gray-800 ml-2">ACSS</span>
                 </a>
             </div>
 
@@ -330,7 +418,7 @@ if (!$profilePicture) {
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
             <h2 class="text-xl font-bold text-yellow-400 hidden md:block">PRMSU Scheduling System - ACSS</h2>
-            <p class="text-xs text-gray-400 mt-1 hidden md:block">director Management System</p>
+            <p class="text-xs text-gray-400 mt-1 hidden md:block">Director Instructor</p>
         </div>
 
         <!-- User Profile Section -->
@@ -348,7 +436,7 @@ if (!$profilePicture) {
                     <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
-                        <span>director</span>
+                        <span>Director Instructor</span>
                     </div>
                 </div>
             </div>
@@ -409,7 +497,7 @@ if (!$profilePicture) {
             $segments = explode('/', trim($currentUri, '/'));
             if (count($segments) > 1):
             ?>
-                <nav class="flex mb-5 text-sm" aria-label="Breadcrumb">
+                <nav class="flex mb-5 text-sm breadcrumb" aria-label="Breadcrumb">
                     <ol class="inline-flex items-center space-x-1 md:space-x-3">
                         <li class="inline-flex items-center">
                             <a href="/director/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-400">
@@ -450,9 +538,33 @@ if (!$profilePicture) {
         // Sidebar toggle
         const toggleSidebar = document.getElementById('toggleSidebar');
         const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const header = document.querySelector('header');
+        const main = document.querySelector('main');
 
-        toggleSidebar.addEventListener('click', () => {
-            sidebar.classList.toggle('sidebar-hidden');
+        function toggleSidebarState() {
+            const isHidden = sidebar.classList.contains('-translate-x-full');
+
+            if (isHidden) {
+                // Show sidebar
+                sidebar.classList.remove('-translate-x-full');
+                sidebarOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden'; // Prevent body scrolling
+            } else {
+                // Hide sidebar
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.remove('active');
+                document.body.style.overflow = ''; // Restore body scrolling
+            }
+        }
+
+        toggleSidebar.addEventListener('click', toggleSidebarState);
+
+        // Close sidebar when overlay is clicked
+        sidebarOverlay.addEventListener('click', () => {
+            sidebar.classList.add('-translate-x-full');
+            sidebarOverlay.classList.remove('active');
+            document.body.style.overflow = '';
         });
 
         // Close sidebar on outside click (mobile)
@@ -460,9 +572,26 @@ if (!$profilePicture) {
             const isSmallScreen = window.innerWidth < 768;
             const isSidebar = sidebar.contains(event.target);
             const isToggleButton = toggleSidebar.contains(event.target);
+            const isOverlay = sidebarOverlay.contains(event.target);
 
-            if (isSmallScreen && !isSidebar && !isToggleButton && !sidebar.classList.contains('sidebar-hidden')) {
-                sidebar.classList.add('sidebar-hidden');
+            if (isSmallScreen && !isSidebar && !isToggleButton && !isOverlay && !sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) {
+                // On tablet/desktop, ensure sidebar is visible and overlay is hidden
+                sidebar.classList.remove('-translate-x-full');
+                sidebarOverlay.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                // On mobile, ensure sidebar is hidden by default
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.remove('active');
             }
         });
 
@@ -504,4 +633,3 @@ if (!$profilePicture) {
 </body>
 
 </html>
-```

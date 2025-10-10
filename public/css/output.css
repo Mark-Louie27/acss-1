@@ -3390,6 +3390,11 @@
       line-height: var(--tw-leading, var(--text-xl--line-height));
     }
   }
+  .md\:left-64 {
+    @media (width >= 48rem) {
+      left: calc(var(--spacing) * 64);
+    }
+  }
   .md\:col-span-1 {
     @media (width >= 48rem) {
       grid-column: span 1 / span 1;

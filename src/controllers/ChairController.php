@@ -95,9 +95,6 @@ class ChairController
         return $stmt->fetchColumn();
     }
 
-    /**
-     * Display Chair dashboard
-     */
     public function dashboard()
     {
         try {
@@ -336,9 +333,6 @@ class ChairController
         }
     }
 
-    /**
-     * Format schedule days to show MWF, TTH format instead of listing individually
-     */
     private function formatScheduleDays($dayString)
     {
         if (empty($dayString)) {
