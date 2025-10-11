@@ -814,11 +814,12 @@ class DeanController
         // Handle approval/rejection actions
         if (isset($_POST['action']) && in_array($_POST['action'], ['approve', 'reject'])) {
             $scheduleIdsStr = $_POST['schedule_ids'] ?? $_POST['schedule_id'] ?? '';
-            $status = $_POST['action'] === 'approve' ? 'Approved' : 'Rejected';
-            $isPublic = $_POST['action'] === 'approve' ? 1 : 0;
+            // Use 'Dean_Approved' for approval, 'Rejected' for rejection
+            $status = $_POST['action'] === 'approve' ? 'Dean_Approved' : 'Rejected';
+            $isPublic = 0; // Keep is_public = 0 until Director approval
 
             // Get current semester ID for validation
-            $currentSemesterStmt = $this->getCurrentSemester();
+            $currentSemesterStmt = $this->db->prepare("SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1");
             $currentSemesterStmt->execute();
             $currentSemesterId = $currentSemesterStmt->fetchColumn();
 
@@ -828,7 +829,7 @@ class DeanController
 
                 $stmt = $this->db->prepare("
                 UPDATE schedules 
-                SET status = ?, approved_by = ?, approval_date = NOW(), is_public = ?, updated_at = NOW()
+                SET status = ?, approved_by_dean = ?, approval_date_dean = NOW(), is_public = ?, updated_at = NOW()
                 WHERE schedule_id IN ($placeholders) AND semester_id = ?
                 ");
                 $params = array_merge([$status, $userId, $isPublic], $scheduleIds, [$currentSemesterId]);
@@ -849,7 +850,7 @@ class DeanController
         }
 
         // Get current semester details
-        $currentSemesterStmt = $this->getCurrentSemester();
+        $currentSemesterStmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
         $currentSemesterStmt->execute();
         $currentSemesterId = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -877,7 +878,7 @@ class DeanController
         FROM deans d
         JOIN colleges c ON d.college_id = c.college_id
         WHERE d.user_id = :user_id AND d.is_current = 1";
-            $stmt = $this->db->prepare($query);
+        $stmt = $this->db->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         $college = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -932,6 +933,30 @@ class DeanController
         error_log("manageSchedule: Fetched " . count($allSchedules) . " grouped schedules for college $collegeId, grouped into " . count($schedules) . " departments");
 
         require_once __DIR__ . '/../views/dean/manage_schedules.php';
+    }
+
+    public function getStats()
+    {
+        $stats = ['total_pending' => 0];
+        $currentSemester = $this->getCurrentSemester();
+        if ($currentSemester) {
+            try {
+                $stmt = $this->db->prepare("
+                    SELECT COUNT(DISTINCT s.schedule_id) as total_pending
+                    FROM schedules s
+                    WHERE s.semester_id = :semester_id AND s.status = 'Dean_Approved'
+                ");
+                $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
+                $stats['total_pending'] = (int) $stmt->fetchColumn();
+                error_log("getStats: Found {$stats['total_pending']} pending schedules for semester {$currentSemester['semester_id']}");
+            } catch (PDOException $e) {
+                error_log("getStats: PDO Error - " . $e->getMessage());
+                $stats['total_pending'] = 0;
+            }
+        } else {
+            error_log("getStats: No current semester found");
+        }
+        return $stats;
     }
 
     public function classroom()

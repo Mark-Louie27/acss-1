@@ -36,6 +36,10 @@ try {
 
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
+
+$deanController = new DeanController();
+$stats = $deanController->getStats();
+$stats = $stats ?? ['total_pending' => 0];
 ?>
 
 <!DOCTYPE html>
@@ -631,6 +635,11 @@ $currentUri = $_SERVER['REQUEST_URI'];
             <a href="/dean/manage_schedules" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-plus-circle w-5 mr-3 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage college Departments Schedule</span>
+                <?php if (isset($stats) && $stats['total_pending'] > 0): ?>
+                    <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        <?php echo $stats['total_pending']; ?>
+                    </span>
+                <?php endif; ?>
             </a>
 
             <!-- My set monitor Link -->

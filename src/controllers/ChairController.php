@@ -2198,7 +2198,7 @@ class ChairController
                         'start_time' => $startTime,
                         'end_time' => $endTime,
                         'status' => 'Pending',
-                        'is_public' => 1,
+                        'is_public' => 0,
                         'course_code' => $courseDetails['course_code'],
                         'course_name' => $courseDetails['course_name'],
                         'faculty_name' => $this->getFaculty($facultyId, $collegeId),

@@ -22,6 +22,10 @@ if (!$profilePicture) {
 
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
+
+$directorController = new DirectorController();
+$stats = $directorController->getStats();
+$stats = $stats ?? ['total_pending' => 0];
 ?>
 
 <!DOCTYPE html>

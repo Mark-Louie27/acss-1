@@ -494,24 +494,25 @@ class DirectorController
                     $placeholders = implode(',', array_fill(0, count($scheduleIds), '?'));
 
                     $stmt = $this->db->prepare("
-                    UPDATE schedules 
-                    SET status = ?, approved_by_di = ?, approval_date = NOW(), is_public = ?, updated_at = NOW()
-                    WHERE schedule_id IN ($placeholders) AND semester_id = ?
-                ");
+                        UPDATE schedules 
+                        SET status = ?, approved_by_di = ?, approval_date_di = NOW(), is_public = ?, updated_at = NOW()
+                        WHERE schedule_id IN ($placeholders) AND semester_id = ? AND status = 'Dean_Approved'
+                    ");
                     $params = array_merge([$status, $userId, $isPublic], $scheduleIds, [$currentSemesterId]);
                     $result = $stmt->execute($params);
 
-                    if ($result) {
+                    if ($result && $stmt->rowCount() > 0) {
                         $_SESSION['success'] = "Schedule(s) {$status} successfully.";
                     } else {
-                        $_SESSION['error'] = "Failed to update schedule(s).";
+                        error_log("Director manageSchedule: No schedules updated for IDs $scheduleIdsStr in semester $currentSemesterId");
+                        $_SESSION['error'] = "No schedules pending Director approval or failed to update.";
                     }
                 } catch (PDOException $e) {
-                    error_log("manageSchedule: PDO Error - " . $e->getMessage());
+                    error_log("Director manageSchedule: PDO Error - " . $e->getMessage());
                     $_SESSION['error'] = "Database error occurred.";
                 }
             } else {
-                error_log("manageSchedule: No current semester found or invalid schedule IDs");
+                error_log("Director manageSchedule: No current semester found or invalid schedule IDs");
                 $_SESSION['error'] = "No current semester found or invalid schedule IDs.";
             }
 
@@ -524,11 +525,8 @@ class DirectorController
         $currentSemester = $this->getCurrentSemester();
         $currentSemesterId = $currentSemester ? $currentSemester['semester_id'] : null;
 
-        // Initialize stats for sidebar
-        $stats = ['total_pending' => 0];
-
         if (!$currentSemesterId) {
-            error_log("manageSchedule: No current semester found");
+            error_log("Director manageSchedule: No current semester found");
             $departments = [];
             $schedules = [];
             require_once __DIR__ . '/../views/director/pending-approvals.php';
@@ -538,58 +536,58 @@ class DirectorController
         try {
             // Count pending schedules for the current semester
             $stmt = $this->db->prepare("
-            SELECT COUNT(DISTINCT s.schedule_id) as total_pending
-            FROM schedules s
-            WHERE s.semester_id = :semester_id AND s.status = 'Pending'
-        ");
+                SELECT COUNT(DISTINCT s.schedule_id) as total_pending
+                FROM schedules s
+                WHERE s.semester_id = :semester_id AND s.status = 'Dean_Approved'
+            ");
             $stmt->execute([':semester_id' => $currentSemesterId]);
             $stats['total_pending'] = (int) $stmt->fetchColumn();
-            error_log("manageSchedule: Found {$stats['total_pending']} pending schedules for semester $currentSemesterId");
+            error_log("Director manageSchedule: Found {$stats['total_pending']} pending schedules for semester $currentSemesterId");
 
             // Fetch all departments with college name
             $stmt = $this->db->prepare("
-            SELECT d.department_id, d.department_name, c.college_id, c.college_name
-            FROM departments d
-            JOIN colleges c ON d.college_id = c.college_id
-            ORDER BY c.college_name, d.department_name
-        ");
+                SELECT d.department_id, d.department_name, c.college_id, c.college_name
+                FROM departments d
+                JOIN colleges c ON d.college_id = c.college_id
+                ORDER BY c.college_name, d.department_name
+            ");
             $stmt->execute();
             $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Fetch schedules for all departments
+            // Fetch schedules pending Director approval
             $stmt = $this->db->prepare("
-            SELECT 
-                GROUP_CONCAT(DISTINCT s.schedule_id) as schedule_ids,
-                s.department_id, d.department_name, co.college_name,
-                s.start_time, s.end_time, c.course_code, cl.room_name,
-                sec.section_name, s.schedule_type, s.status,
-                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name) AS faculty_name, 
-                GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
-                    CASE s.day_of_week 
-                        WHEN 'Monday' THEN 1
-                        WHEN 'Tuesday' THEN 2
-                        WHEN 'Wednesday' THEN 3
-                        WHEN 'Thursday' THEN 4
-                        WHEN 'Friday' THEN 5
-                        WHEN 'Saturday' THEN 6
-                        WHEN 'Sunday' THEN 7
-                    END
-                    SEPARATOR ', '
-                ) as day_of_week
-            FROM schedules s
-            JOIN faculty f ON s.faculty_id = f.faculty_id
-            JOIN users u ON f.user_id = u.user_id
-            JOIN courses c ON s.course_id = c.course_id
-            LEFT JOIN classrooms cl ON s.room_id = cl.room_id
-            JOIN sections sec ON s.section_id = sec.section_id
-            JOIN departments d ON s.department_id = d.department_id
-            JOIN colleges co ON d.college_id = co.college_id
-            WHERE s.semester_id = :semester_id
-            GROUP BY s.department_id, d.department_name, co.college_name, c.course_code, 
-                     sec.section_name, s.schedule_type, u.title, u.first_name, 
-                     u.middle_name, u.last_name, cl.room_name, s.start_time, s.end_time
-            ORDER BY co.college_name, d.department_name, c.course_code, s.start_time
-        ");
+                SELECT 
+                    GROUP_CONCAT(DISTINCT s.schedule_id) as schedule_ids,
+                    s.department_id, d.department_name, c.college_name,
+                    s.start_time, s.end_time, co.course_code, cl.room_name,
+                    sec.section_name, s.schedule_type, s.status,
+                    CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name) AS faculty_name, 
+                    GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                        CASE s.day_of_week 
+                            WHEN 'Monday' THEN 1
+                            WHEN 'Tuesday' THEN 2
+                            WHEN 'Wednesday' THEN 3
+                            WHEN 'Thursday' THEN 4
+                            WHEN 'Friday' THEN 5
+                            WHEN 'Saturday' THEN 6
+                            WHEN 'Sunday' THEN 7
+                        END
+                        SEPARATOR ', '
+                    ) as day_of_week
+                FROM schedules s
+                JOIN faculty f ON s.faculty_id = f.faculty_id
+                JOIN users u ON f.user_id = u.user_id
+                JOIN courses co ON s.course_id = co.course_id
+                LEFT JOIN classrooms cl ON s.room_id = cl.room_id
+                JOIN sections sec ON s.section_id = sec.section_id
+                JOIN departments d ON s.department_id = d.department_id
+                JOIN colleges c ON d.college_id = c.college_id
+                WHERE s.semester_id = :semester_id AND s.status = 'Dean_Approved'
+                GROUP BY s.department_id, d.department_name, c.college_name, co.course_code, 
+                         sec.section_name, s.schedule_type, u.title, u.first_name, 
+                         u.middle_name, u.last_name, cl.room_name, s.start_time, s.end_time
+                ORDER BY c.college_name, d.department_name, co.course_code, s.start_time
+            ");
             $stmt->execute([':semester_id' => $currentSemesterId]);
             $allSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -604,15 +602,39 @@ class DirectorController
                 $schedules[$deptId][] = $schedule;
             }
 
-            error_log("manageSchedule: Fetched " . count($allSchedules) . " grouped schedules for semester $currentSemesterId, grouped into " . count($schedules) . " departments");
+            error_log("Director manageSchedule: Fetched " . count($allSchedules) . " grouped schedules for semester $currentSemesterId, grouped into " . count($schedules) . " departments");
         } catch (PDOException $e) {
-            error_log("manageSchedule: PDO Error - " . $e->getMessage());
+            error_log("Director manageSchedule: PDO Error - " . $e->getMessage());
             $departments = [];
             $schedules = [];
             $stats['total_pending'] = 0;
         }
 
         require_once __DIR__ . '/../views/director/pending-approvals.php';
+    }
+
+    public function getStats()
+    {
+        $stats = ['total_pending' => 0];
+        $currentSemester = $this->getCurrentSemester();
+        if ($currentSemester) {
+            try {
+                $stmt = $this->db->prepare("
+                    SELECT COUNT(DISTINCT s.schedule_id) as total_pending
+                    FROM schedules s
+                    WHERE s.semester_id = :semester_id AND s.status = 'Dean_Approved'
+                ");
+                $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
+                $stats['total_pending'] = (int) $stmt->fetchColumn();
+                error_log("getStats: Found {$stats['total_pending']} pending schedules for semester {$currentSemester['semester_id']}");
+            } catch (PDOException $e) {
+                error_log("getStats: PDO Error - " . $e->getMessage());
+                $stats['total_pending'] = 0;
+            }
+        } else {
+            error_log("getStats: No current semester found");
+        }
+        return $stats;
     }
 
     private function getPendingApprovalsCount($departmentId)
