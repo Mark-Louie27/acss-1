@@ -534,7 +534,7 @@ $stats = $stats ?? ['total_pending' => 0];
                 </button>
                 <a href="/director/dashboard" class="flex items-center gap-3">
                     <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
-                    <span class="logo-text">ACSS</span>
+                    <span class="logo-text">Automated Classroom Scheduling System</span>
                 </a>
             </div>
 
@@ -612,14 +612,14 @@ $stats = $stats ?? ['total_pending' => 0];
             </a>
 
             <!-- Schedule Link -->
-            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-list w-5 mr-3 <?= strpos($currentUri, '/director/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= $currentUri === '/director/schedule' ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-list w-5 mr-3 <?= $currentUri === '/director/schedule' ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>My Schedule</span>
             </a>
 
-            <!-- Set Schedule Deadline Link -->
-            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule_deadline') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/director/schedule_deadline') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+            <!-- My set Schedule Link -->
+            <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo $currentUri === '/director/schedule_deadline' ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-calendar-alt w-5 mr-3 <?php echo $currentUri === '/director/schedule_deadline' ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>Set Schedule Deadline</span>
             </a>
 
@@ -644,6 +644,12 @@ $stats = $stats ?? ['total_pending' => 0];
             <a href="/director/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/profile') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/director/profile') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Profile</span>
+            </a>
+
+            <!-- Settings Link -->
+            <a href="/director/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/settings') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/director/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Settings</span>
             </a>
         </nav>
 

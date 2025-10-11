@@ -104,8 +104,19 @@ class DirectorController
             // Fetch current semester
             $semester = $this->getCurrentSemester();
 
-            // Fetch pending approvals
-            $pendingCount = $this->getPendingApprovalsCount($departmentId);
+            // Fetch pending schedule approvals
+            $scheduleStmt = $this->db->prepare("
+                SELECT COUNT(*) as pending_count
+                FROM schedules s
+                WHERE s.department_id = :department_id 
+                AND s.status = 'Dean_Approved'
+                AND s.semester_id = :semester_id"
+            );
+            $scheduleStmt->execute([
+                ':department_id' => $departmentId,
+                ':semester_id' => $semester['semester_id']
+            ]);
+            $pendingCount = $scheduleStmt->fetchColumn() ?: 0;
 
             // Fetch schedule deadline
             $deadline = $this->getScheduleDeadline($departmentId);
@@ -635,22 +646,6 @@ class DirectorController
             error_log("getStats: No current semester found");
         }
         return $stats;
-    }
-
-    private function getPendingApprovalsCount($departmentId)
-    {
-        try {
-            $stmt = $this->db->prepare("
-            SELECT COUNT(*) as pending_count
-            FROM curriculum_approvals
-            WHERE department_id = :department_id AND status = 'pending'
-        ");
-            $stmt->execute([':department_id' => $departmentId]);
-            return $stmt->fetchColumn() ?: 0;
-        } catch (PDOException $e) {
-            error_log("getPendingApprovalsCount: " . $e->getMessage());
-            return 0;
-        }
     }
 
     private function getScheduleDeadline($departmentId)
@@ -1620,5 +1615,10 @@ class DirectorController
             error_log("profile: Failed to move uploaded file for user_id: $userId to $uploadPath - Check permissions or disk space");
             return "Error: Failed to upload file.";
         }
+    }
+
+    public function settings()
+    {
+        
     }
 }
