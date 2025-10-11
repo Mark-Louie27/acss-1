@@ -140,6 +140,10 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::pendingApprovalsView");
             $controller->manageSchedule();
             break;
+        case '/director/settings':
+            error_log("Routing to DirectorController::settings");
+            $controller->settings();
+            break;
         case '/director/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';

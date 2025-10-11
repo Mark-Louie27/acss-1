@@ -1619,6 +1619,63 @@ class DirectorController
 
     public function settings()
     {
-        
+        if (!$this->authService->isLoggedIn()) {
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view settings'];
+            header('Location: /login');
+            exit;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $csrfToken = $this->authService->generateCsrfToken();
+        $errors = [];
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                header('Location: /director/settings');
+                exit;
+            }
+
+            $currentPassword = $_POST['current_password'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+
+            if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+                $errors[] = 'All password fields are required.';
+            } else {
+                if ($newPassword !== $confirmPassword) {
+                    $errors[] = 'New password and confirmation do not match.';
+                }
+
+                if (strlen($newPassword) < 8) {
+                    $errors[] = 'New password must be at least 8 characters long.';
+                }
+
+                // Fetch current password hash
+                $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
+                $stmt->execute([':user_id' => $userId]);
+                $currentHash = $stmt->fetchColumn();
+
+                if (!password_verify($currentPassword, $currentHash)) {
+                    $errors[] = 'Current password is incorrect.';
+                }
+            }
+
+            if (empty($errors)) {
+                $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+                $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
+                if ($updateStmt->execute([':password_hash' => $newHash, ':user_id' => $userId])) {
+                    $_SESSION['flash'] = ['type' => 'success', 'message' => 'Password updated successfully'];
+                    header('Location: /director/settings');
+                    exit;
+                } else {
+                    error_log("settings: Failed to update password for user_id: $userId");
+                    $errors[] = 'Failed to update password. Please try again.';
+                }
+            }
+        }
+
+        // Render the settings view
+        require_once __DIR__ . '/../views/director/settings.php';
     }
 }
