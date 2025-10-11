@@ -602,7 +602,7 @@ class DeanController
             FROM faculty f 
             JOIN users u ON f.user_id = u.user_id 
             WHERE u.user_id = ?
-        ");
+            ");
             $facultyStmt->execute([$userId]);
             $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -624,7 +624,7 @@ class DeanController
             JOIN departments d ON dn.college_id = d.college_id 
             JOIN colleges c ON d.college_id = c.college_id 
             WHERE dn.user_id = ? AND dn.is_current = 1
-        ");
+            ");
             $deptStmt->execute([$userId]);
             $department = $deptStmt->fetch(PDO::FETCH_ASSOC);
             $departmentName = $department['department_name'] ?? 'Not Assigned';
@@ -818,7 +818,7 @@ class DeanController
             $isPublic = $_POST['action'] === 'approve' ? 1 : 0;
 
             // Get current semester ID for validation
-            $currentSemesterStmt = $this->db->prepare("SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1");
+            $currentSemesterStmt = $this->getCurrentSemester();
             $currentSemesterStmt->execute();
             $currentSemesterId = $currentSemesterStmt->fetchColumn();
 
@@ -849,7 +849,7 @@ class DeanController
         }
 
         // Get current semester details
-        $currentSemesterStmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
+        $currentSemesterStmt = $this->getCurrentSemester();
         $currentSemesterStmt->execute();
         $currentSemesterId = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
 

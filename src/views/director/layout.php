@@ -607,16 +607,27 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>Dashboard</span>
             </a>
 
+            <!-- Schedule Link -->
+            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-list w-5 mr-3 <?= strpos($currentUri, '/director/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>My Schedule</span>
+            </a>
+
             <!-- Set Schedule Deadline Link -->
             <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule_deadline') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/director/schedule_deadline') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Set Schedule Deadline</span>
             </a>
 
-            <!-- Schedule Link -->
-            <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-list w-5 mr-3 <?= strpos($currentUri, '/director/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>My Schedule</span>
+            <!-- Manage Schedules Link -->
+            <a href="/director/pending-approvals" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/pending-approvals') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-clipboard-check w-5 mr-3 <?= strpos($currentUri, '/director/pending-approvals') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Manage Schedules</span>
+                <?php if (isset($stats) && $stats['total_pending'] > 0): ?>
+                    <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        <?php echo $stats['total_pending']; ?>
+                    </span>
+                <?php endif; ?>
             </a>
 
             <!-- Activity Logs Link -->

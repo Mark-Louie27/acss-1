@@ -136,6 +136,35 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::setSchedule");
             $controller->setScheduleDeadline();
             break;
+        case '/director/pending-approvals':
+            error_log("Routing to DirectorController::pendingApprovalsView");
+            $controller->manageSchedule();
+            break;
+        case '/director/approve-schedule':
+            error_log("Routing to DirectorController::approveSchedule");
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $scheduleId = $input['schedule_id'] ?? null;
+                if ($scheduleId) {
+                    $result = $controller->approveSchedule($scheduleId);
+                    header('Content-Type: application/json');
+                    echo json_encode($result);
+                }
+            }
+            break;
+        case '/director/reject-schedule':
+            error_log("Routing to DirectorController::rejectSchedule");
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $scheduleId = $input['schedule_id'] ?? null;
+                $reason = $input['reason'] ?? '';
+                if ($scheduleId) {
+                    $result = $controller->rejectSchedule($scheduleId, $reason);
+                    header('Content-Type: application/json');
+                    echo json_encode($result);
+                }
+            }
+            break;
         case '/director/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';

@@ -36,6 +36,16 @@ class DirectorController
         }
     }
 
+    private function getDirectorId($directorId)
+    {
+        $stmt = $this->db->prepare("SELECT  is_current
+                               FROM department_instructors di 
+                               JOIN users u ON di.user_id = u.user_id
+                               WHERE di.is_current = 1");
+        $stmt->execute([':user_id' => $directorId]);
+        return $stmt->fetchColumn();
+    }
+
     private function getUserData()
     {
         try {
@@ -149,12 +159,40 @@ class DirectorController
     private function getCurrentSemester()
     {
         try {
-            $semesterData = $this->api->getCurrentSemester();
-            return is_array($semesterData) && isset($semesterData['semester_id'], $semesterData['semester_name'], $semesterData['academic_year'])
-                ? $semesterData
-                : null;
-        } catch (Exception $e) {
-            error_log("getCurrentSemester: " . $e->getMessage());
+            error_log("getCurrentSemester: Querying for current semester");
+            // First, try to find the semester marked as current
+            $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                WHERE is_current = 1
+            ");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                error_log("getCurrentSemester: Found current semester - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
+                return $semester;
+            }
+
+            error_log("getCurrentSemester: No semester with is_current = 1, checking date range");
+            // Fall back to date range
+            $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                WHERE CURRENT_DATE BETWEEN start_date AND end_date
+            ");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                error_log("getCurrentSemester: Found semester by date range - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
+            } else {
+                error_log("getCurrentSemester: No semester found for current date");
+            }
+
+            return $semester ?: null;
+        } catch (PDOException $e) {
+            error_log("getCurrentSemester: Error - " . $e->getMessage());
             return null;
         }
     }
@@ -247,7 +285,7 @@ class DirectorController
             $facultyPosition = $faculty['academic_rank'] ?? 'Not Specified';
             $employmentType = $faculty['employment_type'] ?? 'Regular';
 
-            // Get department and college details from deans table
+            // Get department and college details from directors table
             $deptStmt = $this->db->prepare("
             SELECT d.department_name, c.college_name 
             FROM department_instructors dn 
@@ -266,7 +304,7 @@ class DirectorController
             if (!$semester) {
                 error_log("mySchedule: No current semester found");
                 $error = "No current semester defined. Please contact the administrator to set the current semester.";
-                require_once __DIR__ . '/../views/director/chedule.php';
+                require_once __DIR__ . '/../views/director/schedule.php';
                 return;
             }
 
@@ -436,6 +474,147 @@ class DirectorController
         }
     }
 
+    public function manageSchedule()
+    {
+        $userId = $_SESSION['user_id'];
+
+        // Handle approval/rejection actions
+        if (isset($_POST['action']) && in_array($_POST['action'], ['approve', 'reject'])) {
+            $scheduleIdsStr = $_POST['schedule_ids'] ?? $_POST['schedule_id'] ?? '';
+            $status = $_POST['action'] === 'approve' ? 'Approved' : 'Rejected';
+            $isPublic = $_POST['action'] === 'approve' ? 1 : 0;
+
+            // Get current semester details
+            $currentSemester = $this->getCurrentSemester();
+            $currentSemesterId = $currentSemester ? $currentSemester['semester_id'] : null;
+
+            if ($currentSemesterId && !empty($scheduleIdsStr)) {
+                try {
+                    $scheduleIds = array_map('intval', explode(',', $scheduleIdsStr));
+                    $placeholders = implode(',', array_fill(0, count($scheduleIds), '?'));
+
+                    $stmt = $this->db->prepare("
+                    UPDATE schedules 
+                    SET status = ?, approved_by_di = ?, approval_date = NOW(), is_public = ?, updated_at = NOW()
+                    WHERE schedule_id IN ($placeholders) AND semester_id = ?
+                ");
+                    $params = array_merge([$status, $userId, $isPublic], $scheduleIds, [$currentSemesterId]);
+                    $result = $stmt->execute($params);
+
+                    if ($result) {
+                        $_SESSION['success'] = "Schedule(s) {$status} successfully.";
+                    } else {
+                        $_SESSION['error'] = "Failed to update schedule(s).";
+                    }
+                } catch (PDOException $e) {
+                    error_log("manageSchedule: PDO Error - " . $e->getMessage());
+                    $_SESSION['error'] = "Database error occurred.";
+                }
+            } else {
+                error_log("manageSchedule: No current semester found or invalid schedule IDs");
+                $_SESSION['error'] = "No current semester found or invalid schedule IDs.";
+            }
+
+            // Redirect to prevent form resubmission
+            header('Location: ' . $_SERVER['REQUEST_URI']);
+            exit;
+        }
+
+        // Get current semester details
+        $currentSemester = $this->getCurrentSemester();
+        $currentSemesterId = $currentSemester ? $currentSemester['semester_id'] : null;
+
+        // Initialize stats for sidebar
+        $stats = ['total_pending' => 0];
+
+        if (!$currentSemesterId) {
+            error_log("manageSchedule: No current semester found");
+            $departments = [];
+            $schedules = [];
+            require_once __DIR__ . '/../views/director/pending-approvals.php';
+            return;
+        }
+
+        try {
+            // Count pending schedules for the current semester
+            $stmt = $this->db->prepare("
+            SELECT COUNT(DISTINCT s.schedule_id) as total_pending
+            FROM schedules s
+            WHERE s.semester_id = :semester_id AND s.status = 'Pending'
+        ");
+            $stmt->execute([':semester_id' => $currentSemesterId]);
+            $stats['total_pending'] = (int) $stmt->fetchColumn();
+            error_log("manageSchedule: Found {$stats['total_pending']} pending schedules for semester $currentSemesterId");
+
+            // Fetch all departments with college name
+            $stmt = $this->db->prepare("
+            SELECT d.department_id, d.department_name, c.college_id, c.college_name
+            FROM departments d
+            JOIN colleges c ON d.college_id = c.college_id
+            ORDER BY c.college_name, d.department_name
+        ");
+            $stmt->execute();
+            $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch schedules for all departments
+            $stmt = $this->db->prepare("
+            SELECT 
+                GROUP_CONCAT(DISTINCT s.schedule_id) as schedule_ids,
+                s.department_id, d.department_name, co.college_name,
+                s.start_time, s.end_time, c.course_code, cl.room_name,
+                sec.section_name, s.schedule_type, s.status,
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name) AS faculty_name, 
+                GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                    CASE s.day_of_week 
+                        WHEN 'Monday' THEN 1
+                        WHEN 'Tuesday' THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday' THEN 4
+                        WHEN 'Friday' THEN 5
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 7
+                    END
+                    SEPARATOR ', '
+                ) as day_of_week
+            FROM schedules s
+            JOIN faculty f ON s.faculty_id = f.faculty_id
+            JOIN users u ON f.user_id = u.user_id
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN classrooms cl ON s.room_id = cl.room_id
+            JOIN sections sec ON s.section_id = sec.section_id
+            JOIN departments d ON s.department_id = d.department_id
+            JOIN colleges co ON d.college_id = co.college_id
+            WHERE s.semester_id = :semester_id
+            GROUP BY s.department_id, d.department_name, co.college_name, c.course_code, 
+                     sec.section_name, s.schedule_type, u.title, u.first_name, 
+                     u.middle_name, u.last_name, cl.room_name, s.start_time, s.end_time
+            ORDER BY co.college_name, d.department_name, c.course_code, s.start_time
+        ");
+            $stmt->execute([':semester_id' => $currentSemesterId]);
+            $allSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Group schedules by department_id
+            $schedules = [];
+            foreach ($allSchedules as $schedule) {
+                $deptId = $schedule['department_id'];
+                if (!isset($schedules[$deptId])) {
+                    $schedules[$deptId] = [];
+                }
+                $schedule['formatted_days'] = $this->formatScheduleDays($schedule['day_of_week']);
+                $schedules[$deptId][] = $schedule;
+            }
+
+            error_log("manageSchedule: Fetched " . count($allSchedules) . " grouped schedules for semester $currentSemesterId, grouped into " . count($schedules) . " departments");
+        } catch (PDOException $e) {
+            error_log("manageSchedule: PDO Error - " . $e->getMessage());
+            $departments = [];
+            $schedules = [];
+            $stats['total_pending'] = 0;
+        }
+
+        require_once __DIR__ . '/../views/director/pending-approvals.php';
+    }
+
     private function getPendingApprovalsCount($departmentId)
     {
         try {
@@ -586,7 +765,7 @@ class DirectorController
                         FROM departments d
                         INNER JOIN colleges c ON d.college_id = c.college_id
                         ORDER BY c.college_name ASC
-                    ");
+                        ");
                         $deptStmt->execute();
                         $deptResults = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
                         $targetDepartments = array_column($deptResults, 'department_id');
