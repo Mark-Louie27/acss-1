@@ -484,7 +484,7 @@ class ChairController
             $scheduleKey = [];
 
             foreach ($rawSchedules as $schedule) {
-                $key = $schedule['course_code'] . '|' . $schedule['start_time'] . '|' . $schedule['end_time'] . '|' . $schedule['schedule_type'] . '|' . $schedule['section_name'];
+                $key = $schedule['course_code'] . '|' . $schedule['start_time'] . '|' . $schedule['end_time'] . '|' . $schedule['schedule_type'] . '|' . $schedule['section_name'] . '|' . $schedule['student_count'];
 
                 if (!isset($groupedSchedules[$key])) {
                     $groupedSchedules[$key] = $schedule;

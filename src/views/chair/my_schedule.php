@@ -295,9 +295,9 @@ ob_start();
                 if (index < maxScheduleRows) {
                     const timeRange = `${schedule.start_time || ''}-${schedule.end_time || ''}`;
                     const courseInfo = `${schedule.course_code || 'N/A'} ${schedule.course_name || 'N/A'}`;
-                    const studentCount = schedule.student_count || '-';
+                    const studentCount = `${schedule.student_count || '-'}`;
                     const sectionDetail = `${schedule.year_level || '1'}/${schedule.section_name || 'A'}`;
-                    const units = schedule.units || '3';
+                    const units = `${schedule.units || '3'}`;
                     const labHours = schedule.schedule_type === 'Laboratory' ? (schedule.duration_hours || '3') : '-';
                     const lecHours = schedule.schedule_type === 'Lecture' ? (schedule.duration_hours || '3') : '-';
                     const lecUnits = schedule.schedule_type === 'Lecture' ? units : '-';
