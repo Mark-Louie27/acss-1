@@ -85,54 +85,58 @@ function handleDrop(e) {
   }
 }
 
-// Replace the existing openDeleteModal function
-function openDeleteModal() {
-    console.log('Opening delete modal...');
-    const modal = document.getElementById('delete-confirmation-modal');
+// =============================================
+// DELETE ALL SCHEDULES FUNCTIONS
+// =============================================
+
+/**
+ * Open the delete all schedules confirmation modal
+ */
+function openDeleteAllModal() {
+    console.log('Opening delete all modal...');
+    const modal = document.getElementById('delete-all-modal');
     
-    if (!modal) {
-        console.error('Delete confirmation modal element not found!');
-        // Fallback to simple confirm dialog
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        console.log('Delete all modal opened successfully');
+    } else {
+        console.error('Delete all modal element not found!');
+        // Fallback to browser confirm
         if (confirm('Are you sure you want to delete all schedules? This action cannot be undone.')) {
-            confirmDeleteSchedules();
+            confirmDeleteAllSchedules();
         }
-        return;
     }
-    
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    console.log('Modal should now be visible');
 }
 
-// Replace the existing closeDeleteModal function
-function closeDeleteModal() {
-    console.log('Closing delete modal...');
-    const modal = document.getElementById('delete-confirmation-modal');
+/**
+ * Close the delete all schedules modal
+ */
+function closeDeleteAllModal() {
+    console.log('Closing delete all modal...');
+    const modal = document.getElementById('delete-all-modal');
     if (modal) {
         modal.classList.add('hidden');
-        modal.style.display = 'none';
+        modal.classList.remove('flex');
     }
 }
 
-// Replace the existing deleteAllSchedules function
-function deleteAllSchedules() {
-    console.log('Delete all schedules function called');
-    openDeleteModal();
-}
-
-// Replace the existing confirmDeleteSchedules function
-function confirmDeleteSchedules() {
-    console.log('Confirming delete schedules...');
+/**
+ * Confirm and execute deletion of all schedules
+ */
+function confirmDeleteAllSchedules() {
+    console.log('Confirming deletion of all schedules...');
     
-    const deleteButton = document.querySelector('#delete-confirmation-modal button[onclick="confirmDeleteSchedules()"]');
-    let originalText = '';
+    const deleteButton = document.querySelector('#delete-all-modal button[onclick="confirmDeleteAllSchedules()"]');
+    const originalText = deleteButton ? deleteButton.innerHTML : '';
     
+    // Show loading state
     if (deleteButton) {
-        originalText = deleteButton.innerHTML;
         deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
         deleteButton.disabled = true;
     }
 
+    // Make API call to delete all schedules
     fetch('/chair/generate-schedules', {
         method: 'POST',
         headers: {
@@ -144,108 +148,288 @@ function confirmDeleteSchedules() {
         }),
     })
     .then(response => {
-        console.log('Delete response status:', response.status);
+        console.log('Delete all response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         return response.json();
     })
     .then(data => {
-        console.log('Delete response data:', data);
+        console.log('Delete all response data:', data);
+        
         if (data.success) {
-            showNotification('All schedules have been deleted successfully.', 'success');
+            showNotification('All schedules deleted successfully!', 'success');
+            
+            // Clear local schedule data
             window.scheduleData = [];
             updateScheduleDisplay([]);
             
+            // Hide generation results if exists
             const generationResults = document.getElementById('generation-results');
             if (generationResults) {
                 generationResults.classList.add('hidden');
             }
+            
+            // Rebuild course mappings
+            buildCurrentSemesterCourseMappings();
+            
         } else {
-            showNotification('Error deleting schedules: ' + (data.message || 'Unknown error'), 'error');
+            showNotification('Error: ' + (data.message || 'Failed to delete all schedules'), 'error');
         }
     })
     .catch(error => {
-        console.error('Delete error:', error);
-        showNotification('Error deleting schedules: ' + error.message, 'error');
+        console.error('Delete all error:', error);
+        showNotification('Error deleting all schedules: ' + error.message, 'error');
     })
     .finally(() => {
+        // Restore button state
         if (deleteButton) {
             deleteButton.innerHTML = originalText;
             deleteButton.disabled = false;
         }
-        closeDeleteModal();
+        closeDeleteAllModal();
     });
 }
 
-function deleteSchedule(scheduleId) {
-  if (!confirm("Are you sure you want to delete this schedule?")) return;
-
-  fetch("/chair/generate-schedules", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      action: "delete_schedule",
-      schedule_id: scheduleId,
-    }),
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.success) {
-        window.scheduleData = window.scheduleData.filter(
-          (s) => s.schedule_id != scheduleId
-        );
-        updateScheduleDisplay(window.scheduleData);
-        showNotification("Schedule deleted successfully!", "success");
-        initializeDragAndDrop();
-      } else {
-        showNotification(data.message || "Failed to delete schedule.", "error");
-      }
-    })
-    .catch((error) => {
-      console.error("Error:", error);
-      showNotification("Error deleting schedule: " + error.message, "error");
-    });
-}
-
+/**
+ * Wrapper function for delete all button click
+ */
 function deleteAllSchedules() {
-  if (
-    !confirm(
-      "Are you sure you want to delete all schedules? This action cannot be undone."
-    )
-  )
-    return;
+    console.log('deleteAllSchedules called');
+    openDeleteAllModal();
+}
 
-  fetch("/chair/generate-schedules", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      action: "delete_schedules",
-      confirm: "true",
-    }),
-  })
-    .then((response) => response.json())
+// =============================================
+// SINGLE SCHEDULE DELETE FUNCTIONS
+// =============================================
+
+let currentDeleteScheduleId = null;
+
+/**
+ * Open the single schedule delete confirmation modal
+ */
+function openDeleteSingleModal(scheduleId, courseCode, sectionName, day, startTime, endTime) {
+    console.log('Opening single delete modal for schedule:', scheduleId);
+    
+    currentDeleteScheduleId = scheduleId;
+    
+    // Update modal content with schedule details
+    const detailsElement = document.getElementById('single-delete-details');
+    if (detailsElement) {
+        detailsElement.innerHTML = `
+            <div class="text-sm">
+                <div class="font-semibold">${courseCode} - ${sectionName}</div>
+                <div class="text-gray-600 mt-1">${day} • ${startTime} to ${endTime}</div>
+            </div>
+        `;
+    }
+    
+    const modal = document.getElementById('delete-single-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        console.log('Single delete modal opened successfully');
+    } else {
+        console.error('Single delete modal element not found!');
+        // Fallback to browser confirm
+        if (confirm(`Are you sure you want to delete ${courseCode} - ${sectionName}?`)) {
+            confirmDeleteSingleSchedule();
+        }
+    }
+}
+
+/**
+ * Close the single schedule delete modal
+ */
+function closeDeleteSingleModal() {
+    console.log('Closing single delete modal...');
+    const modal = document.getElementById('delete-single-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    currentDeleteScheduleId = null;
+}
+
+/**
+ * Confirm and execute deletion of a single schedule
+ */
+function confirmDeleteSingleSchedule() {
+    if (!currentDeleteScheduleId) {
+        console.error('No schedule ID set for deletion');
+        showNotification('Error: No schedule selected for deletion', 'error');
+        return;
+    }
+    
+    console.log('Confirming deletion of schedule:', currentDeleteScheduleId);
+    
+    const deleteButton = document.querySelector('#delete-single-modal button[onclick="confirmDeleteSingleSchedule()"]');
+    const originalText = deleteButton ? deleteButton.innerHTML : '';
+    
+    // Show loading state
+    if (deleteButton) {
+        deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+        deleteButton.disabled = true;
+    }
+
+    // Make API call to delete single schedule
+    fetch("/chair/generate-schedules", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+            action: "delete_schedule",
+            schedule_id: currentDeleteScheduleId,
+        }),
+    })
+    .then((response) => {
+        console.log('Single delete response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then((data) => {
-      if (data.success) {
-        window.scheduleData = [];
-        updateScheduleDisplay(window.scheduleData);
-        showNotification("All schedules deleted successfully!", "success");
-        initializeDragAndDrop();
-      } else {
-        showNotification(
-          data.message || "Failed to delete all schedules.",
-          "error"
-        );
-      }
+        console.log('Single delete response data:', data);
+        
+        if (data.success) {
+            showNotification("Schedule deleted successfully!", "success");
+            
+            // Remove from local data
+            window.scheduleData = window.scheduleData.filter(
+                (s) => s.schedule_id != currentDeleteScheduleId
+            );
+            
+            // Update display
+            updateScheduleDisplay(window.scheduleData);
+            initializeDragAndDrop();
+            
+            // Rebuild course mappings
+            buildCurrentSemesterCourseMappings();
+            
+        } else {
+            showNotification(data.message || "Failed to delete schedule.", "error");
+        }
     })
     .catch((error) => {
-      console.error("Error:", error);
-      showNotification(
-        "Error deleting all schedules: " + error.message,
-        "error"
-      );
+        console.error("Single delete error:", error);
+        showNotification("Error deleting schedule: " + error.message, "error");
+    })
+    .finally(() => {
+        // Restore button state
+        if (deleteButton) {
+            deleteButton.innerHTML = originalText;
+            deleteButton.disabled = false;
+        }
+        closeDeleteSingleModal();
     });
+}
+
+/**
+ * Wrapper function for single schedule deletion (for backward compatibility)
+ */
+function deleteSchedule(scheduleId) {
+    // Find the schedule details for the modal
+    const schedule = window.scheduleData.find(s => s.schedule_id == scheduleId);
+    if (schedule) {
+        openDeleteSingleModal(
+            scheduleId,
+            schedule.course_code,
+            schedule.section_name,
+            schedule.day_of_week,
+            formatTime(schedule.start_time.substring(0, 5)),
+            formatTime(schedule.end_time.substring(0, 5))
+        );
+    } else {
+        console.error('Schedule not found for deletion:', scheduleId);
+        showNotification('Error: Schedule not found', 'error');
+    }
+}
+
+// =============================================
+// HELPER FUNCTIONS
+// =============================================
+
+/**
+ * Format time string to readable format
+ */
+function formatTime(timeString) {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const date = new Date(2000, 0, 1, hours, minutes);
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+/**
+ * Show notification to user
+ */
+function showNotification(message, type = 'success', duration = 5000) {
+    // Remove existing notification
+    const existingNotification = document.getElementById('notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+
+    const notificationDiv = document.createElement('div');
+    notificationDiv.id = 'notification';
+    notificationDiv.className = `fixed top-4 right-4 z-50 max-w-sm w-full ${
+        type === 'success' ? 'bg-green-50 border border-green-200' : 
+        type === 'error' ? 'bg-red-50 border border-red-200' :
+        'bg-yellow-50 border border-yellow-200'
+    } rounded-lg shadow-lg transform transition-transform duration-300 translate-x-full`;
+    
+    notificationDiv.innerHTML = `
+        <div class="flex p-4">
+            <div class="flex-shrink-0">
+                <i class="fas ${
+                    type === 'success' ? 'fa-check-circle text-green-400' : 
+                    type === 'error' ? 'fa-exclamation-circle text-red-400' :
+                    'fa-exclamation-triangle text-yellow-400'
+                } text-lg"></i>
+            </div>
+            <div class="ml-3 flex-1">
+                <p class="text-sm font-medium ${
+                    type === 'success' ? 'text-green-800' : 
+                    type === 'error' ? 'text-red-800' :
+                    'text-yellow-800'
+                } whitespace-pre-line">${message}</p>
+            </div>
+            <div class="ml-auto pl-3">
+                <button class="inline-flex ${
+                    type === 'success' ? 'text-green-400 hover:text-green-600' : 
+                    type === 'error' ? 'text-red-400 hover:text-red-600' :
+                    'text-yellow-400 hover:text-yellow-600'
+                }" onclick="this.parentElement.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(notificationDiv);
+
+    // Animate in
+    setTimeout(() => {
+        notificationDiv.classList.remove('translate-x-full');
+        notificationDiv.classList.add('translate-x-0');
+    }, 100);
+
+    // Auto remove after duration
+    setTimeout(() => {
+        if (notificationDiv.parentElement) {
+            notificationDiv.classList.add('translate-x-full');
+            setTimeout(() => {
+                if (notificationDiv.parentElement) {
+                    notificationDiv.remove();
+                }
+            }, 300);
+        }
+    }, duration);
 }
 
 function initializeDragAndDrop() {
@@ -1187,35 +1371,64 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // Initialize event listeners
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize drag-and-drop
-    initializeDragAndDrop();
+  // Initialize drag-and-drop
+  initializeDragAndDrop();
 
-    // Add event listener for add schedule button
-    const addScheduleBtn = document.getElementById('add-schedule-btn');
-    if (addScheduleBtn) addScheduleBtn.addEventListener('click', openAddModal);
+  // Build initial course mappings from current semester
+  buildCurrentSemesterCourseMappings();
 
-    // Add event listener for save changes button
-    const saveChangesBtn = document.getElementById('save-changes-btn');
-    if (saveChangesBtn) saveChangesBtn.addEventListener('click', saveAllChanges);
+  // Add event listener for add schedule button
+  const addScheduleBtn = document.getElementById("add-schedule-btn");
+  if (addScheduleBtn) addScheduleBtn.addEventListener("click", openAddModal);
 
-    // Add event listener for delete all button
-    const deleteAllBtn = document.getElementById('delete-all-btn');
-    if (deleteAllBtn) deleteAllBtn.addEventListener('click', deleteAllSchedules);
+  // Add event listener for save changes button
+  const saveChangesBtn = document.getElementById("save-changes-btn");
+  if (saveChangesBtn) saveChangesBtn.addEventListener("click", saveAllChanges);
 
-    // Add event listeners for filter dropdowns
-    const filterYear = document.getElementById('filter-year-manual');
-    if (filterYear) filterYear.addEventListener('change', filterSchedulesManual);
+  // Modal click outside to close handlers
+  const deleteAllModal = document.getElementById("delete-all-modal");
+  if (deleteAllModal) {
+    deleteAllModal.addEventListener("click", function (e) {
+      if (e.target === deleteAllModal) {
+        closeDeleteAllModal();
+      }
+    });
+  }
 
-    const filterSection = document.getElementById('filter-section-manual');
-    if (filterSection) filterSection.addEventListener('change', filterSchedulesManual);
+  const deleteSingleModal = document.getElementById("delete-single-modal");
+  if (deleteSingleModal) {
+    deleteSingleModal.addEventListener("click", function (e) {
+      if (e.target === deleteSingleModal) {
+        closeDeleteSingleModal();
+      }
+    });
+  }
 
-    const filterRoom = document.getElementById('filter-room-manual');
-    if (filterRoom) filterRoom.addEventListener('change', filterSchedulesManual);
+  // Add keyboard event for ESC key
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      closeDeleteAllModal();
+      closeDeleteSingleModal();
+    }
+  });
 
-    // Add event listeners for course code and name sync
-    const courseCodeInput = document.getElementById('course-code');
-    if (courseCodeInput) courseCodeInput.addEventListener('input', syncCourseName);
+  // Add event listeners for filter dropdowns
+  const filterYear = document.getElementById("filter-year-manual");
+  if (filterYear) filterYear.addEventListener("change", filterSchedulesManual);
 
-    const courseNameInput = document.getElementById('course-name');
-    if (courseNameInput) courseNameInput.addEventListener('input', syncCourseCode);
+  const filterSection = document.getElementById("filter-section-manual");
+  if (filterSection)
+    filterSection.addEventListener("change", filterSchedulesManual);
+
+  const filterRoom = document.getElementById("filter-room-manual");
+  if (filterRoom) filterRoom.addEventListener("change", filterSchedulesManual);
+
+  // Add event listeners for course code and name sync
+  const courseCodeInput = document.getElementById("course-code");
+  if (courseCodeInput)
+    courseCodeInput.addEventListener("input", syncCourseName);
+
+  const courseNameInput = document.getElementById("course-name");
+  if (courseNameInput)
+    courseNameInput.addEventListener("input", syncCourseCode);
 });

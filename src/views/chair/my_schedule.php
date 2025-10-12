@@ -296,7 +296,7 @@ ob_start();
                     const timeRange = `${schedule.start_time || ''}-${schedule.end_time || ''}`;
                     const courseInfo = `${schedule.course_code || 'N/A'} ${schedule.course_name || 'N/A'}`;
                     const studentCount = schedule.student_count || '-';
-                    const sectionDetail = `${schedule.program_code || 'BSCS'}/${schedule.year_level || '1'}/${schedule.section_name || 'A'}`;
+                    const sectionDetail = `${schedule.year_level || '1'}/${schedule.section_name || 'A'}`;
                     const units = schedule.units || '3';
                     const labHours = schedule.schedule_type === 'Laboratory' ? (schedule.duration_hours || '3') : '-';
                     const lecHours = schedule.schedule_type === 'Lecture' ? (schedule.duration_hours || '3') : '-';

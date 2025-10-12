@@ -398,6 +398,17 @@ ob_start();
                                                             <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print flex-shrink-0 ml-1">
                                                                 <i class="fas fa-edit"></i>
                                                             </button>
+                                                            <!-- In your schedule card, the delete button should look like this: -->
+                                                            <button onclick="openDeleteSingleModal(
+                                                                    '<?php echo $schedule['schedule_id']; ?>', 
+                                                                    '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
+                                                                    '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
+                                                                    '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
+                                                                    '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
+                                                                    '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
+                                                                )" class="text-red-600 hover:text-red-700 text-xs no-print flex-shrink-0 ml-1">
+                                                                <i class="fas fa-trash"></i>
+                                                            </button>
                                                         </div>
                                                         <div class="text-xs opacity-90 truncate mb-1">
                                                             <?php echo htmlspecialchars($schedule['section_name']); ?>
@@ -444,39 +455,41 @@ ob_start();
                         </div>
                         <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
                     </div>
-                    <div class="flex items-center space-x-4 no-print">
+                    <div class="flex flex-col sm:flex-row items-center space-x-0 sm:space-x-4 no-print mb-4">
                         <!-- Full Screen Button -->
-                        <button id="fullscreen-view-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="toggleFullScreen('view')">
+                        <button id="fullscreen-view-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors mb-2 sm:mb-0" onclick="toggleFullScreen('view')">
                             <i class="fas fa-expand mr-2"></i>
                             <span>Full Screen</span>
                         </button>
-                        <button id="exit-fullscreen-view-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors hidden" onclick="toggleFullScreen('view')">
+                        <button id="exit-fullscreen-view-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors hidden mb-2 sm:mb-0" onclick="toggleFullScreen('view')">
                             <i class="fas fa-compress mr-2"></i>
                             <span>Exit Full Screen</span>
                         </button>
 
-                        <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                            <option value="">All Year Levels</option>
-                            <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
-                            <?php foreach ($yearLevels as $year): ?>
-                                <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select id="filter-section" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                            <option value="">All Sections</option>
-                            <?php $sectionNames = array_unique(array_column($schedules, 'section_name')); ?>
-                            <?php foreach ($sectionNames as $section): ?>
-                                <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select id="filter-room" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                            <option value="">All Rooms</option>
-                            <?php $rooms = array_unique(array_column($schedules, 'room_name')); ?>
-                            <?php foreach ($rooms as $room): ?>
-                                <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors" onclick="deleteAllSchedules()">
+                        <div class="flex space-x-2 w-full sm:w-auto">
+                            <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                                <option value="">All Year Levels</option>
+                                <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
+                                <?php foreach ($yearLevels as $year): ?>
+                                    <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="filter-section" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                                <option value="">All Sections</option>
+                                <?php $sectionNames = array_unique(array_column($schedules, 'section_name')); ?>
+                                <?php foreach ($sectionNames as $section): ?>
+                                    <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select id="filter-room" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
+                                <option value="">All Rooms</option>
+                                <?php $rooms = array_unique(array_column($schedules, 'room_name')); ?>
+                                <?php foreach ($rooms as $room): ?>
+                                    <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors mt-2 sm:mt-0" onclick="deleteAllSchedules()">
                             <i class="fas fa-trash"></i>
                             <span>Delete All Schedules</span>
                         </button>
@@ -544,7 +557,7 @@ ob_start();
                                                         'bg-pink-100 border-pink-300 text-pink-800'
                                                     ];
                                                     $colorClass = $colors[array_rand($colors)];
-                                            ?>
+                                                ?>
                                                     <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 schedule-item"
                                                         data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
                                                         data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
@@ -780,8 +793,8 @@ ob_start();
         </div>
 
         <!-- Delete Confirmation Modal -->
-        <div id="delete-confirmation-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm items-center justify-center z-50 hidden modal-overlay">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 modal-content">
+        <div id="delete-confirmation-modal" class="fixed inset-0 bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
                 <div class="flex items-center justify-between mb-6">
                     <div class="flex items-center">
                         <div class="bg-red-100 p-2 rounded-full mr-3">
@@ -789,7 +802,7 @@ ob_start();
                         </div>
                         <h3 class="text-lg font-semibold text-gray-900">Delete All Schedules</h3>
                     </div>
-                    <button onclick="closeDeleteModal()" class="text-gray-400 hover:text-gray-600">
+                    <button type="button" onclick="closeDeleteModal()" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times text-xl"></i>
                     </button>
                 </div>
@@ -807,12 +820,53 @@ ob_start();
                 </div>
 
                 <div class="flex justify-end space-x-4">
-                    <button onclick="closeDeleteModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button type="button" onclick="closeDeleteModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
-                    <button onclick="confirmDeleteSchedules()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
+                    <button type="button" onclick="confirmDeleteAllSchedules()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
                         <i class="fas fa-trash mr-2"></i>
                         Delete All Schedules
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Single Delete Confirmation Modal -->
+        <div id="delete-single-modal" class="fixed inset-0 bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="bg-red-100 p-2 rounded-full mr-3">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">Delete Schedule</h3>
+                    </div>
+                    <button type="button" onclick="closeDeleteSingleModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="mb-6">
+                    <p class="text-gray-700 mb-4">
+                        Are you sure you want to delete this schedule? This action cannot be undone.
+                    </p>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+                            <span class="text-sm font-medium text-yellow-800" id="single-delete-details">
+                                This schedule will be permanently removed.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-4">
+                    <button type="button" onclick="closeDeleteSingleModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="button" onclick="confirmDeleteSingleSchedule()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
+                        <i class="fas fa-trash mr-2"></i>
+                        Delete Schedule
                     </button>
                 </div>
             </div>
@@ -844,80 +898,9 @@ ob_start();
                 is_active: s.is_active ?? 1
             })) : [];
 
-            function openDeleteModal() {
-                document.getElementById('delete-confirmation-modal').classList.remove('hidden');
-                document.getElementById('delete-confirmation-modal').classList.add('flex');
-            }
 
-            function closeDeleteModal() {
-                document.getElementById('delete-confirmation-modal').classList.add('hidden');
-                document.getElementById('delete-confirmation-modal').classList.remove('flex');
-            }
 
-            // Updated delete function with confirmation
-            function deleteAllSchedules() {
-                openDeleteModal();
-            }
 
-            function confirmDeleteSchedules() {
-                // Show loading state
-                const deleteButton = document.querySelector('#delete-confirmation-modal button[onclick="confirmDeleteSchedules()"]');
-                const originalText = deleteButton.innerHTML;
-                deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
-                deleteButton.disabled = true;
-
-                fetch('/chair/generate-schedules', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: new URLSearchParams({
-                            action: 'delete_schedules',
-                            confirm: 'true'
-                        }),
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showNotification('All schedules have been deleted successfully.', 'success');
-
-                            // Update the schedule display
-                            window.scheduleData = [];
-                            updateScheduleDisplay([]);
-
-                            // Hide generation results if visible
-                            const generationResults = document.getElementById('generation-results');
-                            if (generationResults) {
-                                generationResults.classList.add('hidden');
-                            }
-
-                        } else {
-                            showNotification('Error deleting schedules: ' + (data.message || 'Unknown error'), 'error');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Delete error:', error);
-                        showNotification('Error deleting schedules: ' + error.message, 'error');
-                    })
-                    .finally(() => {
-                        // Restore button state and close modal
-                        deleteButton.innerHTML = originalText;
-                        deleteButton.disabled = false;
-                        closeDeleteModal();
-                    });
-            }
-
-            // Close modal when clicking outside
-            document.addEventListener('DOMContentLoaded', function() {
-                const modal = document.getElementById('delete-confirmation-modal');
-                if (modal) {
-                    modal.addEventListener('click', function(e) {
-                        if (e.target === modal) {
-                            closeDeleteModal();
-                        }
-                    });
-                }
-            });
 
             // Clear filters for manual tab
             function clearFiltersManual() {
