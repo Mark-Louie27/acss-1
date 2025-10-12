@@ -2035,6 +2035,12 @@ class ChairController
                 error_log("generateSchedules: Success: All courses scheduled.");
             }
 
+            // Log final faculty workload report
+            $this->logFacultyWorkloadReport($facultyAssignments, $facultySpecializations);
+
+            // Check for underloaded faculty and suggest redistribution
+            $this->analyzeWorkloadDistribution($facultyAssignments, $facultySpecializations);
+
             $this->db->commit();
             error_log("generateSchedules: Transaction committed, returning " . count($schedules) . " schedules");
             return $schedules;
@@ -2916,8 +2922,19 @@ class ChairController
         return $slots;
     }
 
-    private function findBestFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $collegeId, $departmentId, $schedules, $facultyAssignments, $courseCode, $sectionId)
-    {
+    private function findBestFaculty(
+        $facultySpecializations,
+        $courseId,
+        $targetDays,
+        $startTime,
+        $endTime,
+        $collegeId,
+        $departmentId,
+        $schedules,
+        $facultyAssignments,
+        $courseCode,
+        $sectionId
+    ) {
         error_log("Finding faculty for $courseCode (ID: $courseId) - Department: $departmentId, College: $collegeId");
 
         $courseDetails = $this->getCourseDetails($courseId);
@@ -2927,27 +2944,23 @@ class ChairController
         error_log("Course details: Type=$subjectType, Units=$courseUnits");
         error_log("Total faculty pool: " . count($facultySpecializations));
 
-        // Step 1: Filter faculty based on subject type eligibility
         $eligibleFaculty = [];
         $specializedFaculty = [];
         $nonSpecializedFaculty = [];
 
         foreach ($facultySpecializations as $faculty) {
             $facultyId = $faculty['faculty_id'];
+            $employmentType = $faculty['employment_type'] ?? 'Regular'; // Get employment type
             $canTeachProfessional = $faculty['can_teach_professional'] ?? false;
             $canTeachGeneral = $faculty['can_teach_general'] ?? false;
-            $classification = $faculty['classification'] ?? 'VSL';
-            $assignedDepts = $faculty['assigned_departments'] ?? [];
             $specializations = $faculty['specializations'] ?? [];
 
             // Check if faculty can teach this subject type
             $canTeachThisSubject = false;
             if ($subjectType === 'Professional Course' && $canTeachProfessional) {
                 $canTeachThisSubject = true;
-                error_log("Faculty $facultyId can teach Professional Course");
             } elseif ($subjectType === 'General Education' && $canTeachGeneral) {
                 $canTeachThisSubject = true;
-                error_log("Faculty $facultyId can teach General Education");
             }
 
             if (!$canTeachThisSubject) {
@@ -2957,8 +2970,7 @@ class ChairController
 
             // Check availability (time conflicts)
             if (!$this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
-                error_log("Faculty $facultyId not available due to time conflict - attempting SMART REASSIGNMENT");
-
+                error_log("Faculty $facultyId not available due to time conflict");
                 // Try to free up expert faculty through reassignment
                 if ($this->freeUpExpertFaculty($collegeId, $facultyId, $targetDays, $startTime, $endTime, $facultyAssignments, $facultySpecializations, $departmentId, $schedules, $courseId)) {
                     error_log("Successfully freed up expert faculty $facultyId for $courseCode");
@@ -2969,25 +2981,20 @@ class ChairController
                 }
             }
 
-            // Check load capacity
-            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments)) {
-                error_log("Faculty $facultyId rejected due to overload");
+            // **ENHANCED**: Check load capacity with employment type and course code
+            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments, $facultySpecializations, $courseCode)) {
+                error_log("Faculty $facultyId rejected due to workload limits");
                 continue;
             }
 
-            // Faculty is eligible - categorize by specialization
+            // Add to eligible pool
             $eligibleFaculty[] = $faculty;
 
-            // Check if faculty has specialization in this specific course
             if (in_array($courseId, $specializations)) {
                 $specializedFaculty[] = $faculty;
-                error_log("Faculty $facultyId has specialization in course $courseId - added to specialized pool");
             } else {
                 $nonSpecializedFaculty[] = $faculty;
-                error_log("Faculty $facultyId has NO specialization in course $courseId - added to random assignment pool");
             }
-
-            error_log("Faculty $facultyId added to eligible pool");
         }
 
         if (empty($eligibleFaculty)) {
@@ -2995,22 +3002,56 @@ class ChairController
             return null;
         }
 
-        error_log("Faculty distribution for $courseCode: " . count($specializedFaculty) . " specialized, " . count($nonSpecializedFaculty) . " non-specialized, " . count($eligibleFaculty) . " total eligible");
+        error_log("Faculty distribution: " . count($specializedFaculty) . " specialized, " .
+            count($nonSpecializedFaculty) . " non-specialized");
 
-        // Step 2: Apply selection priorities (ENHANCED WITH RANDOM ASSIGNMENT)
+        // **ENHANCED**: Selection with workload consideration and underload prioritization
 
-        // Priority 1: Faculty with specific course specializations
+        // PRIORITY 1A: Underloaded specialized faculty (help them reach minimum first)
         if (!empty($specializedFaculty)) {
-            $selected = $this->selectFacultyWithLeastLoad($specializedFaculty, $facultyAssignments);
+            $underloadedSpecialized = array_filter($specializedFaculty, function ($faculty) use ($facultyAssignments, $facultySpecializations, $courseUnits) {
+                $load = $this->calculateFacultyLoad($faculty['faculty_id'], $facultyAssignments, $facultySpecializations);
+                $limits = $this->getFacultyWorkloadLimits($load['employment_type']);
+                return $load['units'] < $limits['min_units']; // Still below minimum
+            });
+
+            if (!empty($underloadedSpecialized)) {
+                $selected = $this->selectFacultyWithLeastLoad($underloadedSpecialized, $facultyAssignments, $courseCode);
+                if ($selected) {
+                    error_log("PRIORITY 1A - Selected UNDERLOADED SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
+                    return $selected['faculty_id'];
+                }
+            }
+
+            // PRIORITY 1B: Regular specialized faculty
+            $selected = $this->selectFacultyWithLeastLoad($specializedFaculty, $facultyAssignments, $courseCode);
             if ($selected) {
-                error_log("PRIORITY 1 - Selected SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
+                error_log("PRIORITY 1B - Selected SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
                 return $selected['faculty_id'];
             }
         }
 
-        // Priority 2: For Professional Courses - prefer faculty from same department (from specialized pool first, then non-specialized)
+        // PRIORITY 2: Underloaded non-specialized faculty (RANDOM ASSIGNMENT to help balance)
+        if (!empty($nonSpecializedFaculty)) {
+            $underloadedNonSpecialized = array_filter($nonSpecializedFaculty, function ($faculty) use ($facultyAssignments, $facultySpecializations, $courseUnits) {
+                $load = $this->calculateFacultyLoad($faculty['faculty_id'], $facultyAssignments, $facultySpecializations);
+                $limits = $this->getFacultyWorkloadLimits($load['employment_type']);
+                return $load['units'] < $limits['min_units']; // Still below minimum
+            });
+
+            if (!empty($underloadedNonSpecialized)) {
+                $selected = $this->selectFacultyWithLeastLoad($underloadedNonSpecialized, $facultyAssignments, $courseCode);
+                if ($selected) {
+                    error_log("PRIORITY 2 - RANDOMLY ASSIGNED to UNDERLOADED non-specialized faculty {$selected['faculty_id']} for $courseCode");
+                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'underloaded_non_specialized');
+                    return $selected['faculty_id'];
+                }
+            }
+        }
+
+        // PRIORITY 3: Department-specific selection for Professional Courses
         if ($subjectType === 'Professional Course') {
-            // First try specialized faculty from same department
+            // Try specialized from same department first
             $specializedSameDeptFaculty = [];
             foreach ($specializedFaculty as $faculty) {
                 $assignedDepts = $faculty['assigned_departments'] ?? [];
@@ -3020,36 +3061,35 @@ class ChairController
             }
 
             if (!empty($specializedSameDeptFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($specializedSameDeptFaculty, $facultyAssignments);
+                $selected = $this->selectFacultyWithLeastLoad($specializedSameDeptFaculty, $facultyAssignments, $courseCode);
                 if ($selected) {
-                    error_log("PRIORITY 2A - Selected SPECIALIZED same-department faculty {$selected['faculty_id']} for Professional Course $courseCode");
+                    error_log("PRIORITY 3A - Selected SPECIALIZED same-department faculty {$selected['faculty_id']} for Professional Course $courseCode");
                     return $selected['faculty_id'];
                 }
             }
 
-            // Then try non-specialized faculty from same department (RANDOM ASSIGNMENT)
+            // Then non-specialized from same department (RANDOM ASSIGNMENT)
             $nonSpecializedSameDeptFaculty = [];
             foreach ($nonSpecializedFaculty as $faculty) {
                 $assignedDepts = $faculty['assigned_departments'] ?? [];
                 if (in_array($departmentId, $assignedDepts)) {
                     $nonSpecializedSameDeptFaculty[] = $faculty;
-                    error_log("Faculty {$faculty['faculty_id']} is assigned to department $departmentId - candidate for random assignment");
                 }
             }
 
             if (!empty($nonSpecializedSameDeptFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($nonSpecializedSameDeptFaculty, $facultyAssignments);
+                $selected = $this->selectFacultyWithLeastLoad($nonSpecializedSameDeptFaculty, $facultyAssignments, $courseCode);
                 if ($selected) {
-                    error_log("PRIORITY 2B - RANDOMLY ASSIGNED (load-balanced) non-specialized faculty {$selected['faculty_id']} to Professional Course $courseCode");
-                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'no_specialization_professional');
+                    error_log("PRIORITY 3B - RANDOMLY ASSIGNED non-specialized same-dept faculty {$selected['faculty_id']} to Professional Course $courseCode");
+                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'no_specialization_professional_same_dept');
                     return $selected['faculty_id'];
                 }
             }
         }
 
-        // Priority 3: For General Education - prefer VSL faculty (specialized first, then random)
+        // PRIORITY 4: VSL faculty for General Education
         if ($subjectType === 'General Education') {
-            // First try specialized VSL faculty
+            // Specialized VSL first
             $specializedVslFaculty = [];
             foreach ($specializedFaculty as $faculty) {
                 if ($faculty['classification'] === 'VSL') {
@@ -3058,58 +3098,50 @@ class ChairController
             }
 
             if (!empty($specializedVslFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($specializedVslFaculty, $facultyAssignments);
+                $selected = $this->selectFacultyWithLeastLoad($specializedVslFaculty, $facultyAssignments, $courseCode);
                 if ($selected) {
-                    error_log("PRIORITY 3A - Selected SPECIALIZED VSL faculty {$selected['faculty_id']} for General Education $courseCode");
+                    error_log("PRIORITY 4A - Selected SPECIALIZED VSL faculty {$selected['faculty_id']} for General Education $courseCode");
                     return $selected['faculty_id'];
                 }
             }
 
-            // Then try non-specialized VSL faculty (RANDOM ASSIGNMENT)
+            // Non-specialized VSL (RANDOM ASSIGNMENT)
             $nonSpecializedVslFaculty = [];
             foreach ($nonSpecializedFaculty as $faculty) {
                 if ($faculty['classification'] === 'VSL') {
                     $nonSpecializedVslFaculty[] = $faculty;
-                    error_log("Faculty {$faculty['faculty_id']} is VSL classification - candidate for random assignment");
                 }
             }
 
             if (!empty($nonSpecializedVslFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($nonSpecializedVslFaculty, $facultyAssignments);
+                $selected = $this->selectFacultyWithLeastLoad($nonSpecializedVslFaculty, $facultyAssignments, $courseCode);
                 if ($selected) {
-                    error_log("PRIORITY 3B - RANDOMLY ASSIGNED (load-balanced) non-specialized VSL faculty {$selected['faculty_id']} to General Education $courseCode");
+                    error_log("PRIORITY 4B - RANDOMLY ASSIGNED non-specialized VSL faculty {$selected['faculty_id']} to General Education $courseCode");
                     $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'no_specialization_vsl');
                     return $selected['faculty_id'];
                 }
             }
         }
 
-        // Priority 4: Any eligible faculty - specialized first, then random assignment
+        // PRIORITY 5: Any remaining specialized faculty
         if (!empty($specializedFaculty)) {
-            $selected = $this->selectFacultyWithLeastLoad($specializedFaculty, $facultyAssignments);
+            $selected = $this->selectFacultyWithLeastLoad($specializedFaculty, $facultyAssignments, $courseCode);
             if ($selected) {
-                error_log("PRIORITY 4A - Selected any available SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
+                error_log("PRIORITY 5 - Selected any available SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
                 return $selected['faculty_id'];
             }
         }
 
-        // Priority 5: RANDOM ASSIGNMENT from non-specialized faculty (load-balanced)
+        // PRIORITY 6: FINAL RANDOM ASSIGNMENT - Any non-specialized faculty (load-balanced)
         if (!empty($nonSpecializedFaculty)) {
-            error_log("PRIORITY 5 - No specialized faculty available, proceeding with RANDOM ASSIGNMENT for $courseCode");
+            error_log("PRIORITY 6 - No specialized faculty available, proceeding with FINAL RANDOM ASSIGNMENT for $courseCode");
 
-            $selected = $this->selectFacultyWithLeastLoad($nonSpecializedFaculty, $facultyAssignments);
+            $selected = $this->selectFacultyWithLeastLoad($nonSpecializedFaculty, $facultyAssignments, $courseCode);
             if ($selected) {
                 error_log("RANDOMLY ASSIGNED (load-balanced) faculty {$selected['faculty_id']} to $subjectType course $courseCode");
-                $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'no_specialization_fallback');
+                $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'final_random_assignment');
                 return $selected['faculty_id'];
             }
-
-            // Pure random as last resort
-            $randomIndex = array_rand($nonSpecializedFaculty);
-            $randomFaculty = $nonSpecializedFaculty[$randomIndex];
-            error_log("RANDOMLY ASSIGNED (pure random) faculty {$randomFaculty['faculty_id']} to $subjectType course $courseCode");
-            $this->logRandomAssignment($randomFaculty['faculty_id'], $courseCode, $subjectType, 'pure_random_fallback');
-            return $randomFaculty['faculty_id'];
         }
 
         error_log("No faculty could be selected for $courseCode after all priorities including random assignment");
@@ -3129,7 +3161,7 @@ class ChairController
             if (!$this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
                 $reasons[] = "time conflict";
             }
-            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments)) {
+            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments, $employmentType, $courseCode, $sectionId)) {
                 $reasons[] = "overloaded";
             }
 
@@ -3163,7 +3195,7 @@ class ChairController
         error_log("LOGGED RANDOM ASSIGNMENT: Faculty $facultyId -> $courseCode ($subjectType) - Reason: $reason");
     }
 
-    private function selectFacultyWithLeastLoad($facultyCandidates, $facultyAssignments)
+    private function selectFacultyWithLeastLoad($facultyCandidates, $facultyAssignments, $newCourseCode = null)
     {
         if (empty($facultyCandidates)) {
             return null;
@@ -3173,106 +3205,306 @@ class ChairController
         $facultyWithLoads = [];
         foreach ($facultyCandidates as $faculty) {
             $facultyId = $faculty['faculty_id'];
-            $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments);
+            $employmentType = $faculty['employment_type'] ?? 'Regular';
+
+            // Pass facultyCandidates as facultySpecializations to get employment_type
+            $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments, $facultyCandidates);
+
+            // Calculate "load score" for prioritization
+            // Lower score = better candidate
+            $limits = $this->getFacultyWorkloadLimits($employmentType);
+            $unitUtilization = $load['units'] / $limits['max_units'];
+            $prepUtilization = $load['preparations'] / $limits['max_preparations'];
+
+            $loadScore = ($unitUtilization * 0.6) + ($prepUtilization * 0.4); // Weighted score
+
             $facultyWithLoads[] = [
                 'faculty' => $faculty,
-                'load' => $load
+                'load' => $load,
+                'employment_type' => $employmentType,
+                'load_score' => $loadScore
             ];
         }
 
-        // Sort by load (ascending - prefer less loaded faculty)
+        // Sort by load score (ascending - prefer less loaded faculty)
         usort($facultyWithLoads, function ($a, $b) {
-            // First sort by units, then by number of courses
-            if ($a['load']['units'] === $b['load']['units']) {
-                return $a['load']['courses'] <=> $b['load']['courses'];
+            // First compare by load score
+            if (abs($a['load_score'] - $b['load_score']) > 0.1) {
+                return $a['load_score'] <=> $b['load_score'];
             }
+
+            // If similar load, prefer by preparations (less is better)
+            if ($a['load']['preparations'] !== $b['load']['preparations']) {
+                return $a['load']['preparations'] <=> $b['load']['preparations'];
+            }
+
+            // Finally by units
             return $a['load']['units'] <=> $b['load']['units'];
         });
 
         $selected = $facultyWithLoads[0]['faculty'];
         $selectedLoad = $facultyWithLoads[0]['load'];
+        $selectedType = $facultyWithLoads[0]['employment_type'];
 
-        error_log("Selected faculty {$selected['faculty_id']} ({$selected['classification']}) with current load: {$selectedLoad['units']} units, {$selectedLoad['courses']} courses");
+        error_log("Selected faculty {$selected['faculty_id']} ($selectedType) with load score: " .
+            number_format($facultyWithLoads[0]['load_score'], 2) .
+            " | {$selectedLoad['units']} units, {$selectedLoad['preparations']} preparations, {$selectedLoad['courses']} courses");
 
         return $selected;
     }
     // Add these methods to your class
 
-    private function calculateFacultyLoad($facultyId, $facultyAssignments)
+    private function calculateFacultyLoad($facultyId, $facultyAssignments, $facultySpecializations = [])
     {
         $totalUnits = 0;
         $totalHours = 0;
         $courseCount = 0;
+        $preparations = []; // Track unique course codes for preparation count
 
         foreach ($facultyAssignments as $assignment) {
             if (isset($assignment['faculty_id']) && $assignment['faculty_id'] == $facultyId) {
                 $totalUnits += $assignment['units'] ?? 3;
                 $totalHours += $assignment['hours'] ?? 3;
                 $courseCount++;
+
+                // Track unique course codes for preparation count
+                $courseCode = $assignment['course_code'] ?? 'Unknown';
+                if (!isset($preparations[$courseCode])) {
+                    $preparations[$courseCode] = [
+                        'course_code' => $courseCode,
+                        'sections' => []
+                    ];
+                }
+                $preparations[$courseCode]['sections'][] = $assignment['section_id'] ?? 0;
             }
         }
 
-        error_log("Faculty $facultyId current load: $totalUnits units, $totalHours hours, $courseCount courses");
+        // Calculate preparation count (unique courses = preparations)
+        $preparationCount = count($preparations);
+
+        // Get employment type if available
+        $employmentType = 'Regular';
+        if (!empty($facultySpecializations)) {
+            foreach ($facultySpecializations as $faculty) {
+                if ($faculty['faculty_id'] == $facultyId) {
+                    $employmentType = $faculty['employment_type'] ?? 'Regular';
+                    break;
+                }
+            }
+        }
+
+        error_log("Faculty $facultyId ($employmentType) current load: $totalUnits units, $totalHours hours, $courseCount courses, $preparationCount preparations");
+
         return [
             'units' => $totalUnits,
             'hours' => $totalHours,
-            'courses' => $courseCount
+            'courses' => $courseCount,
+            'preparations' => $preparationCount,
+            'preparation_details' => $preparations,
+            'employment_type' => $employmentType
         ];
     }
 
-    private function canFacultyTakeMoreLoad($facultyId, $additionalUnits, $facultyAssignments)
+    private function canFacultyTakeMoreLoad($facultyId, $additionalUnits, $facultyAssignments, $facultySpecializations, $newCourseCode = null)
     {
-        $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments);
+        $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments, $facultySpecializations);
+        $employmentType = $load['employment_type']; // Get from calculateFacultyLoad
 
-        // Standard academic limits
-        $maxUnits = 21; // Maximum teaching units per semester
-        $maxCourses = 8; // Maximum number of courses
+        // Define workload limits based on employment type
+        $limits = $this->getFacultyWorkloadLimits($employmentType);
 
         $newTotalUnits = $load['units'] + $additionalUnits;
         $newCourseCount = $load['courses'] + 1;
 
-        $canTake = ($newTotalUnits <= $maxUnits) && ($newCourseCount <= $maxCourses);
+        // Check if adding this course creates a new preparation
+        $newPreparationCount = $load['preparations'];
+        $preparations = $load['preparation_details'];
 
-        error_log("Faculty $facultyId load check: Current({$load['units']} units, {$load['courses']} courses) + New($additionalUnits units) = $newTotalUnits units, $newCourseCount courses. Can take: " . ($canTake ? 'YES' : 'NO'));
+        if ($newCourseCode && !isset($preparations[$newCourseCode])) {
+            $newPreparationCount++; // New unique course = new preparation
+        }
+
+        // FIXED: Only check MAX limits, remove MIN requirement
+        $unitCheckPassed = ($newTotalUnits <= $limits['max_units']);
+        $preparationCheckPassed = ($newPreparationCount <= $limits['max_preparations']);
+        $courseCheckPassed = ($newCourseCount <= $limits['max_courses']);
+
+        $canTake = $unitCheckPassed && $preparationCheckPassed && $courseCheckPassed;
+
+        error_log("Faculty $facultyId ($employmentType) workload check:");
+        error_log("  Current: {$load['units']} units, {$load['preparations']} preps, {$load['courses']} courses");
+        error_log("  New total: $newTotalUnits units, $newPreparationCount preps, $newCourseCount courses");
+        error_log("  Limits: MAX {$limits['max_units']} units, {$limits['max_preparations']} preps, {$limits['max_courses']} courses");
+        error_log("  Result: " . ($canTake ? 'CAN TAKE' : 'CANNOT TAKE'));
+
+        if (!$unitCheckPassed) {
+            error_log("  ❌ Units check failed: $newTotalUnits exceeds {$limits['max_units']}");
+        }
+        if (!$preparationCheckPassed) {
+            error_log("  ❌ Preparation check failed: $newPreparationCount exceeds {$limits['max_preparations']}");
+        }
+        if (!$courseCheckPassed) {
+            error_log("  ❌ Course count check failed: $newCourseCount exceeds {$limits['max_courses']}");
+        }
 
         return $canTake;
     }
 
-    // Improved faculty selection with load balancing
-    private function selectBestFacultyFromCandidates($candidates, $courseDetails, $facultyAssignments)
+    /**
+     * Get workload limits based on employment type
+     * UPDATED: Removed minimum unit requirements
+     */
+    private function getFacultyWorkloadLimits($employmentType)
     {
-        if (empty($candidates)) {
-            return null;
+        // Normalize employment type
+        $employmentType = strtolower(trim($employmentType));
+
+        switch ($employmentType) {
+            case 'contractual':
+            case 'part-time':
+            case 'part time':
+                return [
+                    'min_units' => 0,        // No minimum (removed)
+                    'max_units' => 42,       // Maximum for contractual/part-time
+                    'max_preparations' => 3, // Maximum 3 different courses
+                    'max_courses' => 14      // Maximum course sections
+                ];
+
+            case 'regular':
+            case 'full-time':
+            case 'full time':
+            case 'permanent':
+            default:
+                return [
+                    'min_units' => 0,        // No minimum (removed)
+                    'max_units' => 29,       // Maximum for regular (24-29 range)
+                    'max_preparations' => 3, // Maximum 3 different courses
+                    'max_courses' => 8       // Maximum course sections
+                ];
+        }
+    }
+
+    private function generateFacultyWorkloadReport($facultyAssignments, $facultySpecializations)
+    {
+        $report = [];
+
+        foreach ($facultySpecializations as $faculty) {
+            $facultyId = $faculty['faculty_id'];
+            $employmentType = $faculty['employment_type'] ?? 'Regular';
+
+            $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments, $facultySpecializations);
+            $limits = $this->getFacultyWorkloadLimits($employmentType);
+
+            $report[$facultyId] = [
+                'faculty_id' => $facultyId,
+                'faculty_name' => $faculty['faculty_name'] ?? 'Unknown',
+                'employment_type' => $employmentType,
+                'units' => $load['units'],
+                'preparations' => $load['preparations'],
+                'courses' => $load['courses'],
+                'limits' => $limits,
+                'unit_utilization' => round(($load['units'] / $limits['max_units']) * 100, 2),
+                'prep_utilization' => round(($load['preparations'] / $limits['max_preparations']) * 100, 2),
+                'is_overloaded' => ($load['units'] > $limits['max_units'] ||
+                    $load['preparations'] > $limits['max_preparations']),
+                'is_underloaded' => ($load['units'] < $limits['min_units']),
+                'preparation_details' => $load['preparation_details']
+            ];
         }
 
-        $courseUnits = $courseDetails['units'] ?? 3;
-        $courseCode = $courseDetails['course_code'] ?? 'Unknown';
+        return $report;
+    }
 
-        // Filter candidates who can take additional load
-        $availableCandidates = [];
-        foreach ($candidates as $facultyId) {
-            if ($this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments)) {
-                $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments);
-                $availableCandidates[$facultyId] = $load;
-            } else {
-                error_log("Faculty $facultyId rejected for $courseCode due to overload");
+    private function logFacultyWorkloadReport($facultyAssignments, $facultySpecializations)
+    {
+        $report = $this->generateFacultyWorkloadReport($facultyAssignments, $facultySpecializations);
+
+        error_log("========================================");
+        error_log("FACULTY WORKLOAD REPORT");
+        error_log("========================================");
+
+        foreach ($report as $facultyData) {
+            $status = '✅ OK';
+            if ($facultyData['is_overloaded']) {
+                $status = '⚠️ OVERLOADED';
+            } elseif ($facultyData['is_underloaded']) {
+                $status = '⚠️ UNDERLOADED';
+            }
+
+            error_log("");
+            error_log("Faculty: {$facultyData['faculty_name']} (ID: {$facultyData['faculty_id']})");
+            error_log("Type: {$facultyData['employment_type']} | Status: $status");
+            error_log("Units: {$facultyData['units']}/{$facultyData['limits']['max_units']} ({$facultyData['unit_utilization']}%)");
+            error_log("Preparations: {$facultyData['preparations']}/{$facultyData['limits']['max_preparations']} ({$facultyData['prep_utilization']}%)");
+            error_log("Total Courses: {$facultyData['courses']}");
+
+            if (!empty($facultyData['preparation_details'])) {
+                error_log("Courses taught:");
+                foreach ($facultyData['preparation_details'] as $courseCode => $details) {
+                    $sectionCount = count($details['sections']);
+                    error_log("  - $courseCode ($sectionCount section" . ($sectionCount > 1 ? 's' : '') . ")");
+                }
             }
         }
 
-        if (empty($availableCandidates)) {
-            error_log("No faculty available for $courseCode due to load constraints");
-            return null;
+        error_log("========================================");
+    }
+
+    private function analyzeWorkloadDistribution($facultyAssignments, $facultySpecializations)
+    {
+        $report = $this->generateFacultyWorkloadReport($facultyAssignments, $facultySpecializations);
+
+        $underloaded = array_filter($report, fn($f) => $f['is_underloaded']);
+        $overloaded = array_filter($report, fn($f) => $f['is_overloaded']);
+        $balanced = array_filter($report, fn($f) => !$f['is_underloaded'] && !$f['is_overloaded']);
+
+        error_log("========================================");
+        error_log("WORKLOAD DISTRIBUTION ANALYSIS");
+        error_log("========================================");
+        error_log("✅ Balanced Faculty: " . count($balanced));
+        error_log("⚠️  Underloaded Faculty: " . count($underloaded));
+        error_log("⚠️  Overloaded Faculty: " . count($overloaded));
+
+        if (!empty($underloaded)) {
+            error_log("\n📊 UNDERLOADED FACULTY DETAILS:");
+            foreach ($underloaded as $faculty) {
+                $limits = $faculty['limits'];
+                $needed = $limits['min_units'] - $faculty['units'];
+                error_log("  • {$faculty['faculty_name']} (ID: {$faculty['faculty_id']})");
+                error_log("    - Current: {$faculty['units']} units");
+                error_log("    - Needs: ~$needed more units to reach minimum ({$limits['min_units']} units)");
+                error_log("    - Available preps: " . ($limits['max_preparations'] - $faculty['preparations']));
+            }
+
+            error_log("\n💡 RECOMMENDATIONS:");
+            error_log("  1. Check if underloaded faculty have course specializations assigned");
+            error_log("  2. Verify faculty_departments assignments");
+            error_log("  3. Check for time availability conflicts");
+            error_log("  4. Consider reassigning some sections from balanced faculty");
         }
 
-        // Sort by current load (ascending - prefer less loaded faculty)
-        uasort($availableCandidates, function ($a, $b) {
-            return $a['units'] <=> $b['units'];
-        });
+        if (!empty($overloaded)) {
+            error_log("\n⚠️  OVERLOADED FACULTY DETAILS:");
+            foreach ($overloaded as $faculty) {
+                $limits = $faculty['limits'];
+                $excess = $faculty['units'] - $limits['max_units'];
+                error_log("  • {$faculty['faculty_name']} (ID: {$faculty['faculty_id']})");
+                error_log("    - Current: {$faculty['units']} units");
+                error_log("    - Exceeds maximum by: $excess units");
+                error_log("    - Max preparations: {$faculty['preparations']}/{$limits['max_preparations']}");
+            }
+        }
 
-        $selectedFacultyId = array_key_first($availableCandidates);
-        error_log("Selected faculty $selectedFacultyId for $courseCode (current load: {$availableCandidates[$selectedFacultyId]['units']} units)");
+        // Calculate overall statistics
+        $totalFaculty = count($report);
+        $totalAssignedUnits = array_sum(array_column($report, 'units'));
+        $avgUnitsPerFaculty = $totalFaculty > 0 ? round($totalAssignedUnits / $totalFaculty, 2) : 0;
 
-        return $selectedFacultyId;
+        error_log("\n📈 OVERALL STATISTICS:");
+        error_log("  - Total Faculty: $totalFaculty");
+        error_log("  - Total Units Assigned: $totalAssignedUnits");
+        error_log("  - Average Units per Faculty: $avgUnitsPerFaculty");
+        error_log("========================================\n");
     }
 
     private function findBestNonExpertFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $departmentId, $schedules, $facultyAssignments)
@@ -3346,7 +3578,9 @@ class ChairController
                 $facultySpecializations,
                 $facultyAssignments,
                 $departmentId,
-                $expertFacultyId
+                $expertFacultyId,
+                $assignment['course_code'],
+                $assignment['section_id']
             );
 
             if ($alternativeFaculty) {
@@ -3382,19 +3616,21 @@ class ChairController
         return false;
     }
 
-    private function findAlternativeFacultyForReassignment($courseId, $days, $startTime, $endTime, $facultySpecializations, $facultyAssignments, $departmentId, $excludeFacultyId)
+    private function findAlternativeFacultyForReassignment($courseId, $days, $startTime, $endTime, $facultySpecializations, $facultyAssignments, $departmentId, $excludeFacultyId, $courseCode, $sectionId)
     {
         $courseDetails = $this->getCourseDetails($courseId);
         $subjectType = $courseDetails['subject_type'] ?? 'General Education';
-        $courseUnits = $courseDetails['units'] ?? 3 ?? 2;
+        $courseUnits = $courseDetails['units'] ?? 3 ?? 2 ?? 6; // Simplified default units
 
-        error_log("Finding alternative faculty for course $courseId ($subjectType)");
+        error_log("Finding alternative faculty for course $courseCode (ID: $courseId, Type: $subjectType, Units: $courseUnits), excluding faculty $excludeFacultyId");
 
         foreach ($facultySpecializations as $faculty) {
             $facultyId = $faculty['faculty_id'];
+            $employmentType = $faculty['employment_type'] ?? 'regular';
 
             // Skip the faculty we're trying to free up
             if ($facultyId == $excludeFacultyId) {
+                error_log("Skipping faculty $facultyId (excluded)");
                 continue;
             }
 
@@ -3402,29 +3638,35 @@ class ChairController
             $canTeachThisSubject = false;
             if ($subjectType === 'Professional Course' && ($faculty['can_teach_professional'] ?? false)) {
                 $canTeachThisSubject = true;
+                error_log("Faculty $facultyId can teach Professional Course");
             } elseif ($subjectType === 'General Education' && ($faculty['can_teach_general'] ?? false)) {
                 $canTeachThisSubject = true;
+                error_log("Faculty $facultyId can teach General Education");
             }
 
             if (!$canTeachThisSubject) {
+                error_log("Faculty $facultyId cannot teach $subjectType");
                 continue;
             }
 
             // Check availability
             if (!$this->isFacultyAvailable($facultyId, $days, $startTime, $endTime, $facultyAssignments)) {
+                error_log("Faculty $facultyId not available for days " . implode(',', $days) . " $startTime-$endTime");
                 continue;
             }
 
             // Check load capacity
-            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments)) {
+            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments, $employmentType, $courseCode, $sectionId)) {
+                $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments);
+                error_log("Faculty $facultyId rejected due to load/preparation limits (Current: {$load['units']} units, {$load['preparations']} preparations)");
                 continue;
             }
 
-            error_log("Found suitable alternative faculty: $facultyId");
+            error_log("Found suitable alternative faculty: $facultyId for $courseCode");
             return $facultyId;
         }
 
-        error_log("No alternative faculty found for course $courseId");
+        error_log("No alternative faculty found for $courseCode (ID: $courseId)");
         return null;
     }
 
@@ -3874,7 +4116,7 @@ class ChairController
     private function processManualSchedules($schedulesData, $currentSemester, $departmentId)
     {
         $schedules = [];
-        foreach ($schedulesData as $schedule) {
+        foreach ($schedulesData as $schedule) { 
             $errors = $this->validateSchedule($schedule, $departmentId);
             if (empty($errors)) {
                 $response = $this->callSchedulingService('POST', 'schedules', [
