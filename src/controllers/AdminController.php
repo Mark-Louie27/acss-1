@@ -40,18 +40,21 @@ class AdminController
             $userCount = $this->db->query("SELECT COUNT(*) FROM users")->fetchColumn();
             $collegeCount = $this->db->query("SELECT COUNT(*) FROM colleges")->fetchColumn();
             $departmentCount = $this->db->query("SELECT COUNT(*) FROM departments")->fetchColumn();
-            $facultyCount = $this->db->query("SELECT COUNT(*) FROM faculty")->fetchColumn();
             $scheduleCount = $this->db->query("SELECT COUNT(*) FROM schedules")->fetchColumn();
 
-            // Get department name
-            $deptStmt = $this->db->prepare("SELECT department_name FROM departments WHERE department_id = :department_id");
-            $deptStmt->execute([':department_id' => $_SESSION['user_id']]);
-            $departmentName = $deptStmt->fetchColumn();
+            // Get user role distribution
+            $roleStmt = $this->db->query("
+            SELECT r.role_name, COUNT(u.user_id) as count 
+            FROM users u 
+            JOIN roles r ON u.role_id = r.role_id 
+            GROUP BY r.role_name
+        ");
+            $roleDistribution = $roleStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Fetch current semester
             $currentSemesterStmt = $this->db->query("SELECT semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
             $currentSemester = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
-            $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
+            $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} Semester A.Y {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
 
             // Fetch all available semesters
             $semestersStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters ORDER BY start_date DESC");
@@ -64,8 +67,8 @@ class AdminController
 
                 if (in_array($semesterName, ['1st', '2nd', 'Summer']) && preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
                     list($yearStart, $yearEnd) = explode('-', $academicYear);
-                    $startDate = "$yearStart-06-01"; // Assuming June 1st as start date for simplicity
-                    $endDate = "$yearEnd-05-31";     // Assuming May 31st as end date for simplicity
+                    $startDate = "$yearStart-06-01";
+                    $endDate = "$yearEnd-05-31";
 
                     // Deactivate all semesters
                     $this->db->exec("UPDATE semesters SET is_current = 0");
@@ -114,16 +117,24 @@ class AdminController
     public function activityLogs()
     {
         try {
-            $stmt = $this->db->prepare("
-                SELECT al.log_id, al.action_type, al.action_description, al.entity_type, al.entity_id, 
-                       al.created_at, u.first_name, u.last_name
-                FROM activity_logs al
-                JOIN users u ON al.user_id = u.user_id
-                ORDER BY al.created_at DESC
-                LIMIT 50
-            ");
-            $stmt->execute();
-            $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+           
+            $activityStmt = $this->db->prepare("
+            SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name,
+                   d.department_name, col.college_name
+            FROM activity_logs al
+            JOIN users u ON al.user_id = u.user_id
+            JOIN departments d ON al.department_id = d.department_id
+            JOIN colleges col ON d.college_id = col.college_id
+            ORDER BY al.created_at DESC
+        ");
+            $activityStmt->execute();
+            $activities = $activityStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $data = [
+                
+                'activities' => $activities,
+                'title' => 'Activity Monitor - All Departments'
+            ];
 
             $controller = $this;
             require_once __DIR__ . '/../views/admin/act_logs.php';

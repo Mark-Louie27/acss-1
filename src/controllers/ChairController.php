@@ -725,7 +725,7 @@ class ChairController
             if (!$effectiveSemesterId) {
                 $currentSemester = $this->getCurrentSemester();
                 $effectiveSemesterId = $currentSemester['semester_id'] ?? null;
-                
+
                 if (!$effectiveSemesterId) {
                     error_log("getSections: No valid semester_id found");
                     return [];
@@ -1547,7 +1547,6 @@ class ChairController
                 'curriculumCourses' => [], // Populated via AJAX
                 'schedules' => $schedules
             ];
-
         } else {
             $jsData = [
                 'departmentId' => $departmentId,
@@ -4116,7 +4115,7 @@ class ChairController
     private function processManualSchedules($schedulesData, $currentSemester, $departmentId)
     {
         $schedules = [];
-        foreach ($schedulesData as $schedule) { 
+        foreach ($schedulesData as $schedule) {
             $errors = $this->validateSchedule($schedule, $departmentId);
             if (empty($errors)) {
                 $response = $this->callSchedulingService('POST', 'schedules', [
@@ -4826,7 +4825,7 @@ class ChairController
             // Fetch classrooms with usage
             $fetchClassrooms = function ($departmentId) {
                 $currentSemester = $this->getCurrentSemester();
-                
+
                 $currentSemesterId = $currentSemester['semester_id']; // Extract the ID from the array
 
                 $query = "
@@ -5220,7 +5219,7 @@ class ChairController
             require_once __DIR__ . '/../views/chair/classroom.php';
         }
     }
-    
+
     public function sections()
     {
         error_log("sections: Starting sections method");
@@ -8029,5 +8028,5 @@ class ChairController
 
         require_once __DIR__ . '/../views/chair/settings.php';
     }
-
+    
 }

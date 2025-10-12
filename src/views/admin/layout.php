@@ -51,7 +51,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
             font-family: 'Poppins', sans-serif;
         }
 
-
         @keyframes slideInLeft {
             from {
                 transform: translateX(-20px);
@@ -76,6 +75,16 @@ $currentUri = $_SERVER['REQUEST_URI'];
             }
         }
 
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
         .fade-in {
             animation: fadeIn 0.5s ease forwards;
         }
@@ -88,41 +97,214 @@ $currentUri = $_SERVER['REQUEST_URI'];
             animation: slideInRight 0.4s ease forwards;
         }
 
-        /* Sidebar */
-        .sidebar {
-            background: linear-gradient(to bottom, #1F2937, #111827);
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+        /* Responsive Header */
+        .header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
             transition: all 0.3s ease;
-            z-index: 20;
         }
 
-        .sidebar-hidden {
-            transform: translateX(-100%);
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            max-width: 100%;
         }
 
-        /* Dropdown */
-        .dropdown {
+        /* Logo section - responsive */
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+            flex-shrink: 0;
+        }
+
+        .university-logo {
+            height: 32px;
+            width: auto;
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .university-logo:hover {
+            transform: scale(1.05);
+        }
+
+        .logo-text {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            white-space: nowrap;
+        }
+
+        /* Mobile hamburger */
+        .mobile-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 0.375rem;
+            background: transparent;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 0.75rem;
+        }
+
+        .mobile-toggle:hover {
+            background-color: #f3f4f6;
+            color: #e5ad0f;
+        }
+
+        /* User profile section - responsive */
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 0;
+        }
+
+        .profile-dropdown {
             position: relative;
         }
 
+        .profile-button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            background: transparent;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 0;
+        }
+
+        .profile-button:hover {
+            color: #e5ad0f;
+            background-color: #fef3c7;
+        }
+
+        .profile-avatar {
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            border: 2px solid #e5ad0f;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .profile-initials {
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            border: 2px solid #e5ad0f;
+            background-color: #e5ad0f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .profile-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
+
+        .profile-chevron {
+            font-size: 0.75rem;
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        /* Dropdown menu - responsive */
         .dropdown-menu {
             display: none;
             position: absolute;
             top: 100%;
-            left: 0;
+            right: 0;
             min-width: 200px;
-            z-index: 40;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-            border-radius: 0.375rem;
-            background: #1F2937;
-            transform: translateY(-10px);
+            z-index: 50;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            border-radius: 0.5rem;
+            background: #1f2937;
+            border: 1px solid #374151;
+            margin-top: 0.5rem;
+            overflow: hidden;
         }
 
         .dropdown-menu.show {
-            display: flex;
-            flex-direction: column;
+            display: block;
+            animation: slideInRight 0.2s ease forwards;
+        }
 
-            transform: translateY(0);
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: #d1d5db;
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-item:hover {
+            background-color: #374151;
+            color: #fbbf24;
+        }
+
+        .dropdown-item i {
+            margin-right: 0.75rem;
+            width: 16px;
+            flex-shrink: 0;
+        }
+
+        /* Sidebar - responsive */
+        .sidebar {
+            background: linear-gradient(to bottom, #1f2937, #111827);
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            z-index: 40;
+            width: 256px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+            transform: translateX(-100%);
+        }
+
+        .sidebar.show {
+            transform: translateX(0);
+        }
+
+        /* Sidebar overlay for mobile */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 30;
+        }
+
+        .sidebar-overlay.show {
+            display: block;
         }
 
         /* Navigation items */
@@ -140,7 +322,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
             top: 0;
             height: 100%;
             width: 0;
-            background-color: rgba(212, 175, 55, 0.15);
+            background-color: rgba(229, 173, 15, 0.15);
             z-index: -1;
             transition: width 0.3s ease;
         }
@@ -150,83 +332,166 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         .nav-item:hover {
-            color: #D4AF37;
+            color: #e5ad0f;
         }
 
         .active-nav {
-            border-left: 4px solid #D4AF37;
-            background-color: rgba(212, 175, 55, 0.1);
+            border-left: 4px solid #e5ad0f;
+            background-color: rgba(229, 173, 15, 0.1);
             font-weight: 500;
         }
 
-        /* Header */
-        .header-shadow {
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        }
-
-        /* Gradient and card effects */
-        .yellow-gradient {
-            background: linear-gradient(135deg, #D4AF37 0%, #F2D675 100%);
-        }
-
-        .card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            overflow: hidden;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
-        }
-
-        /* Logo styles */
-        .university-logo {
-            height: 40px;
-            transition: transform 0.3s ease;
-        }
-
-        .university-logo:hover {
-            transform: scale(1.05);
-        }
-
-        /* Buttons */
-        .btn {
+        /* Main content - responsive */
+        .main-content {
             transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            padding-top: 60px;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-bottom: 2rem;
+            min-height: 100vh;
+            background-color: #f3f4f6;
         }
 
-        .btn::after {
-            content: '';
+        .content-container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        /* Breadcrumb - responsive */
+        .breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .breadcrumb-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .breadcrumb-separator {
+            color: #9ca3af;
+            font-size: 0.75rem;
+        }
+
+        /* Responsive breakpoints */
+        @media (min-width: 768px) {
+            .mobile-toggle {
+                display: none;
+            }
+
+            .sidebar {
+                transform: translateX(0);
+                position: fixed;
+            }
+
+            .main-content {
+                margin-left: 256px;
+                padding-left: 2rem;
+                padding-right: 2rem;
+            }
+
+            .header-content {
+                padding: 1rem 1.5rem;
+            }
+
+            .university-logo {
+                height: 40px;
+            }
+
+            .logo-text {
+                font-size: 1.125rem;
+            }
+
+            .profile-name {
+                max-width: 150px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .main-content {
+                padding-left: 2.5rem;
+                padding-right: 2.5rem;
+            }
+
+            .header {
+                position: fixed;
+                top: 0;
+                left: 256px;
+                /* Sidebar width */
+                right: 0;
+                z-index: 20;
+            }
+
+            .header-content {
+                padding: 1rem 1.5rem;
+            }
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 767px) {
+            .logo-text {
+                display: none;
+            }
+
+            .profile-name {
+                display: none;
+            }
+
+            .sidebar {
+                z-index: 50;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .breadcrumb {
+                font-size: 0.75rem;
+            }
+        }
+
+        /* Small mobile screens */
+        @media (max-width: 480px) {
+            .header-content {
+                padding: 0.75rem;
+            }
+
+            .profile-avatar,
+            .profile-initials {
+                height: 28px;
+                width: 28px;
+            }
+
+            .university-logo {
+                height: 28px;
+            }
+
+            .main-content {
+                padding-top: 65px;
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+        }
+
+        /* Additional responsive utilities */
+        .sr-only {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 5px;
-            height: 5px;
-            background: rgba(255, 255, 255, 0.5);
-            opacity: 0;
-            border-radius: 100%;
-            transform: scale(1, 1) translate(-50%, -50%);
-            transform-origin: 50% 50%;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
-        .btn:hover::after {
-            animation: ripple 1s ease-out;
-        }
-
-        @keyframes ripple {
-            0% {
-                transform: scale(0, 0);
-                opacity: 0.5;
-            }
-
-            100% {
-                transform: scale(20, 20);
-                opacity: 0;
-            }
-        }
-
-        /* Scrollbar */
+        /* Scrollbar styling */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -238,97 +503,63 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #D4AF37;
+            background: #e5ad0f;
             border-radius: 10px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #B8860B;
-        }
-
-        /* Notifications */
-        .notification-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: #EF4444;
-            color: white;
-            border-radius: 50%;
-            padding: 0.1rem 0.4rem;
-            font-size: 0.65rem;
-            font-weight: bold;
-        }
-
-        /* Toggle animations */
-        .toggle-icon {
-            transition: transform 0.3s ease;
-        }
-
-        .rotate-icon {
-            transform: rotate(180deg);
-        }
-
-        /* Toast notifications */
-        .toast {
-            animation: slideInRight 0.5s ease forwards, fadeOut 0.5s ease 5s forwards;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-            }
-
-            to {
-                opacity: 0;
-            }
+            background: #b98a0c;
         }
     </style>
 </head>
 
-<body class="bg-gray-200 font-sans">
+<body class="bg-gray-100">
     <!-- Toast notifications container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-4"></div>
 
+    <!-- Sidebar Overlay (Mobile) -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
     <!-- Header -->
-    <header class="fixed top-0 left-55 right-0 bg-white header-shadow z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-            <!-- Left: Sidebar Toggle and Logo -->
-            <div class="flex items-center">
-                <button id="toggleSidebar" class="md:hidden text-gray-600 hover:text-yellow-400 focus:outline-none mr-4">
+    <header class="header">
+        <div class="header-content max-w-full mx-auto flex items-center justify-between">
+            <!-- Left section: Mobile toggle + Logo -->
+            <div class="logo-section">
+                <button id="mobile-toggle" class="mobile-toggle" aria-label="Toggle sidebar">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
-                <a href="/admin/dashboard" class="flex items-center">
+                <a href="/admin/dashboard" class="flex items-center gap-3">
                     <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
-                    <span class="text-lg font-heading text-gray-800">ACSS</span>
+                    <span class="logo-text">ACSS</span>
                 </a>
             </div>
 
-            <!-- Right: User Profile and Notifications -->
-            <div class="flex items-center space-x-4">
-                <!-- User Profile Dropdown -->
-                <div class="dropdown relative">
-                    <button class="flex items-center text-gray-600 hover:text-yellow-400 focus:outline-none">
+            <!-- Right section: User profile -->
+            <div class="user-section">
+                <div class="profile-dropdown">
+                    <button class="profile-button" aria-expanded="false" aria-haspopup="true">
                         <?php if (!empty($profilePicture)): ?>
-                            <img class="h-8 w-8 rounded-full border-2 border-yellow-400 object-cover"
-                                src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
+                            <img class="profile-avatar" src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile picture">
                         <?php else: ?>
-                            <div class="h-8 w-8 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-sm font-bold">
+                            <div class="profile-initials">
                                 <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                             </div>
                         <?php endif; ?>
-                        <span class="ml-2 hidden sm:inline text-sm font-medium"><?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
-                        <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                        <span class="profile-name"><?php echo htmlspecialchars($_SESSION['first_name']); ?></span>
+                        <i class="fas fa-chevron-down profile-chevron"></i>
                     </button>
-                    <div class="dropdown-menu right-0 mt-2">
-                        <a href="/admin/profile" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
-                            <i class="fas fa-user w-5 mr-2"></i> Profile
+                    <div class="dropdown-menu" role="menu">
+                        <a href="/admin/profile" class="dropdown-item" role="menuitem">
+                            <i class="fas fa-user"></i>
+                            Profile
                         </a>
-                        <a href="/admin/settings" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
-                            <i class="fas fa-cog w-5 mr-2"></i> Settings
+                        <a href="/admin/settings" class="dropdown-item" role="menuitem">
+                            <i class="fas fa-cog"></i>
+                            Settings
                         </a>
-                        <a href="/admin/logout" class="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-600 hover:text-yellow-300">
-                            <i class="fas fa-sign-out-alt w-5 mr-2"></i> Logout
+                        <a href="/admin/logout" class="dropdown-item" role="menuitem">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
                         </a>
                     </div>
                 </div>
@@ -337,18 +568,18 @@ $currentUri = $_SERVER['REQUEST_URI'];
     </header>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar w-64 text-white fixed h-full overflow-y-auto transition-all duration-300 transform -translate-x-full md:translate-x-0 top-0 mt-16 md:mt-0">
+    <aside id="sidebar" class="sidebar" role="navigation" aria-label="Main navigation">
         <!-- Sidebar Header -->
-        <div class="py-6 px-6 flex flex-col items-center justify-center border-b border-gray-700 bg-gray-900 md:block">
+        <div class="py-6 px-6 flex flex-col items-center justify-center border-b border-gray-700 bg-gray-900">
             <div class="flex items-center justify-center mb-3">
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
-            <h2 class="text-xl font-bold text-yellow-400 hidden md:block">PRMSU Scheduling System - ACSS</h2>
-            <p class="text-xs text-gray-400 mt-1 hidden md:block">Admin Management System</p>
+            <h2 class="text-xl font-bold text-yellow-400 text-center">PRMSU Scheduling System - ACSS</h2>
+            <p class="text-xs text-gray-400 mt-1 text-center">Admin Management System</p>
         </div>
 
         <!-- User Profile Section -->
-        <div class="p-4 border-b border-gray-700 bg-gray-800/70 hidden md:block">
+        <div class="p-4 border-b border-gray-700 bg-gray-800/70">
             <div class="flex items-center space-x-3">
                 <?php if (!empty($profilePicture)): ?>
                     <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md"
@@ -358,8 +589,8 @@ $currentUri = $_SERVER['REQUEST_URI'];
                         <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
-                <div>
-                    <p class="font-medium text-white"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
+                <div class="min-w-0">
+                    <p class="font-medium text-white truncate"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>VPAA</span>
@@ -369,28 +600,34 @@ $currentUri = $_SERVER['REQUEST_URI'];
         </div>
 
         <!-- Navigation -->
-        <nav class="mt-4 px-2">
+        <nav class="mt-4 px-2" role="navigation">
             <!-- Dashboard Link -->
             <a href="/admin/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/admin/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Dashboard</span>
             </a>
 
-            <!-- schedule link-->
+            <a href="/admin/act_logs" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/act_logs') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-desktop-alt w-5 mr-3 <?= strpos($currentUri, '/admin/act_logs') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Activity Log</span>
+            </a>
+
+            <!-- Schedule Link 
             <a href="/admin/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/admin/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>My Schedule</span>
             </a>
+            -->
 
-            <!-- users Link -->
+            <!-- Users Link -->
             <a href="/admin/users" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/users') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fa-regular fa-circle-user w-5 mr-3 <?= strpos($currentUri, '/admin/users') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Users</span>
             </a>
 
-            <!-- colleges Link -->
+            <!-- Colleges & Departments Link -->
             <a href="/admin/colleges" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/colleges') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-university mr-3 <?= strpos($currentUri, '/admin/colleges') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <i class="fas fa-university w-5 mr-3 <?= strpos($currentUri, '/admin/colleges') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Colleges & Departments</span>
             </a>
 
@@ -414,8 +651,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
         </nav>
 
         <!-- Sidebar Footer -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700 hidden md:block">
-
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700">
             <div class="flex items-center justify-between text-xs text-gray-400">
                 <div>
                     <p>VPAA System</p>
@@ -429,40 +665,36 @@ $currentUri = $_SERVER['REQUEST_URI'];
     </aside>
 
     <!-- Main Content -->
-    <main class="md:ml-64 pt-20 md:pt-16 p-4 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-200">
-        <div class="max-w-7xl mx-auto">
+    <main class="main-content">
+        <div class="content-container">
             <!-- Breadcrumb -->
             <?php
             $segments = explode('/', trim($currentUri, '/'));
             if (count($segments) > 1):
             ?>
-                <nav class="flex mb-5 text-sm" aria-label="Breadcrumb">
-                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
-                        <li class="inline-flex items-center">
-                            <a href="/admin/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-400">
-                                <i class="fas fa-home mr-2"></i>
-                                Home
-                            </a>
-                        </li>
-                        <?php
-                        $path = '/admin';
-                        foreach ($segments as $index => $segment):
-                            if ($index == 0) continue;
-                            $path .= '/' . $segment;
-                            $isLast = ($index === count($segments) - 1);
-                        ?>
-                            <li>
-                                <div class="flex items-center">
-                                    <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
-                                    <?php if ($isLast): ?>
-                                        <span class="text-yellow-400 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
-                                    <?php else: ?>
-                                        <a href="<?= $path ?>" class="text-gray-500 hover:text-yellow-400"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
-                                    <?php endif; ?>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ol>
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                    <div class="breadcrumb-item">
+                        <a href="/admin/dashboard" class="inline-flex items-center text-gray-500 hover:text-yellow-500 transition-colors">
+                            <i class="fas fa-home mr-2"></i>
+                            Home
+                        </a>
+                    </div>
+                    <?php
+                    $path = '/admin';
+                    foreach ($segments as $index => $segment):
+                        if ($index == 0) continue;
+                        $path .= '/' . $segment;
+                        $isLast = ($index === count($segments) - 1);
+                    ?>
+                        <i class="fas fa-chevron-right breadcrumb-separator"></i>
+                        <div class="breadcrumb-item">
+                            <?php if ($isLast): ?>
+                                <span class="text-yellow-500 font-medium"><?= ucfirst(str_replace('-', ' ', $segment)) ?></span>
+                            <?php else: ?>
+                                <a href="<?= $path ?>" class="text-gray-500 hover:text-yellow-500 transition-colors"><?= ucfirst(str_replace('-', ' ', $segment)) ?></a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
                 </nav>
             <?php endif; ?>
 
@@ -474,56 +706,121 @@ $currentUri = $_SERVER['REQUEST_URI'];
     </main>
 
     <script>
-        // Sidebar toggle
-        const toggleSidebar = document.getElementById('toggleSidebar');
+        // DOM elements
+        const mobileToggle = document.getElementById('mobile-toggle');
         const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const profileButton = document.querySelector('.profile-button');
+        const dropdownMenu = document.querySelector('.dropdown-menu');
+        const profileChevron = document.querySelector('.profile-chevron');
 
-        toggleSidebar.addEventListener('click', () => {
-            sidebar.classList.toggle('sidebar-hidden');
-        });
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            sidebar.classList.toggle('show');
+            sidebarOverlay.classList.toggle('show');
+            document.body.style.overflow = sidebar.classList.contains('show') ? 'hidden' : '';
+        }
 
-        // Close sidebar on outside click (mobile)
-        document.addEventListener('click', (event) => {
-            const isSmallScreen = window.innerWidth < 768;
-            const isSidebar = sidebar.contains(event.target);
-            const isToggleButton = toggleSidebar.contains(event.target);
+        function closeSidebar() {
+            sidebar.classList.remove('show');
+            sidebarOverlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
 
-            if (isSmallScreen && !isSidebar && !isToggleButton && !sidebar.classList.contains('sidebar-hidden')) {
-                sidebar.classList.add('sidebar-hidden');
+        // Event listeners
+        mobileToggle.addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', closeSidebar);
+
+        // Close sidebar on window resize (if desktop)
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) {
+                closeSidebar();
             }
         });
 
-        // Dropdown functionality
+        // Profile dropdown functionality
+        profileButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = dropdownMenu.classList.contains('show');
+
+            if (isOpen) {
+                dropdownMenu.classList.remove('show');
+                profileChevron.style.transform = 'rotate(0deg)';
+                profileButton.setAttribute('aria-expanded', 'false');
+            } else {
+                dropdownMenu.classList.add('show');
+                profileChevron.style.transform = 'rotate(180deg)';
+                profileButton.setAttribute('aria-expanded', 'true');
+            }
+        });
+
+        // Close dropdown on outside click
+        document.addEventListener('click', (e) => {
+            if (!profileButton.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.classList.remove('show');
+                profileChevron.style.transform = 'rotate(0deg)';
+                profileButton.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Close dropdown on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                dropdownMenu.classList.remove('show');
+                profileChevron.style.transform = 'rotate(0deg)';
+                profileButton.setAttribute('aria-expanded', 'false');
+                closeSidebar();
+            }
+        });
+
+        // Touch support for mobile devices
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const swipeDistance = touchEndX - touchStartX;
+
+            // Swipe right to open sidebar (from left edge)
+            if (swipeDistance > swipeThreshold && touchStartX < 50 && window.innerWidth < 768) {
+                if (!sidebar.classList.contains('show')) {
+                    toggleSidebar();
+                }
+            }
+
+            // Swipe left to close sidebar
+            if (swipeDistance < -swipeThreshold && sidebar.classList.contains('show')) {
+                closeSidebar();
+            }
+        }
+
+        // Prevent scroll when sidebar is open on mobile
+        sidebar.addEventListener('scroll', (e) => {
+            e.stopPropagation();
+        });
+
+        // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            const dropdowns = document.querySelectorAll('.dropdown');
+            // Set initial ARIA states
+            profileButton.setAttribute('aria-expanded', 'false');
 
-            dropdowns.forEach(dropdown => {
-                const trigger = dropdown.querySelector('button');
-                const menu = dropdown.querySelector('.dropdown-menu');
-                const toggleIcon = trigger.querySelector('.toggle-icon');
-
-                trigger.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isOpen = menu.classList.contains('show');
-                    // Close all dropdowns
-                    dropdowns.forEach(d => {
-                        d.querySelector('.dropdown-menu').classList.remove('show');
-                        const icon = d.querySelector('.toggle-icon');
-                        if (icon) icon.classList.remove('rotate-icon');
+            // Add focus management for accessibility
+            const navLinks = sidebar.querySelectorAll('.nav-item');
+            navLinks.forEach(link => {
+                link.addEventListener('focus', () => {
+                    link.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest'
                     });
-                    // Toggle current dropdown
-                    if (!isOpen) {
-                        menu.classList.add('show');
-                        if (toggleIcon) toggleIcon.classList.add('rotate-icon');
-                    }
-                });
-
-                // Close dropdown on outside click
-                document.addEventListener('click', (event) => {
-                    if (!dropdown.contains(event.target)) {
-                        menu.classList.remove('show');
-                        if (toggleIcon) toggleIcon.classList.remove('rotate-icon');
-                    }
                 });
             });
         });
