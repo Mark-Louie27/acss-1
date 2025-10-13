@@ -501,6 +501,96 @@ class SchedulingService
         exit;
     }
 
+    public function formatScheduleDays($dayString)
+    {
+        if (empty($dayString)) {
+            return 'TBD';
+        }
+
+        $days = explode(', ', $dayString);
+        $dayAbbrev = [];
+
+        foreach ($days as $day) {
+            switch (trim($day)) {
+                case 'Monday':
+                    $dayAbbrev[] = 'M';
+                    break;
+                case 'Tuesday':
+                    $dayAbbrev[] = 'T';
+                    break;
+                case 'Wednesday':
+                    $dayAbbrev[] = 'W';
+                    break;
+                case 'Thursday':
+                    $dayAbbrev[] = 'Th';
+                    break;
+                case 'Friday':
+                    $dayAbbrev[] = 'F';
+                    break;
+                case 'Saturday':
+                    $dayAbbrev[] = 'S';
+                    break;
+                case 'Sunday':
+                    $dayAbbrev[] = 'Su';
+                    break;
+            }
+        }
+
+        // Common patterns
+        $dayStr = implode('', $dayAbbrev);
+
+        // Replace common patterns for better readability
+        $patterns = [
+            'MWF' => 'MWF',
+            'TTh' => 'TTH',
+            'MW' => 'MW',
+            'ThF' => 'THF',
+            'MThF' => 'MTHF',
+            'TWThF' => 'TWTHF'
+        ];
+
+        foreach ($patterns as $pattern => $replacement) {
+            if ($dayStr == $pattern) {
+                return $replacement;
+            }
+        }
+
+        return $dayStr ?: 'TBD';
+    }
+
+
+    public function expandDayPattern($dayPattern)
+    {
+        $patternMap = [
+            'MWF' => ['Monday', 'Wednesday', 'Friday'],
+            'TTH' => ['Tuesday', 'Thursday'],
+            'MW' => ['Monday', 'Wednesday'],
+            'MTH' => ['Monday', 'Thursday'],
+            'TTHS' => ['Tuesday', 'Thursday', 'Saturday'],
+            'M' => ['Monday'],
+            'T' => ['Tuesday'],
+            'W' => ['Wednesday'],
+            'TH' => ['Thursday'],
+            'F' => ['Friday'],
+            'S' => ['Saturday'],
+            'Su' => ['Sunday']
+        ];
+
+        // If it's a single day or already expanded, return as array
+        if (isset($patternMap[$dayPattern])) {
+            return $patternMap[$dayPattern];
+        }
+
+        // Check if it's already a valid day name
+        $validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        if (in_array($dayPattern, $validDays)) {
+            return [$dayPattern];
+        }
+
+        // Default to single day if pattern not recognized
+        return [$dayPattern];
+    }
+
     /**
      * Main API endpoint handler
      */

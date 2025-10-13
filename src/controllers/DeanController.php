@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/UserModel.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
+require_once __DIR__ . '/../services/SchedulingService.php';
 
 class DeanController
 {
@@ -10,6 +11,7 @@ class DeanController
     private $userModel;
     private $emailService;
     private $authService;
+    private $schedulingService;
 
     public function __construct()
     {
@@ -24,6 +26,7 @@ class DeanController
         $this->restrictToDean();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->emailService = new EmailService();
+        $this->schedulingService = new SchedulingService($this->db);
     }
 
     private function getCurrentSemester()
@@ -202,7 +205,7 @@ class DeanController
             $schedules = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($schedules as &$schedule) {
-                $schedule['formatted_days'] = $this->formatScheduleDays($schedule['day_of_week']);
+                $schedule['formatted_days'] = $this->schedulingService->formatScheduleDays($schedule['day_of_week']);
             }
         }
 
@@ -342,67 +345,6 @@ class DeanController
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Format schedule days to show MWF, TTH format instead of listing individually
-     */
-    private function formatScheduleDays($dayString)
-    {
-        if (empty($dayString)) {
-            return 'TBD';
-        }
-
-        $days = explode(', ', $dayString);
-        $dayAbbrev = [];
-
-        foreach ($days as $day) {
-            switch (trim($day)) {
-                case 'Monday':
-                    $dayAbbrev[] = 'M';
-                    break;
-                case 'Tuesday':
-                    $dayAbbrev[] = 'T';
-                    break;
-                case 'Wednesday':
-                    $dayAbbrev[] = 'W';
-                    break;
-                case 'Thursday':
-                    $dayAbbrev[] = 'Th';
-                    break;
-                case 'Friday':
-                    $dayAbbrev[] = 'F';
-                    break;
-                case 'Saturday':
-                    $dayAbbrev[] = 'S';
-                    break;
-                case 'Sunday':
-                    $dayAbbrev[] = 'Su';
-                    break;
-            }
-        }
-
-        // Common patterns
-        $dayStr = implode('', $dayAbbrev);
-
-        // Replace common patterns for better readability
-        $patterns = [
-            'MWF' => 'MWF',
-            'TTh' => 'TTH',
-            'MW' => 'MW',
-            'ThF' => 'THF',
-            'MThF' => 'MTHF',
-            'TWThF' => 'TWTHF',
-            'MTWThF' => 'MTWTHF',
-            'SSu' => 'SSu',
-        ];
-
-        foreach ($patterns as $pattern => $replacement) {
-            if ($dayStr == $pattern) {
-                return $replacement;
-            }
-        }
-
-        return $dayStr ?: 'TBD';
-    }
 
     public function activities()
     {
@@ -690,7 +632,7 @@ class DeanController
             // Format days and create final schedule array
             $schedules = [];
             foreach ($groupedSchedules as $schedule) {
-                $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(implode(', ', $schedule['days']));
                 unset($schedule['days']);
                 $schedules[] = $schedule;
             }
@@ -743,7 +685,7 @@ class DeanController
 
                 $schedules = [];
                 foreach ($groupedSchedules as $schedule) {
-                    $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                    $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(implode(', ', $schedule['days']));
                     unset($schedule['days']);
                     $schedules[] = $schedule;
                 }
@@ -926,7 +868,7 @@ class DeanController
             }
 
             // Format the days for compact display (e.g., "MWF")
-            $schedule['formatted_days'] = $this->formatScheduleDays($schedule['day_of_week']);
+            $schedule['formatted_days'] = $this->schedulingService->formatScheduleDays($schedule['day_of_week']);
             $schedules[$deptId][] = $schedule;
         }
 

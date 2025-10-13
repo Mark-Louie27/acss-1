@@ -215,20 +215,6 @@ ob_start();
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-gray-800 text-white mt-12">
-        <div class="container mx-auto px-6 py-8">
-            <div class="text-center">
-                <p class="text-gray-400">
-                    &copy; 2025 President Ramon Magsaysay State University. All rights reserved.
-                </p>
-                <p class="text-gray-500 text-sm mt-2">
-                    Academic Schedule Management System - Faculty Portal
-                </p>
-            </div>
-        </div>
-    </footer>
-
     <script>
         // Toggle password visibility
         document.querySelectorAll('.toggle-password').forEach(button => {

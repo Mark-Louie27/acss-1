@@ -485,7 +485,7 @@ if (!$profilePicture) {
                 </button>
                 <a href="/faculty/dashboard" class="flex items-center space-x-2">
                     <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
-                    <span class="text-lg font-heading text-gray-800 hidden sm:inline">ACSS</span>
+                    <span class="text-lg font-heading text-gray-800 hidden sm:inline">Automated Classroom Scheduling System</span>
                 </a>
             </div>
 
@@ -528,7 +528,7 @@ if (!$profilePicture) {
             <div class="flex items-center justify-center mb-3">
                 <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
             </div>
-            <h2 class="text-xl font-bold text-yellow-400 text-center">PRMSU Automated Classroom Scheduling System - ACSS</h2>
+            <h2 class="text-xl font-bold text-yellow-400 text-center">PRMSU - ACSS</h2>
             <p class="text-xs text-gray-400 mt-1 text-center">Faculty Management System</p>
             <button id="close-sidebar-btn" class="close-sidebar-btn absolute top-4 right-4 md:hidden" aria-label="Close navigation menu">
                 <i class="fas fa-times"></i>

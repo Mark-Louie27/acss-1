@@ -233,7 +233,7 @@ class ChairController
 
             // Process the day format to show MWF, TTH format
             foreach ($mySchedules as &$schedule) {
-                $schedule['day_of_week'] = $this->formatScheduleDays($schedule['day_of_week']);
+                $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays($schedule['day_of_week']);
             }
 
             $schedules = $mySchedules;
@@ -331,63 +331,6 @@ class ChairController
             echo "Error loading dashboard: " . htmlspecialchars($e->getMessage());
             exit;
         }
-    }
-
-    private function formatScheduleDays($dayString)
-    {
-        if (empty($dayString)) {
-            return 'TBD';
-        }
-
-        $days = explode(', ', $dayString);
-        $dayAbbrev = [];
-
-        foreach ($days as $day) {
-            switch (trim($day)) {
-                case 'Monday':
-                    $dayAbbrev[] = 'M';
-                    break;
-                case 'Tuesday':
-                    $dayAbbrev[] = 'T';
-                    break;
-                case 'Wednesday':
-                    $dayAbbrev[] = 'W';
-                    break;
-                case 'Thursday':
-                    $dayAbbrev[] = 'Th';
-                    break;
-                case 'Friday':
-                    $dayAbbrev[] = 'F';
-                    break;
-                case 'Saturday':
-                    $dayAbbrev[] = 'S';
-                    break;
-                case 'Sunday':
-                    $dayAbbrev[] = 'Su';
-                    break;
-            }
-        }
-
-        // Common patterns
-        $dayStr = implode('', $dayAbbrev);
-
-        // Replace common patterns for better readability
-        $patterns = [
-            'MWF' => 'MWF',
-            'TTh' => 'TTH',
-            'MW' => 'MW',
-            'ThF' => 'THF',
-            'MThF' => 'MTHF',
-            'TWThF' => 'TWTHF'
-        ];
-
-        foreach ($patterns as $pattern => $replacement) {
-            if ($dayStr == $pattern) {
-                return $replacement;
-            }
-        }
-
-        return $dayStr ?: 'TBD';
     }
 
     public function mySchedule()
@@ -497,7 +440,7 @@ class ChairController
             // Format days and create final schedule array
             $schedules = [];
             foreach ($groupedSchedules as $schedule) {
-                $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(implode(', ', $schedule['days']));
                 unset($schedule['days']);
                 $schedules[] = $schedule;
             }
@@ -551,7 +494,7 @@ class ChairController
 
                 $schedules = [];
                 foreach ($groupedSchedules as $schedule) {
-                    $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                    $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(implode(', ', $schedule['days']));
                     unset($schedule['days']);
                     $schedules[] = $schedule;
                 }
@@ -1010,7 +953,7 @@ class ChairController
         $conflicts = [];
 
         // Convert day patterns to individual days
-        $daysToCheck = $this->expandDayPattern($dayOfWeek);
+        $daysToCheck = $this->schedulingService->expandDayPattern($dayOfWeek);
 
         if (empty($daysToCheck)) {
             $daysToCheck = [$dayOfWeek]; // Fallback to single day
@@ -1108,38 +1051,6 @@ class ChairController
         }
     }
 
-    private function expandDayPattern($dayPattern)
-    {
-        $patternMap = [
-            'MWF' => ['Monday', 'Wednesday', 'Friday'],
-            'TTH' => ['Tuesday', 'Thursday'],
-            'MW' => ['Monday', 'Wednesday'],
-            'MTH' => ['Monday', 'Thursday'],
-            'TTHS' => ['Tuesday', 'Thursday', 'Saturday'],
-            'M' => ['Monday'],
-            'T' => ['Tuesday'],
-            'W' => ['Wednesday'],
-            'TH' => ['Thursday'],
-            'F' => ['Friday'],
-            'S' => ['Saturday'],
-            'Su' => ['Sunday']
-        ];
-
-        // If it's a single day or already expanded, return as array
-        if (isset($patternMap[$dayPattern])) {
-            return $patternMap[$dayPattern];
-        }
-
-        // Check if it's already a valid day name
-        $validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        if (in_array($dayPattern, $validDays)) {
-            return [$dayPattern];
-        }
-
-        // Default to single day if pattern not recognized
-        return [$dayPattern];
-    }
-
     private function handleAddSchedule($data, $departmentId, $currentSemester, $collegeId)
     {
         try {
@@ -1225,7 +1136,7 @@ class ChairController
             }
 
             // Handle day patterns (MWF, TTH, etc.)
-            $daysToSchedule = $this->expandDayPattern($data['day_of_week']);
+            $daysToSchedule = $this->schedulingService->expandDayPattern($data['day_of_week']);
 
             $scheduleType = $data['schedule_type'] ?? 'f2f';
             $successfulSchedules = [];
@@ -4564,32 +4475,23 @@ class ChairController
                 throw new Exception("Invalid department ID or semester ID.");
             }
 
-            $query = "
-                UPDATE classrooms c
-                LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id
-                JOIN departments d ON c.department_id = d.department_id
-                SET c.availability = 'available'
-                WHERE (
-                    c.department_id = :department_id1
-                    OR (
-                        c.shared = 0 
-                        AND d.college_id = (
-                            SELECT college_id 
-                            FROM departments 
-                            WHERE department_id = :department_id2
-                        )
+                    $query = "
+                    UPDATE classrooms c
+                    LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
+                    SET c.availability = 'available'
+                    WHERE (
+                        -- Only update classrooms owned by this department
+                        c.department_id = :department_id1
+                        OR 
+                        -- Only update classrooms explicitly shared with this department
+                        (c.shared = 1 AND cd.department_id = :department_id2)
+                        -- REMOVED: College-shared rooms condition
                     )
-                    OR (
-                        c.shared = 1 
-                        AND cd.department_id = :department_id3
-                    )
-                )
-            ";
+                ";
             $stmt = $this->db->prepare($query);
             $params = [
                 ':department_id1' => $departmentId,
-                ':department_id2' => $departmentId,
-                ':department_id3' => $departmentId
+                ':department_id2' => $departmentId
             ];
             $stmt->execute($params);
             $affectedRows = $stmt->rowCount();
@@ -4623,35 +4525,40 @@ class ChairController
 
             // Get all relevant classrooms (labs and shared rooms)
             $query = "
-            SELECT 
-                c.room_id,
-                c.room_type,
-                c.shared,
-                c.availability AS current_availability,
-                COUNT(s.schedule_id) AS schedule_count,
-                GROUP_CONCAT(s.time_slot) AS time_slots
-            FROM classrooms c
-            LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id
-            JOIN departments d ON c.department_id = d.department_id
-            LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
-            WHERE (
-                c.department_id = :department_id1
-                OR (
-                    c.shared = 0 
-                    AND d.college_id = (
-                        SELECT college_id 
-                        FROM departments 
-                        WHERE department_id = :department_id2
-                    )
-                )
-                OR (
-                    c.shared = 1 
-                    AND cd.department_id = :department_id3
+        SELECT 
+            c.room_id,
+            c.room_type,
+            c.shared,
+            c.availability AS current_availability,
+            COUNT(s.schedule_id) AS schedule_count,
+            GROUP_CONCAT(s.time_slot) AS time_slots
+        FROM classrooms c
+        LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id3
+        JOIN departments d ON c.department_id = d.department_id
+        LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
+        WHERE (
+            -- Owned by this department
+            c.department_id = :department_id1
+            OR 
+            -- College-shared rooms (same college, shared=0)
+            (
+                c.shared = 0 
+                AND d.college_id = (
+                    SELECT college_id 
+                    FROM departments 
+                    WHERE department_id = :department_id2
                 )
             )
-            AND (c.room_type = 'laboratory' OR c.shared = 1)
-            GROUP BY c.room_id, c.room_type, c.shared, c.current_availability
-        ";
+            OR 
+            -- Specifically shared with this department (shared=1)
+            (
+                c.shared = 1 
+                AND cd.department_id = :department_id3
+            )
+        )
+        AND (c.room_type = 'laboratory' OR c.shared = 1)
+        GROUP BY c.room_id, c.room_type, c.shared, c.current_availability
+    ";
             $stmt = $this->db->prepare($query);
             $params = [
                 ':current_semester_id' => $currentSemesterId,
@@ -4805,45 +4712,38 @@ class ChairController
             $deptStmt->execute();
             $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Fetch classrooms with usage
             $fetchClassrooms = function ($departmentId) {
                 $currentSemester = $this->getCurrentSemester();
-
-                $currentSemesterId = $currentSemester['semester_id']; // Extract the ID from the array
+                $currentSemesterId = $currentSemester['semester_id'];
 
                 $query = "
-                    SELECT 
-                        c.*,
-                        d.department_name,
-                        cl.college_name,
-                        CASE 
-                            WHEN c.department_id = :department_id1 THEN 'Owned'
-                            WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
-                            WHEN c.shared = 0 AND d.college_id = (
-                                SELECT college_id 
-                                FROM departments 
-                                WHERE department_id = :department_id2
-                            ) THEN 'College-Shared'
-                            ELSE 'Shared'
-                        END AS room_status,
-                        COUNT(s.schedule_id) AS current_semester_usage
-                    FROM classrooms c
-                    JOIN departments d ON c.department_id = d.department_id
-                    JOIN colleges cl ON d.college_id = cl.college_id
-                    LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id3
-                    LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id AND s.room_id IS NOT NULL
-                    WHERE (
-                        c.department_id = :department_id4
-                        OR (c.shared = 0 AND d.college_id = (
-                            SELECT college_id 
-                            FROM departments 
-                            WHERE department_id = :department_id5
-                        ))
-                        OR (c.shared = 1 AND cd.department_id IS NOT NULL)
-                    )
-                    GROUP BY c.room_id
-                    ORDER BY c.room_name
-                ";
+        SELECT 
+            c.*,
+            d.department_name,
+            cl.college_name,
+            CASE 
+                WHEN c.department_id = :department_id1 THEN 'Owned'
+                WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
+                -- REMOVED the College-Shared condition to prevent cross-department access
+                ELSE 'Unknown'
+            END AS room_status,
+            COUNT(s.schedule_id) AS current_semester_usage
+        FROM classrooms c
+        JOIN departments d ON c.department_id = d.department_id
+        JOIN colleges cl ON d.college_id = cl.college_id
+        LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
+        LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id AND s.room_id IS NOT NULL
+        WHERE (
+            -- Only show classrooms owned by this department
+            c.department_id = :department_id3
+            OR 
+            -- Only show classrooms explicitly shared with this department
+            (c.shared = 1 AND cd.department_id = :department_id4)
+            -- REMOVED: College-shared rooms condition that was causing the issue
+        )
+        GROUP BY c.room_id
+        ORDER BY c.room_name
+    ";
                 $stmt = $this->db->prepare($query);
 
                 $params = [
@@ -4851,13 +4751,13 @@ class ChairController
                     ':department_id2' => $departmentId,
                     ':department_id3' => $departmentId,
                     ':department_id4' => $departmentId,
-                    ':department_id5' => $departmentId,
-                    ':current_semester_id' => $currentSemesterId // Now using the extracted ID
+                    ':current_semester_id' => $currentSemesterId
                 ];
-                error_log("classroom: Executing query with params: " . json_encode($params));
+                error_log("classroom: Executing FIXED query with params: " . json_encode($params));
                 $stmt->execute($params);
                 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 error_log("classroom: Fetched " . count($results) . " classrooms for department_id=$departmentId");
+
                 return $results;
             };
 

@@ -2,11 +2,13 @@
 // File: controllers/FacultyController.php
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
+require_once __DIR__ . '/../services/SchedulingService.php';
 
 class FacultyController
 {
     private $db;
     private $authService;
+    private $schedulingService;
 
     public function __construct()
     {
@@ -19,6 +21,7 @@ class FacultyController
         $this->restrictToFaculty();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->authService = new AuthService($this->db);
+        $this->schedulingService = new SchedulingService($this->db);
     }
 
     private function restrictToFaculty()
@@ -107,64 +110,6 @@ class FacultyController
             exit;
         }
     }
-
-    private function formatScheduleDays($dayString)
-    {
-        if (empty($dayString)) {
-            return 'TBD';
-        }
-
-        $days = explode(', ', $dayString);
-        $dayAbbrev = [];
-
-        foreach ($days as $day) {
-            switch (trim($day)) {
-                case 'Monday':
-                    $dayAbbrev[] = 'M';
-                    break;
-                case 'Tuesday':
-                    $dayAbbrev[] = 'T';
-                    break;
-                case 'Wednesday':
-                    $dayAbbrev[] = 'W';
-                    break;
-                case 'Thursday':
-                    $dayAbbrev[] = 'Th';
-                    break;
-                case 'Friday':
-                    $dayAbbrev[] = 'F';
-                    break;
-                case 'Saturday':
-                    $dayAbbrev[] = 'S';
-                    break;
-                case 'Sunday':
-                    $dayAbbrev[] = 'Su';
-                    break;
-            }
-        }
-
-        // Common patterns
-        $dayStr = implode('', $dayAbbrev);
-
-        // Replace common patterns for better readability
-        $patterns = [
-            'MWF' => 'MWF',
-            'TTh' => 'TTH',
-            'MW' => 'MW',
-            'ThF' => 'THF',
-            'MThF' => 'MTHF',
-            'TWThF' => 'TWTHF'
-        ];
-
-        foreach ($patterns as $pattern => $replacement) {
-            if ($dayStr == $pattern) {
-                return $replacement;
-            }
-        }
-
-        return $dayStr ?: 'TBD';
-    }
-
 
     /**
      * Display Faculty's teaching schedule
@@ -271,7 +216,7 @@ class FacultyController
             // Format days and create final schedule array
             $schedules = [];
             foreach ($groupedSchedules as $schedule) {
-                $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(implode(', ', $schedule['days']));
                 unset($schedule['days']);
                 $schedules[] = $schedule;
             }
@@ -323,7 +268,7 @@ class FacultyController
 
                 $schedules = [];
                 foreach ($groupedSchedules as $schedule) {
-                    $schedule['day_of_week'] = $this->formatScheduleDays(implode(', ', $schedule['days']));
+                    $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(implode(', ', $schedule['days']));
                     unset($schedule['days']);
                     $schedules[] = $schedule;
                 }
