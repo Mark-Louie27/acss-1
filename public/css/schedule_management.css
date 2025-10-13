@@ -391,8 +391,130 @@ body.modal-open {
     padding: 1.5rem;
 }
 
+/* Style for room capacity indicators */
+.room-capacity-good {
+    background-color: #f0fff4 !important;
+    color: #166534 !important;
+}
+
+.room-capacity-warning {
+    background-color: #fff0f0 !important;
+    color: #dc2626 !important;
+}
+
+.room-capacity-online {
+    background-color: #f0f9ff !important;
+    color: #0369a1 !important;
+}
+
+/* Section details animation */
+#section-details {
+    transition: all 0.3s ease-in-out;
+    border-left: 3px solid #3b82f6;
+}
+
 .fullscreen-mode .mb-6 {
     margin-bottom: 1.5rem;
+}
+
+/* Conflict styling */
+.border-red-500 {
+    border-color: #ef4444 !important;
+}
+
+.bg-red-50 {
+    background-color: #fef2f2 !important;
+}
+
+/* Dragging styles */
+.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+/* Smooth transitions */
+.schedule-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.drop-zone {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Full screen modal fixes */
+.fullscreen-mode .modal-overlay {
+    z-index: 1001 !important;
+}
+
+/* Conflict tooltip */
+.conflict-tooltip {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Multiple schedules layout */
+.schedules-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: 100%;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.schedule-card {
+    flex-shrink: 0;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Ensure drop zones can accommodate multiple schedules */
+.drop-zone {
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Better scrolling for many schedules */
+.schedules-container {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+}
+
+.schedules-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.schedules-container::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 2px;
+}
+
+.schedules-container::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 2px;
+}
+
+.schedules-container::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+/* Improved drag and drop visual feedback */
+.dragging {
+    opacity: 0.6;
+    transform: rotate(2deg);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.drop-zone.drag-over {
+    background-color: #fefce8 !important;
+    border-color: #f59e0b !important;
 }
 
 /* Responsive adjustments for full screen */

@@ -447,52 +447,87 @@ ob_start();
         <!-- View Schedule Tab -->
         <div id="content-schedule" class="tab-content <?php echo $activeTab !== 'schedule-list' ? 'hidden' : ''; ?>">
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <!-- Header with Filters -->
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center">
-                        <div class="bg-yellow-500 p-2 rounded-lg mr-3">
-                            <i class="fas fa-calendar text-white"></i>
+                <!-- Header Section -->
+                <div class="mb-6">
+                    <!-- Title Row -->
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                        <div class="flex items-center">
+                            <div class="bg-yellow-500 p-2 rounded-lg mr-3">
+                                <i class="fas fa-calendar text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
+                                <p class="text-sm text-gray-600 mt-1">View and filter all schedules</p>
+                            </div>
                         </div>
-                        <h2 class="text-xl font-bold text-gray-900">Weekly Schedule View</h2>
-                    </div>
-                    <div class="flex flex-col sm:flex-row items-center space-x-0 sm:space-x-4 no-print mb-4">
-                        <!-- Full Screen Button -->
-                        <button id="fullscreen-view-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors mb-2 sm:mb-0" onclick="toggleFullScreen('view')">
-                            <i class="fas fa-expand mr-2"></i>
-                            <span>Full Screen</span>
-                        </button>
-                        <button id="exit-fullscreen-view-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors hidden mb-2 sm:mb-0" onclick="toggleFullScreen('view')">
-                            <i class="fas fa-compress mr-2"></i>
-                            <span>Exit Full Screen</span>
-                        </button>
 
-                        <div class="flex space-x-2 w-full sm:w-auto">
-                            <select id="filter-year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                                <option value="">All Year Levels</option>
-                                <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
-                                <?php foreach ($yearLevels as $year): ?>
-                                    <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select id="filter-section" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                                <option value="">All Sections</option>
-                                <?php $sectionNames = array_unique(array_column($schedules, 'section_name')); ?>
-                                <?php foreach ($sectionNames as $section): ?>
-                                    <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select id="filter-room" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="filterSchedules()">
-                                <option value="">All Rooms</option>
-                                <?php $rooms = array_unique(array_column($schedules, 'room_name')); ?>
-                                <?php foreach ($rooms as $room): ?>
-                                    <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                        <!-- Full Screen Buttons -->
+                        <div class="flex items-center space-x-2">
+                            <button id="fullscreen-view-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="toggleFullScreen('view')">
+                                <i class="fas fa-expand mr-1"></i>
+                                <span class="hidden sm:inline">Full Screen</span>
+                            </button>
+                            <button id="exit-fullscreen-view-btn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors hidden text-sm" onclick="toggleFullScreen('view')">
+                                <i class="fas fa-compress mr-1"></i>
+                                <span class="hidden sm:inline">Exit Full Screen</span>
+                            </button>
                         </div>
-                        <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors mt-2 sm:mt-0" onclick="deleteAllSchedules()">
-                            <i class="fas fa-trash"></i>
-                            <span>Delete All Schedules</span>
-                        </button>
+                    </div>
+
+                    <!-- Filters Row -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                            <i class="fas fa-filter mr-2 text-yellow-600"></i>
+                            Filter Schedules
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Year Level</label>
+                                <select id="filter-year" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm" onchange="filterSchedules()">
+                                    <option value="">All Year Levels</option>
+                                    <?php $yearLevels = array_unique(array_column($schedules, 'year_level')); ?>
+                                    <?php foreach ($yearLevels as $year): ?>
+                                        <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Section</label>
+                                <select id="filter-section" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm" onchange="filterSchedules()">
+                                    <option value="">All Sections</option>
+                                    <?php $sectionNames = array_unique(array_column($schedules, 'section_name')); ?>
+                                    <?php foreach ($sectionNames as $section): ?>
+                                        <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Room</label>
+                                <select id="filter-room" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm" onchange="filterSchedules()">
+                                    <option value="">All Rooms</option>
+                                    <?php $rooms = array_unique(array_column($schedules, 'room_name')); ?>
+                                    <?php foreach ($rooms as $room): ?>
+                                        <option value="<?php echo htmlspecialchars($room ?? 'Online'); ?>"><?php echo htmlspecialchars($room ?? 'Online'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="flex items-end space-x-2">
+                                <button onclick="clearFilters()" class="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                                    <i class="fas fa-times mr-1"></i>
+                                    Clear Filters
+                                </button>
+                            </div>
+
+                            <div class="flex items-end">
+                                <button id="delete-all-btn" class="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors text-sm" onclick="deleteAllSchedules()">
+                                    <i class="fas fa-trash"></i>
+                                    <span>Delete All</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -501,26 +536,33 @@ ob_start();
                     <div class="min-w-full">
                         <!-- Header with days -->
                         <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                            <div class="px-4 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50">
-                                Time
+                            <div class="px-3 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
+                                <span class="hidden sm:inline">Time</span>
+                                <span class="sm:hidden">⌚</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Monday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Monday</span>
+                                <span class="sm:hidden">Mon</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Tuesday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Tuesday</span>
+                                <span class="sm:hidden">Tue</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Wednesday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Wednesday</span>
+                                <span class="sm:hidden">Wed</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Thursday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Thursday</span>
+                                <span class="sm:hidden">Thu</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                Friday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                <span class="hidden sm:inline">Friday</span>
+                                <span class="sm:hidden">Fri</span>
                             </div>
-                            <div class="px-4 py-3 text-sm font-semibold text-center text-gray-700">
-                                Saturday
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                                <span class="hidden sm:inline">Saturday</span>
+                                <span class="sm:hidden">Sat</span>
                             </div>
                         </div>
 
@@ -532,11 +574,12 @@ ob_start();
                                 $rowSpan = $duration / 7200;
                                 ?>
                                 <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
-                                    <div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center" rowspan="<?php echo $rowSpan; ?>">
-                                        <span class="text-lg"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                    <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10" rowspan="<?php echo $rowSpan; ?>">
+                                        <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                        <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
                                     </div>
                                     <?php foreach ($days as $day): ?>
-                                        <div class="px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative schedule-cell"
+                                        <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative schedule-cell"
                                             data-day="<?php echo $day; ?>"
                                             data-start-time="<?php echo $time[0]; ?>"
                                             data-end-time="<?php echo $time[1]; ?>"
@@ -557,7 +600,7 @@ ob_start();
                                                         'bg-pink-100 border-pink-300 text-pink-800'
                                                     ];
                                                     $colorClass = $colors[array_rand($colors)];
-                                                ?>
+                                            ?>
                                                     <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 schedule-item"
                                                         data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
                                                         data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
@@ -574,7 +617,7 @@ ob_start();
                                                         <div class="text-xs opacity-75 truncate">
                                                             <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
                                                         </div>
-                                                        <div class="text-xs font-medium mt-1">
+                                                        <div class="text-xs font-medium mt-1 hidden sm:block">
                                                             <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
                                                         </div>
                                                     </div>
@@ -662,23 +705,31 @@ ob_start();
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
                         <select id="section-name" name="section_name"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                            required onchange="filterSectionsByYearLevel()">
+                            required>
                             <option value="">Select Section</option>
                             <?php
+                            // Group sections by year level for better organization
                             $sectionsByYear = [];
+                            $sections = $jsData['sectionsData'] ?? [];
+
                             foreach ($sections as $section) {
-                                $yearLevel = $section['year_level'];
+                                $yearLevel = $section['year_level'] ?? 'Unknown';
                                 if (!isset($sectionsByYear[$yearLevel])) {
                                     $sectionsByYear[$yearLevel] = [];
                                 }
                                 $sectionsByYear[$yearLevel][] = $section;
                             }
 
+                            // Sort by year level
+                            ksort($sectionsByYear);
+
                             foreach ($sectionsByYear as $yearLevel => $yearSections): ?>
                                 <optgroup label="<?php echo htmlspecialchars($yearLevel); ?>">
                                     <?php foreach ($yearSections as $section): ?>
                                         <option value="<?php echo htmlspecialchars($section['section_name']); ?>"
-                                            data-year-level="<?php echo htmlspecialchars($section['year_level']); ?>">
+                                            data-year-level="<?php echo htmlspecialchars($section['year_level']); ?>"
+                                            data-max-students="<?php echo htmlspecialchars($section['max_students']); ?>"
+                                            data-current-students="<?php echo htmlspecialchars($section['current_students']); ?>">
                                             <?php echo htmlspecialchars($section['section_name']); ?>
                                             (<?php echo htmlspecialchars($section['current_students']); ?>/<?php echo htmlspecialchars($section['max_students']); ?>)
                                         </option>
@@ -686,6 +737,8 @@ ob_start();
                                 </optgroup>
                             <?php endforeach; ?>
                         </select>
+                        <!-- Section details display area -->
+                        <div id="section-details" class="mt-2 hidden"></div>
                     </div>
 
                     <div>
@@ -898,10 +951,6 @@ ob_start();
                 is_active: s.is_active ?? 1
             })) : [];
 
-
-
-
-
             // Clear filters for manual tab
             function clearFiltersManual() {
                 document.getElementById('filter-year-manual').value = '';
@@ -941,7 +990,7 @@ ob_start();
                 });
             }
 
-            // Full Screen Functionality
+            // Enhanced full screen function
             function toggleFullScreen(tab) {
                 const sidebar = document.getElementById('sidebar');
                 const mainContent = document.querySelector('.main-content');
@@ -961,7 +1010,7 @@ ob_start();
                     fullscreenBtn.classList.add('hidden');
                     exitFullscreenBtn.classList.remove('hidden');
 
-                    // Add fullscreen styles
+                    // Add fullscreen styles with higher z-index for modals
                     document.body.style.overflow = 'hidden';
                     mainContent.style.width = '100vw';
                     mainContent.style.height = '100vh';
@@ -970,6 +1019,12 @@ ob_start();
                     mainContent.style.left = '0';
                     mainContent.style.zIndex = '1000';
                     mainContent.style.backgroundColor = 'white';
+
+                    // Ensure modals have higher z-index in full screen
+                    const modals = document.querySelectorAll('.modal-overlay');
+                    modals.forEach(modal => {
+                        modal.style.zIndex = '1001';
+                    });
 
                 } else {
                     // Exit full screen mode
@@ -992,7 +1047,49 @@ ob_start();
                     mainContent.style.left = '';
                     mainContent.style.zIndex = '';
                     mainContent.style.backgroundColor = '';
+
+                    // Reset modal z-index
+                    const modals = document.querySelectorAll('.modal-overlay');
+                    modals.forEach(modal => {
+                        modal.style.zIndex = '';
+                    });
                 }
+            }
+
+            // Enhanced modal functions for full screen compatibility
+            function showModal() {
+                const modal = document.getElementById("schedule-modal");
+                if (modal) {
+                    modal.classList.remove("hidden");
+                    modal.classList.add("flex");
+
+                    // Ensure modal is on top in full screen mode
+                    const mainContent = document.querySelector('.main-content');
+                    if (mainContent.classList.contains('fullscreen-mode')) {
+                        modal.style.zIndex = '1001';
+                    }
+
+                    console.log("Modal shown");
+                } else {
+                    console.error("Modal element not found!");
+                }
+            }
+
+            function closeModal() {
+                const modal = document.getElementById("schedule-modal");
+                if (modal) {
+                    modal.classList.add("hidden");
+                    modal.classList.remove("flex");
+                    modal.style.zIndex = ''; // Reset z-index
+                }
+
+                const form = document.getElementById("schedule-form");
+                if (form) form.reset();
+
+                // Reset conflict styles when closing modal
+                resetConflictStyles();
+
+                currentEditingId = null;
             }
 
             // Handle ESC key to exit full screen
@@ -1097,7 +1194,19 @@ ob_start();
             }
 
             function escapeHtml(unsafe) {
-                return unsafe
+                if (unsafe === null || unsafe === undefined) {
+                    return '';
+                }
+
+                // Convert to string first
+                const safeString = String(unsafe);
+
+                // If it's empty after conversion, return empty string
+                if (!safeString) {
+                    return '';
+                }
+
+                return safeString
                     .replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
                     .replace(/>/g, "&gt;")
@@ -1213,11 +1322,16 @@ ob_start();
                 filterSchedules();
             }
 
-            function updateScheduleDisplay(schedules) {
+            // Safe function to update schedule display without escapeHtml issues
+            // Enhanced function to update schedule display without overlapping issues
+            function safeUpdateScheduleDisplay(schedules) {
                 window.scheduleData = schedules;
-                const manualGrid = document.getElementById('schedule-grid');
+
+                // Update manual grid
+                const manualGrid = document.getElementById("schedule-grid");
                 if (manualGrid) {
-                    manualGrid.innerHTML = '';
+                    manualGrid.innerHTML = "";
+
                     const times = [
                         ['07:30', '08:30'],
                         ['08:30', '10:00'],
@@ -1229,57 +1343,78 @@ ob_start();
                         ['15:30', '17:00'],
                         ['17:00', '18:00']
                     ];
+
                     times.forEach(time => {
+                        // Calculate row span like PHP does
+                        const duration = (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) / 1000;
+                        const rowSpan = duration / 7200; // 2 hours in seconds
+                        const minHeight = rowSpan * 80;
+
                         const row = document.createElement('div');
-                        row.className = 'grid grid-cols-7 min-h-[100px] hover:bg-gray-50';
-                        row.innerHTML = `<div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-100 flex items-center">
-                                ${formatTime(time[0])} - ${formatTime(time[1])}
-                            </div>`;
+                        row.className = `grid grid-cols-7 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+                        row.style.gridRow = `span ${rowSpan}`;
+
+                        // Time cell - match PHP structure
+                        const timeCell = document.createElement('div');
+                        timeCell.className = 'px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10';
+                        timeCell.setAttribute('rowspan', rowSpan);
+
+                        // Time content like PHP
+                        timeCell.innerHTML = `
+                <span class="text-sm hidden sm:block">${formatTime(time[0])} - ${formatTime(time[1])}</span>
+                <span class="text-xs sm:hidden">${time[0].substring(0, 5)}-${time[1].substring(0, 5)}</span>
+            `;
+                        row.appendChild(timeCell);
+
+                        // Day cells
                         ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
                             const cell = document.createElement('div');
-                            cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0 drop-zone relative';
+                            cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative drop-zone`;
                             cell.dataset.day = day;
                             cell.dataset.startTime = time[0];
                             cell.dataset.endTime = time[1];
-                            const schedule = schedules.find(s =>
+
+                            // Find ALL schedules for this time slot (not just one)
+                            const schedulesForSlot = schedules.filter(s =>
                                 s.day_of_week === day &&
-                                s.start_time.substring(0, 5) === time[0] &&
-                                s.end_time.substring(0, 5) === time[1]
+                                s.start_time && s.start_time.substring(0, 5) === time[0] &&
+                                s.end_time && s.end_time.substring(0, 5) === time[1]
                             );
-                            if (schedule) {
-                                cell.innerHTML = `<div class="schedule-card bg-white border-l-4 border-yellow-500 rounded-lg p-3 shadow-sm draggable cursor-move" 
-                                        draggable="true" data-schedule-id="${escapeHtml(schedule.schedule_id)}" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)">
-                                        <div class="flex justify-between items-start mb-2">
-                                            <div class="font-semibold text-sm text-gray-900 truncate">${escapeHtml(schedule.course_code)}</div>
-                                            <button onclick="editSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                        </div>
-                                        <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.course_name)}</div>
-                                        <div class="text-xs text-gray-600 truncate mb-1">${escapeHtml(schedule.faculty_name)}</div>
-                                        <div class="text-xs text-gray-600 truncate mb-2">${escapeHtml(schedule.room_name ?? 'Online')}</div>
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-xs font-medium text-yellow-600">${escapeHtml(schedule.section_name)}</span>
-                                            <button onclick="deleteSchedule('${escapeHtml(schedule.schedule_id)}')" class="text-red-500 hover:text-red-700 text-xs no-print">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>`;
+
+                            if (schedulesForSlot.length > 0) {
+                                // Create a container for multiple schedules
+                                const schedulesContainer = document.createElement('div');
+                                schedulesContainer.className = 'schedules-container space-y-1';
+
+                                schedulesForSlot.forEach(schedule => {
+                                    const scheduleCard = createSafeScheduleCard(schedule);
+                                    schedulesContainer.appendChild(scheduleCard);
+                                });
+
+                                cell.appendChild(schedulesContainer);
                             } else {
-                                cell.innerHTML = `<button onclick="openAddModalForSlot('${day}', '${time[0]}', '${time[1]}')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print">
-                                        <i class="fas fa-plus text-lg"></i>
-                                    </button>`;
+                                // Add button for empty slot
+                                const addButton = document.createElement('button');
+                                addButton.innerHTML = '<i class="fas fa-plus text-sm"></i>';
+                                addButton.className = 'w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-2';
+                                addButton.onclick = () => openAddModalForSlot(day, time[0], time[1]);
+                                cell.appendChild(addButton);
                             }
+
                             row.appendChild(cell);
                         });
+
                         manualGrid.appendChild(row);
                     });
+
                     initializeDragAndDrop();
                 }
 
+                // Update view grid with similar fixes
                 const viewGrid = document.getElementById('timetableGrid');
                 if (viewGrid) {
                     viewGrid.innerHTML = '';
+
                     const times = [
                         ['07:30', '08:30'],
                         ['08:30', '10:00'],
@@ -1291,39 +1426,172 @@ ob_start();
                         ['15:30', '17:00'],
                         ['17:00', '18:00']
                     ];
+
                     times.forEach(time => {
+                        // Calculate row span
+                        const duration = (new Date(`${new Date().toISOString().split('T')[0]} ${time[1]}`) - new Date(`${new Date().toISOString().split('T')[0]} ${time[0]}`)) / 1000;
+                        const rowSpan = duration / 7200;
+                        const minHeight = rowSpan * 80;
+
                         const row = document.createElement('div');
-                        row.className = 'grid grid-cols-7 min-h-[100px] hover:bg-gray-50';
-                        row.innerHTML = `<div class="px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-100 flex items-center">
-                                ${formatTime(time[0])} - ${formatTime(time[1])}
-                            </div>`;
+                        row.className = `grid grid-cols-7 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+                        row.style.gridRow = `span ${rowSpan}`;
+
+                        // Time cell
+                        const timeCell = document.createElement('div');
+                        timeCell.className = 'px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center';
+                        timeCell.setAttribute('rowspan', rowSpan);
+                        timeCell.textContent = `${formatTime(time[0])} - ${formatTime(time[1])}`;
+                        row.appendChild(timeCell);
+
+                        // Day cells
                         ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
                             const cell = document.createElement('div');
-                            cell.className = 'px-2 py-3 border-r border-gray-200 last:border-r-0 schedule-cell';
+                            cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative schedule-cell`;
+
+                            // Find ALL schedules for this time slot
                             const daySchedules = schedules.filter(s =>
                                 s.day_of_week === day &&
-                                s.start_time.substring(0, 5) === time[0] &&
-                                s.end_time.substring(0, 5) === time[1]
+                                s.start_time && s.start_time.substring(0, 5) === time[0] &&
+                                s.end_time && s.end_time.substring(0, 5) === time[1]
                             );
+
                             if (daySchedules.length > 0) {
+                                // Create container for multiple schedule items
+                                const schedulesContainer = document.createElement('div');
+                                schedulesContainer.className = 'schedules-container space-y-1';
+
                                 daySchedules.forEach(schedule => {
-                                    const colorClass = ['bg-blue-100', 'bg-green-100', 'bg-purple-100', 'bg-orange-100', 'bg-pink-100'][Math.floor(Math.random() * 5)] + ' border-l-4';
-                                    cell.innerHTML += `<div class="schedule-card ${colorClass} p-2 rounded-lg mb-1 schedule-item" 
-                                            data-year-level="${escapeHtml(schedule.year_level)}" 
-                                            data-section-name="${escapeHtml(schedule.section_name)}" 
-                                            data-room-name="${escapeHtml(schedule.room_name ?? 'Online')}">
-                                            <div class="font-semibold text-xs truncate mb-1">${escapeHtml(schedule.course_code)}</div>
-                                            <div class="text-xs opacity-90 truncate mb-1">${escapeHtml(schedule.section_name)}</div>
-                                            <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.faculty_name)}</div>
-                                            <div class="text-xs opacity-75 truncate">${escapeHtml(schedule.room_name ?? 'Online')}</div>
-                                        </div>`;
+                                    const scheduleItem = createSafeScheduleItem(schedule);
+                                    schedulesContainer.appendChild(scheduleItem);
                                 });
+
+                                cell.appendChild(schedulesContainer);
                             }
+
                             row.appendChild(cell);
                         });
+
                         viewGrid.appendChild(row);
                     });
                 }
+            }
+
+            // Safe function to create schedule card for manual tab
+            function createSafeScheduleCard(schedule) {
+                const card = document.createElement('div');
+
+                // Use the same color system as PHP
+                const colors = [
+                    'bg-blue-100 border-blue-300 text-blue-800',
+                    'bg-green-100 border-green-300 text-green-800',
+                    'bg-purple-100 border-purple-300 text-purple-800',
+                    'bg-orange-100 border-orange-300 text-orange-800',
+                    'bg-pink-100 border-pink-300 text-pink-800'
+                ];
+
+                // Generate consistent color based on schedule_id or random
+                const colorIndex = schedule.schedule_id ?
+                    (parseInt(schedule.schedule_id) % colors.length) :
+                    Math.floor(Math.random() * colors.length);
+                const colorClass = colors[colorIndex];
+
+                card.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 draggable cursor-move w-full`;
+                card.draggable = true;
+                card.dataset.scheduleId = schedule.schedule_id || '';
+                card.dataset.yearLevel = schedule.year_level || '';
+                card.dataset.sectionName = schedule.section_name || '';
+                card.dataset.roomName = schedule.room_name || 'Online';
+
+                card.ondragstart = handleDragStart;
+                card.ondragend = handleDragEnd;
+
+                // Safe content creation - match PHP structure exactly
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="font-semibold text-xs truncate flex-1">
+                            ${schedule.course_code || ''}
+                        </div>
+                        <div class="flex space-x-1 ml-2">
+                            <button onclick="editSchedule('${schedule.schedule_id || ''}')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print flex-shrink-0">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="openDeleteSingleModal(
+                                '${schedule.schedule_id || ''}', 
+                                '${schedule.course_code || ''}', 
+                                '${schedule.section_name || ''}', 
+                                '${schedule.day_of_week || ''}', 
+                                '${schedule.start_time ? formatTime(schedule.start_time.substring(0, 5)) : ''}', 
+                                '${schedule.end_time ? formatTime(schedule.end_time.substring(0, 5)) : ''}'
+                            )" class="text-red-600 hover:text-red-700 text-xs no-print flex-shrink-0">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-xs opacity-90 truncate mb-1">
+                        ${schedule.section_name || ''}
+                    </div>
+                    <div class="text-xs opacity-75 truncate">
+                        ${schedule.faculty_name || ''}
+                    </div>
+                    <div class="text-xs opacity-75 truncate">
+                        ${schedule.room_name || 'Online'}
+                    </div>
+                    <div class="text-xs font-medium mt-1 hidden sm:block">
+                        ${schedule.start_time && schedule.end_time ? 
+                            `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}` : 
+                            ''}
+                    </div>
+                `;
+
+                return card;
+            }
+
+            // Safe function to create schedule item for view tab
+            function createSafeScheduleItem(schedule) {
+                const item = document.createElement('div');
+
+                // Use the same color system as PHP for consistency
+                const colors = [
+                    'bg-blue-100 border-blue-300 text-blue-800',
+                    'bg-green-100 border-green-300 text-green-800',
+                    'bg-purple-100 border-purple-300 text-purple-800',
+                    'bg-orange-100 border-orange-300 text-orange-800',
+                    'bg-pink-100 border-pink-300 text-pink-800'
+                ];
+
+                // Generate consistent color based on schedule_id
+                const colorIndex = schedule.schedule_id ?
+                    (parseInt(schedule.schedule_id) % colors.length) :
+                    Math.floor(Math.random() * colors.length);
+                const colorClass = colors[colorIndex];
+
+                item.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 mb-1 schedule-item`;
+                item.dataset.yearLevel = schedule.year_level || '';
+                item.dataset.sectionName = schedule.section_name || '';
+                item.dataset.roomName = schedule.room_name || 'Online';
+
+                item.innerHTML = `
+                    <div class="font-semibold text-xs truncate mb-1">
+                        ${schedule.course_code || ''}
+                    </div>
+                    <div class="text-xs opacity-90 truncate mb-1">
+                        ${schedule.section_name || ''}
+                    </div>
+                    <div class="text-xs opacity-75 truncate">
+                        ${schedule.faculty_name || ''}
+                    </div>
+                    <div class="text-xs opacity-75 truncate">
+                        ${schedule.room_name || 'Online'}
+                    </div>
+                    <div class="text-xs font-medium mt-1">
+                        ${schedule.start_time && schedule.end_time ? 
+                            `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}` : 
+                            ''}
+                    </div>
+                `;
+
+                return item;
             }
 
             document.getElementById('generate-btn').addEventListener('click', function() {
@@ -1375,7 +1643,7 @@ ob_start();
                         window.scheduleData = data.schedules || [];
 
                         // Update display first
-                        updateScheduleDisplay(window.scheduleData);
+                        safeUpdateScheduleDisplay(window.scheduleData);
 
                         // THEN show modal after display is updated
                         showReportModal(data);
@@ -1387,6 +1655,33 @@ ob_start();
                         showNotification('Error generating schedules: ' + error.message, 'error');
                     });
             });
+
+            // Helper function to get consistent color for a schedule
+            function getScheduleColor(schedule) {
+                const colors = [
+                    'bg-blue-100 border-blue-300 text-blue-800',
+                    'bg-green-100 border-green-300 text-green-800',
+                    'bg-purple-100 border-purple-300 text-purple-800',
+                    'bg-orange-100 border-orange-300 text-orange-800',
+                    'bg-pink-100 border-pink-300 text-pink-800'
+                ];
+
+                if (schedule.schedule_id) {
+                    // Use schedule_id for consistent coloring
+                    return colors[parseInt(schedule.schedule_id) % colors.length];
+                } else if (schedule.course_code) {
+                    // Use course_code hash for new schedules
+                    let hash = 0;
+                    for (let i = 0; i < schedule.course_code.length; i++) {
+                        hash = ((hash << 5) - hash) + schedule.course_code.charCodeAt(i);
+                        hash = hash & hash;
+                    }
+                    return colors[Math.abs(hash) % colors.length];
+                } else {
+                    // Fallback to random
+                    return colors[Math.floor(Math.random() * colors.length)];
+                }
+            }
 
             // NEW: Separate function to show report modal
             function showReportModal(data) {

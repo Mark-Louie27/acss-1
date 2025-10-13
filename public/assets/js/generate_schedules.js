@@ -357,7 +357,7 @@ function generateSchedules() {
         // Update schedule display if in manual tab
         const manualTab = document.getElementById("content-manual");
         if (manualTab && !manualTab.classList.contains("hidden")) {
-          updateScheduleDisplay(window.scheduleData);
+          safeUpdateScheduleDisplay(window.scheduleData);
         }
 
         // Show appropriate message based on completion
