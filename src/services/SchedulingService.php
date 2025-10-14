@@ -18,8 +18,1813 @@ class SchedulingService
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
-    public function publicDownloadSchedules()
-    {}
+    public function generateOfficialPDF($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+       
+        $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+
+        $pdf->SetCreator('PRMSU ACSS System');
+        $pdf->SetAuthor('PRMSU');
+        $pdf->SetTitle('Faculty Teaching Load - ' . $semesterName);
+        $pdf->SetSubject('Official Teaching Load Document');
+
+        // Set margins to match the print layout exactly
+        $pdf->SetMargins(10, 10, 10);
+        $pdf->SetHeaderMargin(0);
+        $pdf->SetFooterMargin(0);
+        $pdf->SetAutoPageBreak(TRUE, 10);
+
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->AddPage();
+
+        // Header with logo
+        $logoPath = __DIR__ . '/logo/main_logo/PRMSUlogo.png';
+        if (!file_exists($logoPath)) {
+            error_log('Logo file not found: ' . $logoPath);
+        }
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 15, 12, 20, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        }
+
+        // Header content
+        $headerHtml = '
+    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+        <tr>
+            <td style="width: 15%;"></td>
+            <td style="width: 70%; text-align: center;">
+                <div style="font-size: 8px; margin-bottom: 1px;">Republic of the Philippines</div>
+                <div style="font-size: 10px; font-weight: bold; margin-bottom: 1px;">PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</div>
+                <div style="font-size: 6px; font-style: italic; margin-bottom: 2px;">(formerly Ramon Magsaysay Technological University)</div>
+                <div style="font-size: 7px; font-weight: bold; margin-bottom: 1px;">Iba, Zambales</div>
+                <div style="font-size: 12px; font-weight: bold; margin-top: 3px;">PROGRAM CHAIR TEACHING LOAD</div>
+                <div style="font-size: 9px; margin-top: 1px;">' . htmlspecialchars($semesterName) . '</div>
+            </td>
+            <td style="width: 15%;"></td>
+        </tr>
+    </table>';
+
+        $pdf->writeHTML($headerHtml, true, false, true, false, '');
+        $pdf->Ln(8);
+
+        // Calculate how many pages we need
+        $schedulesPerPage = 15; // Adjust based on your layout
+        $totalSchedules = count($schedules);
+        $totalPages = ceil($totalSchedules / $schedulesPerPage);
+
+        for ($page = 0; $page < $totalPages; $page++) {
+            if ($page > 0) {
+                $pdf->AddPage();
+            }
+
+            $startIndex = $page * $schedulesPerPage;
+            $endIndex = min(($page + 1) * $schedulesPerPage, $totalSchedules);
+            $pageSchedules = array_slice($schedules, $startIndex, $schedulesPerPage);
+
+            // Main table structure
+            $tableHtml = '
+        <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 25%">
+                <col style="width: 1%">
+                <col style="width: 6%">
+                <col style="width: 4%">
+                <col style="width: 19%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 7%">
+                <col style="width: 9%">
+                <col style="width: 5%">
+            </colgroup>
+            <thead>
+                <tr>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 4px; vertical-align: top;">
+                        <p style="margin: 2px 0;"><strong>Campus :</strong> Main Campus</p>
+                        <p style="margin: 2px 0;"><strong>Address :</strong> Iba</p>
+                        <p style="margin: 2px 0;"><strong>College :</strong> ' . htmlspecialchars($collegeName) . '</p>
+                    </td>
+                    <td rowspan="' . (count($pageSchedules) + 20) . '" style="border: 1px solid #000; padding: 0; width: 1px;"></td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Time</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Day/s</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course Code and Title</td>
+                    <td colspan="4" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of Units/Hrs.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Room</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course/Yr./Sec.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of students</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lec.</td>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lab./RLE</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                </tr>
+            </thead>
+            <tbody>';
+
+            // Add schedule rows for this page
+            foreach ($pageSchedules as $index => $schedule) {
+                $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+                $courseInfo = htmlspecialchars($schedule['course_code'] . ' ' . $schedule['course_name']);
+                $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+                $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+                $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+                $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+                $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+                $tableHtml .= '
+            <tr>
+                ' . ($index === 0 ? '<td rowspan="' . count($pageSchedules) . '" style="border: 1px solid #000; padding: 4px; vertical-align: top; font-weight: bold;">' . strtoupper(htmlspecialchars($facultyName)) . '</td>' : '') . '
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $timeRange . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['day_of_week']) . '</td>
+                <td style="border: 1px solid #000; padding: 2px;">' . $courseInfo . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['room_name'] ?? 'TBD') . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $sectionDetail . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . ($schedule['student_count'] ?? '-') . '</td>
+            </tr>';
+            }
+
+            // Add faculty information section only on the first page
+            if ($page === 0) {
+                $facultyInfoContent = '
+            <p style="margin: 2px 0;"><strong>Employment Status :</strong> ' . htmlspecialchars($facultyData['employment_type']) . '</p>
+            <p style="margin: 2px 0;"><strong>VSL :</strong> ' . ($facultyData['classification'] === 'VSL' ? '☑' : '☐') . 'Yes ' . ($facultyData['classification'] === 'TL' ? '☑' : '☐') . 'No</p>
+            <p style="margin: 2px 0;"><strong>Academic Rank :</strong> ' . htmlspecialchars($facultyData['academic_rank']) . '</p>
+            <p style="margin: 2px 0;"><strong>Bachelor\'s Degree :</strong> ' . htmlspecialchars($facultyData['bachelor_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Master\'s Degree :</strong> ' . htmlspecialchars($facultyData['master_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Post Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['post_doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Designation :</strong> ' . htmlspecialchars($facultyData['designation']) . '</p>
+            <p style="margin: 2px 0;"><strong>Schedule Equiv. Teaching Load (ETL) :</strong> ' . number_format($facultyData['equiv_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lecture Hours :</strong> ' . number_format($facultyData['total_lecture_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Laboratory Hours :</strong> ' . number_format($facultyData['total_laboratory_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lab Hours x 0.75 :</strong> ' . number_format($facultyData['total_laboratory_hours_x075'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>No. of Preparation :</strong> ' . $facultyData['no_of_preparation'] . '</p>
+            <p style="margin: 2px 0;"><strong>Advisory Class :</strong> ' . htmlspecialchars($facultyData['advisory_class']) . '</p>
+            <p style="margin: 2px 0;"><strong>Equiv. Units for Prep :</strong> 0</p>
+            <p style="margin: 2px 0;"><strong>Actual Teaching Load (ATL) :</strong> ' . number_format($facultyData['actual_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Working Load (ETL+ATL) :</strong> ' . number_format($facultyData['total_working_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Excess (24 Hours) :</strong> ' . number_format($facultyData['excess_hours'], 2) . '</p>';
+
+                $tableHtml .= '
+            <tr>
+                <td rowspan="18" style="border: 1px solid #000; padding: 6px; vertical-align: top;">
+                    ' . $facultyInfoContent . '
+                </td>';
+
+                // Add empty cells for faculty info section
+                for ($i = 0; $i < 18; $i++) {
+                    if ($i > 0) {
+                        $tableHtml .= '<tr>';
+                    }
+                    $tableHtml .= '
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                </tr>';
+                }
+            }
+
+            $tableHtml .= '</tbody></table>';
+            $pdf->writeHTML($tableHtml, true, false, true, false, '');
+
+            // Add signature section only on the last page
+            if ($page === $totalPages - 1) {
+                $pdf->Ln(5);
+                $signatureHtml = '
+            <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px;">
+                <tr>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Prepared:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Recommending Approval:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.34%;">Approved</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">MENCHIE A. DELA CRUZ, Ph.D.</p>
+                        <p style="margin: 0;">Dean, CCIT</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">NEMIA M. GALANG, Ph.D.</p>
+                        <p style="margin: 0;">Director for Instruction</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">LILIAN F. UY, Ed.D.</p>
+                        <p style="margin: 0;">Vice President for Academic Affairs</p>
+                    </td>
+                </tr>
+            </table>';
+
+                $pdf->writeHTML($signatureHtml, true, false, true, false, '');
+
+                // Footer
+                $pdf->Ln(5);
+                $footerHtml = '
+            <div style="font-size: 6px; color: #666;">
+                <p style="margin: 2px 0;">Reference no. PRMSU-ASA-COMSP18(1o)</p>
+                <p style="margin: 2px 0;">Effectivity date: May 04, 2021</p>
+                <p style="margin: 2px 0;">Revision no. 00</p>
+            </div>';
+
+                $pdf->writeHTML($footerHtml, true, false, true, false, '');
+            }
+        }
+
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.pdf';
+        $pdf->Output($filename, 'D');
+        exit;
+    }
+
+    public function generateOfficialExcel($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator('PRMSU ACSS System')
+            ->setTitle('Faculty Teaching Load - ' . $semesterName)
+            ->setSubject('Official Teaching Load Document');
+
+        // Set page setup for landscape
+        $sheet->getPageSetup()
+            ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
+            ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+
+        // Set column widths to match PDF layout
+        $sheet->getColumnDimension('A')->setWidth(25);
+        $sheet->getColumnDimension('B')->setWidth(1);
+        $sheet->getColumnDimension('C')->setWidth(6);
+        $sheet->getColumnDimension('D')->setWidth(4);
+        $sheet->getColumnDimension('E')->setWidth(19);
+        $sheet->getColumnDimension('F')->setWidth(3);
+        $sheet->getColumnDimension('G')->setWidth(3);
+        $sheet->getColumnDimension('H')->setWidth(3);
+        $sheet->getColumnDimension('I')->setWidth(3);
+        $sheet->getColumnDimension('J')->setWidth(7);
+        $sheet->getColumnDimension('K')->setWidth(9);
+        $sheet->getColumnDimension('L')->setWidth(5);
+
+        // Header section
+        $sheet->mergeCells('A1:L1');
+        $sheet->setCellValue('A1', 'Republic of the Philippines');
+        $sheet->mergeCells('A2:L2');
+        $sheet->setCellValue('A2', 'PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY');
+        $sheet->mergeCells('A3:L3');
+        $sheet->setCellValue('A3', '(formerly Ramon Magsaysay Technological University)');
+        $sheet->mergeCells('A4:L4');
+        $sheet->setCellValue('A4', 'Iba, Zambales');
+        $sheet->mergeCells('A5:L5');
+        $sheet->setCellValue('A5', 'PROGRAM CHAIR TEACHING LOAD');
+        $sheet->mergeCells('A6:L6');
+        $sheet->setCellValue('A6', $semesterName);
+
+        // Style header
+        $headerStyle = [
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
+        ];
+        $sheet->getStyle('A1:L6')->applyFromArray($headerStyle);
+        $sheet->getStyle('A2:L2')->getFont()->setSize(12);
+        $sheet->getStyle('A5:L5')->getFont()->setSize(14);
+
+        // College info
+        $sheet->setCellValue('A8', 'Campus:');
+        $sheet->setCellValue('B8', 'Main Campus');
+        $sheet->setCellValue('A9', 'Address:');
+        $sheet->setCellValue('B9', 'Iba');
+        $sheet->setCellValue('A10', 'College:');
+        $sheet->setCellValue('B10', $collegeName);
+
+        // Table headers
+        $sheet->mergeCells('A12:A' . (12 + count($schedules) - 1));
+        $sheet->setCellValue('A12', strtoupper($facultyName));
+        $sheet->getStyle('A12')->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
+
+        // Vertical separator
+        for ($i = 12; $i < 12 + count($schedules) + 20; $i++) {
+            $sheet->setCellValue('B' . $i, '');
+        }
+
+        // Main headers
+        $sheet->mergeCells('C12:C14');
+        $sheet->setCellValue('C12', 'Time');
+        $sheet->mergeCells('D12:D14');
+        $sheet->setCellValue('D12', 'Day/s');
+        $sheet->mergeCells('E12:E14');
+        $sheet->setCellValue('E12', 'Course Code and Title');
+
+        // Units/Hrs header
+        $sheet->mergeCells('F12:I12');
+        $sheet->setCellValue('F12', 'No. of Units/Hrs.');
+        $sheet->mergeCells('F13:G13');
+        $sheet->setCellValue('F13', 'Lec.');
+        $sheet->mergeCells('H13:I13');
+        $sheet->setCellValue('H13', 'Lab./RLE');
+        $sheet->setCellValue('F14', 'Units');
+        $sheet->setCellValue('G14', 'Hrs.');
+        $sheet->setCellValue('H14', 'Units');
+        $sheet->setCellValue('I14', 'Hrs.');
+
+        $sheet->mergeCells('J12:J14');
+        $sheet->setCellValue('J12', 'Room');
+        $sheet->mergeCells('K12:K14');
+        $sheet->setCellValue('K12', 'Course/Yr./Sec.');
+        $sheet->mergeCells('L12:L14');
+        $sheet->setCellValue('L12', 'No. of students');
+
+        // Style table headers
+        $tableHeaderStyle = [
+            'font' => ['bold' => true, 'size' => 8],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]]
+        ];
+        $sheet->getStyle('A12:L14')->applyFromArray($tableHeaderStyle);
+
+        // Add ALL schedule data
+        $currentRow = 15;
+
+        foreach ($schedules as $schedule) {
+            $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+            $courseInfo = $schedule['course_code'] . ' ' . $schedule['course_name'];
+            $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+            $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+            $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+            $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+            $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+            $sheet->setCellValue('C' . $currentRow, $timeRange);
+            $sheet->setCellValue('D' . $currentRow, $schedule['day_of_week']);
+            $sheet->setCellValue('E' . $currentRow, $courseInfo);
+            $sheet->setCellValue('F' . $currentRow, $lecUnits);
+            $sheet->setCellValue('G' . $currentRow, $lecHours);
+            $sheet->setCellValue('H' . $currentRow, $labUnits);
+            $sheet->setCellValue('I' . $currentRow, $labHours);
+            $sheet->setCellValue('J' . $currentRow, $schedule['room_name'] ?? 'TBD');
+            $sheet->setCellValue('K' . $currentRow, $sectionDetail);
+            $sheet->setCellValue('L' . $currentRow, $schedule['student_count'] ?? '-');
+
+            $currentRow++;
+        }
+
+        // Apply borders to all schedule cells
+        $lastScheduleRow = 14 + count($schedules);
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        // Set font size for all cells
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getFont()->setSize(8);
+
+        // Center align specific columns
+        $centerAlignColumns = ['C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+        foreach ($centerAlignColumns as $col) {
+            $sheet->getStyle($col . '15:' . $col . $lastScheduleRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+
+        // Set row heights
+        for ($row = 15; $row <= $lastScheduleRow; $row++) {
+            $sheet->getRowDimension($row)->setRowHeight(15);
+        }
+
+        // Add faculty information section
+        $facultyInfoStartRow = $lastScheduleRow + 2;
+        $sheet->mergeCells('A' . $facultyInfoStartRow . ':A' . ($facultyInfoStartRow + 17));
+        $facultyInfo = [
+            'Employment Status: ' . $facultyData['employment_type'],
+            'VSL: ' . ($facultyData['classification'] === 'VSL' ? '☑Yes ☐No' : '☐Yes ☑No'),
+            'Academic Rank: ' . $facultyData['academic_rank'],
+            'Bachelor\'s Degree: ' . $facultyData['bachelor_degree'],
+            'Master\'s Degree: ' . $facultyData['master_degree'],
+            'Doctorate Degree: ' . $facultyData['doctorate_degree'],
+            'Post Doctorate Degree: ' . $facultyData['post_doctorate_degree'],
+            'Designation: ' . $facultyData['designation'],
+            'Schedule Equiv. Teaching Load (ETL): ' . number_format($facultyData['equiv_teaching_load'], 2),
+            'Total Lecture Hours: ' . number_format($facultyData['total_lecture_hours'], 2),
+            'Total Laboratory Hours: ' . number_format($facultyData['total_laboratory_hours'], 2),
+            'Total Lab Hours x 0.75: ' . number_format($facultyData['total_laboratory_hours_x075'], 2),
+            'No. of Preparation: ' . $facultyData['no_of_preparation'],
+            'Advisory Class: ' . $facultyData['advisory_class'],
+            'Equiv. Units for Prep: 0',
+            'Actual Teaching Load (ATL): ' . number_format($facultyData['actual_teaching_load'], 2),
+            'Total Working Load (ETL+ATL): ' . number_format($facultyData['total_working_load'], 2),
+            'Excess (24 Hours): ' . number_format($facultyData['excess_hours'], 2)
+        ];
+
+        $infoText = implode("\n", $facultyInfo);
+        $sheet->setCellValue('A' . $facultyInfoStartRow, $infoText);
+        $sheet->getStyle('A' . $facultyInfoStartRow)->getAlignment()->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
+
+        // Signature section
+        $signatureRow = $facultyInfoStartRow + 20;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . $signatureRow);
+        $sheet->setCellValue('A' . $signatureRow, 'Prepared:');
+        $sheet->mergeCells('E' . $signatureRow . ':H' . $signatureRow);
+        $sheet->setCellValue('E' . $signatureRow, 'Recommending Approval:');
+        $sheet->mergeCells('I' . $signatureRow . ':L' . $signatureRow);
+        $sheet->setCellValue('I' . $signatureRow, 'Approved:');
+
+        $signatureRow++;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . ($signatureRow + 2));
+        $sheet->setCellValue('A' . $signatureRow, "MENCHIE A. DELA CRUZ, Ph.D.\nDean, CCIT");
+        $sheet->mergeCells('E' . $signatureRow . ':H' . ($signatureRow + 2));
+        $sheet->setCellValue('E' . $signatureRow, "NEMIA M. GALANG, Ph.D.\nDirector for Instruction");
+        $sheet->mergeCells('I' . $signatureRow . ':L' . ($signatureRow + 2));
+        $sheet->setCellValue('I' . $signatureRow, "LILIAN F. UY, Ed.D.\nVice President for Academic Affairs");
+
+        $sheet->getStyle('A' . ($signatureRow - 1) . ':L' . ($signatureRow + 2))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $signatureRow . ':L' . ($signatureRow + 2))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // Footer
+        $footerRow = $signatureRow + 4;
+        $sheet->setCellValue('A' . $footerRow, 'Reference no. PRMSU-ASA-COMSP18(1o)');
+        $sheet->setCellValue('A' . ($footerRow + 1), 'Effectivity date: May 04, 2021');
+        $sheet->setCellValue('A' . ($footerRow + 2), 'Revision no. 00');
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->setSize(6);
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->getColor()->setRGB('666666');
+
+        // Output the file
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    public function generateOfficialPDFFaculty($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+
+        $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+
+        $pdf->SetCreator('PRMSU ACSS System');
+        $pdf->SetAuthor('PRMSU');
+        $pdf->SetTitle('Faculty Teaching Load - ' . $semesterName);
+        $pdf->SetSubject('Official Teaching Load Document');
+
+        // Set margins to match the print layout exactly
+        $pdf->SetMargins(10, 10, 10);
+        $pdf->SetHeaderMargin(0);
+        $pdf->SetFooterMargin(0);
+        $pdf->SetAutoPageBreak(TRUE, 10);
+
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->AddPage();
+
+        // Header with logo
+        $logoPath = __DIR__ . '/logo/main_logo/PRMSUlogo.png';
+        if (!file_exists($logoPath)) {
+            error_log('Logo file not found: ' . $logoPath);
+        }
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 15, 12, 20, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        }
+
+        // Header content
+        $headerHtml = '
+    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+        <tr>
+            <td style="width: 15%;"></td>
+            <td style="width: 70%; text-align: center;">
+                <div style="font-size: 8px; margin-bottom: 1px;">Republic of the Philippines</div>
+                <div style="font-size: 10px; font-weight: bold; margin-bottom: 1px;">PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</div>
+                <div style="font-size: 6px; font-style: italic; margin-bottom: 2px;">(formerly Ramon Magsaysay Technological University)</div>
+                <div style="font-size: 7px; font-weight: bold; margin-bottom: 1px;">Iba, Zambales</div>
+                <div style="font-size: 12px; font-weight: bold; margin-top: 3px;">FACULTY TEACHING LOAD</div>
+                <div style="font-size: 9px; margin-top: 1px;">' . htmlspecialchars($semesterName) . '</div>
+            </td>
+            <td style="width: 15%;"></td>
+        </tr>
+    </table>';
+
+        $pdf->writeHTML($headerHtml, true, false, true, false, '');
+        $pdf->Ln(8);
+
+        // Calculate how many pages we need
+        $schedulesPerPage = 15; // Adjust based on your layout
+        $totalSchedules = count($schedules);
+        $totalPages = ceil($totalSchedules / $schedulesPerPage);
+
+        for ($page = 0; $page < $totalPages; $page++) {
+            if ($page > 0) {
+                $pdf->AddPage();
+            }
+
+            $startIndex = $page * $schedulesPerPage;
+            $endIndex = min(($page + 1) * $schedulesPerPage, $totalSchedules);
+            $pageSchedules = array_slice($schedules, $startIndex, $schedulesPerPage);
+
+            // Main table structure
+            $tableHtml = '
+        <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 25%">
+                <col style="width: 1%">
+                <col style="width: 6%">
+                <col style="width: 4%">
+                <col style="width: 19%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 7%">
+                <col style="width: 9%">
+                <col style="width: 5%">
+            </colgroup>
+            <thead>
+                <tr>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 4px; vertical-align: top;">
+                        <p style="margin: 2px 0;"><strong>Campus :</strong> Main Campus</p>
+                        <p style="margin: 2px 0;"><strong>Address :</strong> Iba</p>
+                        <p style="margin: 2px 0;"><strong>College :</strong> ' . htmlspecialchars($collegeName) . '</p>
+                    </td>
+                    <td rowspan="' . (count($pageSchedules) + 20) . '" style="border: 1px solid #000; padding: 0; width: 1px;"></td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Time</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Day/s</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course Code and Title</td>
+                    <td colspan="4" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of Units/Hrs.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Room</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course/Yr./Sec.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of students</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lec.</td>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lab./RLE</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                </tr>
+            </thead>
+            <tbody>';
+
+            // Add schedule rows for this page
+            foreach ($pageSchedules as $index => $schedule) {
+                $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+                $courseInfo = htmlspecialchars($schedule['course_code'] . ' ' . $schedule['course_name']);
+                $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+                $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+                $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+                $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+                $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+                $tableHtml .= '
+            <tr>
+                ' . ($index === 0 ? '<td rowspan="' . count($pageSchedules) . '" style="border: 1px solid #000; padding: 4px; vertical-align: top; font-weight: bold;">' . strtoupper(htmlspecialchars($facultyName)) . '</td>' : '') . '
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $timeRange . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['day_of_week']) . '</td>
+                <td style="border: 1px solid #000; padding: 2px;">' . $courseInfo . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['room_name'] ?? 'TBD') . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $sectionDetail . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . ($schedule['student_count'] ?? '-') . '</td>
+            </tr>';
+            }
+
+            // Add faculty information section only on the first page
+            if ($page === 0) {
+                $facultyInfoContent = '
+            <p style="margin: 2px 0;"><strong>Employment Status :</strong> ' . htmlspecialchars($facultyData['employment_type']) . '</p>
+            <p style="margin: 2px 0;"><strong>VSL :</strong> ' . ($facultyData['classification'] === 'VSL' ? '☑' : '☐') . 'Yes ' . ($facultyData['classification'] === 'TL' ? '☑' : '☐') . 'No</p>
+            <p style="margin: 2px 0;"><strong>Academic Rank :</strong> ' . htmlspecialchars($facultyData['academic_rank']) . '</p>
+            <p style="margin: 2px 0;"><strong>Bachelor\'s Degree :</strong> ' . htmlspecialchars($facultyData['bachelor_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Master\'s Degree :</strong> ' . htmlspecialchars($facultyData['master_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Post Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['post_doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Designation :</strong> ' . htmlspecialchars($facultyData['designation']) . '</p>
+            <p style="margin: 2px 0;"><strong>Schedule Equiv. Teaching Load (ETL) :</strong> ' . number_format($facultyData['equiv_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lecture Hours :</strong> ' . number_format($facultyData['total_lecture_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Laboratory Hours :</strong> ' . number_format($facultyData['total_laboratory_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lab Hours x 0.75 :</strong> ' . number_format($facultyData['total_laboratory_hours_x075'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>No. of Preparation :</strong> ' . $facultyData['no_of_preparation'] . '</p>
+            <p style="margin: 2px 0;"><strong>Advisory Class :</strong> ' . htmlspecialchars($facultyData['advisory_class']) . '</p>
+            <p style="margin: 2px 0;"><strong>Equiv. Units for Prep :</strong> 0</p>
+            <p style="margin: 2px 0;"><strong>Actual Teaching Load (ATL) :</strong> ' . number_format($facultyData['actual_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Working Load (ETL+ATL) :</strong> ' . number_format($facultyData['total_working_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Excess (24 Hours) :</strong> ' . number_format($facultyData['excess_hours'], 2) . '</p>';
+
+                $tableHtml .= '
+            <tr>
+                <td rowspan="18" style="border: 1px solid #000; padding: 6px; vertical-align: top;">
+                    ' . $facultyInfoContent . '
+                </td>';
+
+                // Add empty cells for faculty info section
+                for ($i = 0; $i < 18; $i++) {
+                    if ($i > 0) {
+                        $tableHtml .= '<tr>';
+                    }
+                    $tableHtml .= '
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                </tr>';
+                }
+            }
+
+            $tableHtml .= '</tbody></table>';
+            $pdf->writeHTML($tableHtml, true, false, true, false, '');
+
+            // Add signature section only on the last page
+            if ($page === $totalPages - 1) {
+                $pdf->Ln(5);
+                $signatureHtml = '
+            <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px;">
+                <tr>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Prepared:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Recommending Approval:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.34%;">Approved</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">MENCHIE A. DELA CRUZ, Ph.D.</p>
+                        <p style="margin: 0;">Dean, CCIT</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">NEMIA M. GALANG, Ph.D.</p>
+                        <p style="margin: 0;">Director for Instruction</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">LILIAN F. UY, Ed.D.</p>
+                        <p style="margin: 0;">Vice President for Academic Affairs</p>
+                    </td>
+                </tr>
+            </table>';
+
+                $pdf->writeHTML($signatureHtml, true, false, true, false, '');
+
+                // Footer
+                $pdf->Ln(5);
+                $footerHtml = '
+            <div style="font-size: 6px; color: #666;">
+                <p style="margin: 2px 0;">Reference no. PRMSU-ASA-COMSP18(1o)</p>
+                <p style="margin: 2px 0;">Effectivity date: May 04, 2021</p>
+                <p style="margin: 2px 0;">Revision no. 00</p>
+            </div>';
+
+                $pdf->writeHTML($footerHtml, true, false, true, false, '');
+            }
+        }
+
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.pdf';
+        $pdf->Output($filename, 'D');
+        exit;
+    }
+
+    public function generateOfficialExcelFaculty($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator('PRMSU ACSS System')
+            ->setTitle('Faculty Teaching Load - ' . $semesterName)
+            ->setSubject('Official Teaching Load Document');
+
+        // Set page setup for landscape
+        $sheet->getPageSetup()
+            ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
+            ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+
+        // Set column widths to match PDF layout
+        $sheet->getColumnDimension('A')->setWidth(25);
+        $sheet->getColumnDimension('B')->setWidth(1);
+        $sheet->getColumnDimension('C')->setWidth(6);
+        $sheet->getColumnDimension('D')->setWidth(4);
+        $sheet->getColumnDimension('E')->setWidth(19);
+        $sheet->getColumnDimension('F')->setWidth(3);
+        $sheet->getColumnDimension('G')->setWidth(3);
+        $sheet->getColumnDimension('H')->setWidth(3);
+        $sheet->getColumnDimension('I')->setWidth(3);
+        $sheet->getColumnDimension('J')->setWidth(7);
+        $sheet->getColumnDimension('K')->setWidth(9);
+        $sheet->getColumnDimension('L')->setWidth(5);
+
+        // Header section
+        $sheet->mergeCells('A1:L1');
+        $sheet->setCellValue('A1', 'Republic of the Philippines');
+        $sheet->mergeCells('A2:L2');
+        $sheet->setCellValue('A2', 'PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY');
+        $sheet->mergeCells('A3:L3');
+        $sheet->setCellValue('A3', '(formerly Ramon Magsaysay Technological University)');
+        $sheet->mergeCells('A4:L4');
+        $sheet->setCellValue('A4', 'Iba, Zambales');
+        $sheet->mergeCells('A5:L5');
+        $sheet->setCellValue('A5', 'FACULTY TEACHING LOAD');
+        $sheet->mergeCells('A6:L6');
+        $sheet->setCellValue('A6', $semesterName);
+
+        // Style header
+        $headerStyle = [
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
+        ];
+        $sheet->getStyle('A1:L6')->applyFromArray($headerStyle);
+        $sheet->getStyle('A2:L2')->getFont()->setSize(12);
+        $sheet->getStyle('A5:L5')->getFont()->setSize(14);
+
+        // College info
+        $sheet->setCellValue('A8', 'Campus:');
+        $sheet->setCellValue('B8', 'Main Campus');
+        $sheet->setCellValue('A9', 'Address:');
+        $sheet->setCellValue('B9', 'Iba');
+        $sheet->setCellValue('A10', 'College:');
+        $sheet->setCellValue('B10', $collegeName);
+
+        // Table headers
+        $sheet->mergeCells('A12:A' . (12 + count($schedules) - 1));
+        $sheet->setCellValue('A12', strtoupper($facultyName));
+        $sheet->getStyle('A12')->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
+
+        // Vertical separator
+        for ($i = 12; $i < 12 + count($schedules) + 20; $i++) {
+            $sheet->setCellValue('B' . $i, '');
+        }
+
+        // Main headers
+        $sheet->mergeCells('C12:C14');
+        $sheet->setCellValue('C12', 'Time');
+        $sheet->mergeCells('D12:D14');
+        $sheet->setCellValue('D12', 'Day/s');
+        $sheet->mergeCells('E12:E14');
+        $sheet->setCellValue('E12', 'Course Code and Title');
+
+        // Units/Hrs header
+        $sheet->mergeCells('F12:I12');
+        $sheet->setCellValue('F12', 'No. of Units/Hrs.');
+        $sheet->mergeCells('F13:G13');
+        $sheet->setCellValue('F13', 'Lec.');
+        $sheet->mergeCells('H13:I13');
+        $sheet->setCellValue('H13', 'Lab./RLE');
+        $sheet->setCellValue('F14', 'Units');
+        $sheet->setCellValue('G14', 'Hrs.');
+        $sheet->setCellValue('H14', 'Units');
+        $sheet->setCellValue('I14', 'Hrs.');
+
+        $sheet->mergeCells('J12:J14');
+        $sheet->setCellValue('J12', 'Room');
+        $sheet->mergeCells('K12:K14');
+        $sheet->setCellValue('K12', 'Course/Yr./Sec.');
+        $sheet->mergeCells('L12:L14');
+        $sheet->setCellValue('L12', 'No. of students');
+
+        // Style table headers
+        $tableHeaderStyle = [
+            'font' => ['bold' => true, 'size' => 8],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]]
+        ];
+        $sheet->getStyle('A12:L14')->applyFromArray($tableHeaderStyle);
+
+        // Add ALL schedule data
+        $currentRow = 15;
+
+        foreach ($schedules as $schedule) {
+            $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+            $courseInfo = $schedule['course_code'] . ' ' . $schedule['course_name'];
+            $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+            $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+            $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+            $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+            $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+            $sheet->setCellValue('C' . $currentRow, $timeRange);
+            $sheet->setCellValue('D' . $currentRow, $schedule['day_of_week']);
+            $sheet->setCellValue('E' . $currentRow, $courseInfo);
+            $sheet->setCellValue('F' . $currentRow, $lecUnits);
+            $sheet->setCellValue('G' . $currentRow, $lecHours);
+            $sheet->setCellValue('H' . $currentRow, $labUnits);
+            $sheet->setCellValue('I' . $currentRow, $labHours);
+            $sheet->setCellValue('J' . $currentRow, $schedule['room_name'] ?? 'TBD');
+            $sheet->setCellValue('K' . $currentRow, $sectionDetail);
+            $sheet->setCellValue('L' . $currentRow, $schedule['student_count'] ?? '-');
+
+            $currentRow++;
+        }
+
+        // Apply borders to all schedule cells
+        $lastScheduleRow = 14 + count($schedules);
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        // Set font size for all cells
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getFont()->setSize(8);
+
+        // Center align specific columns
+        $centerAlignColumns = ['C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+        foreach ($centerAlignColumns as $col) {
+            $sheet->getStyle($col . '15:' . $col . $lastScheduleRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+
+        // Set row heights
+        for ($row = 15; $row <= $lastScheduleRow; $row++) {
+            $sheet->getRowDimension($row)->setRowHeight(15);
+        }
+
+        // Add faculty information section
+        $facultyInfoStartRow = $lastScheduleRow + 2;
+        $sheet->mergeCells('A' . $facultyInfoStartRow . ':A' . ($facultyInfoStartRow + 17));
+        $facultyInfo = [
+            'Employment Status: ' . $facultyData['employment_type'],
+            'VSL: ' . ($facultyData['classification'] === 'VSL' ? '☑Yes ☐No' : '☐Yes ☑No'),
+            'Academic Rank: ' . $facultyData['academic_rank'],
+            'Bachelor\'s Degree: ' . $facultyData['bachelor_degree'],
+            'Master\'s Degree: ' . $facultyData['master_degree'],
+            'Doctorate Degree: ' . $facultyData['doctorate_degree'],
+            'Post Doctorate Degree: ' . $facultyData['post_doctorate_degree'],
+            'Designation: ' . $facultyData['designation'],
+            'Schedule Equiv. Teaching Load (ETL): ' . number_format($facultyData['equiv_teaching_load'], 2),
+            'Total Lecture Hours: ' . number_format($facultyData['total_lecture_hours'], 2),
+            'Total Laboratory Hours: ' . number_format($facultyData['total_laboratory_hours'], 2),
+            'Total Lab Hours x 0.75: ' . number_format($facultyData['total_laboratory_hours_x075'], 2),
+            'No. of Preparation: ' . $facultyData['no_of_preparation'],
+            'Advisory Class: ' . $facultyData['advisory_class'],
+            'Equiv. Units for Prep: 0',
+            'Actual Teaching Load (ATL): ' . number_format($facultyData['actual_teaching_load'], 2),
+            'Total Working Load (ETL+ATL): ' . number_format($facultyData['total_working_load'], 2),
+            'Excess (24 Hours): ' . number_format($facultyData['excess_hours'], 2)
+        ];
+
+        $infoText = implode("\n", $facultyInfo);
+        $sheet->setCellValue('A' . $facultyInfoStartRow, $infoText);
+        $sheet->getStyle('A' . $facultyInfoStartRow)->getAlignment()->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
+
+        // Signature section
+        $signatureRow = $facultyInfoStartRow + 20;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . $signatureRow);
+        $sheet->setCellValue('A' . $signatureRow, 'Prepared:');
+        $sheet->mergeCells('E' . $signatureRow . ':H' . $signatureRow);
+        $sheet->setCellValue('E' . $signatureRow, 'Recommending Approval:');
+        $sheet->mergeCells('I' . $signatureRow . ':L' . $signatureRow);
+        $sheet->setCellValue('I' . $signatureRow, 'Approved:');
+
+        $signatureRow++;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . ($signatureRow + 2));
+        $sheet->setCellValue('A' . $signatureRow, "MENCHIE A. DELA CRUZ, Ph.D.\nDean, CCIT");
+        $sheet->mergeCells('E' . $signatureRow . ':H' . ($signatureRow + 2));
+        $sheet->setCellValue('E' . $signatureRow, "NEMIA M. GALANG, Ph.D.\nDirector for Instruction");
+        $sheet->mergeCells('I' . $signatureRow . ':L' . ($signatureRow + 2));
+        $sheet->setCellValue('I' . $signatureRow, "LILIAN F. UY, Ed.D.\nVice President for Academic Affairs");
+
+        $sheet->getStyle('A' . ($signatureRow - 1) . ':L' . ($signatureRow + 2))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $signatureRow . ':L' . ($signatureRow + 2))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // Footer
+        $footerRow = $signatureRow + 4;
+        $sheet->setCellValue('A' . $footerRow, 'Reference no. PRMSU-ASA-COMSP18(1o)');
+        $sheet->setCellValue('A' . ($footerRow + 1), 'Effectivity date: May 04, 2021');
+        $sheet->setCellValue('A' . ($footerRow + 2), 'Revision no. 00');
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->setSize(6);
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->getColor()->setRGB('666666');
+
+        // Output the file
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    public function generateOfficialPDFDean($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+
+        $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+
+        $pdf->SetCreator('PRMSU ACSS System');
+        $pdf->SetAuthor('PRMSU');
+        $pdf->SetTitle('Faculty Teaching Load - ' . $semesterName);
+        $pdf->SetSubject('Official Teaching Load Document');
+
+        // Set margins to match the print layout exactly
+        $pdf->SetMargins(10, 10, 10);
+        $pdf->SetHeaderMargin(0);
+        $pdf->SetFooterMargin(0);
+        $pdf->SetAutoPageBreak(TRUE, 10);
+
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->AddPage();
+
+        // Header with logo
+        $logoPath = __DIR__ . '/logo/main_logo/PRMSUlogo.png';
+        if (!file_exists($logoPath)) {
+            error_log('Logo file not found: ' . $logoPath);
+        }
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 15, 12, 20, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        }
+
+        // Header content
+        $headerHtml = '
+    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+        <tr>
+            <td style="width: 15%;"></td>
+            <td style="width: 70%; text-align: center;">
+                <div style="font-size: 8px; margin-bottom: 1px;">Republic of the Philippines</div>
+                <div style="font-size: 10px; font-weight: bold; margin-bottom: 1px;">PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</div>
+                <div style="font-size: 6px; font-style: italic; margin-bottom: 2px;">(formerly Ramon Magsaysay Technological University)</div>
+                <div style="font-size: 7px; font-weight: bold; margin-bottom: 1px;">Iba, Zambales</div>
+                <div style="font-size: 12px; font-weight: bold; margin-top: 3px;">DEAN TEACHING LOAD</div>
+                <div style="font-size: 9px; margin-top: 1px;">' . htmlspecialchars($semesterName) . '</div>
+            </td>
+            <td style="width: 15%;"></td>
+        </tr>
+    </table>';
+
+        $pdf->writeHTML($headerHtml, true, false, true, false, '');
+        $pdf->Ln(8);
+
+        // Calculate how many pages we need
+        $schedulesPerPage = 15; // Adjust based on your layout
+        $totalSchedules = count($schedules);
+        $totalPages = ceil($totalSchedules / $schedulesPerPage);
+
+        for ($page = 0; $page < $totalPages; $page++) {
+            if ($page > 0) {
+                $pdf->AddPage();
+            }
+
+            $startIndex = $page * $schedulesPerPage;
+            $endIndex = min(($page + 1) * $schedulesPerPage, $totalSchedules);
+            $pageSchedules = array_slice($schedules, $startIndex, $schedulesPerPage);
+
+            // Main table structure
+            $tableHtml = '
+        <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 25%">
+                <col style="width: 1%">
+                <col style="width: 6%">
+                <col style="width: 4%">
+                <col style="width: 19%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 7%">
+                <col style="width: 9%">
+                <col style="width: 5%">
+            </colgroup>
+            <thead>
+                <tr>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 4px; vertical-align: top;">
+                        <p style="margin: 2px 0;"><strong>Campus :</strong> Main Campus</p>
+                        <p style="margin: 2px 0;"><strong>Address :</strong> Iba</p>
+                        <p style="margin: 2px 0;"><strong>College :</strong> ' . htmlspecialchars($collegeName) . '</p>
+                    </td>
+                    <td rowspan="' . (count($pageSchedules) + 20) . '" style="border: 1px solid #000; padding: 0; width: 1px;"></td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Time</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Day/s</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course Code and Title</td>
+                    <td colspan="4" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of Units/Hrs.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Room</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course/Yr./Sec.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of students</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lec.</td>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lab./RLE</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                </tr>
+            </thead>
+            <tbody>';
+
+            // Add schedule rows for this page
+            foreach ($pageSchedules as $index => $schedule) {
+                $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+                $courseInfo = htmlspecialchars($schedule['course_code'] . ' ' . $schedule['course_name']);
+                $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+                $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+                $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+                $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+                $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+                $tableHtml .= '
+            <tr>
+                ' . ($index === 0 ? '<td rowspan="' . count($pageSchedules) . '" style="border: 1px solid #000; padding: 4px; vertical-align: top; font-weight: bold;">' . strtoupper(htmlspecialchars($facultyName)) . '</td>' : '') . '
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $timeRange . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['day_of_week']) . '</td>
+                <td style="border: 1px solid #000; padding: 2px;">' . $courseInfo . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['room_name'] ?? 'TBD') . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $sectionDetail . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . ($schedule['student_count'] ?? '-') . '</td>
+            </tr>';
+            }
+
+            // Add faculty information section only on the first page
+            if ($page === 0) {
+                $facultyInfoContent = '
+            <p style="margin: 2px 0;"><strong>Employment Status :</strong> ' . htmlspecialchars($facultyData['employment_type']) . '</p>
+            <p style="margin: 2px 0;"><strong>VSL :</strong> ' . ($facultyData['classification'] === 'VSL' ? '☑' : '☐') . 'Yes ' . ($facultyData['classification'] === 'TL' ? '☑' : '☐') . 'No</p>
+            <p style="margin: 2px 0;"><strong>Academic Rank :</strong> ' . htmlspecialchars($facultyData['academic_rank']) . '</p>
+            <p style="margin: 2px 0;"><strong>Bachelor\'s Degree :</strong> ' . htmlspecialchars($facultyData['bachelor_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Master\'s Degree :</strong> ' . htmlspecialchars($facultyData['master_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Post Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['post_doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Designation :</strong> ' . htmlspecialchars($facultyData['designation']) . '</p>
+            <p style="margin: 2px 0;"><strong>Schedule Equiv. Teaching Load (ETL) :</strong> ' . number_format($facultyData['equiv_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lecture Hours :</strong> ' . number_format($facultyData['total_lecture_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Laboratory Hours :</strong> ' . number_format($facultyData['total_laboratory_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lab Hours x 0.75 :</strong> ' . number_format($facultyData['total_laboratory_hours_x075'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>No. of Preparation :</strong> ' . $facultyData['no_of_preparation'] . '</p>
+            <p style="margin: 2px 0;"><strong>Advisory Class :</strong> ' . htmlspecialchars($facultyData['advisory_class']) . '</p>
+            <p style="margin: 2px 0;"><strong>Equiv. Units for Prep :</strong> 0</p>
+            <p style="margin: 2px 0;"><strong>Actual Teaching Load (ATL) :</strong> ' . number_format($facultyData['actual_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Working Load (ETL+ATL) :</strong> ' . number_format($facultyData['total_working_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Excess (24 Hours) :</strong> ' . number_format($facultyData['excess_hours'], 2) . '</p>';
+
+                $tableHtml .= '
+            <tr>
+                <td rowspan="18" style="border: 1px solid #000; padding: 6px; vertical-align: top;">
+                    ' . $facultyInfoContent . '
+                </td>';
+
+                // Add empty cells for faculty info section
+                for ($i = 0; $i < 18; $i++) {
+                    if ($i > 0) {
+                        $tableHtml .= '<tr>';
+                    }
+                    $tableHtml .= '
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                </tr>';
+                }
+            }
+
+            $tableHtml .= '</tbody></table>';
+            $pdf->writeHTML($tableHtml, true, false, true, false, '');
+
+            // Add signature section only on the last page
+            if ($page === $totalPages - 1) {
+                $pdf->Ln(5);
+                $signatureHtml = '
+            <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px;">
+                <tr>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Prepared:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Recommending Approval:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.34%;">Approved</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">MENCHIE A. DELA CRUZ, Ph.D.</p>
+                        <p style="margin: 0;">Dean, CCIT</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">NEMIA M. GALANG, Ph.D.</p>
+                        <p style="margin: 0;">Director for Instruction</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">LILIAN F. UY, Ed.D.</p>
+                        <p style="margin: 0;">Vice President for Academic Affairs</p>
+                    </td>
+                </tr>
+            </table>';
+
+                $pdf->writeHTML($signatureHtml, true, false, true, false, '');
+
+                // Footer
+                $pdf->Ln(5);
+                $footerHtml = '
+            <div style="font-size: 6px; color: #666;">
+                <p style="margin: 2px 0;">Reference no. PRMSU-ASA-COMSP18(1o)</p>
+                <p style="margin: 2px 0;">Effectivity date: May 04, 2021</p>
+                <p style="margin: 2px 0;">Revision no. 00</p>
+            </div>';
+
+                $pdf->writeHTML($footerHtml, true, false, true, false, '');
+            }
+        }
+
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.pdf';
+        $pdf->Output($filename, 'D');
+        exit;
+    }
+
+    public function generateOfficialExcelDean($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator('PRMSU ACSS System')
+            ->setTitle('Faculty Teaching Load - ' . $semesterName)
+            ->setSubject('Official Teaching Load Document');
+
+        // Set page setup for landscape
+        $sheet->getPageSetup()
+            ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
+            ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+
+        // Set column widths to match PDF layout
+        $sheet->getColumnDimension('A')->setWidth(25);
+        $sheet->getColumnDimension('B')->setWidth(1);
+        $sheet->getColumnDimension('C')->setWidth(6);
+        $sheet->getColumnDimension('D')->setWidth(4);
+        $sheet->getColumnDimension('E')->setWidth(19);
+        $sheet->getColumnDimension('F')->setWidth(3);
+        $sheet->getColumnDimension('G')->setWidth(3);
+        $sheet->getColumnDimension('H')->setWidth(3);
+        $sheet->getColumnDimension('I')->setWidth(3);
+        $sheet->getColumnDimension('J')->setWidth(7);
+        $sheet->getColumnDimension('K')->setWidth(9);
+        $sheet->getColumnDimension('L')->setWidth(5);
+
+        // Header section
+        $sheet->mergeCells('A1:L1');
+        $sheet->setCellValue('A1', 'Republic of the Philippines');
+        $sheet->mergeCells('A2:L2');
+        $sheet->setCellValue('A2', 'PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY');
+        $sheet->mergeCells('A3:L3');
+        $sheet->setCellValue('A3', '(formerly Ramon Magsaysay Technological University)');
+        $sheet->mergeCells('A4:L4');
+        $sheet->setCellValue('A4', 'Iba, Zambales');
+        $sheet->mergeCells('A5:L5');
+        $sheet->setCellValue('A5', 'DEAN TEACHING LOAD');
+        $sheet->mergeCells('A6:L6');
+        $sheet->setCellValue('A6', $semesterName);
+
+        // Style header
+        $headerStyle = [
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
+        ];
+        $sheet->getStyle('A1:L6')->applyFromArray($headerStyle);
+        $sheet->getStyle('A2:L2')->getFont()->setSize(12);
+        $sheet->getStyle('A5:L5')->getFont()->setSize(14);
+
+        // College info
+        $sheet->setCellValue('A8', 'Campus:');
+        $sheet->setCellValue('B8', 'Main Campus');
+        $sheet->setCellValue('A9', 'Address:');
+        $sheet->setCellValue('B9', 'Iba');
+        $sheet->setCellValue('A10', 'College:');
+        $sheet->setCellValue('B10', $collegeName);
+
+        // Table headers
+        $sheet->mergeCells('A12:A' . (12 + count($schedules) - 1));
+        $sheet->setCellValue('A12', strtoupper($facultyName));
+        $sheet->getStyle('A12')->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
+
+        // Vertical separator
+        for ($i = 12; $i < 12 + count($schedules) + 20; $i++) {
+            $sheet->setCellValue('B' . $i, '');
+        }
+
+        // Main headers
+        $sheet->mergeCells('C12:C14');
+        $sheet->setCellValue('C12', 'Time');
+        $sheet->mergeCells('D12:D14');
+        $sheet->setCellValue('D12', 'Day/s');
+        $sheet->mergeCells('E12:E14');
+        $sheet->setCellValue('E12', 'Course Code and Title');
+
+        // Units/Hrs header
+        $sheet->mergeCells('F12:I12');
+        $sheet->setCellValue('F12', 'No. of Units/Hrs.');
+        $sheet->mergeCells('F13:G13');
+        $sheet->setCellValue('F13', 'Lec.');
+        $sheet->mergeCells('H13:I13');
+        $sheet->setCellValue('H13', 'Lab./RLE');
+        $sheet->setCellValue('F14', 'Units');
+        $sheet->setCellValue('G14', 'Hrs.');
+        $sheet->setCellValue('H14', 'Units');
+        $sheet->setCellValue('I14', 'Hrs.');
+
+        $sheet->mergeCells('J12:J14');
+        $sheet->setCellValue('J12', 'Room');
+        $sheet->mergeCells('K12:K14');
+        $sheet->setCellValue('K12', 'Course/Yr./Sec.');
+        $sheet->mergeCells('L12:L14');
+        $sheet->setCellValue('L12', 'No. of students');
+
+        // Style table headers
+        $tableHeaderStyle = [
+            'font' => ['bold' => true, 'size' => 8],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]]
+        ];
+        $sheet->getStyle('A12:L14')->applyFromArray($tableHeaderStyle);
+
+        // Add ALL schedule data
+        $currentRow = 15;
+
+        foreach ($schedules as $schedule) {
+            $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+            $courseInfo = $schedule['course_code'] . ' ' . $schedule['course_name'];
+            $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+            $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+            $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+            $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+            $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+            $sheet->setCellValue('C' . $currentRow, $timeRange);
+            $sheet->setCellValue('D' . $currentRow, $schedule['day_of_week']);
+            $sheet->setCellValue('E' . $currentRow, $courseInfo);
+            $sheet->setCellValue('F' . $currentRow, $lecUnits);
+            $sheet->setCellValue('G' . $currentRow, $lecHours);
+            $sheet->setCellValue('H' . $currentRow, $labUnits);
+            $sheet->setCellValue('I' . $currentRow, $labHours);
+            $sheet->setCellValue('J' . $currentRow, $schedule['room_name'] ?? 'TBD');
+            $sheet->setCellValue('K' . $currentRow, $sectionDetail);
+            $sheet->setCellValue('L' . $currentRow, $schedule['student_count'] ?? '-');
+
+            $currentRow++;
+        }
+
+        // Apply borders to all schedule cells
+        $lastScheduleRow = 14 + count($schedules);
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        // Set font size for all cells
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getFont()->setSize(8);
+
+        // Center align specific columns
+        $centerAlignColumns = ['C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+        foreach ($centerAlignColumns as $col) {
+            $sheet->getStyle($col . '15:' . $col . $lastScheduleRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+
+        // Set row heights
+        for ($row = 15; $row <= $lastScheduleRow; $row++) {
+            $sheet->getRowDimension($row)->setRowHeight(15);
+        }
+
+        // Add faculty information section
+        $facultyInfoStartRow = $lastScheduleRow + 2;
+        $sheet->mergeCells('A' . $facultyInfoStartRow . ':A' . ($facultyInfoStartRow + 17));
+        $facultyInfo = [
+            'Employment Status: ' . $facultyData['employment_type'],
+            'VSL: ' . ($facultyData['classification'] === 'VSL' ? '☑Yes ☐No' : '☐Yes ☑No'),
+            'Academic Rank: ' . $facultyData['academic_rank'],
+            'Bachelor\'s Degree: ' . $facultyData['bachelor_degree'],
+            'Master\'s Degree: ' . $facultyData['master_degree'],
+            'Doctorate Degree: ' . $facultyData['doctorate_degree'],
+            'Post Doctorate Degree: ' . $facultyData['post_doctorate_degree'],
+            'Designation: ' . $facultyData['designation'],
+            'Schedule Equiv. Teaching Load (ETL): ' . number_format($facultyData['equiv_teaching_load'], 2),
+            'Total Lecture Hours: ' . number_format($facultyData['total_lecture_hours'], 2),
+            'Total Laboratory Hours: ' . number_format($facultyData['total_laboratory_hours'], 2),
+            'Total Lab Hours x 0.75: ' . number_format($facultyData['total_laboratory_hours_x075'], 2),
+            'No. of Preparation: ' . $facultyData['no_of_preparation'],
+            'Advisory Class: ' . $facultyData['advisory_class'],
+            'Equiv. Units for Prep: 0',
+            'Actual Teaching Load (ATL): ' . number_format($facultyData['actual_teaching_load'], 2),
+            'Total Working Load (ETL+ATL): ' . number_format($facultyData['total_working_load'], 2),
+            'Excess (24 Hours): ' . number_format($facultyData['excess_hours'], 2)
+        ];
+
+        $infoText = implode("\n", $facultyInfo);
+        $sheet->setCellValue('A' . $facultyInfoStartRow, $infoText);
+        $sheet->getStyle('A' . $facultyInfoStartRow)->getAlignment()->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
+
+        // Signature section
+        $signatureRow = $facultyInfoStartRow + 20;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . $signatureRow);
+        $sheet->setCellValue('A' . $signatureRow, 'Prepared:');
+        $sheet->mergeCells('E' . $signatureRow . ':H' . $signatureRow);
+        $sheet->setCellValue('E' . $signatureRow, 'Recommending Approval:');
+        $sheet->mergeCells('I' . $signatureRow . ':L' . $signatureRow);
+        $sheet->setCellValue('I' . $signatureRow, 'Approved:');
+
+        $signatureRow++;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . ($signatureRow + 2));
+        $sheet->setCellValue('A' . $signatureRow, "MENCHIE A. DELA CRUZ, Ph.D.\nDean, CCIT");
+        $sheet->mergeCells('E' . $signatureRow . ':H' . ($signatureRow + 2));
+        $sheet->setCellValue('E' . $signatureRow, "NEMIA M. GALANG, Ph.D.\nDirector for Instruction");
+        $sheet->mergeCells('I' . $signatureRow . ':L' . ($signatureRow + 2));
+        $sheet->setCellValue('I' . $signatureRow, "LILIAN F. UY, Ed.D.\nVice President for Academic Affairs");
+
+        $sheet->getStyle('A' . ($signatureRow - 1) . ':L' . ($signatureRow + 2))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $signatureRow . ':L' . ($signatureRow + 2))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // Footer
+        $footerRow = $signatureRow + 4;
+        $sheet->setCellValue('A' . $footerRow, 'Reference no. PRMSU-ASA-COMSP18(1o)');
+        $sheet->setCellValue('A' . ($footerRow + 1), 'Effectivity date: May 04, 2021');
+        $sheet->setCellValue('A' . ($footerRow + 2), 'Revision no. 00');
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->setSize(6);
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->getColor()->setRGB('666666');
+
+        // Output the file
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    public function generateOfficialPDFDi($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+
+        $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+
+        $pdf->SetCreator('PRMSU ACSS System');
+        $pdf->SetAuthor('PRMSU');
+        $pdf->SetTitle('Faculty Teaching Load - ' . $semesterName);
+        $pdf->SetSubject('Official Teaching Load Document');
+
+        // Set margins to match the print layout exactly
+        $pdf->SetMargins(10, 10, 10);
+        $pdf->SetHeaderMargin(0);
+        $pdf->SetFooterMargin(0);
+        $pdf->SetAutoPageBreak(TRUE, 10);
+
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->AddPage();
+
+        // Header with logo
+        $logoPath = __DIR__ . '/logo/main_logo/PRMSUlogo.png';
+        if (!file_exists($logoPath)) {
+            error_log('Logo file not found: ' . $logoPath);
+        }
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 15, 12, 20, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
+        }
+
+        // Header content
+        $headerHtml = '
+    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+        <tr>
+            <td style="width: 15%;"></td>
+            <td style="width: 70%; text-align: center;">
+                <div style="font-size: 8px; margin-bottom: 1px;">Republic of the Philippines</div>
+                <div style="font-size: 10px; font-weight: bold; margin-bottom: 1px;">PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY</div>
+                <div style="font-size: 6px; font-style: italic; margin-bottom: 2px;">(formerly Ramon Magsaysay Technological University)</div>
+                <div style="font-size: 7px; font-weight: bold; margin-bottom: 1px;">Iba, Zambales</div>
+                <div style="font-size: 12px; font-weight: bold; margin-top: 3px;">DIRECTOR INSTRUCTOR TEACHING LOAD</div>
+                <div style="font-size: 9px; margin-top: 1px;">' . htmlspecialchars($semesterName) . '</div>
+            </td>
+            <td style="width: 15%;"></td>
+        </tr>
+    </table>';
+
+        $pdf->writeHTML($headerHtml, true, false, true, false, '');
+        $pdf->Ln(8);
+
+        // Calculate how many pages we need
+        $schedulesPerPage = 15; // Adjust based on your layout
+        $totalSchedules = count($schedules);
+        $totalPages = ceil($totalSchedules / $schedulesPerPage);
+
+        for ($page = 0; $page < $totalPages; $page++) {
+            if ($page > 0) {
+                $pdf->AddPage();
+            }
+
+            $startIndex = $page * $schedulesPerPage;
+            $endIndex = min(($page + 1) * $schedulesPerPage, $totalSchedules);
+            $pageSchedules = array_slice($schedules, $startIndex, $schedulesPerPage);
+
+            // Main table structure
+            $tableHtml = '
+        <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 25%">
+                <col style="width: 1%">
+                <col style="width: 6%">
+                <col style="width: 4%">
+                <col style="width: 19%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 3%">
+                <col style="width: 7%">
+                <col style="width: 9%">
+                <col style="width: 5%">
+            </colgroup>
+            <thead>
+                <tr>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 4px; vertical-align: top;">
+                        <p style="margin: 2px 0;"><strong>Campus :</strong> Main Campus</p>
+                        <p style="margin: 2px 0;"><strong>Address :</strong> Iba</p>
+                        <p style="margin: 2px 0;"><strong>College :</strong> ' . htmlspecialchars($collegeName) . '</p>
+                    </td>
+                    <td rowspan="' . (count($pageSchedules) + 20) . '" style="border: 1px solid #000; padding: 0; width: 1px;"></td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Time</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Day/s</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course Code and Title</td>
+                    <td colspan="4" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of Units/Hrs.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Room</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Course/Yr./Sec.</td>
+                    <td rowspan="3" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">No. of students</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lec.</td>
+                    <td colspan="2" style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Lab./RLE</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Units</td>
+                    <td style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">Hrs.</td>
+                </tr>
+            </thead>
+            <tbody>';
+
+            // Add schedule rows for this page
+            foreach ($pageSchedules as $index => $schedule) {
+                $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+                $courseInfo = htmlspecialchars($schedule['course_code'] . ' ' . $schedule['course_name']);
+                $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+                $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+                $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+                $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+                $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+                $tableHtml .= '
+            <tr>
+                ' . ($index === 0 ? '<td rowspan="' . count($pageSchedules) . '" style="border: 1px solid #000; padding: 4px; vertical-align: top; font-weight: bold;">' . strtoupper(htmlspecialchars($facultyName)) . '</td>' : '') . '
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $timeRange . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['day_of_week']) . '</td>
+                <td style="border: 1px solid #000; padding: 2px;">' . $courseInfo . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $lecHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labUnits . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $labHours . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . htmlspecialchars($schedule['room_name'] ?? 'TBD') . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . $sectionDetail . '</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">' . ($schedule['student_count'] ?? '-') . '</td>
+            </tr>';
+            }
+
+            // Add faculty information section only on the first page
+            if ($page === 0) {
+                $facultyInfoContent = '
+            <p style="margin: 2px 0;"><strong>Employment Status :</strong> ' . htmlspecialchars($facultyData['employment_type']) . '</p>
+            <p style="margin: 2px 0;"><strong>VSL :</strong> ' . ($facultyData['classification'] === 'VSL' ? '☑' : '☐') . 'Yes ' . ($facultyData['classification'] === 'TL' ? '☑' : '☐') . 'No</p>
+            <p style="margin: 2px 0;"><strong>Academic Rank :</strong> ' . htmlspecialchars($facultyData['academic_rank']) . '</p>
+            <p style="margin: 2px 0;"><strong>Bachelor\'s Degree :</strong> ' . htmlspecialchars($facultyData['bachelor_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Master\'s Degree :</strong> ' . htmlspecialchars($facultyData['master_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Post Doctorate Degree :</strong> ' . htmlspecialchars($facultyData['post_doctorate_degree']) . '</p>
+            <p style="margin: 2px 0;"><strong>Designation :</strong> ' . htmlspecialchars($facultyData['designation']) . '</p>
+            <p style="margin: 2px 0;"><strong>Schedule Equiv. Teaching Load (ETL) :</strong> ' . number_format($facultyData['equiv_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lecture Hours :</strong> ' . number_format($facultyData['total_lecture_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Laboratory Hours :</strong> ' . number_format($facultyData['total_laboratory_hours'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Lab Hours x 0.75 :</strong> ' . number_format($facultyData['total_laboratory_hours_x075'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>No. of Preparation :</strong> ' . $facultyData['no_of_preparation'] . '</p>
+            <p style="margin: 2px 0;"><strong>Advisory Class :</strong> ' . htmlspecialchars($facultyData['advisory_class']) . '</p>
+            <p style="margin: 2px 0;"><strong>Equiv. Units for Prep :</strong> 0</p>
+            <p style="margin: 2px 0;"><strong>Actual Teaching Load (ATL) :</strong> ' . number_format($facultyData['actual_teaching_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Total Working Load (ETL+ATL) :</strong> ' . number_format($facultyData['total_working_load'], 2) . '</p>
+            <p style="margin: 2px 0;"><strong>Excess (24 Hours) :</strong> ' . number_format($facultyData['excess_hours'], 2) . '</p>';
+
+                $tableHtml .= '
+            <tr>
+                <td rowspan="18" style="border: 1px solid #000; padding: 6px; vertical-align: top;">
+                    ' . $facultyInfoContent . '
+                </td>';
+
+                // Add empty cells for faculty info section
+                for ($i = 0; $i < 18; $i++) {
+                    if ($i > 0) {
+                        $tableHtml .= '<tr>';
+                    }
+                    $tableHtml .= '
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                    <td style="border: 1px solid #000; padding: 2px;">&nbsp;</td>
+                </tr>';
+                }
+            }
+
+            $tableHtml .= '</tbody></table>';
+            $pdf->writeHTML($tableHtml, true, false, true, false, '');
+
+            // Add signature section only on the last page
+            if ($page === $totalPages - 1) {
+                $pdf->Ln(5);
+                $signatureHtml = '
+            <table border="1" cellpadding="3" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 7px;">
+                <tr>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Prepared:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.33%;">Recommending Approval:</td>
+                    <td style="border: 1px solid #000; padding: 3px; font-weight: bold; text-align: center; width: 33.34%;">Approved</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">MENCHIE A. DELA CRUZ, Ph.D.</p>
+                        <p style="margin: 0;">Dean, CCIT</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">NEMIA M. GALANG, Ph.D.</p>
+                        <p style="margin: 0;">Director for Instruction</p>
+                    </td>
+                    <td style="border: 1px solid #000; padding: 20px 8px 8px 8px; text-align: center; vertical-align: bottom;">
+                        <p style="margin: 0; font-weight: bold;">LILIAN F. UY, Ed.D.</p>
+                        <p style="margin: 0;">Vice President for Academic Affairs</p>
+                    </td>
+                </tr>
+            </table>';
+
+                $pdf->writeHTML($signatureHtml, true, false, true, false, '');
+
+                // Footer
+                $pdf->Ln(5);
+                $footerHtml = '
+            <div style="font-size: 6px; color: #666;">
+                <p style="margin: 2px 0;">Reference no. PRMSU-ASA-COMSP18(1o)</p>
+                <p style="margin: 2px 0;">Effectivity date: May 04, 2021</p>
+                <p style="margin: 2px 0;">Revision no. 00</p>
+            </div>';
+
+                $pdf->writeHTML($footerHtml, true, false, true, false, '');
+            }
+        }
+
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.pdf';
+        $pdf->Output($filename, 'D');
+        exit;
+    }
+
+    public function generateOfficialExcelDi($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator('PRMSU ACSS System')
+            ->setTitle('Faculty Teaching Load - ' . $semesterName)
+            ->setSubject('Official Teaching Load Document');
+
+        // Set page setup for landscape
+        $sheet->getPageSetup()
+            ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
+            ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+
+        // Set column widths to match PDF layout
+        $sheet->getColumnDimension('A')->setWidth(25);
+        $sheet->getColumnDimension('B')->setWidth(1);
+        $sheet->getColumnDimension('C')->setWidth(6);
+        $sheet->getColumnDimension('D')->setWidth(4);
+        $sheet->getColumnDimension('E')->setWidth(19);
+        $sheet->getColumnDimension('F')->setWidth(3);
+        $sheet->getColumnDimension('G')->setWidth(3);
+        $sheet->getColumnDimension('H')->setWidth(3);
+        $sheet->getColumnDimension('I')->setWidth(3);
+        $sheet->getColumnDimension('J')->setWidth(7);
+        $sheet->getColumnDimension('K')->setWidth(9);
+        $sheet->getColumnDimension('L')->setWidth(5);
+
+        // Header section
+        $sheet->mergeCells('A1:L1');
+        $sheet->setCellValue('A1', 'Republic of the Philippines');
+        $sheet->mergeCells('A2:L2');
+        $sheet->setCellValue('A2', 'PRESIDENT RAMON MAGSAYSAY STATE UNIVERSITY');
+        $sheet->mergeCells('A3:L3');
+        $sheet->setCellValue('A3', '(formerly Ramon Magsaysay Technological University)');
+        $sheet->mergeCells('A4:L4');
+        $sheet->setCellValue('A4', 'Iba, Zambales');
+        $sheet->mergeCells('A5:L5');
+        $sheet->setCellValue('A5', 'DIRECTOR INSTRUCTOR TEACHING LOAD');
+        $sheet->mergeCells('A6:L6');
+        $sheet->setCellValue('A6', $semesterName);
+
+        // Style header
+        $headerStyle = [
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
+        ];
+        $sheet->getStyle('A1:L6')->applyFromArray($headerStyle);
+        $sheet->getStyle('A2:L2')->getFont()->setSize(12);
+        $sheet->getStyle('A5:L5')->getFont()->setSize(14);
+
+        // College info
+        $sheet->setCellValue('A8', 'Campus:');
+        $sheet->setCellValue('B8', 'Main Campus');
+        $sheet->setCellValue('A9', 'Address:');
+        $sheet->setCellValue('B9', 'Iba');
+        $sheet->setCellValue('A10', 'College:');
+        $sheet->setCellValue('B10', $collegeName);
+
+        // Table headers
+        $sheet->mergeCells('A12:A' . (12 + count($schedules) - 1));
+        $sheet->setCellValue('A12', strtoupper($facultyName));
+        $sheet->getStyle('A12')->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
+
+        // Vertical separator
+        for ($i = 12; $i < 12 + count($schedules) + 20; $i++) {
+            $sheet->setCellValue('B' . $i, '');
+        }
+
+        // Main headers
+        $sheet->mergeCells('C12:C14');
+        $sheet->setCellValue('C12', 'Time');
+        $sheet->mergeCells('D12:D14');
+        $sheet->setCellValue('D12', 'Day/s');
+        $sheet->mergeCells('E12:E14');
+        $sheet->setCellValue('E12', 'Course Code and Title');
+
+        // Units/Hrs header
+        $sheet->mergeCells('F12:I12');
+        $sheet->setCellValue('F12', 'No. of Units/Hrs.');
+        $sheet->mergeCells('F13:G13');
+        $sheet->setCellValue('F13', 'Lec.');
+        $sheet->mergeCells('H13:I13');
+        $sheet->setCellValue('H13', 'Lab./RLE');
+        $sheet->setCellValue('F14', 'Units');
+        $sheet->setCellValue('G14', 'Hrs.');
+        $sheet->setCellValue('H14', 'Units');
+        $sheet->setCellValue('I14', 'Hrs.');
+
+        $sheet->mergeCells('J12:J14');
+        $sheet->setCellValue('J12', 'Room');
+        $sheet->mergeCells('K12:K14');
+        $sheet->setCellValue('K12', 'Course/Yr./Sec.');
+        $sheet->mergeCells('L12:L14');
+        $sheet->setCellValue('L12', 'No. of students');
+
+        // Style table headers
+        $tableHeaderStyle = [
+            'font' => ['bold' => true, 'size' => 8],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]]
+        ];
+        $sheet->getStyle('A12:L14')->applyFromArray($tableHeaderStyle);
+
+        // Add ALL schedule data
+        $currentRow = 15;
+
+        foreach ($schedules as $schedule) {
+            $timeRange = substr($schedule['start_time'], 0, 5) . '-' . substr($schedule['end_time'], 0, 5);
+            $courseInfo = $schedule['course_code'] . ' ' . $schedule['course_name'];
+            $sectionDetail = ($schedule['year_level'] ?? '1') . '/' . $schedule['section_name'];
+
+            $lecUnits = $schedule['schedule_type'] === 'Lecture' ? ($schedule['units'] ?? '3') : '-';
+            $lecHours = $schedule['schedule_type'] === 'Lecture' ? ($schedule['duration_hours'] ?? '3') : '-';
+            $labUnits = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['units'] ?? '3') : '-';
+            $labHours = $schedule['schedule_type'] === 'Laboratory' ? ($schedule['duration_hours'] ?? '3') : '-';
+
+            $sheet->setCellValue('C' . $currentRow, $timeRange);
+            $sheet->setCellValue('D' . $currentRow, $schedule['day_of_week']);
+            $sheet->setCellValue('E' . $currentRow, $courseInfo);
+            $sheet->setCellValue('F' . $currentRow, $lecUnits);
+            $sheet->setCellValue('G' . $currentRow, $lecHours);
+            $sheet->setCellValue('H' . $currentRow, $labUnits);
+            $sheet->setCellValue('I' . $currentRow, $labHours);
+            $sheet->setCellValue('J' . $currentRow, $schedule['room_name'] ?? 'TBD');
+            $sheet->setCellValue('K' . $currentRow, $sectionDetail);
+            $sheet->setCellValue('L' . $currentRow, $schedule['student_count'] ?? '-');
+
+            $currentRow++;
+        }
+
+        // Apply borders to all schedule cells
+        $lastScheduleRow = 14 + count($schedules);
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+        // Set font size for all cells
+        $sheet->getStyle('A12:L' . $lastScheduleRow)->getFont()->setSize(8);
+
+        // Center align specific columns
+        $centerAlignColumns = ['C', 'D', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+        foreach ($centerAlignColumns as $col) {
+            $sheet->getStyle($col . '15:' . $col . $lastScheduleRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+
+        // Set row heights
+        for ($row = 15; $row <= $lastScheduleRow; $row++) {
+            $sheet->getRowDimension($row)->setRowHeight(15);
+        }
+
+        // Add faculty information section
+        $facultyInfoStartRow = $lastScheduleRow + 2;
+        $sheet->mergeCells('A' . $facultyInfoStartRow . ':A' . ($facultyInfoStartRow + 17));
+        $facultyInfo = [
+            'Employment Status: ' . $facultyData['employment_type'],
+            'VSL: ' . ($facultyData['classification'] === 'VSL' ? '☑Yes ☐No' : '☐Yes ☑No'),
+            'Academic Rank: ' . $facultyData['academic_rank'],
+            'Bachelor\'s Degree: ' . $facultyData['bachelor_degree'],
+            'Master\'s Degree: ' . $facultyData['master_degree'],
+            'Doctorate Degree: ' . $facultyData['doctorate_degree'],
+            'Post Doctorate Degree: ' . $facultyData['post_doctorate_degree'],
+            'Designation: ' . $facultyData['designation'],
+            'Schedule Equiv. Teaching Load (ETL): ' . number_format($facultyData['equiv_teaching_load'], 2),
+            'Total Lecture Hours: ' . number_format($facultyData['total_lecture_hours'], 2),
+            'Total Laboratory Hours: ' . number_format($facultyData['total_laboratory_hours'], 2),
+            'Total Lab Hours x 0.75: ' . number_format($facultyData['total_laboratory_hours_x075'], 2),
+            'No. of Preparation: ' . $facultyData['no_of_preparation'],
+            'Advisory Class: ' . $facultyData['advisory_class'],
+            'Equiv. Units for Prep: 0',
+            'Actual Teaching Load (ATL): ' . number_format($facultyData['actual_teaching_load'], 2),
+            'Total Working Load (ETL+ATL): ' . number_format($facultyData['total_working_load'], 2),
+            'Excess (24 Hours): ' . number_format($facultyData['excess_hours'], 2)
+        ];
+
+        $infoText = implode("\n", $facultyInfo);
+        $sheet->setCellValue('A' . $facultyInfoStartRow, $infoText);
+        $sheet->getStyle('A' . $facultyInfoStartRow)->getAlignment()->setVertical(Alignment::VERTICAL_TOP)->setWrapText(true);
+
+        // Signature section
+        $signatureRow = $facultyInfoStartRow + 20;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . $signatureRow);
+        $sheet->setCellValue('A' . $signatureRow, 'Prepared:');
+        $sheet->mergeCells('E' . $signatureRow . ':H' . $signatureRow);
+        $sheet->setCellValue('E' . $signatureRow, 'Recommending Approval:');
+        $sheet->mergeCells('I' . $signatureRow . ':L' . $signatureRow);
+        $sheet->setCellValue('I' . $signatureRow, 'Approved:');
+
+        $signatureRow++;
+        $sheet->mergeCells('A' . $signatureRow . ':D' . ($signatureRow + 2));
+        $sheet->setCellValue('A' . $signatureRow, "MENCHIE A. DELA CRUZ, Ph.D.\nDean, CCIT");
+        $sheet->mergeCells('E' . $signatureRow . ':H' . ($signatureRow + 2));
+        $sheet->setCellValue('E' . $signatureRow, "NEMIA M. GALANG, Ph.D.\nDirector for Instruction");
+        $sheet->mergeCells('I' . $signatureRow . ':L' . ($signatureRow + 2));
+        $sheet->setCellValue('I' . $signatureRow, "LILIAN F. UY, Ed.D.\nVice President for Academic Affairs");
+
+        $sheet->getStyle('A' . ($signatureRow - 1) . ':L' . ($signatureRow + 2))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $signatureRow . ':L' . ($signatureRow + 2))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+
+        // Footer
+        $footerRow = $signatureRow + 4;
+        $sheet->setCellValue('A' . $footerRow, 'Reference no. PRMSU-ASA-COMSP18(1o)');
+        $sheet->setCellValue('A' . ($footerRow + 1), 'Effectivity date: May 04, 2021');
+        $sheet->setCellValue('A' . ($footerRow + 2), 'Revision no. 00');
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->setSize(6);
+        $sheet->getStyle('A' . $footerRow . ':A' . ($footerRow + 2))->getFont()->getColor()->setRGB('666666');
+
+        // Output the file
+        $filename = 'Teaching_Load_' . str_replace(' ', '_', $facultyName) . '_' . date('Ymd') . '.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
 
     public function generateMySchedulePdf($schedules, $semesterName, $departmentName, $totalHours, $showAllSchedules, $facultyName = '', $position = '')
     {
@@ -266,7 +2071,7 @@ class SchedulingService
         $pdf->AddPage();
 
         // Add logo (assuming logo.png is in ../assets/ relative to this file)
-        $logoPath = __DIR__ . '/assets/logo/main_logo/PRMSUlogo.png';
+        $logoPath = __DIR__ . '/logo/main_logo/PRMSUlogo.png';
         if (file_exists($logoPath)) {
             $pdf->Image($logoPath, 10, 10, 30, '', 'PNG', '', 'T', false, 300, '', false, false, 0, false, false, false);
         }

@@ -1,5 +1,22 @@
 <?php
 ob_start();
+// Get department ID
+$userDepartmentId = $_SESSION['department_id'] ?? null;
+// Fetch college logo based on department ID
+$collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
+if ($userDepartmentId) {
+    try {
+        $db = (new Database())->connect();
+        $stmt = $db->prepare("SELECT c.logo_path FROM colleges c JOIN departments d ON c.college_id = d.college_id WHERE d.department_id = :department_id");
+        $stmt->execute([':department_id' => $userDepartmentId]);
+        $logoPath = $stmt->fetchColumn();
+        if ($logoPath) {
+            $collegeLogoPath = $logoPath;
+        }
+    } catch (PDOException $e) {
+        error_log("layout: Error fetching college logo - " . $e->getMessage());
+    }
+}
 ?>
 
 <link rel="stylesheet" href="/css/schedule_management.css">
@@ -18,29 +35,28 @@ ob_start();
                         <p class="text-sm text-gray-600">Organize and manage academic schedules</p>
                     </div>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <!-- Print Options -->
-                    <div class="relative">
-                        <button id="printDropdownBtn" onclick="togglePrintDropdown()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
-                            <i class="fas fa-print"></i>
-                            <span>Print Options</span>
-                            <i class="fas fa-chevron-down ml-1"></i>
-                        </button>
-                        <div id="printDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
-                            <div class="py-1">
-                                <button onclick="printSchedule('all')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-calendar mr-2"></i>Print All Schedules
-                                </button>
-                                <button onclick="printSchedule('filtered')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-filter mr-2"></i>Print Filtered View
-                                </button>
-                                <button onclick="exportSchedule('excel')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-file-excel mr-2"></i>Export to Excel
-                                </button>
-                                <button onclick="exportSchedule('pdf')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-file-pdf mr-2"></i>Export to PDF
-                                </button>
-                            </div>
+                <!-- Print Options -->
+                <div class="relative">
+                    <button id="printDropdownBtn" onclick="togglePrintDropdown()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                        <i class="fas fa-print"></i>
+                        <span>Print/Export</span>
+                        <i class="fas fa-chevron-down ml-1"></i>
+                    </button>
+                    <div id="printDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                        <div class="py-1">
+                            <button onclick="printSchedule('all')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-print mr-2"></i>Print All Schedules
+                            </button>
+                            <button onclick="printSchedule('filtered')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-filter mr-2"></i>Print Filtered View
+                            </button>
+                            <div class="border-t border-gray-200 my-1"></div>
+                            <button onclick="exportSchedule('excel')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-file-excel mr-2 text-green-600"></i>Export to Excel
+                            </button>
+                            <button onclick="exportSchedule('pdf')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-file-pdf mr-2 text-red-600"></i>Export to PDF
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1254,36 +1270,841 @@ ob_start();
                 dropdown.classList.toggle('hidden');
             }
 
-            function printSchedule(type) {
-                document.getElementById('printDropdown').classList.add('hidden');
-                if (type === 'filtered') {
-                    filterSchedules();
-                } else if (type === 'all') {
-                    clearFilters();
+            function exportSchedule(type) {
+                document.getElementById("printDropdown").classList.add("hidden");
+
+                if (type === 'excel') {
+                    exportToExcel();
+                } else if (type === 'pdf') {
+                    exportToPDF();
                 }
-                switchTab('schedule');
-                setTimeout(() => {
-                    window.print();
-                }, 100);
             }
 
-            function exportSchedule(format) {
-                document.getElementById('printDropdown').classList.add('hidden');
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.style.display = 'none';
-                const actionInput = document.createElement('input');
-                actionInput.name = 'action';
-                actionInput.value = 'download';
-                form.appendChild(actionInput);
-                const formatInput = document.createElement('input');
-                formatInput.name = 'format';
-                formatInput.value = format;
-                form.appendChild(formatInput);
-                document.body.appendChild(form);
-                form.submit();
-                document.body.removeChild(form);
+            // Add this helper function that's used by both export functions
+            function getFilteredSchedules() {
+                const yearLevel = document.getElementById('filter-year')?.value || '';
+                const section = document.getElementById('filter-section')?.value || '';
+                const room = document.getElementById('filter-room')?.value || '';
+
+                return window.scheduleData.filter(schedule => {
+                    const matchesYear = !yearLevel || schedule.year_level === yearLevel;
+                    const matchesSection = !section || schedule.section_name === section;
+                    const matchesRoom = !room || (schedule.room_name || 'Online') === room;
+
+                    return matchesYear && matchesSection && matchesRoom;
+                });
             }
+
+            function printSchedule(type) {
+                document.getElementById("printDropdown").classList.add("hidden");
+
+                // Apply filters if needed
+                if (type === "filtered") {
+                    filterSchedules();
+                } else if (type === "all") {
+                    clearFilters();
+                }
+
+                // Switch to schedule view tab and wait for render
+                switchTab("schedule");
+
+                setTimeout(() => {
+                    createPrintVersion();
+                }, 500);
+            }
+
+            function getFilteredSchedules() {
+                const yearLevel = document.getElementById('filter-year')?.value || '';
+                const section = document.getElementById('filter-section')?.value || '';
+                const room = document.getElementById('filter-room')?.value || '';
+
+                return window.scheduleData.filter(schedule => {
+                    const matchesYear = !yearLevel || schedule.year_level === yearLevel;
+                    const matchesSection = !section || schedule.section_name === section;
+                    const matchesRoom = !room || (schedule.room_name || 'Online') === room;
+
+                    return matchesYear && matchesSection && matchesRoom;
+                });
+            }
+
+            function createPrintVersion() {
+                // Create a new window for printing
+                const printWindow = window.open("", "_blank");
+                if (!printWindow) {
+                    alert("Please allow popups for printing");
+                    return;
+                }
+
+                // Get semester information
+                const semester = window.currentSemester?.semester_name || "";
+                const academicYear = window.currentSemester?.academic_year || "";
+                const currentDate = new Date().toLocaleDateString();
+
+                // Create the print content
+                const printContent = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Academic Schedule - ${semester} ${academicYear}</title>
+                        <style>
+                    body {
+                        font-family: "Times New Roman", serif;
+                        margin: 0;
+                        padding: 20px;
+                        font-size: 12pt;
+                        line-height: 1.2;
+                    }
+                    
+                    .university-header {
+                        text-align: center;
+                        border-bottom: 2px solid #000;
+                        padding-bottom: 15px;
+                        margin-bottom: 20px;
+                    }
+                    
+                    .header-content {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin-bottom: 10px;
+                        gap: 20px;
+                    }
+                    
+                    .university-info {
+                        flex: 1;
+                        text-align: center;
+                    }
+                    
+                    .university-name {
+                        font-size: 14pt;
+                        font-weight: bold;
+                        margin: 0;
+                    }
+                    
+                    .university-subtitle {
+                        font-size: 10pt;
+                        font-style: italic;
+                        margin: 2px 0;
+                    }
+                    
+                    .logo-container {
+                        width: 80px;
+                        text-align: center;
+                    }
+                    
+                    .university-logo, .college-logo {
+                        max-width: 60px;
+                        max-height: 60px;
+                        object-fit: contain;
+                    }
+                    
+                    .semester-info {
+                        font-size: 12pt;
+                        font-weight: bold;
+                        margin: 5px 0;
+                    }
+                    
+                    .academic-year {
+                        font-size: 11pt;
+                        font-weight: bold;
+                    }
+                    
+                    .schedule-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 9pt;
+                        margin-top: 15px;
+                    }
+                    
+                    .schedule-table th,
+                    .schedule-table td {
+                        border: 1px solid #000;
+                        padding: 4px 6px;
+                        text-align: center;
+                        vertical-align: top;
+                    }
+                    
+                    .schedule-table th {
+                        background-color: #f0f0f0;
+                        font-weight: bold;
+                    }
+                    
+                    .time-column { width: 12%; }
+                    .days-column { width: 8%; }
+                    .course-column { width: 25%; }
+                    .units-column { width: 12%; }
+                    .room-column { width: 10%; }
+                    .section-column { width: 15%; }
+                    .students-column { width: 8%; }
+                    .faculty-column { width: 10%; }
+                    
+                    .faculty-section {
+                        margin-bottom: 25px;
+                        page-break-inside: avoid;
+                    }
+                    
+                    .faculty-name {
+                        font-weight: bold;
+                        font-size: 11pt;
+                        margin-bottom: 8px;
+                        background-color: #e0e0e0;
+                        padding: 5px 10px;
+                    }
+                    
+                    @media print {
+                        body { margin: 0.5in; }
+                        .faculty-section { page-break-inside: avoid; }
+                        .logo-container img { max-width: 60px !important; }
+                    }
+                </style>
+                    </head>
+                    <body>
+                        <div class="university-header">
+                            <div class="header-content">
+                                <div class="logo-container">
+                                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="University Logo" class="university-logo">
+                                </div>
+                                <div class="university-info">
+                                    <div class="university-name">Republic of the Philippines</div>
+                                    <div class="university-name">President Ramon Magsaysay State University</div>
+                                    <div class="university-subtitle">(formerly Ramon Magsaysay Technological University)</div>
+                                </div>
+                                <div class="logo-container">
+                                    <img src="${window.location.origin}<?php echo $collegeLogoPath; ?>" alt="College Logo" class="college-logo" onerror="this.style.display='none'; console.log('College logo not found')">
+                                </div>
+                            </div>
+                                    <div class="semester-info">${semester} Semester</div>
+                                    <div class="academic-year">Academic Year ${academicYear}</div>
+                                    <div style="font-size: 10pt; margin-top: 5px;">Generated on: ${currentDate}</div>
+                                </div>
+                                
+                                ${generatePrintScheduleTable()}
+                            </body>
+                            </html>
+                        `;
+
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+
+                // Wait for content to load then print
+                printWindow.onload = function() {
+                    printWindow.print();
+                    // printWindow.close(); // Uncomment if you want to auto-close after printing
+                };
+            }
+
+            function generatePrintScheduleTable() {
+                if (!window.scheduleData || window.scheduleData.length === 0) {
+                    return '<div style="text-align: center; padding: 20px; font-style: italic;">No schedule data available</div>';
+                }
+
+                // Organize schedules by faculty
+                const facultySchedules = organizeSchedulesByFaculty(window.scheduleData);
+
+                let tableHTML = "";
+
+                Object.keys(facultySchedules)
+                    .sort()
+                    .forEach((facultyName) => {
+                        const schedules = facultySchedules[facultyName];
+
+                        tableHTML += `
+            <div class="faculty-section">
+                <div class="faculty-name">${facultyName}</div>
+                <table class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th class="time-column">Time</th>
+                            <th class="days-column">Days</th>
+                            <th class="course-column">Course Code and Title</th>
+                            
+                            <th class="room-column">Room</th>
+                            <th class="section-column">Year/Section</th>
+                            <th class="students-column">No. of Students</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+                        // Group schedules by course and time for better display
+                        const groupedSchedules = groupSchedulesForDisplay(schedules);
+
+                        groupedSchedules.forEach((schedule) => {
+                            tableHTML += `
+                <tr>
+                    <td class="time-column">${formatTimeForPrint(
+                      schedule.startTime
+                    )} - ${formatTimeForPrint(schedule.endTime)}</td>
+                    <td class="days-column">${schedule.dayPattern}</td>
+                    <td class="course-column" style="text-align: left;">
+                        <div style="font-weight: bold;">${
+                          schedule.courseCode
+                        }</div>
+                        <div style="font-size: 8pt;">${
+                          schedule.courseName || ""
+                        }</div>
+                    </td>
+                    
+                    <td class="room-column">${schedule.room}</td>
+                    <td class="section-column">${schedule.section}</td>
+                    <td class="students-column">${schedule.students || ""}</td>
+                </tr>
+            `;
+                        });
+
+                        tableHTML += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+                    });
+
+                return tableHTML;
+            }
+
+            function formatTimeForPrint(timeString) {
+                if (!timeString) return "";
+                const time = timeString.substring(0, 5);
+                const [hours, minutes] = time.split(":");
+                const date = new Date(2000, 0, 1, hours, minutes);
+                return date.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    hour12: true,
+                });
+            }
+
+            // Helper function to organize schedules by faculty
+            function organizeSchedulesByFaculty(schedules) {
+                const facultySchedules = {};
+
+                schedules.forEach((schedule) => {
+                    const facultyName = schedule.faculty_name || "Unassigned";
+
+                    if (!facultySchedules[facultyName]) {
+                        facultySchedules[facultyName] = [];
+                    }
+
+                    facultySchedules[facultyName].push(schedule);
+                });
+
+                return facultySchedules;
+            }
+
+            // Helper function to group schedules for display
+            function groupSchedulesForDisplay(schedules) {
+                const groups = {};
+
+                schedules.forEach((schedule) => {
+                    const key = `${schedule.course_code}-${schedule.start_time}-${schedule.end_time}-${schedule.faculty_name}`;
+
+                    if (!groups[key]) {
+                        groups[key] = {
+                            courseCode: schedule.course_code,
+                            courseName: schedule.course_name || "",
+                            startTime: schedule.start_time,
+                            endTime: schedule.end_time,
+                            faculty: schedule.faculty_name,
+                            room: schedule.room_name || "Online",
+                            section: schedule.section_name || "",
+                            students: schedule.current_students || "",
+                            lectureUnits: schedule.lecture_units || "0",
+                            labUnits: schedule.lab_units || "0",
+                            days: [],
+                        };
+                    }
+
+                    groups[key].days.push(schedule.day_of_week);
+                });
+
+                // Convert to array and format day patterns
+                return Object.values(groups)
+                    .map((group) => {
+                        group.dayPattern = getDayPatternDisplay(group.days);
+                        return group;
+                    })
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+            }
+
+            function getDayPatternDisplay(days) {
+                const dayMap = {
+                    Monday: "M",
+                    Tuesday: "T",
+                    Wednesday: "W",
+                    Thursday: "TH",
+                    Friday: "F",
+                    Saturday: "S",
+                };
+
+                const pattern = days.map((day) => dayMap[day] || day).join("");
+
+                // Common patterns
+                const commonPatterns = {
+                    MWF: "MWF",
+                    TTH: "TTH",
+                    MW: "MW",
+                    TTHS: "TTHS",
+                    MTWTHF: "Daily",
+                };
+
+                return commonPatterns[pattern] || pattern;
+            }
+
+            function exportToExcel() {
+                // Get filtered schedules
+                const filteredSchedules = getFilteredSchedules();
+
+                if (filteredSchedules.length === 0) {
+                    showNotification('No schedules to export.', 'error');
+                    return;
+                }
+
+                // Create workbook
+                const workbook = XLSX.utils.book_new();
+
+                // Create main data sheet with ALL schedules
+                const mainData = [
+                    // Header row
+                    ['Faculty', 'Time', 'Days', 'Course Code', 'Course Name', 'Section', 'Room', 'Students', 'Lecture Units', 'Lab Units']
+                ];
+
+                // Add all schedules to main sheet
+                filteredSchedules.forEach(schedule => {
+                    mainData.push([
+                        schedule.faculty_name || 'Unassigned',
+                        `${formatTime(schedule.start_time?.substring(0, 5) || '')} - ${formatTime(schedule.end_time?.substring(0, 5) || '')}`,
+                        schedule.day_of_week || '',
+                        schedule.course_code || '',
+                        schedule.course_name || '',
+                        schedule.section_name || '',
+                        schedule.room_name || 'Online',
+                        schedule.current_students || '',
+                        schedule.lecture_units || '0',
+                        schedule.lab_units || '0'
+                    ]);
+                });
+
+                // Create main worksheet
+                const mainWorksheet = XLSX.utils.aoa_to_sheet(mainData);
+
+                // Set column widths for main sheet
+                mainWorksheet['!cols'] = [{
+                        wch: 20
+                    }, // Faculty
+                    {
+                        wch: 15
+                    }, // Time
+                    {
+                        wch: 8
+                    }, // Days
+                    {
+                        wch: 12
+                    }, // Course Code
+                    {
+                        wch: 30
+                    }, // Course Name
+                    {
+                        wch: 15
+                    }, // Section
+                    {
+                        wch: 12
+                    }, // Room
+                    {
+                        wch: 10
+                    }, // Students
+                    {
+                        wch: 12
+                    }, // Lecture Units
+                    {
+                        wch: 10
+                    } // Lab Units
+                ];
+
+                XLSX.utils.book_append_sheet(workbook, mainWorksheet, 'All Schedules');
+
+                // Generate Excel file
+                const semester = window.currentSemester?.semester_name || 'Unknown';
+                const academicYear = window.currentSemester?.academic_year || 'Unknown';
+                const fileName = `Schedule_${semester}_${academicYear}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+                XLSX.writeFile(workbook, fileName);
+                showNotification('Excel file exported successfully!', 'success');
+            }
+
+            function exportToPDF() {
+                const {
+                    jsPDF
+                } = window.jspdf;
+
+                // Get filtered schedules
+                const filteredSchedules = getFilteredSchedules();
+
+                if (filteredSchedules.length === 0) {
+                    showNotification('No schedules to export.', 'error');
+                    return;
+                }
+
+                // Create new PDF document
+                const doc = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const margin = 10;
+                const contentWidth = pageWidth - (2 * margin);
+
+                // Add header with university info
+                addPDFHeader(doc, pageWidth, margin);
+
+                let currentY = 60; // Start below header
+
+                // Group schedules by faculty
+                const facultyGroups = {};
+                filteredSchedules.forEach(schedule => {
+                    const facultyName = schedule.faculty_name || 'Unassigned';
+                    if (!facultyGroups[facultyName]) {
+                        facultyGroups[facultyName] = [];
+                    }
+                    facultyGroups[facultyName].push(schedule);
+                });
+
+                // Add content for each faculty
+                Object.keys(facultyGroups).sort().forEach((facultyName, index) => {
+                    // Check if we need a new page
+                    if (currentY > pageHeight - 40 && index > 0) {
+                        doc.addPage();
+                        currentY = margin + 20;
+                        addPDFHeader(doc, pageWidth, margin, true);
+                    }
+
+                    // Add faculty section header
+                    doc.setFillColor(200, 200, 200);
+                    doc.rect(margin, currentY, contentWidth, 8, 'F');
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Faculty: ${facultyName}`, margin + 5, currentY + 5);
+
+                    currentY += 15;
+
+                    // Create table for this faculty
+                    const schedules = facultyGroups[facultyName];
+                    addScheduleTable(doc, schedules, margin, currentY, contentWidth);
+
+                    currentY += (schedules.length * 8) + 20;
+                });
+
+                // Save PDF
+                const semester = window.currentSemester?.semester_name || 'Unknown';
+                const academicYear = window.currentSemester?.academic_year || 'Unknown';
+                const fileName = `Schedule_${semester}_${academicYear}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+                doc.save(fileName);
+                showNotification('PDF file exported successfully!', 'success');
+            }
+
+            function addPDFHeader(doc, pageWidth, margin, isSubsequentPage = false) {
+                const centerX = pageWidth / 2;
+
+                // University header text
+                doc.setFontSize(16);
+                doc.setFont(undefined, 'bold');
+                doc.text('Republic of the Philippines', centerX, 15, {
+                    align: 'center'
+                });
+                doc.text('President Ramon Magsaysay State University', centerX, 22, {
+                    align: 'center'
+                });
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+                doc.text('(formerly Ramon Magsaysay Technological University)', centerX, 27, {
+                    align: 'center'
+                });
+
+                // Semester info
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                const semester = window.currentSemester?.semester_name || 'Unknown';
+                const academicYear = window.currentSemester?.academic_year || 'Unknown';
+                doc.text(`${semester} Semester - Academic Year ${academicYear}`, centerX, 37, {
+                    align: 'center'
+                });
+
+                if (!isSubsequentPage) {
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, centerX, 44, {
+                        align: 'center'
+                    });
+                }
+
+                // Add line separator
+                doc.setDrawColor(0, 0, 0);
+                doc.line(margin, 48, pageWidth - margin, 48);
+            }
+
+            function addScheduleTable(doc, schedules, startX, startY, tableWidth) {
+                const colWidths = [
+                    tableWidth * 0.15, // Time
+                    tableWidth * 0.08, // Days
+                    tableWidth * 0.12, // Course Code
+                    tableWidth * 0.25, // Course Name
+                    tableWidth * 0.15, // Section
+                    tableWidth * 0.12, // Room
+                    tableWidth * 0.08, // Students
+                    tableWidth * 0.05 // Units
+                ];
+
+                // Table headers
+                const headers = ['Time', 'Days', 'Course Code', 'Course Name', 'Section', 'Room', 'Students', 'Units'];
+
+                let currentX = startX;
+                let currentY = startY;
+
+                // Draw header row
+                doc.setFillColor(100, 100, 100);
+                doc.rect(currentX, currentY, tableWidth, 8, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'bold');
+
+                headers.forEach((header, index) => {
+                    doc.text(header, currentX + 2, currentY + 5);
+                    currentX += colWidths[index];
+                });
+
+                currentY += 8;
+                doc.setTextColor(0, 0, 0);
+                doc.setFont(undefined, 'normal');
+
+                // Draw schedule rows
+                schedules.forEach((schedule, rowIndex) => {
+                    currentX = startX;
+
+                    // Alternate row colors
+                    if (rowIndex % 2 === 0) {
+                        doc.setFillColor(240, 240, 240);
+                        doc.rect(currentX, currentY, tableWidth, 8, 'F');
+                    }
+
+                    const rowData = [
+                        `${formatTime(schedule.start_time?.substring(0, 5) || '')} - ${formatTime(schedule.end_time?.substring(0, 5) || '')}`,
+                        schedule.day_of_week || '',
+                        schedule.course_code || '',
+                        schedule.course_name || '',
+                        schedule.section_name || '',
+                        schedule.room_name || 'Online',
+                        schedule.current_students?.toString() || '',
+                        `${schedule.lecture_units || '0'}/${schedule.lab_units || '0'}`
+                    ];
+
+                    rowData.forEach((cell, colIndex) => {
+                        doc.text(cell.substring(0, 20), currentX + 2, currentY + 5); // Limit text length
+                        currentX += colWidths[colIndex];
+                    });
+
+                    currentY += 8;
+
+                    // Check if we need a new page
+                    if (currentY > doc.internal.pageSize.getHeight() - 20) {
+                        doc.addPage();
+                        currentY = 20;
+                        addPDFHeader(doc, doc.internal.pageSize.getWidth(), 10, true);
+                    }
+                });
+            }
+
+            function exportToPDF() {
+                const {
+                    jsPDF
+                } = window.jspdf;
+
+                // Get filtered schedules
+                const filteredSchedules = getFilteredSchedules();
+
+                if (filteredSchedules.length === 0) {
+                    showNotification('No schedules to export.', 'error');
+                    return;
+                }
+
+                // Create new PDF document
+                const doc = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const margin = 10;
+                const contentWidth = pageWidth - (2 * margin);
+
+                // Add header with university info
+                addPDFHeader(doc, pageWidth, margin);
+
+                let currentY = 60; // Start below header
+
+                // Group schedules by faculty
+                const facultyGroups = {};
+                filteredSchedules.forEach(schedule => {
+                    const facultyName = schedule.faculty_name || 'Unassigned';
+                    if (!facultyGroups[facultyName]) {
+                        facultyGroups[facultyName] = [];
+                    }
+                    facultyGroups[facultyName].push(schedule);
+                });
+
+                // Add content for each faculty
+                Object.keys(facultyGroups).sort().forEach((facultyName, index) => {
+                    // Check if we need a new page
+                    if (currentY > pageHeight - 40 && index > 0) {
+                        doc.addPage();
+                        currentY = margin + 20;
+                        addPDFHeader(doc, pageWidth, margin, true);
+                    }
+
+                    // Add faculty section header
+                    doc.setFillColor(200, 200, 200);
+                    doc.rect(margin, currentY, contentWidth, 8, 'F');
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Faculty: ${facultyName}`, margin + 5, currentY + 5);
+
+                    currentY += 15;
+
+                    // Create table for this faculty
+                    const schedules = facultyGroups[facultyName];
+                    addScheduleTable(doc, schedules, margin, currentY, contentWidth);
+
+                    currentY += (schedules.length * 8) + 20;
+                });
+
+                // Save PDF
+                const semester = window.currentSemester?.semester_name || 'Unknown';
+                const academicYear = window.currentSemester?.academic_year || 'Unknown';
+                const fileName = `Schedule_${semester}_${academicYear}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+                doc.save(fileName);
+                showNotification('PDF file exported successfully!', 'success');
+            }
+
+            function addPDFHeader(doc, pageWidth, margin, isSubsequentPage = false) {
+                const centerX = pageWidth / 2;
+
+                // University header text
+                doc.setFontSize(16);
+                doc.setFont(undefined, 'bold');
+                doc.text('Republic of the Philippines', centerX, 15, {
+                    align: 'center'
+                });
+                doc.text('President Ramon Magsaysay State University', centerX, 22, {
+                    align: 'center'
+                });
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+                doc.text('(formerly Ramon Magsaysay Technological University)', centerX, 27, {
+                    align: 'center'
+                });
+
+                // Semester info
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                const semester = window.currentSemester?.semester_name || 'Unknown';
+                const academicYear = window.currentSemester?.academic_year || 'Unknown';
+                doc.text(`${semester} Semester - Academic Year ${academicYear}`, centerX, 37, {
+                    align: 'center'
+                });
+
+                if (!isSubsequentPage) {
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, centerX, 44, {
+                        align: 'center'
+                    });
+                }
+
+                // Add line separator
+                doc.setDrawColor(0, 0, 0);
+                doc.line(margin, 48, pageWidth - margin, 48);
+            }
+
+            function addScheduleTable(doc, schedules, startX, startY, tableWidth) {
+                const colWidths = [
+                    tableWidth * 0.15, // Time
+                    tableWidth * 0.08, // Days
+                    tableWidth * 0.12, // Course Code
+                    tableWidth * 0.25, // Course Name
+                    tableWidth * 0.15, // Section
+                    tableWidth * 0.12, // Room
+                    tableWidth * 0.08, // Students
+                    tableWidth * 0.05 // Units
+                ];
+
+                // Table headers
+                const headers = ['Time', 'Days', 'Course Code', 'Course Name', 'Section', 'Room', 'Students', 'Units'];
+
+                let currentX = startX;
+                let currentY = startY;
+
+                // Draw header row
+                doc.setFillColor(100, 100, 100);
+                doc.rect(currentX, currentY, tableWidth, 8, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'bold');
+
+                headers.forEach((header, index) => {
+                    doc.text(header, currentX + 2, currentY + 5);
+                    currentX += colWidths[index];
+                });
+
+                currentY += 8;
+                doc.setTextColor(0, 0, 0);
+                doc.setFont(undefined, 'normal');
+
+                // Draw schedule rows
+                schedules.forEach((schedule, rowIndex) => {
+                    currentX = startX;
+
+                    // Alternate row colors
+                    if (rowIndex % 2 === 0) {
+                        doc.setFillColor(240, 240, 240);
+                        doc.rect(currentX, currentY, tableWidth, 8, 'F');
+                    }
+
+                    const rowData = [
+                        `${formatTime(schedule.start_time?.substring(0, 5) || '')} - ${formatTime(schedule.end_time?.substring(0, 5) || '')}`,
+                        schedule.day_of_week || '',
+                        schedule.course_code || '',
+                        schedule.course_name || '',
+                        schedule.section_name || '',
+                        schedule.room_name || 'Online',
+                        schedule.current_students?.toString() || '',
+                        `${schedule.lecture_units || '0'}/${schedule.lab_units || '0'}`
+                    ];
+
+                    rowData.forEach((cell, colIndex) => {
+                        doc.text(cell.substring(0, 20), currentX + 2, currentY + 5); // Limit text length
+                        currentX += colWidths[colIndex];
+                    });
+
+                    currentY += 8;
+
+                    // Check if we need a new page
+                    if (currentY > doc.internal.pageSize.getHeight() - 20) {
+                        doc.addPage();
+                        currentY = 20;
+                        addPDFHeader(doc, doc.internal.pageSize.getWidth(), 10, true);
+                    }
+                });
+            }
+
 
             function filterSchedules() {
                 const yearLevel = document.getElementById('filter-year').value;
@@ -1779,6 +2600,10 @@ ob_start();
         <!-- Include external JavaScript files -->
         <script src="/assets/js/generate_schedules.js"></script>
         <script src="/assets/js/manual_schedules.js"></script>
+        <!-- Add these to your head section -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     </div>
 </div>
 

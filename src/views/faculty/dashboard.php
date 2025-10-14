@@ -135,8 +135,6 @@ ob_start();
                 </div>
             </div>
 
-            
-
             <!-- Total Courses Card -->
             <div class="metric-card bg-white rounded-xl custom-shadow hover-lift slide-in"
                 style="animation-delay: 0.3s">
@@ -201,14 +199,10 @@ ob_start();
                 <div class="p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h3>
                     <div class="space-y-4">
-                        <a href="/faculty/schedule/request"
-                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg transition duration-200 flex items-center justify-center font-medium hover-lift">
-                            <i class="fas fa-plus mr-2"></i>
-                            Submit New Request
-                        </a>
+                       
 
                         <a href="/faculty/schedule"
-                            class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-lg transition duration-200 flex items-center justify-center font-medium hover-lift">
+                            class="w-full bg-yellow-500 hover:bg-yellow-200 text-yellow-700 px-4 py-3 rounded-lg transition duration-200 flex items-center justify-center font-medium hover-lift">
                             <i class="fas fa-calendar-alt mr-2"></i>
                             View My Schedule
                         </a>
@@ -253,11 +247,7 @@ ob_start();
                         </div>
                         <h3 class="text-lg font-medium text-gray-900 mb-2">No schedules assigned</h3>
                         <p class="text-gray-500 mb-6">You don't have any teaching schedules assigned yet.</p>
-                        <a href="/faculty/schedule/request"
-                            class="inline-flex items-center px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition duration-200">
-                            <i class="fas fa-plus mr-2"></i>
-                            Submit Schedule Request
-                        </a>
+                        
                     </div>
                 <?php else: ?>
                     <table class="min-w-full divide-y divide-gray-200">
