@@ -1995,8 +1995,8 @@ class ChairController
             foreach ($schedules as $existingSchedule) {
                 if (
                     $existingSchedule['course_id'] == $course['course_id'] &&
-                    $existingSchedule['section_id'] == $section['section_id'] &&
-                    ($existingSchedule['component_type'] ?? 'main') === ($component ?? 'main')
+                    $existingSchedule['section_id'] == $section['section_id']
+            
                 ) {
                     $alreadyScheduled = true;
                     error_log("SKIP: {$courseDetails['course_code']} ({$component}) already scheduled for section {$section['section_name']}");
@@ -2362,10 +2362,6 @@ class ChairController
         return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
     }
 
-    /**
-     * NEW: Check for room assignment conflicts in pending assignments (not yet in DB)
-     * This prevents multiple sections from being assigned to the same lab at the same time
-     */
     private function hasRoomAssignmentConflict(&$roomAssignments, $roomId, $day, $startTime, $endTime)
     {
         if (!isset($roomAssignments[$roomId])) {
@@ -3256,10 +3252,6 @@ class ChairController
         return $canTake;
     }
 
-    /**
-     * Get workload limits based on employment type
-     * UPDATED: Removed minimum unit requirements
-     */
     private function getFacultyWorkloadLimits($employmentType)
     {
         // Normalize employment type
@@ -3632,10 +3624,6 @@ class ChairController
             return false;
         }
 
-        // --- In-Memory Updates (Only proceeds if DB update was successful) ---
-
-        // Determine the new faculty name once
-        // Assuming $this->getFaculty() fetches the faculty details and returns the name/details
         $newFacultyName = $this->getFaculty($newFacultyId, $collegeId);
 
         // 3. Update broad $schedules array (for global consistency)
@@ -3649,9 +3637,7 @@ class ChairController
         }
         unset($schedule); // Highly important to break the reference after loop
 
-        // 4. Restructure $facultyAssignments array (from old reassignCourseToFaculty)
-
-        // a. Remove from original faculty
+       
         unset($facultyAssignments[$fromFacultyId][$assignmentIndex]);
 
         // b. Reindex the array to avoid gaps in $fromFacultyId's list
@@ -3977,7 +3963,6 @@ class ChairController
             }
         }
 
-        // Check pending room assignments for this generation session
         $roomKey = $roomId . '-' . $day;
         if (isset($roomAssignments[$roomKey])) {
             foreach ($roomAssignments[$roomKey] as $assignment) {
@@ -3996,62 +3981,6 @@ class ChairController
         return true;
     }
 
-    // Enhanced room assignment method
-    private function assignBestRoom($classrooms, $day, $startTime, $endTime, $courseDetails, $schedules, &$roomAssignments)
-    {
-        $subjectType = $courseDetails['subject_type'] ?? 'General Education';
-        $hasLab = ($courseDetails['lab_hours'] ?? 0) > 0;
-        $courseCode = $courseDetails['course_code'] ?? '';
-
-        error_log("Looking for room for $courseCode on $day at $startTime-$endTime (Lab required: " . ($hasLab ? 'YES' : 'NO') . ")");
-
-        // Sort classrooms by preference
-        $sortedRooms = $classrooms;
-        usort($sortedRooms, function ($a, $b) use ($hasLab, $subjectType) {
-            // Prioritize lab rooms for courses with lab components
-            if ($hasLab) {
-                $aIsLab = (stripos($a['room_type'], 'lab') !== false || stripos($a['room_name'], 'lab') !== false);
-                $bIsLab = (stripos($b['room_type'], 'lab') !== false || stripos($b['room_name'], 'lab') !== false);
-
-                if ($aIsLab && !$bIsLab) return -1;
-                if (!$aIsLab && $bIsLab) return 1;
-            }
-
-            // Then by capacity (smaller rooms first for efficiency)
-            return ($a['capacity'] ?? 30) <=> ($b['capacity'] ?? 30);
-        });
-
-        foreach ($sortedRooms as $room) {
-            $roomId = $room['room_id'];
-            $roomName = $room['room_name'];
-            $roomType = $room['room_type'] ?? 'classroom';
-
-            if ($this->isRoomAvailable($roomId, $day, $startTime, $endTime, $schedules, $roomAssignments)) {
-                // Record the room assignment
-                $roomKey = $roomId . '-' . $day;
-                if (!isset($roomAssignments[$roomKey])) {
-                    $roomAssignments[$roomKey] = [];
-                }
-
-                $roomAssignments[$roomKey][] = [
-                    'start_time' => $startTime,
-                    'end_time' => $endTime,
-                    'course_code' => $courseCode,
-                    'room_id' => $roomId,
-                    'room_name' => $roomName
-                ];
-
-                error_log("Assigned room: $roomName (ID: $roomId, Type: $roomType) for $courseCode on $day at $startTime-$endTime");
-                return $roomId;
-            } else {
-                error_log("Room $roomName (ID: $roomId) not available for $courseCode on $day at $startTime-$endTime");
-            }
-        }
-
-        error_log("No available rooms found for $courseCode on $day at $startTime-$endTime");
-        return null; // No room available
-    }
-
     private function timeOverlap($start1, $end1, $start2, $end2)
     {
         $start1Time = strtotime($start1);
@@ -4059,34 +3988,6 @@ class ChairController
         $start2Time = strtotime($start2);
         $end2Time = strtotime($end2);
         return $start1Time < $end2Time && $start2Time < $end1Time;
-    }
-
-    private function processManualSchedules($schedulesData, $currentSemester, $departmentId)
-    {
-        $schedules = [];
-        foreach ($schedulesData as $schedule) {
-            $errors = $this->validateSchedule($schedule, $departmentId);
-            if (empty($errors)) {
-                $response = $this->callSchedulingService('POST', 'schedules', [
-                    'course_id' => $schedule['course_id'],
-                    'faculty_id' => $schedule['faculty_id'],
-                    'room_id' => $schedule['room_id'],
-                    'section_id' => $schedule['section_id'],
-                    'day_of_week' => $schedule['day_of_week'],
-                    'start_time' => $schedule['start_time'],
-                    'end_time' => $schedule['end_time'],
-                    'semester_id' => $currentSemester['semester_id'],
-                    'curriculum_id' => $schedule['curriculum_id']
-                ]);
-                if ($response['code'] === 200) {
-                    $schedules[] = $response['data'];
-                }
-            } else {
-                $error = implode(", ", $errors);
-                error_log("Validation errors in manual schedule: " . $error);
-            }
-        }
-        return $schedules;
     }
 
     private function getFacultySpecializations($departmentId, $collegeId, $semesterType = 'regular')
@@ -4798,7 +4699,7 @@ class ChairController
         )
         GROUP BY c.room_id
         ORDER BY c.room_name
-    ";
+        ";
                 $stmt = $this->db->prepare($query);
 
                 $params = [
