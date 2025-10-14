@@ -1987,6 +1987,28 @@ class ChairController
         foreach ($sectionsForCourse as $section) {
             $sectionScheduledSuccessfully = false;
 
+            // NEW: Check if this course-section-component combination is already scheduled
+            $scheduleKey = $course['course_id'] . '-' . $section['section_id'] . '-' . ($component ?? 'main');
+
+            // Check if already scheduled in current generation
+            $alreadyScheduled = false;
+            foreach ($schedules as $existingSchedule) {
+                if (
+                    $existingSchedule['course_id'] == $course['course_id'] &&
+                    $existingSchedule['section_id'] == $section['section_id'] &&
+                    ($existingSchedule['component_type'] ?? 'main') === ($component ?? 'main')
+                ) {
+                    $alreadyScheduled = true;
+                    error_log("SKIP: {$courseDetails['course_code']} ({$component}) already scheduled for section {$section['section_name']}");
+                    break;
+                }
+            }
+
+            if ($alreadyScheduled) {
+                $scheduledSections[] = $section['section_id'];
+                continue;
+            }
+
             foreach ($timeSlots as $timeSlot) {
                 list($startTime, $endTime, $slotDuration) = $timeSlot;
 
@@ -2025,25 +2047,22 @@ class ChairController
                     continue;
                 }
 
-                // ENHANCED: Room assignment with shared lab support
-                $roomAssignmentSuccess = true;
-                $dayRoomAssignments = [];
+                // CRITICAL FIX: Use ONE room for ALL days of the same course-section
                 $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
+                $needsLabRoom = $isLab || ($courseDetails['lab_hours'] ?? 0) > 0;
+                $roomPreference = $needsLabRoom ? 'laboratory' : 'lecture';
 
-                foreach ($targetDays as $day) {
-                    $roomId = null;
-                    $roomName = 'Online';
-                    $scheduleType = 'Online';
+                // Find ONE room that's available for ALL target days
+                $sharedRoom = null;
+                $roomAvailableAllDays = false;
 
-                    if ($forceF2F || $subjectType === 'Professional Course') {
-                        $needsLabRoom = $isLab || ($courseDetails['lab_hours'] ?? 0) > 0;
-                        $roomPreference = $needsLabRoom ? 'laboratory' : 'classroom';
-
-                        // ENHANCED: Use shared lab room support
-                        $room = $this->getSpecificRoomType(
+                if ($forceF2F || $subjectType === 'Professional Course') {
+                    // Check if a single room is available for all days
+                    foreach ($targetDays as $checkDay) {
+                        $testRoom = $this->getSpecificRoomType(
                             $departmentId,
                             $section['max_students'],
-                            $day,
+                            $checkDay,
                             $startTime,
                             $endTime,
                             $schedules,
@@ -2052,47 +2071,44 @@ class ChairController
                             $collegeId
                         );
 
-                        if ($room && $room['room_id']) {
-                            $roomId = $room['room_id'];
-                            $roomName = $room['room_name'];
-                            $scheduleType = 'F2F';
+                        if (!$testRoom || !$testRoom['room_id']) {
+                            $roomAvailableAllDays = false;
+                            break;
+                        }
 
-                            // Log shared lab usage
-                            if ($needsLabRoom && isset($room['access_type']) && $room['access_type'] === 'SHARED_LAB') {
-                                error_log("SHARED LAB ASSIGNED: {$roomName} for {$courseDetails['course_code']} ({$component})");
-                            }
-                        } else {
-                            error_log("No suitable {$roomPreference} room available for {$courseDetails['course_code']} ({$component}) on $day");
-                            $roomAssignmentSuccess = false;
+                        if (!$sharedRoom) {
+                            $sharedRoom = $testRoom;
+                            $roomAvailableAllDays = true;
+                        } elseif ($sharedRoom['room_id'] !== $testRoom['room_id']) {
+                            // Different room needed for different days - not ideal but acceptable
+                            error_log("WARNING: Different rooms available on different days for {$courseDetails['course_code']}");
+                            $roomAvailableAllDays = false;
                             break;
                         }
                     }
 
-                    $dayRoomAssignments[$day] = [
-                        'room_id' => $roomId,
-                        'room_name' => $roomName,
-                        'schedule_type' => $scheduleType
-                    ];
+                    if (!$roomAvailableAllDays || !$sharedRoom) {
+                        error_log("No consistent room available for all days for {$courseDetails['course_code']} ({$component})");
+                        continue; // Try next time slot
+                    }
+                } else {
+                    // Online course
+                    $sharedRoom = ['room_id' => null, 'room_name' => 'Online'];
+                    $roomAvailableAllDays = true;
                 }
 
-                if (!$roomAssignmentSuccess) {
-                    continue; // Try next time slot
-                }
-
-                // Save schedules for all days
+                // Save schedules for all days with the SAME room
                 $allDaysSuccess = true;
                 $savedScheduleIds = [];
 
                 foreach ($targetDays as $day) {
-                    $roomAssignment = $dayRoomAssignments[$day];
-
                     $scheduleData = [
                         'course_id' => $course['course_id'],
                         'section_id' => $section['section_id'],
-                        'room_id' => $roomAssignment['room_id'],
+                        'room_id' => $sharedRoom['room_id'],
                         'semester_id' => $currentSemester['semester_id'],
                         'faculty_id' => $facultyId,
-                        'schedule_type' => $roomAssignment['schedule_type'],
+                        'schedule_type' => $sharedRoom['room_id'] ? 'F2F' : 'Online',
                         'day_of_week' => $day,
                         'start_time' => $startTime,
                         'end_time' => $endTime,
@@ -2101,7 +2117,7 @@ class ChairController
                         'course_code' => $courseDetails['course_code'],
                         'course_name' => $courseDetails['course_name'],
                         'faculty_name' => $this->getFaculty($facultyId, $collegeId),
-                        'room_name' => $roomAssignment['room_name'],
+                        'room_name' => $sharedRoom['room_name'],
                         'section_name' => $section['section_name'],
                         'year_level' => $section['year_level'],
                         'department_id' => $departmentId,
@@ -2122,13 +2138,12 @@ class ChairController
                     // Update tracking
                     $this->updateSectionScheduleTracker($sectionScheduleTracker, $section['section_id'], $day, $startTime, $endTime);
 
-                    if ($roomAssignment['room_id']) {
-                        // ENHANCED: Update room assignments tracker properly
-                        if (!isset($roomAssignments[$roomAssignment['room_id']])) {
-                            $roomAssignments[$roomAssignment['room_id']] = [];
+                    if ($sharedRoom['room_id']) {
+                        if (!isset($roomAssignments[$sharedRoom['room_id']])) {
+                            $roomAssignments[$sharedRoom['room_id']] = [];
                         }
 
-                        $roomAssignments[$roomAssignment['room_id']][] = [
+                        $roomAssignments[$sharedRoom['room_id']][] = [
                             'day' => $day,
                             'start_time' => $startTime,
                             'end_time' => $endTime,
@@ -2136,15 +2151,13 @@ class ChairController
                             'section_name' => $section['section_name'],
                             'component' => $component
                         ];
-
-                        error_log("ROOM TRACKING: Recorded {$roomAssignment['room_name']} (ID: {$roomAssignment['room_id']}) for {$courseDetails['course_code']} on $day at $startTime-$endTime");
                     }
 
                     $this->updateUsedTimeSlots($usedTimeSlots, $day, $startTime, $endTime);
                 }
 
                 if ($allDaysSuccess) {
-                    // Update faculty assignments
+                    // Update faculty assignments - ONE entry for the entire course schedule
                     $facultyAssignments[] = [
                         'faculty_id' => $facultyId,
                         'course_id' => $course['course_id'],
@@ -2162,7 +2175,7 @@ class ChairController
                     $scheduledSections[] = $section['section_id'];
                     $sectionScheduledSuccessfully = true;
 
-                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} with faculty $facultyId");
+                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} in {$sharedRoom['room_name']} with faculty $facultyId");
                     break; // Move to next section
                 } else {
                     // Rollback saved schedules for this failed attempt
@@ -3742,11 +3755,22 @@ class ChairController
 
     private function getAvailableRoom($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $forceF2F = false)
     {
-        // First query: Department-specific rooms
+        // First query: Get rooms that belong to this department OR are shared with this department
         $stmt = $this->db->prepare("
-        SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
+        SELECT DISTINCT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id,
+               -- Priority indicator: 0 = owned by dept, 1 = shared from other dept
+               CASE WHEN r.department_id = :department_id THEN 0 ELSE 1 END as priority_level
         FROM classrooms r
-        WHERE r.capacity >= :capacity AND r.department_id = :department_id
+        LEFT JOIN classroom_departments cd ON r.room_id = cd.classroom_id
+        WHERE r.capacity >= :capacity 
+        AND r.availability = 'available'
+        AND (
+            -- Room directly belongs to this department
+            r.department_id = :department_id2 
+            OR 
+            -- Room is shared with this department from other departments
+            cd.department_id = :department_id3
+        )
         AND NOT EXISTS (
             SELECT 1 FROM schedules s
             WHERE s.room_id = r.room_id
@@ -3754,10 +3778,16 @@ class ChairController
             AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
             AND s.semester_id = :semester_id
         )
+        ORDER BY 
+            priority_level ASC,  -- First use own department rooms, then shared ones
+            ABS(r.capacity - :capacity2) ASC  -- Then closest capacity fit
         ");
         $stmt->execute([
             ':department_id' => $departmentId,
+            ':department_id2' => $departmentId,
+            ':department_id3' => $departmentId,
             ':capacity' => $maxStudents,
+            ':capacity2' => $maxStudents,
             ':day' => $day,
             ':start_time' => $startTime,
             ':end_time' => $endTime,
@@ -3767,18 +3797,30 @@ class ChairController
         $availableRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($availableRooms as $room) {
             if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                error_log("Found available room: {$room['room_name']} (Priority: " .
+                    ($room['priority_level'] == 0 ? 'Own Department' : 'Shared Department') . ")");
                 return $room;
             } else {
                 error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
             }
         }
 
-        // If no department-specific room or not forcing F2F, try all rooms
+        // If no department-specific or shared room found, and not forcing F2F, try all available rooms
         if (!$forceF2F || empty($availableRooms)) {
             $stmt = $this->db->prepare("
-            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id
+            SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id,
+                   -- Check if room belongs to or is shared with our department
+                   CASE 
+                     WHEN r.department_id = :department_id THEN 0 
+                     WHEN EXISTS (
+                       SELECT 1 FROM classroom_departments cd 
+                       WHERE cd.classroom_id = r.room_id AND cd.department_id = :department_id2
+                     ) THEN 1 
+                     ELSE 2 
+                   END as priority_level
             FROM classrooms r
             WHERE r.capacity >= :capacity
+            AND r.availability = 'available'
             AND NOT EXISTS (
                 SELECT 1 FROM schedules s
                 WHERE s.room_id = r.room_id
@@ -3786,17 +3828,30 @@ class ChairController
                 AND NOT (:end_time <= s.start_time OR :start_time >= s.end_time)
                 AND s.semester_id = :semester_id
             )
-        ");
+            ORDER BY 
+                priority_level ASC,  -- Priority: own dept -> shared dept -> other dept
+                ABS(r.capacity - :capacity2) ASC
+            ");
             $stmt->execute([
+                ':department_id' => $departmentId,
+                ':department_id2' => $departmentId,
                 ':capacity' => $maxStudents,
+                ':capacity2' => $maxStudents,
                 ':day' => $day,
                 ':start_time' => $startTime,
                 ':end_time' => $endTime,
                 ':semester_id' => $_SESSION['current_semester']['semester_id']
             ]);
+
             $allRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($allRooms as $room) {
                 if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                    $priorityType = match ($room['priority_level']) {
+                        0 => 'Own Department',
+                        1 => 'Shared Department',
+                        2 => 'Other Department'
+                    };
+                    error_log("Found available room from all pools: {$room['room_name']} (Priority: $priorityType)");
                     return $room;
                 } else {
                     error_log("Room {$room['room_name']} (ID: {$room['room_id']}) conflicted for day $day");
@@ -3804,7 +3859,7 @@ class ChairController
             }
         }
 
-        error_log("No available room found for day $day at $startTime-$endTime with capacity >= $maxStudents");
+        error_log("No available room found for department $departmentId, day $day at $startTime-$endTime with capacity >= $maxStudents");
         return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
     }
 
@@ -4475,7 +4530,7 @@ class ChairController
                 throw new Exception("Invalid department ID or semester ID.");
             }
 
-                    $query = "
+            $query = "
                     UPDATE classrooms c
                     LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
                     SET c.availability = 'available'
@@ -4525,40 +4580,40 @@ class ChairController
 
             // Get all relevant classrooms (labs and shared rooms)
             $query = "
-        SELECT 
-            c.room_id,
-            c.room_type,
-            c.shared,
-            c.availability AS current_availability,
-            COUNT(s.schedule_id) AS schedule_count,
-            GROUP_CONCAT(s.time_slot) AS time_slots
-        FROM classrooms c
-        LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id3
-        JOIN departments d ON c.department_id = d.department_id
-        LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
-        WHERE (
-            -- Owned by this department
-            c.department_id = :department_id1
-            OR 
-            -- College-shared rooms (same college, shared=0)
-            (
-                c.shared = 0 
-                AND d.college_id = (
-                    SELECT college_id 
-                    FROM departments 
-                    WHERE department_id = :department_id2
+                SELECT 
+                    c.room_id,
+                    c.room_type,
+                    c.shared,
+                    c.availability AS current_availability,
+                    COUNT(s.schedule_id) AS schedule_count,
+                    GROUP_CONCAT(s.time_slot) AS time_slots
+                FROM classrooms c
+                LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id3
+                JOIN departments d ON c.department_id = d.department_id
+                LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
+                WHERE (
+                    -- Owned by this department
+                    c.department_id = :department_id1
+                    OR 
+                    -- College-shared rooms (same college, shared=0)
+                    (
+                        c.shared = 0 
+                        AND d.college_id = (
+                            SELECT college_id 
+                            FROM departments 
+                            WHERE department_id = :department_id2
+                        )
+                    )
+                    OR 
+                    -- Specifically shared with this department (shared=1)
+                    (
+                        c.shared = 1 
+                        AND cd.department_id = :department_id3
+                    )
                 )
-            )
-            OR 
-            -- Specifically shared with this department (shared=1)
-            (
-                c.shared = 1 
-                AND cd.department_id = :department_id3
-            )
-        )
-        AND (c.room_type = 'laboratory' OR c.shared = 1)
-        GROUP BY c.room_id, c.room_type, c.shared, c.current_availability
-    ";
+                AND (c.room_type = 'laboratory' OR c.shared = 1)
+                GROUP BY c.room_id, c.room_type, c.shared, c.current_availability
+            ";
             $stmt = $this->db->prepare($query);
             $params = [
                 ':current_semester_id' => $currentSemesterId,
