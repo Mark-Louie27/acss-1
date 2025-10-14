@@ -1995,8 +1995,8 @@ class ChairController
             foreach ($schedules as $existingSchedule) {
                 if (
                     $existingSchedule['course_id'] == $course['course_id'] &&
-                    $existingSchedule['section_id'] == $section['section_id']
-            
+                    $existingSchedule['section_id'] == $section['section_id'] &&
+                    ($existingSchedule['component_type'] ?? 'main') === ($component ?? 'main')
                 ) {
                     $alreadyScheduled = true;
                     error_log("SKIP: {$courseDetails['course_code']} ({$component}) already scheduled for section {$section['section_name']}");
@@ -3637,7 +3637,6 @@ class ChairController
         }
         unset($schedule); // Highly important to break the reference after loop
 
-       
         unset($facultyAssignments[$fromFacultyId][$assignmentIndex]);
 
         // b. Reindex the array to avoid gaps in $fromFacultyId's list
@@ -3963,6 +3962,7 @@ class ChairController
             }
         }
 
+        // Check pending room assignments for this generation session
         $roomKey = $roomId . '-' . $day;
         if (isset($roomAssignments[$roomKey])) {
             foreach ($roomAssignments[$roomKey] as $assignment) {
