@@ -1,6 +1,24 @@
 <?php
 // curriculum.php
 ob_start();
+
+// Get department ID
+$userDepartmentId = $_SESSION['department_id'] ?? null;
+// Fetch college logo based on department ID
+$collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
+if ($userDepartmentId) {
+    try {
+        $db = (new Database())->connect();
+        $stmt = $db->prepare("SELECT c.logo_path FROM colleges c JOIN departments d ON c.college_id = d.college_id WHERE d.department_id = :department_id");
+        $stmt->execute([':department_id' => $userDepartmentId]);
+        $logoPath = $stmt->fetchColumn();
+        if ($logoPath) {
+            $collegeLogoPath = $logoPath;
+        }
+    } catch (PDOException $e) {
+        error_log("layout: Error fetching college logo - " . $e->getMessage());
+    }
+}
 ?>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -630,7 +648,190 @@ ob_start();
     </div>
 </div>
 
+<script>
+    function printCourses(curriculumId) {
+        // Create a new window for printing
+        const printWindow = window.open("", "", "height=600,width=800");
+        if (!printWindow) {
+            alert("Please allow popups to print the curriculum.");
+            return;
+        }
+
+        // Fetch courses data from the table rows in #coursesContainer
+        const courses = [];
+        const curricula = {
+            curriculum_name: document
+                .getElementById("viewCoursesTitle")
+                ?.textContent.replace(/Courses for |Curriculum Courses - Print/g, "")
+                .trim() || "Unnamed Curriculum",
+        };
+        const rows = document.querySelectorAll("#coursesContainer tbody tr");
+        if (rows.length === 0) {
+            printWindow.document.write(
+                "<html><body><p>No courses available to print.</p></body></html>"
+            );
+            printWindow.print();
+            printWindow.close();
+            return;
+        }
+
+        rows.forEach((row) => {
+            const cells = row.getElementsByTagName("td");
+            if (cells.length >= 4) {
+                courses.push({
+                    code: cells[0].textContent.trim() || "N/A",
+                    name: cells[1].textContent.trim() || "N/A",
+                    units: cells[2].textContent.trim() || "N/A",
+                    subjectType: cells[3].querySelector("span")?.textContent.trim() || "N/A",
+                    yearLevel: row
+                        .closest("table")
+                        .previousElementSibling?.textContent.split("-")[0]
+                        .trim() || "N/A",
+                    semester: row
+                        .closest("table")
+                        .previousElementSibling?.textContent.split("-")[1]
+                        .trim() || "N/A",
+                });
+            }
+        });
+
+        // Get current user's name (fallback to 'Anonymous' if not available)
+        const printedBy =
+            window.currentUser?.name ||
+            document.getElementById("userName")?.textContent.trim() ||
+            "Anonymous";
+
+        // Generate printable HTML content
+        let htmlContent = `
+        <html>
+        <head>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20mm;
+                    color: #333;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 20mm;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    width: 100%;
+                }
+                .header img {
+                    max-width: 100px;
+                    max-height: 100px;
+                }
+                .header .logo-left {
+                    margin-right: auto;
+                }
+                .header .logo-right {
+                    margin-left: auto;
+                }
+                .header-text {
+                    flex-grow: 1;
+                    text-align: center;
+                }
+                .header h1 {
+                    font-size: 24px;
+                    margin: 5px 0;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20mm;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f5f5f5;
+                    font-weight: bold;
+                }
+                .footer {
+                    text-align: center;
+                    font-size: 12px;
+                    color: #666;
+                    position: fixed;
+                    bottom: 20mm;
+                    width: 100%;
+                }
+                @media print {
+                    body {
+                        margin: 0;
+                    }
+                    .header img {
+                        width: 80px;
+                        height: 80px;
+                    }
+                    .footer {
+                        position: fixed;
+                        bottom: 0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="University Logo" class="university-logo">
+                <div class="header-text">
+                    <h1>President Ramon Magsaysay State University</h1>
+                    <h2>${curricula.curriculum_name}</h2>
+                </div>
+                 <img src="<?= htmlspecialchars($collegeLogoPath) ?>" alt="College Logo" class="logo-right" onerror="handleLogoError(this)">
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year Level</th>
+                        <th>Semester</th>
+                        <th>Course Code</th>
+                        <th>Course Name</th>
+                        <th>Units</th>
+                        <th>Subject Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+        courses.forEach((course) => {
+            htmlContent += `
+            <tr>
+                <td>${course.yearLevel}</td>
+                <td>${course.semester}</td>
+                <td>${course.code}</td>
+                <td>${course.name}</td>
+                <td>${course.units}</td>
+                <td>${course.subjectType}</td>
+            </tr>
+        `;
+        });
+
+        htmlContent += `
+                </tbody>
+            </table>
+            <div class="footer">
+                <p>Printed by: ${printedBy}</p>
+            </div>
+        </body>
+        </html>
+    `;
+
+        // Write content to print window and trigger print
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    }
+</script>
+
 <script src="/assets/js/curriculum.js"></script>
+
+
 
 <?php
 $content = ob_get_clean();

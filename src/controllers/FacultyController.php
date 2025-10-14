@@ -367,12 +367,11 @@ class FacultyController
         // Get department and college details
         $deptStmt = $this->db->prepare("
         SELECT d.department_name, c.college_name 
-        FROM program_chairs pc 
-        JOIN faculty f ON pc.faculty_id = f.faculty_id
-        JOIN programs p ON pc.program_id = p.program_id 
-        JOIN departments d ON p.department_id = d.department_id 
+        FROM faculty f
+        JOIN users u ON f.user_id = u.user_id 
+        JOIN departments d ON u.department_id = d.department_id 
         JOIN colleges c ON d.college_id = c.college_id 
-        WHERE f.user_id = ? AND pc.is_current = 1
+        WHERE f.user_id = ? 
         ");
         $deptStmt->execute([$chairId]);
         $department = $deptStmt->fetch(PDO::FETCH_ASSOC);
