@@ -510,20 +510,90 @@ class DeanController
         }
     }
 
-    private function getPendingApprovals($collegeId)
+    // Update your getStats() function in your controller
+    public function getStats()
+    {
+        $stats = ['total_pending' => 0];
+        $currentSemester = $this->getCurrentSemester();
+        if ($currentSemester) {
+            try {
+                $stmt = $this->db->prepare("
+                SELECT COUNT(DISTINCT s.schedule_id) as total_pending
+                FROM schedules s
+                WHERE s.semester_id = :semester_id 
+                AND s.status IN ('Pending', 'Faculty_Submitted', 'Dean_Pending')
+            ");
+                $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
+                $stats['total_pending'] = (int) $stmt->fetchColumn();
+                error_log("getStats: Found {$stats['total_pending']} pending schedules for semester {$currentSemester['semester_id']}");
+            } catch (PDOException $e) {
+                error_log("getStats: PDO Error - " . $e->getMessage());
+                $stats['total_pending'] = 0;
+            }
+        } else {
+            error_log("getStats: No current semester found");
+        }
+        return $stats;
+    }
+
+    // Update your getPendingApprovals() function (if it exists, or add this)
+    public function getPendingApprovals($collegeId)
     {
         try {
-            $query = "
-                SELECT COUNT(*) 
-                FROM curriculum_approvals ca 
-                JOIN curricula c ON ca.curriculum_id = c.curriculum_id 
-                JOIN departments d ON c.department_id = d.department_id 
-                WHERE d.college_id = :college_id AND ca.status = 'Pending' AND ca.approval_level = 2";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':college_id' => $collegeId]);
-            return $stmt->fetchColumn();
+            $currentSemester = $this->getCurrentSemester();
+            if (!$currentSemester) {
+                return 0;
+            }
+
+            $stmt = $this->db->prepare("
+            SELECT COUNT(DISTINCT s.schedule_id) as pending_count
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN departments d ON c.department_id = d.department_id
+            WHERE d.college_id = :college_id 
+            AND s.semester_id = :semester_id
+            AND s.status IN ('Pending', 'Faculty_Submitted', 'Dean_Pending')
+        ");
+            $stmt->execute([
+                ':college_id' => $collegeId,
+                ':semester_id' => $currentSemester['semester_id']
+            ]);
+
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int) ($result['pending_count'] ?? 0);
         } catch (PDOException $e) {
-            error_log("Error fetching pending approvals: " . $e->getMessage());
+            error_log("getPendingApprovals: PDO Error - " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    public function getPendingFacultyCount()
+    {
+        try {
+            $userId = $_SESSION['user_id'] ?? null;
+            if (!$userId) {
+                return 0;
+            }
+
+            $collegeId = $this->getDeanCollegeId($userId);
+            if (!$collegeId) {
+                return 0;
+            }
+
+            $stmt = $this->db->prepare("
+            SELECT COUNT(DISTINCT u.user_id) as pending_count
+            FROM users u
+            JOIN faculty f ON u.user_id = f.user_id
+            JOIN departments d ON u.department_id = d.department_id
+            WHERE d.college_id = :college_id 
+            AND u.is_active = 0 
+            AND u.role_id IN (5, 6)
+        ");
+            $stmt->execute([':college_id' => $collegeId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int) ($result['pending_count'] ?? 0);
+        } catch (PDOException $e) {
+            error_log("getPendingFacultyCount: PDO Error - " . $e->getMessage());
             return 0;
         }
     }
@@ -875,30 +945,6 @@ class DeanController
         error_log("manageSchedule: Fetched " . count($allSchedules) . " grouped schedules for college $collegeId, grouped into " . count($schedules) . " departments");
 
         require_once __DIR__ . '/../views/dean/manage_schedules.php';
-    }
-
-    public function getStats()
-    {
-        $stats = ['total_pending' => 0];
-        $currentSemester = $this->getCurrentSemester();
-        if ($currentSemester) {
-            try {
-                $stmt = $this->db->prepare("
-                    SELECT COUNT(DISTINCT s.schedule_id) as total_pending
-                    FROM schedules s
-                    WHERE s.semester_id = :semester_id AND s.status = 'Dean_Approved'
-                ");
-                $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
-                $stats['total_pending'] = (int) $stmt->fetchColumn();
-                error_log("getStats: Found {$stats['total_pending']} pending schedules for semester {$currentSemester['semester_id']}");
-            } catch (PDOException $e) {
-                error_log("getStats: PDO Error - " . $e->getMessage());
-                $stats['total_pending'] = 0;
-            }
-        } else {
-            error_log("getStats: No current semester found");
-        }
-        return $stats;
     }
 
     public function classroom()

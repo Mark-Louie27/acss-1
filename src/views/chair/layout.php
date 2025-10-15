@@ -511,7 +511,7 @@ $modal_content = $modal_content ?? '';
                 <!-- Logo - Always visible -->
                 <a href="/chair/dashboard" class="flex items-center">
                     <img src="<?php echo htmlspecialchars($collegeLogoPath); ?>" alt="College Logo" class="university-logo" onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png'; console.log('Fallback to university logo due to error')">
-                    <span class="text-lg font-heading text-gray-800 ml-2 hidden-mobile sm:inline">ACSS</span>
+                    <span class="text-lg font-heading text-gray-800 ml-2 hidden-mobile sm:inline">Automated Classroom Scheduling System</span>
                 </a>
             </div>
 

@@ -40,6 +40,8 @@ $currentUri = $_SERVER['REQUEST_URI'];
 $deanController = new DeanController();
 $stats = $deanController->getStats();
 $stats = $stats ?? ['total_pending' => 0];
+
+$pendingFacultyCount = $deanController->getPendingFacultyCount();
 ?>
 
 <!DOCTYPE html>
@@ -548,7 +550,7 @@ $stats = $stats ?? ['total_pending' => 0];
                 </button>
                 <a href="/dean/dashboard" class="flex items-center gap-3">
                     <img src="<?php echo htmlspecialchars($collegeLogoPath); ?>" alt="College Logo" class="university-logo" onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png'; console.log('Fallback to university logo due to error')">
-                    <span class="logo-text">ACSS</span>
+                    <span class="logo-text">Automated Classroom Scheduling System</span>
                 </a>
             </div>
 
@@ -658,6 +660,11 @@ $stats = $stats ?? ['total_pending' => 0];
             <a href="/dean/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Manage Faculty</span>
+                <?php if (isset($pendingFacultyCount) && $pendingFacultyCount > 0): ?>
+                    <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        <?php echo $pendingFacultyCount; ?>
+                    </span>
+                <?php endif; ?>
             </a>
 
             <!-- Courses Link 
