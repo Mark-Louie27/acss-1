@@ -195,7 +195,7 @@ if ($userDepartmentId) {
             </div>
         </div>
 
-        <!-- Manual Edit Tab -->
+        <!-- Fixed Manual Edit Tab -->
         <div id="content-manual" class="tab-content <?php echo $activeTab !== 'manual' ? 'hidden' : ''; ?>">
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 <!-- Header Section -->
@@ -289,6 +289,12 @@ if ($userDepartmentId) {
                         </div>
 
                         <div class="flex flex-wrap gap-2">
+                            <!-- View Toggle Button -->
+                            <button id="toggle-view-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="toggleViewMode()">
+                                <i class="fas fa-list mr-1"></i>
+                                <span>List View</span>
+                            </button>
+
                             <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="deleteAllSchedules()">
                                 <i class="fas fa-trash"></i>
                                 <span>Delete All</span>
@@ -302,158 +308,250 @@ if ($userDepartmentId) {
                     </div>
                 </div>
 
-                <!-- Schedule Table -->
-                <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div class="min-w-full">
-                        <!-- Header with days -->
-                        <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                            <div class="px-3 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
-                                <span class="hidden sm:inline">Time</span>
-                                <span class="sm:hidden">⌚</span>
+                <!-- GRID VIEW -->
+                <div id="grid-view" class="block">
+                    <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="min-w-full">
+                            <!-- Header with days -->
+                            <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                                <div class="px-3 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
+                                    <span class="hidden sm:inline">Time</span>
+                                    <span class="sm:hidden">⌚</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                    <span class="hidden sm:inline">Monday</span>
+                                    <span class="sm:hidden">Mon</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                    <span class="hidden sm:inline">Tuesday</span>
+                                    <span class="sm:hidden">Tue</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                    <span class="hidden sm:inline">Wednesday</span>
+                                    <span class="sm:hidden">Wed</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                    <span class="hidden sm:inline">Thursday</span>
+                                    <span class="sm:hidden">Thu</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
+                                    <span class="hidden sm:inline">Friday</span>
+                                    <span class="sm:hidden">Fri</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                                    <span class="hidden sm:inline">Saturday</span>
+                                    <span class="sm:hidden">Sat</span>
+                                </div>
                             </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                <span class="hidden sm:inline">Monday</span>
-                                <span class="sm:hidden">Mon</span>
-                            </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                <span class="hidden sm:inline">Tuesday</span>
-                                <span class="sm:hidden">Tue</span>
-                            </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                <span class="hidden sm:inline">Wednesday</span>
-                                <span class="sm:hidden">Wed</span>
-                            </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                <span class="hidden sm:inline">Thursday</span>
-                                <span class="sm:hidden">Thu</span>
-                            </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
-                                <span class="hidden sm:inline">Friday</span>
-                                <span class="sm:hidden">Fri</span>
-                            </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
-                                <span class="hidden sm:inline">Saturday</span>
-                                <span class="sm:hidden">Sat</span>
+
+                            <!-- Time slots grid -->
+                            <div id="schedule-grid" class="divide-y divide-gray-200">
+                                <?php
+                                $timeSlots = [
+                                    ['07:30', '08:30'],
+                                    ['08:30', '10:00'],
+                                    ['10:00', '11:00'],
+                                    ['11:00', '12:30'],
+                                    ['12:30', '13:30'],
+                                    ['13:00', '14:30'],
+                                    ['14:30', '15:30'],
+                                    ['15:30', '17:00'],
+                                    ['17:00', '18:00']
+                                ];
+
+                                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                ?>
+
+                                <?php foreach ($timeSlots as $slotIndex => $time): ?>
+                                    <div class="grid grid-cols-7 min-h-[100px] hover:bg-gray-50 transition-colors duration-200">
+                                        <!-- Time Column -->
+                                        <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start">
+                                            <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
+                                            <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
+                                        </div>
+
+                                        <!-- Day Columns -->
+                                        <?php foreach ($days as $day): ?>
+                                            <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone"
+                                                data-day="<?php echo $day; ?>"
+                                                data-start-time="<?php echo $time[0]; ?>"
+                                                data-end-time="<?php echo $time[1]; ?>">
+
+                                                <?php
+                                                $schedulesList = [];
+                                                $hasExactStart = false;
+
+                                                foreach ($schedules as $schedule) {
+                                                    if ($schedule['day_of_week'] !== $day) continue;
+
+                                                    $scheduleStart = substr($schedule['start_time'], 0, 5);
+                                                    $scheduleEnd = substr($schedule['end_time'], 0, 5);
+
+                                                    $slotStart = strtotime("1970-01-01 " . $time[0] . ":00");
+                                                    $slotEnd = strtotime("1970-01-01 " . $time[1] . ":00");
+                                                    $schedStart = strtotime("1970-01-01 " . $scheduleStart . ":00");
+                                                    $schedEnd = strtotime("1970-01-01 " . $scheduleEnd . ":00");
+
+                                                    // Check for overlap
+                                                    if ($schedStart < $slotEnd && $schedEnd > $slotStart) {
+                                                        $schedulesList[] = $schedule;
+                                                        if ($scheduleStart === $time[0]) {
+                                                            $hasExactStart = true;
+                                                        }
+                                                    }
+                                                }
+                                                ?>
+
+                                                <?php if (empty($schedulesList)): ?>
+                                                    <button onclick="openAddModalForSlot('<?php echo $day; ?>', '<?php echo $time[0]; ?>', '<?php echo $time[1]; ?>')"
+                                                        class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-2 min-h-[100px]">
+                                                        <i class="fas fa-plus text-sm"></i>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <div class="space-y-1 p-1">
+                                                        <?php foreach ($schedulesList as $schedule):
+                                                            $colors = [
+                                                                'bg-blue-100 border-blue-300 text-blue-800',
+                                                                'bg-green-100 border-green-300 text-green-800',
+                                                                'bg-purple-100 border-purple-300 text-purple-800',
+                                                                'bg-orange-100 border-orange-300 text-orange-800',
+                                                                'bg-pink-100 border-pink-300 text-pink-800'
+                                                            ];
+                                                            $colorClass = $colors[array_rand($colors)];
+
+                                                            $scheduleStart = substr($schedule['start_time'], 0, 5);
+                                                            $isStartCell = ($scheduleStart === $time[0]);
+                                                        ?>
+                                                            <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 draggable cursor-move text-xs"
+                                                                draggable="true"
+                                                                data-schedule-id="<?php echo $schedule['schedule_id']; ?>"
+                                                                data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
+                                                                data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
+                                                                data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>"
+                                                                style="<?php echo !$isStartCell ? 'opacity: 0.5;' : ''; ?>">
+
+                                                                <div class="flex justify-between items-start mb-1">
+                                                                    <div class="font-semibold truncate flex-1">
+                                                                        <?php echo htmlspecialchars($schedule['course_code']); ?>
+                                                                        <?php if (!$isStartCell): ?>
+                                                                            <span class="text-xs text-gray-500">(cont.)</span>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                    <?php if ($isStartCell): ?>
+                                                                        <div class="flex space-x-1 flex-shrink-0 ml-1">
+                                                                            <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 no-print">
+                                                                                <i class="fas fa-edit text-xs"></i>
+                                                                            </button>
+                                                                            <button onclick="openDeleteSingleModal(
+                                                        '<?php echo $schedule['schedule_id']; ?>', 
+                                                        '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
+                                                        '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
+                                                        '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
+                                                        '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
+                                                        '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
+                                                    )" class="text-red-600 hover:text-red-700 no-print">
+                                                                                <i class="fas fa-trash text-xs"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    <?php endif; ?>
+                                                                </div>
+
+                                                                <div class="opacity-90 truncate">
+                                                                    <?php echo htmlspecialchars($schedule['section_name']); ?>
+                                                                </div>
+
+                                                                <div class="opacity-75 truncate">
+                                                                    <?php echo htmlspecialchars($schedule['faculty_name']); ?>
+                                                                </div>
+
+                                                                <div class="opacity-75 truncate">
+                                                                    <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
+                                                                </div>
+
+                                                                <div class="font-medium mt-1 hidden sm:block">
+                                                                    <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
+                                                                </div>
+                                                            </div>
+                                                        <?php endforeach; ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Time slots -->
-                        <div id="schedule-grid" class="divide-y divide-gray-200">
-                            <?php
-                            $timeSlots = [
-                                ['07:30', '08:30'],
-                                ['08:30', '10:00'],
-                                ['10:00', '11:00'],
-                                ['11:00', '12:30'],
-                                ['12:30', '13:30'],
-                                ['13:00', '14:30'],
-                                ['14:30', '15:30'],
-                                ['15:30', '17:00'],
-                                ['17:00', '18:00']
-                            ];
-
-                            $scheduleGrid = [];
-                            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-                            foreach ($schedules as $schedule) {
-                                $day = $schedule['day_of_week'];
-                                $startTime = substr($schedule['start_time'], 0, 5);
-                                $endTime = substr($schedule['end_time'], 0, 5);
-
-                                if (!isset($scheduleGrid[$day])) {
-                                    $scheduleGrid[$day] = [];
-                                }
-
-                                if (!isset($scheduleGrid[$day][$startTime])) {
-                                    $scheduleGrid[$day][$startTime] = [];
-                                }
-                                $scheduleGrid[$day][$startTime][] = $schedule;
-                            }
-                            ?>
-
-                            <?php foreach ($timeSlots as $time): ?>
-                                <?php
-                                $duration = strtotime($time[1]) - strtotime($time[0]);
-                                $rowSpan = $duration / 7200;
-                                ?>
-                                <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
-                                    <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10" rowspan="<?php echo $rowSpan; ?>">
-                                        <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
-                                        <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
-                                    </div>
-                                    <?php foreach ($days as $day): ?>
-                                        <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative drop-zone"
-                                            data-day="<?php echo $day; ?>"
-                                            data-start-time="<?php echo $time[0]; ?>"
-                                            data-end-time="<?php echo $time[1]; ?>">
-                                            <?php
-                                            $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
-                                            foreach ($schedulesForSlot as $schedule) {
-                                                $scheduleStart = substr($schedule['start_time'], 0, 5);
-                                                $scheduleEnd = substr($schedule['end_time'], 0, 5);
-                                                if ($scheduleStart === $time[0]) {
-                                                    $colors = [
-                                                        'bg-blue-100 border-blue-300 text-blue-800',
-                                                        'bg-green-100 border-green-300 text-green-800',
-                                                        'bg-purple-100 border-purple-300 text-purple-800',
-                                                        'bg-orange-100 border-orange-300 text-orange-800',
-                                                        'bg-pink-100 border-pink-300 text-pink-800'
-                                                    ];
-                                                    $colorClass = $colors[array_rand($colors)];
-                                            ?>
-                                                    <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 draggable cursor-move"
-                                                        draggable="true"
-                                                        data-schedule-id="<?php echo $schedule['schedule_id']; ?>"
-                                                        data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
-                                                        data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
-                                                        data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>">
-                                                        <div class="flex justify-between items-start mb-1">
-                                                            <div class="font-semibold text-xs truncate">
-                                                                <?php echo htmlspecialchars($schedule['course_code']); ?>
-                                                            </div>
-                                                            <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print flex-shrink-0 ml-1">
-                                                                <i class="fas fa-edit"></i>
-                                                            </button>
-                                                            <!-- In your schedule card, the delete button should look like this: -->
-                                                            <button onclick="openDeleteSingleModal(
-                                                                    '<?php echo $schedule['schedule_id']; ?>', 
-                                                                    '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
-                                                                    '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
-                                                                    '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
-                                                                    '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
-                                                                    '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
-                                                                )" class="text-red-600 hover:text-red-700 text-xs no-print flex-shrink-0 ml-1">
-                                                                <i class="fas fa-trash"></i>
-                                                            </button>
-                                                        </div>
-                                                        <div class="text-xs opacity-90 truncate mb-1">
-                                                            <?php echo htmlspecialchars($schedule['section_name']); ?>
-                                                        </div>
-                                                        <div class="text-xs opacity-75 truncate">
-                                                            <?php echo htmlspecialchars($schedule['faculty_name']); ?>
-                                                        </div>
-                                                        <div class="text-xs opacity-75 truncate">
-                                                            <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
-                                                        </div>
-                                                        <div class="text-xs font-medium mt-1 hidden sm:block">
-                                                            <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
-                                                        </div>
-                                                    </div>
-                                                <?php
-                                                }
-                                            }
-                                            if (empty($schedulesForSlot)) {
-                                                ?>
-                                                <button onclick="openAddModalForSlot('<?php echo $day; ?>', '<?php echo $time[0]; ?>', '<?php echo $time[1]; ?>')" class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-2">
-                                                    <i class="fas fa-plus text-sm"></i>
-                                                </button>
-                                            <?php
-                                            }
-                                            ?>
-                                        </div>
+                <!-- LIST VIEW -->
+                <div id="list-view" class="hidden">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Course Code</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Section</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Year Level</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Faculty</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Day</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Time</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Room</th>
+                                        <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    <?php foreach ($schedules as $schedule): ?>
+                                        <tr class="hover:bg-gray-50 transition-colors duration-200 schedule-row" data-schedule-id="<?php echo $schedule['schedule_id']; ?>">
+                                            <td class="px-4 py-3 text-sm text-gray-900 font-medium">
+                                                <?php echo htmlspecialchars($schedule['course_code']); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">
+                                                <?php echo htmlspecialchars($schedule['section_name']); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">
+                                                <?php echo htmlspecialchars($schedule['year_level']); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">
+                                                <?php echo htmlspecialchars($schedule['faculty_name']); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">
+                                                <?php echo htmlspecialchars($schedule['day_of_week']); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">
+                                                <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">
+                                                <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                <div class="flex space-x-2 justify-center">
+                                                    <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 text-sm no-print">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button onclick="openDeleteSingleModal(
+                                                '<?php echo $schedule['schedule_id']; ?>', 
+                                                '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
+                                                '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
+                                                '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
+                                                '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
+                                                '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
+                                            )" class="text-red-600 hover:text-red-700 text-sm no-print">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <?php if (empty($schedules)): ?>
+                                <div class="px-4 py-8 text-center text-gray-500">
+                                    <i class="fas fa-inbox text-3xl mb-2"></i>
+                                    <p class="mt-2">No schedules found</p>
                                 </div>
-                            <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -830,7 +928,7 @@ if ($userDepartmentId) {
                                 <option value="11:30">11:30 AM</option>
                                 <option value="12:00">12:00 PM</option>
                                 <option value="12:30">12:30 PM</option>
-                                <option value="13:00">1:00 PM</option>
+                                <option value="13:00">13:00 PM</option>
                                 <option value="13:30">1:30 PM</option>
                                 <option value="14:00">2:00 PM</option>
                                 <option value="14:30">2:30 PM</option>
@@ -989,6 +1087,24 @@ if ($userDepartmentId) {
                 semester: s.semester ?? '',
                 is_active: s.is_active ?? 1
             })) : [];
+
+            function toggleViewMode() {
+                const gridView = document.getElementById('grid-view');
+                const listView = document.getElementById('list-view');
+                const toggleBtn = document.getElementById('toggle-view-btn');
+
+                if (gridView.classList.contains('hidden')) {
+                    // Switch to Grid View
+                    gridView.classList.remove('hidden');
+                    listView.classList.add('hidden');
+                    toggleBtn.innerHTML = '<i class="fas fa-list mr-1"></i><span>List View</span>';
+                } else {
+                    // Switch to List View
+                    gridView.classList.add('hidden');
+                    listView.classList.remove('hidden');
+                    toggleBtn.innerHTML = '<i class="fas fa-th mr-1"></i><span>Grid View</span>';
+                }
+            }
 
             // Clear filters for manual tab
             function clearFiltersManual() {
