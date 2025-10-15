@@ -586,15 +586,23 @@ $stats = $stats ?? ['total_pending' => 0];
         <div class="p-4 border-b border-gray-700 bg-gray-800/70">
             <div class="flex items-center space-x-3">
                 <?php if (!empty($profilePicture)): ?>
-                    <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md"
+                    <img class="h-12 w-12 rounded-full border-2 border-yellow-400 object-cover shadow-md flex-shrink-0"
                         src="<?php echo htmlspecialchars($profilePicture); ?>" alt="Profile">
                 <?php else: ?>
-                    <div class="h-12 w-12 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    <div class="h-12 w-12 rounded-full border-2 border-yellow-400 bg-yellow-400 flex items-center justify-center text-white text-lg font-bold shadow-md flex-shrink-0">
                         <?php echo strtoupper(substr($_SESSION['first_name'], 0, 1) . substr($_SESSION['last_name'], 0, 1)); ?>
                     </div>
                 <?php endif; ?>
-                <div class="min-w-0">
-                    <p class="font-medium text-white truncate"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
+                <div class="min-w-0 flex-1">
+                    <p class="font-medium text-white truncate">
+                        <?php
+                        // Display title if it exists
+                        if (!empty($_SESSION['title'])) {
+                            echo htmlspecialchars($_SESSION['title'] . ' ');
+                        }
+                        echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']);
+                        ?>
+                    </p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>Director Instructor</span>

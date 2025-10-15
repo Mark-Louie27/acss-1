@@ -547,7 +547,15 @@ if (!$profilePicture) {
                     </div>
                 <?php endif; ?>
                 <div class="min-w-0 flex-1">
-                    <p class="font-medium text-white truncate"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
+                    <p class="font-medium text-white truncate">
+                        <?php
+                        // Display title if it exists
+                        if (!empty($_SESSION['title'])) {
+                            echo htmlspecialchars($_SESSION['title'] . ' ');
+                        }
+                        echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']);
+                        ?>
+                    </p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
                         <span>Faculty</span>

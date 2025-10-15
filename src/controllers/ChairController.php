@@ -1804,7 +1804,7 @@ class ChairController
 
             if (empty($matchingSections) || empty($relevantCourses)) {
                 error_log("generateSchedules: No sections or courses found for curriculum $curriculumId, semester {$currentSemester['semester_name']}");
-                $this->db->commit(); // Commit even if empty to avoid rollback
+                $this->db->commit();
                 return $schedules;
             }
 
@@ -1823,13 +1823,11 @@ class ChairController
             $facultySpecializations = $this->getFacultySpecializations($departmentId, $collegeId, $semesterType);
             error_log("generateSchedules: Faculty specializations count: " . count($facultySpecializations));
 
-            // ADD THIS DEBUG:
             if (!empty($facultySpecializations)) {
                 error_log("DEBUG: First faculty structure: " . print_r($facultySpecializations[0], true));
             } else {
                 error_log("DEBUG: facultySpecializations is empty - checking why");
 
-                // Direct test of the method
                 try {
                     $testResult = $this->getFacultySpecializations($departmentId, $collegeId, $semesterType);
                     error_log("DEBUG: Direct call returned: " . count($testResult) . " results");
@@ -1942,52 +1940,125 @@ class ChairController
 
                         $forceF2F = in_array($subjectType, ['Professional Course', 'Major Course']);
 
-                        $timeSlot = reset($filteredTimeSlots);
-                        $startTime = $timeSlot[0];
-                        $endTime = $timeSlot[1];
-
-                        $facultyId = $this->findBestFaculty(
-                            $facultySpecializations,
-                            $course['course_id'],
-                            $targetDays,
-                            $startTime,
-                            $endTime,
-                            $collegeId,
-                            $departmentId,
-                            $schedules,
-                            $facultyAssignments,
-                            $courseDetails['course_code'],
-                            $section['section_id']
-                        );
-
-                        if (!$facultyId) {
-                            error_log("generateSchedules: No available faculty for {$courseDetails['course_code']} (section {$section['section_name']})");
-                            continue;
-                        }
-
-                        // Record the faculty assignment BEFORE calling scheduling methods
-                        if (!isset($facultyAssignments[$facultyId])) {
-                            $facultyAssignments[$facultyId] = [];
-                        }
-
-                        $facultyAssignments[$facultyId][] = [
-                            'faculty_id' => $facultyId,
-                            'course_id' => $course['course_id'],
-                            'course_code' => $courseDetails['course_code'],
-                            'section_id' => $section['section_id'],
-                            'days' => $targetDays,
-                            'start_time' => $startTime,
-                            'end_time' => $endTime,
-                            'units' => $units,
-                            'hours' => ($lectureHours + $labHours) > 0 ? ($lectureHours + $labHours) : $units
-                        ];
-
                         if ($hasLecture && $hasLab) {
+                            error_log("LECTURE+LAB: Processing {$course['course_code']} with both components");
+
+                            // Find faculty who can teach BOTH components
+                            $unifiedFacultyId = $this->findBestFaculty(
+                                $facultySpecializations,
+                                $course['course_id'],
+                                $targetDays,
+                                $filteredTimeSlots[0][0],
+                                $filteredTimeSlots[0][1],
+                                $collegeId,
+                                $departmentId,
+                                $schedules,
+                                $facultyAssignments,
+                                $courseDetails['course_code'],
+                                $section['section_id']
+                            );
+
+                            if (!$unifiedFacultyId) {
+                                error_log("No faculty available for lecture+lab course {$course['course_code']}");
+                                continue;
+                            }
+
+                            error_log("Selected unified faculty $unifiedFacultyId for {$course['course_code']}");
+
+                            // Find TWO DIFFERENT time slots for lecture and lab
+                            $lectureTimeSlot = null;
+                            $labTimeSlot = null;
+
+                            // Get lecture-duration slots
+                            $lectureSlots = array_filter($filteredTimeSlots, fn($slot) => abs($slot[2] - $lectureDuration) <= 0.5);
+                            $lectureSlots = array_values($lectureSlots);
+
+                            // Get lab-duration slots
+                            $labSlots = array_filter($filteredTimeSlots, fn($slot) => abs($slot[2] - $labDuration) <= 0.5);
+                            $labSlots = array_values($labSlots);
+
+                            error_log("Available slots: " . count($lectureSlots) . " lecture slots, " . count($labSlots) . " lab slots");
+
+                            // Find non-conflicting time slots
+                            $foundValidSlots = false;
+                            foreach ($lectureSlots as $lecSlot) {
+                                foreach ($labSlots as $lbSlot) {
+                                    // Ensure DIFFERENT time slots
+                                    if ($lecSlot[0] === $lbSlot[0] && $lecSlot[1] === $lbSlot[1]) {
+                                        error_log("Skipping: Lecture and lab have same time slot {$lecSlot[0]}-{$lecSlot[1]}");
+                                        continue;
+                                    }
+
+                                    // Check for time overlap
+                                    if ($this->hasTimeConflict($lecSlot[0], $lecSlot[1], $lbSlot[0], $lbSlot[1])) {
+                                        error_log("Skipping: Time overlap between lecture {$lecSlot[0]}-{$lecSlot[1]} and lab {$lbSlot[0]}-{$lbSlot[1]}");
+                                        continue;
+                                    }
+
+                                    // Check if section is available for both time slots
+                                    $sectionLectureAvailable = $this->isScheduleSlotAvailable(
+                                        $section['section_id'],
+                                        $targetDays,
+                                        $lecSlot[0],
+                                        $lecSlot[1],
+                                        $sectionScheduleTracker
+                                    );
+
+                                    $sectionLabAvailable = $this->isScheduleSlotAvailable(
+                                        $section['section_id'],
+                                        $targetDays,
+                                        $lbSlot[0],
+                                        $lbSlot[1],
+                                        $sectionScheduleTracker
+                                    );
+
+                                    if (!$sectionLectureAvailable || !$sectionLabAvailable) {
+                                        error_log("Skipping: Section not available for one of the time slots");
+                                        continue;
+                                    }
+
+                                    // Check if faculty is available for BOTH time slots
+                                    $lectureAvailable = $this->isFacultyAvailable(
+                                        $unifiedFacultyId,
+                                        $targetDays,
+                                        $lecSlot[0],
+                                        $lecSlot[1],
+                                        $facultyAssignments
+                                    );
+
+                                    $labAvailable = $this->isFacultyAvailable(
+                                        $unifiedFacultyId,
+                                        $targetDays,
+                                        $lbSlot[0],
+                                        $lbSlot[1],
+                                        $facultyAssignments
+                                    );
+
+                                    if ($lectureAvailable && $labAvailable) {
+                                        $lectureTimeSlot = $lecSlot;
+                                        $labTimeSlot = $lbSlot;
+                                        $foundValidSlots = true;
+                                        error_log("✅ Found valid time slots: Lecture {$lecSlot[0]}-{$lecSlot[1]}, Lab {$lbSlot[0]}-{$lbSlot[1]}");
+                                        break 2; // Exit both loops
+                                    } else {
+                                        error_log("Faculty $unifiedFacultyId not available for lecture ({$lecSlot[0]}-{$lecSlot[1]}): " . ($lectureAvailable ? 'yes' : 'no') .
+                                            " or lab ({$lbSlot[0]}-{$lbSlot[1]}): " . ($labAvailable ? 'yes' : 'no'));
+                                    }
+                                }
+                            }
+
+                            if (!$foundValidSlots || !$lectureTimeSlot || !$labTimeSlot) {
+                                error_log("❌ Cannot find two different time slots for {$course['course_code']}");
+                                continue; // Skip this section, try next
+                            }
+
+                            // Schedule lecture component
+                            error_log("Scheduling LECTURE for {$course['course_code']} at {$lectureTimeSlot[0]}-{$lectureTimeSlot[1]}");
                             $lectureResult = $this->scheduleCourseSectionsInDifferentTimeSlots(
                                 $course,
                                 [$section],
                                 $targetDays,
-                                $filteredTimeSlots,
+                                [$lectureTimeSlot], // Pass only the selected lecture slot
                                 $sectionScheduleTracker,
                                 $facultySpecializations,
                                 $facultyAssignments,
@@ -1998,17 +2069,26 @@ class ChairController
                                 $roomAssignments,
                                 $usedTimeSlots,
                                 $subjectType,
-                                true,
-                                false,
+                                true,  // isLecture
+                                false, // isLab
                                 $forceF2F,
                                 'Lecture',
-                                $facultyId
+                                $unifiedFacultyId
                             );
+
+                            if (!$lectureResult) {
+                                error_log("❌ Failed to schedule lecture for {$course['course_code']}");
+                                continue; // Skip to next section
+                            }
+
+                            error_log("✅ Lecture scheduled, now scheduling LAB at {$labTimeSlot[0]}-{$labTimeSlot[1]}");
+
+                            // Schedule lab component with DIFFERENT time slot
                             $labResult = $this->scheduleCourseSectionsInDifferentTimeSlots(
                                 $course,
                                 [$section],
                                 $targetDays,
-                                $filteredTimeSlots,
+                                [$labTimeSlot], // Pass only the selected lab slot
                                 $sectionScheduleTracker,
                                 $facultySpecializations,
                                 $facultyAssignments,
@@ -2019,14 +2099,51 @@ class ChairController
                                 $roomAssignments,
                                 $usedTimeSlots,
                                 $subjectType,
-                                false,
-                                true,
+                                false, // isLecture
+                                true,  // isLab
                                 $forceF2F,
                                 'Lab',
-                                $facultyId
+                                $unifiedFacultyId
                             );
+
                             $assignedThisCourse = $lectureResult && $labResult;
+
+                            if ($assignedThisCourse) {
+                                $scheduledCourses[$key] = true;
+                                error_log("✅ Successfully scheduled BOTH lecture and lab for {$course['course_code']} section {$section['section_name']}");
+                            } else {
+                                error_log("❌ Failed to schedule lab for {$course['course_code']}");
+                                // TODO: Implement rollback of lecture schedules if needed
+                            }
                         } else {
+                            // Single component course (lecture only or lab only)
+                            $timeSlot = reset($filteredTimeSlots);
+                            $startTime = $timeSlot[0];
+                            $endTime = $timeSlot[1];
+
+                            $facultyId = $this->findBestFaculty(
+                                $facultySpecializations,
+                                $course['course_id'],
+                                $targetDays,
+                                $startTime,
+                                $endTime,
+                                $collegeId,
+                                $departmentId,
+                                $schedules,
+                                $facultyAssignments,
+                                $courseDetails['course_code'],
+                                $section['section_id']
+                            );
+
+                            if (!$facultyId) {
+                                error_log("generateSchedules: No available faculty for {$courseDetails['course_code']} (section {$section['section_name']})");
+                                continue;
+                            }
+
+                            if (!isset($facultyAssignments[$facultyId])) {
+                                $facultyAssignments[$facultyId] = [];
+                            }
+
                             $result = $this->scheduleCourseSectionsInDifferentTimeSlots(
                                 $course,
                                 [$section],
@@ -2049,11 +2166,11 @@ class ChairController
                                 $facultyId
                             );
                             $assignedThisCourse = $result;
-                        }
 
-                        if ($assignedThisCourse) {
-                            $scheduledCourses[$key] = true;
-                            error_log("generateSchedules: Successfully scheduled {$course['course_code']} for section {$section['section_name']} with faculty $facultyId");
+                            if ($assignedThisCourse) {
+                                $scheduledCourses[$key] = true;
+                                error_log("generateSchedules: Successfully scheduled {$course['course_code']} for section {$section['section_name']} with faculty $facultyId");
+                            }
                         }
                     }
 
@@ -2076,9 +2193,11 @@ class ChairController
             // Log final faculty assignment distribution
             error_log("generateSchedules: Final faculty assignment distribution:");
             foreach ($facultyAssignments as $facultyId => $assignments) {
-                $totalUnits = array_sum(array_column($assignments, 'units'));
-                $courseCount = count($assignments);
-                error_log("Faculty $facultyId: $courseCount courses, $totalUnits units");
+                if (is_array($assignments)) {
+                    $totalUnits = array_sum(array_column($assignments, 'units'));
+                    $courseCount = count($assignments);
+                    error_log("Faculty $facultyId: $courseCount courses, $totalUnits units");
+                }
             }
 
             if (!empty($unassignedCourses)) {
@@ -2094,6 +2213,16 @@ class ChairController
             // Check for underloaded faculty and suggest redistribution
             $this->analyzeWorkloadDistribution($facultyAssignments, $facultySpecializations);
 
+            // CRITICAL: Validate schedule integrity before committing
+            error_log("generateSchedules: Validating schedule integrity...");
+            $conflicts = $this->validateScheduleIntegrity($schedules, $facultyAssignments);
+
+            if (!empty($conflicts)) {
+                error_log("⚠️ WARNING: Schedule has " . count($conflicts) . " conflicts - review required");
+            } else {
+                error_log("✅ Schedule validation passed - no conflicts found");
+            }
+
             $this->db->commit();
             error_log("generateSchedules: Transaction committed, returning " . count($schedules) . " schedules");
             return $schedules;
@@ -2102,6 +2231,131 @@ class ChairController
             error_log("generateSchedules: Transaction rolled back due to error: " . $e->getMessage());
             return [];
         }
+    }
+
+    // ============================================================================
+    // NEW METHOD: Validate Schedule Integrity
+    // ============================================================================
+    private function validateScheduleIntegrity($schedules, $facultyAssignments)
+    {
+        $conflicts = [];
+
+        error_log("========================================");
+        error_log("VALIDATING SCHEDULE INTEGRITY");
+        error_log("========================================");
+
+        // Check for faculty conflicts
+        $assignmentsList = [];
+        foreach ($facultyAssignments as $key => $value) {
+            if (is_numeric($key)) {
+                // Indexed array format
+                $assignmentsList[] = $value;
+            } elseif (is_array($value)) {
+                // Associative array by faculty_id
+                foreach ($value as $assignment) {
+                    $assignmentsList[] = $assignment;
+                }
+            }
+        }
+
+        for ($i = 0; $i < count($assignmentsList); $i++) {
+            $assignment1 = $assignmentsList[$i];
+            if (!isset($assignment1['faculty_id'])) continue;
+
+            for ($j = $i + 1; $j < count($assignmentsList); $j++) {
+                $assignment2 = $assignmentsList[$j];
+                if (!isset($assignment2['faculty_id'])) continue;
+
+                if ($assignment1['faculty_id'] == $assignment2['faculty_id']) {
+                    // Same faculty - check for time conflicts
+                    $days1 = is_array($assignment1['days']) ? $assignment1['days'] : [$assignment1['days']];
+                    $days2 = is_array($assignment2['days']) ? $assignment2['days'] : [$assignment2['days']];
+
+                    $commonDays = array_intersect($days1, $days2);
+
+                    if (!empty($commonDays)) {
+                        $hasTimeConflict = $this->hasTimeConflict(
+                            $assignment1['start_time'],
+                            $assignment1['end_time'],
+                            $assignment2['start_time'],
+                            $assignment2['end_time']
+                        );
+
+                        if ($hasTimeConflict) {
+                            $conflict = [
+                                'type' => 'FACULTY_TIME_CONFLICT',
+                                'faculty_id' => $assignment1['faculty_id'],
+                                'course1' => $assignment1['course_code'] . ' (' . ($assignment1['component'] ?? 'main') . ')',
+                                'course2' => $assignment2['course_code'] . ' (' . ($assignment2['component'] ?? 'main') . ')',
+                                'time1' => $assignment1['start_time'] . '-' . $assignment1['end_time'],
+                                'time2' => $assignment2['start_time'] . '-' . $assignment2['end_time'],
+                                'days' => implode(',', $commonDays)
+                            ];
+                            $conflicts[] = $conflict;
+
+                            error_log("⚠️ CONFLICT: Faculty {$conflict['faculty_id']} teaching {$conflict['course1']} and {$conflict['course2']} at overlapping times on {$conflict['days']}");
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for lecture+lab same time conflicts
+        $courseComponents = [];
+        foreach ($schedules as $schedule) {
+            $key = $schedule['course_id'] . '-' . $schedule['section_id'];
+            if (!isset($courseComponents[$key])) {
+                $courseComponents[$key] = [];
+            }
+            $courseComponents[$key][] = $schedule;
+        }
+
+        foreach ($courseComponents as $key => $components) {
+            if (count($components) >= 2) {
+                // Check if lecture and lab have same time
+                $lecture = array_filter($components, fn($c) => ($c['component_type'] ?? '') === 'Lecture');
+                $lab = array_filter($components, fn($c) => ($c['component_type'] ?? '') === 'Lab');
+
+                if (!empty($lecture) && !empty($lab)) {
+                    $lectureSchedule = reset($lecture);
+                    $labSchedule = reset($lab);
+
+                    if (
+                        $lectureSchedule['day_of_week'] === $labSchedule['day_of_week'] &&
+                        $lectureSchedule['start_time'] === $labSchedule['start_time'] &&
+                        $lectureSchedule['end_time'] === $labSchedule['end_time']
+                    ) {
+                        $conflicts[] = [
+                            'type' => 'LECTURE_LAB_SAME_TIME',
+                            'course' => $lectureSchedule['course_code'],
+                            'section' => $lectureSchedule['section_name'],
+                            'time' => $lectureSchedule['start_time'] . '-' . $lectureSchedule['end_time'],
+                            'day' => $lectureSchedule['day_of_week']
+                        ];
+
+                        error_log("⚠️ CONFLICT: {$lectureSchedule['course_code']} lecture and lab at SAME TIME on {$lectureSchedule['day_of_week']}");
+                    }
+
+                    // Check if lecture and lab have different rooms (lab should be in laboratory)
+                    if (isset($lectureSchedule['room_name']) && isset($labSchedule['room_name'])) {
+                        $labRoomName = strtolower($labSchedule['room_name']);
+                        if (!str_contains($labRoomName, 'lab') && $labSchedule['room_name'] !== 'Online') {
+                            error_log("⚠️ WARNING: Lab component of {$lectureSchedule['course_code']} not in laboratory room: {$labSchedule['room_name']}");
+                        }
+                    }
+                }
+            }
+        }
+
+        if (empty($conflicts)) {
+            error_log("✅ No conflicts found - schedule is valid");
+        } else {
+            error_log("❌ Found " . count($conflicts) . " conflicts!");
+        }
+
+        error_log("========================================");
+
+        return $conflicts;
     }
 
     private function scheduleCourseSectionsInDifferentTimeSlots($course, $sectionsForCourse, $targetDays, $timeSlots, &$sectionScheduleTracker, $facultySpecializations, &$facultyAssignments, $currentSemester, $departmentId, &$schedules, &$onlineSlotTracker, &$roomAssignments, &$usedTimeSlots, $subjectType, $isLecture = false, $isLab = false, $forceF2F = false, $component = null, $facultyId = null)
@@ -4363,20 +4617,6 @@ class ChairController
             error_log("Error removing duplicate schedules: " . $e->getMessage());
             throw $e;
         }
-    }
-
-    private function validateSchedule($schedule, $departmentId)
-    {
-        $errors = [];
-        if (!$this->validateCurriculumCourse($schedule['curriculum_id'], $schedule['course_id'])) {
-            $errors[] = "Course doesn't belong to selected curriculum";
-        }
-        $stmt = $this->db->prepare("SELECT 1 FROM classrooms WHERE room_id = :room_id AND availability = 'available'");
-        $stmt->execute([':room_id' => $schedule['room_id']]);
-        if (!$stmt->fetchColumn()) {
-            $errors[] = "Selected room is not available";
-        }
-        return $errors;
     }
 
     public function checkScheduleDeadlineStatus($userDepartmentId)

@@ -793,15 +793,27 @@ if ($userDepartmentId) {
                                 <option value="07:30">7:30 AM</option>
                                 <option value="08:30">8:30 AM</option>
                                 <option value="09:00">9:00 AM</option>
-                                <option value="10:00">10:00 AM</option>
+                                <option value="09:30">9:30 AM</option>
+                                <option value="10:30">10:30 AM</option>
+                                <option value="10:30">10:30 AM</option>
                                 <option value="11:00">11:00 AM</option>
+                                <option value="11:30">11:30 AM</option>
                                 <option value="12:00">12:00 PM</option>
+                                <option value="12:30">12:30 PM</option>
                                 <option value="13:00">1:00 PM</option>
+                                <option value="13:30">1:30 PM</option>
                                 <option value="14:00">2:00 PM</option>
+                                <option value="14:30">2:30 PM</option>
                                 <option value="15:00">3:00 PM</option>
+                                <option value="15:30">3:30 PM</option>
                                 <option value="16:00">4:00 PM</option>
+                                <option value="16:30">4:30 PM</option>
                                 <option value="17:00">5:00 PM</option>
+                                <option value="17:30">5:30 PM</option>
                                 <option value="18:00">6:00 PM</option>
+                                <option value="18:30">6:30 PM</option>
+                                <option value="19:00">7:00 PM</option>
+                                <option value="19:30">7:30 PM</option>
                             </select>
                         </div>
                         <div>
@@ -810,16 +822,27 @@ if ($userDepartmentId) {
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
                                 onchange="updateTimeFields()">
                                 <option value="08:30">8:30 AM</option>
+                                <option value="09:00">9:00 AM</option>
                                 <option value="09:30">9:30 AM</option>
                                 <option value="10:30">10:30 AM</option>
+                                <option value="10:30">10:30 AM</option>
+                                <option value="11:00">11:00 AM</option>
                                 <option value="11:30">11:30 AM</option>
+                                <option value="12:00">12:00 PM</option>
                                 <option value="12:30">12:30 PM</option>
+                                <option value="13:00">1:00 PM</option>
                                 <option value="13:30">1:30 PM</option>
+                                <option value="14:00">2:00 PM</option>
                                 <option value="14:30">2:30 PM</option>
+                                <option value="15:00">3:00 PM</option>
                                 <option value="15:30">3:30 PM</option>
+                                <option value="16:00">4:00 PM</option>
                                 <option value="16:30">4:30 PM</option>
+                                <option value="17:00">5:00 PM</option>
                                 <option value="17:30">5:30 PM</option>
+                                <option value="18:00">6:00 PM</option>
                                 <option value="18:30">6:30 PM</option>
+                                <option value="19:00">7:00 PM</option>
                                 <option value="19:30">7:30 PM</option>
                             </select>
                         </div>
@@ -2153,17 +2176,53 @@ if ($userDepartmentId) {
                 if (manualGrid) {
                     manualGrid.innerHTML = "";
 
-                    const times = [
-                        ['07:30', '08:30'],
-                        ['08:30', '10:00'],
-                        ['10:00', '11:00'],
-                        ['11:00', '12:30'],
-                        ['12:30', '13:30'],
-                        ['13:00', '14:30'],
-                        ['14:30', '15:30'],
-                        ['15:30', '17:00'],
-                        ['17:00', '18:00']
-                    ];
+                    // Build dynamic time slots from schedules so any start/end (e.g. 08:00-09:00, 08:00-09:30) will appear as its own row.
+                    // Fallback range used when no schedules present.
+                    const defaultStart = '07:30';
+                    const defaultEnd = '21:00';
+
+                    // Collect all relevant time points (start and end times) from schedules, plus defaults
+                    const timePointsSet = new Set([defaultStart, defaultEnd]);
+                    schedules.forEach(s => {
+                        if (s.start_time) timePointsSet.add(s.start_time.substring(0, 5));
+                        if (s.end_time) timePointsSet.add(s.end_time.substring(0, 5));
+                    });
+
+                    // Convert to array and sort by minutes-of-day
+                    const timePoints = Array.from(timePointsSet).filter(Boolean).map(tp => {
+                        const parts = tp.split(':').map(x => parseInt(x, 10));
+                        return {
+                            raw: tp,
+                            minutes: parts[0] * 60 + (parts[1] || 0)
+                        };
+                    }).sort((a, b) => a.minutes - b.minutes).map(x => x.raw);
+
+                    // If we somehow only have one point, build a sensible step-based list (30-min steps)
+                    let times = [];
+                    if (timePoints.length < 2) {
+                        const toMinutes = t => {
+                            const [h, m] = t.split(':');
+                            return parseInt(h) * 60 + parseInt(m);
+                        };
+                        const fromMinutes = m => {
+                            const hh = Math.floor(m / 60).toString().padStart(2, '0');
+                            const mm = (m % 60).toString().padStart(2, '0');
+                            return `${hh}:${mm}`;
+                        };
+                        const startMin = toMinutes(defaultStart);
+                        const endMin = toMinutes(defaultEnd);
+                        for (let m = startMin; m < endMin; m += 30) {
+                            times.push([fromMinutes(m), fromMinutes(Math.min(m + 30, endMin))]);
+                        }
+                    } else {
+                        // Build intervals from consecutive unique time points
+                        for (let i = 0; i < timePoints.length - 1; i++) {
+                            const a = timePoints[i];
+                            const b = timePoints[i + 1];
+                            // Skip zero-length intervals
+                            if (a !== b) times.push([a, b]);
+                        }
+                    }
 
                     times.forEach(time => {
                         // Calculate row span like PHP does
@@ -2182,9 +2241,9 @@ if ($userDepartmentId) {
 
                         // Time content like PHP
                         timeCell.innerHTML = `
-                <span class="text-sm hidden sm:block">${formatTime(time[0])} - ${formatTime(time[1])}</span>
-                <span class="text-xs sm:hidden">${time[0].substring(0, 5)}-${time[1].substring(0, 5)}</span>
-            `;
+                        <span class="text-sm hidden sm:block">${formatTime(time[0])} - ${formatTime(time[1])}</span>
+                        <span class="text-xs sm:hidden">${time[0].substring(0, 5)}-${time[1].substring(0, 5)}</span>
+                    `;
                         row.appendChild(timeCell);
 
                         // Day cells
