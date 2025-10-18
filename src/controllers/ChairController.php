@@ -53,36 +53,6 @@ class ChairController
         }
     }
 
-    /**
-     * Make HTTP request to SchedulingService
-     */
-    private function callSchedulingService($method, $endpoint, $data = [])
-    {
-        $url = "http://localhost/api/scheduling.php?endpoint=" . urlencode($endpoint);
-        $ch = curl_init($url);
-
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-
-        if ($method === 'POST' || $method === 'PUT') {
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        } elseif ($method === 'GET') {
-            if (!empty($data)) {
-                $url .= '&' . http_build_query($data);
-                curl_setopt($ch, CURLOPT_URL, $url);
-            }
-        } elseif ($method === 'DELETE') {
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        }
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        return ['code' => $httpCode, 'data' => json_decode($response, true)];
-    }
 
     public function getChairDepartment($chairId)
     {

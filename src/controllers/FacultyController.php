@@ -73,7 +73,7 @@ class FacultyController
             $pendingRequests = $pendingRequestsStmt->fetchColumn();
 
             $recentSchedulesStmt = $this->db->prepare("
-                  SELECT s.schedule_id, c.course_code, r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type
+                  SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type
                   FROM schedules s
                   JOIN courses c ON s.course_id = c.course_id
                   LEFT JOIN classrooms r ON s.room_id = r.room_id
