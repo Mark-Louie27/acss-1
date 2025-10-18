@@ -4832,18 +4832,18 @@ class ChairController
             }
 
             $query = "
-                    UPDATE classrooms c
-                    LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
-                    SET c.availability = 'available'
-                    WHERE (
-                        -- Only update classrooms owned by this department
-                        c.department_id = :department_id1
-                        OR 
-                        -- Only update classrooms explicitly shared with this department
-                        (c.shared = 1 AND cd.department_id = :department_id2)
-                        -- REMOVED: College-shared rooms condition
-                    )
-                ";
+                        UPDATE classrooms c
+                        LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
+                        SET c.availability = 'available'
+                        WHERE (
+                            -- Only update classrooms owned by this department
+                            c.department_id = :department_id1
+                            OR 
+                            -- Only update classrooms explicitly shared with this department
+                            (c.shared = 1 AND cd.department_id = :department_id2)
+                            -- REMOVED: College-shared rooms condition
+                        )
+                    ";
             $stmt = $this->db->prepare($query);
             $params = [
                 ':department_id1' => $departmentId,
@@ -6782,7 +6782,6 @@ class ChairController
             $chairId = $_SESSION['user_id'] ?? 0;
             $departmentId = $this->getChairDepartment($chairId);
 
-            // Initialize variables
             $error = null;
             $success = null;
             $courses = [];
@@ -6790,6 +6789,7 @@ class ChairController
             $totalCourses = 0;
             $totalPages = 1;
             $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+            $searchTerm = isset($_GET['search']) && trim($_GET['search']) !== '' ? trim($_GET['search']) : '';
 
             if (!$departmentId) {
                 error_log("courses: No department found for chairId: $chairId");
@@ -6798,11 +6798,9 @@ class ChairController
                 return;
             }
 
-            // Pagination settings
             $perPage = 100;
             $offset = ($page - 1) * $perPage;
 
-            // Handle form submissions for adding/editing courses
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $courseId = isset($_POST['course_id']) ? intval($_POST['course_id']) : 0;
@@ -6814,14 +6812,13 @@ class ChairController
                         'units' => intval($_POST['units'] ?? 0),
                         'lecture_units' => intval($_POST['lecture_units'] ?? 0),
                         'lab_units' => intval($_POST['lab_units'] ?? 0),
-                        'lecture_hours' => intval($_POST['lecture_hours'] ?? 0), // Will be overridden
-                        'lab_hours' => intval($_POST['lab_hours'] ?? 0),        // Will be overridden
+                        'lecture_hours' => intval($_POST['lecture_hours'] ?? 0),
+                        'lab_hours' => intval($_POST['lab_hours'] ?? 0),
                         'is_active' => isset($_POST['is_active']) ? 1 : 0
                     ];
 
-                    // Automatically calculate hours based on units
-                    $data['lecture_hours'] = $data['lecture_units'] * 1; // 1 lecture unit = 1 hour
-                    $data['lab_hours'] = $data['lab_units'] * 2;        // 1 lab unit = 2 hours
+                    $data['lecture_hours'] = $data['lecture_units'] * 1;
+                    $data['lab_hours'] = $data['lab_units'] * 2;
 
                     $errors = [];
                     if (empty($data['course_code'])) $errors[] = "Course code is required.";
@@ -6831,9 +6828,8 @@ class ChairController
                         $errors[] = "Invalid subject type.";
                     }
 
-                    // Check if course code already exists
-                    $codeCheckStmt = $this->db->prepare("SELECT course_id FROM courses WHERE course_code = :course_code AND course_id != :course_id");
-                    $codeCheckStmt->execute(['course_code' => $data['course_code'], 'course_id' => $courseId]);
+                    $codeCheckStmt = $this->db->prepare("SELECT course_id FROM courses WHERE course_code = ? AND course_id != ?");
+                    $codeCheckStmt->execute([$data['course_code'], $courseId]);
                     if ($codeCheckStmt->fetchColumn()) {
                         $errors[] = "Course code already exists.";
                     }
@@ -6842,32 +6838,32 @@ class ChairController
                         if ($courseId > 0) {
                             $stmt = $this->db->prepare("
                             UPDATE courses SET 
-                                course_code = :course_code, 
-                                course_name = :course_name, 
-                                department_id = :department_id, 
-                                subject_type = :subject_type,
-                                units = :units, 
-                                lecture_units = :lecture_units,
-                                lab_units = :lab_units,
-                                lecture_hours = :lecture_hours, 
-                                lab_hours = :lab_hours, 
-                                is_active = :is_active 
-                            WHERE course_id = :course_id
+                                course_code = ?, 
+                                course_name = ?, 
+                                department_id = ?, 
+                                subject_type = ?,
+                                units = ?, 
+                                lecture_units = ?,
+                                lab_units = ?,
+                                lecture_hours = ?, 
+                                lab_hours = ?, 
+                                is_active = ? 
+                            WHERE course_id = ?
                         ");
                             $updateParams = [
-                                'course_code' => $data['course_code'],
-                                'course_name' => $data['course_name'],
-                                'department_id' => $departmentId,
-                                'subject_type' => $data['subject_type'],
-                                'units' => $data['units'],
-                                'lecture_units' => $data['lecture_units'],
-                                'lab_units' => $data['lab_units'],
-                                'lecture_hours' => $data['lecture_hours'],
-                                'lab_hours' => $data['lab_hours'],
-                                'is_active' => $data['is_active'],
-                                'course_id' => $courseId
+                                $data['course_code'],
+                                $data['course_name'],
+                                $data['department_id'],
+                                $data['subject_type'],
+                                $data['units'],
+                                $data['lecture_units'],
+                                $data['lab_units'],
+                                $data['lecture_hours'],
+                                $data['lab_hours'],
+                                $data['is_active'],
+                                $courseId
                             ];
-                            error_log("Updating course: Query = UPDATE courses ..., Params = " . json_encode($updateParams));
+                            error_log("Updating course: Params = " . json_encode($updateParams));
                             $stmt->execute($updateParams);
                             $success = "Course updated successfully.";
                             $this->logActivity($chairId, $departmentId, 'Update Course', "Updated course ID $courseId", 'courses', $courseId);
@@ -6877,22 +6873,21 @@ class ChairController
                                 (course_code, course_name, department_id, subject_type, units, 
                                 lecture_units, lab_units, lecture_hours, lab_hours, is_active) 
                             VALUES 
-                                (:course_code, :course_name, :department_id, :subject_type, :units, 
-                                :lecture_units, :lab_units, :lecture_hours, :lab_hours, :is_active)
+                                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ");
                             $insertParams = [
-                                'course_code' => $data['course_code'],
-                                'course_name' => $data['course_name'],
-                                'department_id' => $departmentId,
-                                'subject_type' => $data['subject_type'],
-                                'units' => $data['units'],
-                                'lecture_units' => $data['lecture_units'],
-                                'lab_units' => $data['lab_units'],
-                                'lecture_hours' => $data['lecture_hours'],
-                                'lab_hours' => $data['lab_hours'],
-                                'is_active' => $data['is_active']
+                                $data['course_code'],
+                                $data['course_name'],
+                                $data['department_id'],
+                                $data['subject_type'],
+                                $data['units'],
+                                $data['lecture_units'],
+                                $data['lab_units'],
+                                $data['lecture_hours'],
+                                $data['lab_hours'],
+                                $data['is_active']
                             ];
-                            error_log("Inserting course: Query = INSERT INTO courses ..., Params = " . json_encode($insertParams));
+                            error_log("Inserting course: Params = " . json_encode($insertParams));
                             $stmt->execute($insertParams);
                             $courseId = $this->db->lastInsertId();
                             $success = "Course added successfully.";
@@ -6907,25 +6902,21 @@ class ChairController
                 }
             }
 
-            // Handle status toggle (including deletion logic)
             if (isset($_GET['toggle_status']) && $_GET['toggle_status'] > 0) {
                 try {
                     $courseId = intval($_GET['toggle_status']);
-                    $currentStatusStmt = $this->db->prepare("SELECT is_active FROM courses WHERE course_id = :course_id AND department_id = :department_id");
-                    $currentStatusStmt->execute(['course_id' => $courseId, 'department_id' => $departmentId]);
+                    $currentStatusStmt = $this->db->prepare("SELECT is_active FROM courses WHERE course_id = ? AND department_id = ?");
+                    $currentStatusStmt->execute([$courseId, $departmentId]);
                     $currentStatus = $currentStatusStmt->fetchColumn();
 
                     $toggleStmt = $this->db->prepare("
                     UPDATE courses 
                     SET is_active = NOT is_active 
-                    WHERE course_id = :course_id 
-                    AND department_id = :department_id
+                    WHERE course_id = ? 
+                    AND department_id = ?
                 ");
-                    $toggleParams = [
-                        'course_id' => $courseId,
-                        'department_id' => $departmentId
-                    ];
-                    error_log("Toggling status: Query = UPDATE courses ..., Params = " . json_encode($toggleParams));
+                    $toggleParams = [$courseId, $departmentId];
+                    error_log("Toggling status: Params = " . json_encode($toggleParams));
                     $toggleStmt->execute($toggleParams);
                     if ($toggleStmt->rowCount() > 0) {
                         $newStatus = !$currentStatus;
@@ -6942,51 +6933,17 @@ class ChairController
                 }
             }
 
-            // Handle search
-            $searchTerm = ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search']) && trim($_GET['search']) !== '') ? '%' . trim($_GET['search']) . '%' : null;
-
-            // Fetch total number of courses for pagination
-            $totalQuery = "SELECT COUNT(*) FROM courses c WHERE c.department_id = :department_id";
-            $totalParams = [':department_id' => $departmentId];
-            if ($searchTerm) {
-                $totalQuery .= " AND (c.course_code LIKE :search OR c.course_name LIKE :search)";
-                $totalParams[':search'] = $searchTerm;
-            }
-            $totalStmt = $this->db->prepare($totalQuery);
-            error_log("Total courses query: Query = $totalQuery, Params = " . json_encode($totalParams));
-            $totalStmt->execute($totalParams);
-            $totalCourses = $totalStmt->fetchColumn();
-            $totalPages = max(1, ceil($totalCourses / $perPage));
-
-            // Fetch courses with pagination
-            $coursesQuery = "SELECT c.*, d.department_name FROM courses c LEFT JOIN departments d ON c.department_id = d.department_id WHERE c.department_id = :department_id";
-            $coursesParams = [':department_id' => $departmentId, ':offset' => $offset, ':perPage' => $perPage];
-            if ($searchTerm) {
-                $coursesQuery .= " AND (c.course_code LIKE :search OR c.course_name LIKE :search)";
-                $coursesParams[':search'] = $searchTerm;
-            }
-            $coursesQuery .= " ORDER BY c.course_code LIMIT :offset, :perPage";
-            $coursesStmt = $this->db->prepare($coursesQuery);
-            error_log("Courses query: Query = $coursesQuery, Params = " . json_encode($coursesParams));
-            $coursesStmt->execute($coursesParams);
-            if ($coursesStmt->execute()) {
-                $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
-            } else {
-                throw new PDOException("Courses query failed: " . implode(', ', $coursesStmt->errorInfo()));
-            }
-
-            // Fetch course data for editing
             if (isset($_GET['edit']) && $_GET['edit'] > 0) {
                 try {
                     $courseId = intval($_GET['edit']);
                     $editStmt = $this->db->prepare("
                     SELECT c.* 
                     FROM courses c 
-                    WHERE c.course_id = :course_id 
-                    AND c.department_id = :department_id
+                    WHERE c.course_id = ? 
+                    AND c.department_id = ?
                 ");
-                    $editParams = ['course_id' => $courseId, 'department_id' => $departmentId];
-                    error_log("Edit course query: Query = SELECT c.* ..., Params = " . json_encode($editParams));
+                    $editParams = [$courseId, $departmentId];
+                    error_log("Edit course query: Params = " . json_encode($editParams));
                     $editStmt->execute($editParams);
                     $editCourse = $editStmt->fetch(PDO::FETCH_ASSOC);
                     if (!$editCourse) {
@@ -6997,12 +6954,66 @@ class ChairController
                     $error = "Failed to load course for editing: " . $e->getMessage();
                 }
             }
+
+            // Fetch total number of courses
+            try {
+                $totalQuery = "SELECT COUNT(*) as total FROM courses WHERE department_id = ?";
+                $totalParams = [$departmentId];
+
+                if ($searchTerm) {
+                    $totalQuery = "SELECT COUNT(*) as total FROM courses WHERE department_id = ? AND (course_code LIKE ? OR course_name LIKE ?)";
+                    $totalParams = [$departmentId, "%$searchTerm%", "%$searchTerm%"];
+                }
+
+                $totalStmt = $this->db->prepare($totalQuery);
+                error_log("Total query: Query = $totalQuery, Params = " . json_encode($totalParams));
+                $totalStmt->execute($totalParams);
+                $result = $totalStmt->fetch(PDO::FETCH_ASSOC);
+                $totalCourses = $result['total'] ?? 0;
+                $totalPages = max(1, ceil($totalCourses / $perPage));
+
+                error_log("Total courses counted: $totalCourses, Total pages: $totalPages");
+            } catch (PDOException $e) {
+                error_log("Error counting courses: " . $e->getMessage());
+                $error = "Failed to count courses: " . $e->getMessage();
+                $totalCourses = 0;
+                $totalPages = 1;
+            }
+
+            // Fetch courses with pagination
+            try {
+                $coursesQuery = "SELECT c.*, d.department_name FROM courses c LEFT JOIN departments d ON c.department_id = d.department_id WHERE c.department_id = ?";
+                $coursesParams = [$departmentId];
+
+                if ($searchTerm) {
+                    $coursesQuery .= " AND (c.course_code LIKE ? OR c.course_name LIKE ?)";
+                    $coursesParams[] = "%$searchTerm%";
+                    $coursesParams[] = "%$searchTerm%";
+                }
+
+                $coursesQuery .= " ORDER BY c.course_code LIMIT ? OFFSET ?";
+                $coursesParams[] = (int)$perPage;
+                $coursesParams[] = (int)$offset;
+
+                error_log("Courses query: Query = $coursesQuery, Params = " . json_encode($coursesParams));
+
+                $coursesStmt = $this->db->prepare($coursesQuery);
+                $coursesStmt->execute($coursesParams);
+                $courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                error_log("Courses fetched: " . count($courses) . " rows returned");
+            } catch (PDOException $e) {
+                error_log("Error fetching courses: " . $e->getMessage());
+                $error = "Failed to load courses: " . $e->getMessage();
+                $courses = [];
+            }
         } catch (PDOException $e) {
-            error_log("courses: Error - " . $e->getMessage());
-            $error = "Failed to load courses: " . $e->getMessage();
+            error_log("courses: Unexpected error - " . $e->getMessage());
+            $error = "An unexpected error occurred: " . $e->getMessage();
             $totalCourses = 0;
             $totalPages = 1;
         }
+
         require_once __DIR__ . '/../views/chair/courses.php';
     }
 

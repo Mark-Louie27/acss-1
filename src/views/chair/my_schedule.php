@@ -70,6 +70,8 @@ ob_start();
                             </svg>
                             Print Schedule
                         </button>
+
+                        <!--
                         <a
                             href="?action=download&format=pdf"
                             class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 w-full sm:w-auto">
@@ -87,6 +89,7 @@ ob_start();
                             </svg>
                             Download Excel
                         </a>
+        -->
                         <button
                             onclick="window.location.reload()"
                             class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-all duration-200 w-full sm:w-auto">
