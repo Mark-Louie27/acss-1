@@ -905,7 +905,7 @@ class ChairController
             $transactionActive = true;
 
             // Delete all schedules created today for the current department
-            $stmt = $this->db->prepare("DELETE FROM schedules WHERE department_id = :department_id AND DATE(created_at) = CURDATE()");
+            $stmt = $this->db->prepare("DELETE FROM schedules WHERE department_id = :department_id");
             $stmt->execute([':department_id' => $departmentId]);
             $deletedCount = $stmt->rowCount();
 
@@ -1587,7 +1587,13 @@ class ChairController
     public function generateSchedulesAjax()
     {
         header('Content-Type: application/json');
-        error_log("generateSchedulesAjax: Request received at " . date('Y-m-d H:i:s'));
+
+        if (ob_get_level()) {
+            ob_end_flush();
+        }
+
+        set_time_limit(300); // 5 minutes max
+        ini_set('max_execution_time', 300);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             error_log("generateSchedulesAjax: Invalid request method: {$_SERVER['REQUEST_METHOD']}");
@@ -1661,61 +1667,97 @@ class ChairController
             case 'generate_schedule':
                 $curriculumId = $_POST['curriculum_id'] ?? null;
                 $yearLevels = $_POST['year_levels'] ?? [];
+
                 if (!is_array($yearLevels)) {
                     $yearLevels = array_map('trim', explode(',', $yearLevels));
                 }
                 $yearLevels = array_filter($yearLevels);
+
                 if (empty($yearLevels)) {
                     $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
                     error_log("generateSchedulesAjax: No year levels provided, using default: " . implode(', ', $yearLevels));
-                } else {
-                    error_log("generateSchedulesAjax: Year levels provided: " . implode(', ', $yearLevels));
                 }
 
-                if ($curriculumId) {
-                    $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
-                    $classrooms = $cachedData['classrooms'];
-                    $faculty = $cachedData['faculty'];
-                    $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
-                    error_log("generateSchedulesAjax: Sections count: " . count($sections));
-                    error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
-
-                    $semesterName = strtolower($currentSemester['semester_name'] ?? '');
-                    $isMidYearSummer = in_array($semesterName, ['midyear', 'summer', 'mid-year', 'mid year', '3rd']);
-                    $semesterType = $isMidYearSummer ? $semesterName : 'regular';
-
-                    error_log("generateSchedulesAjax: Current semester name: '{$currentSemester['semester_name']}', detected type: '$semesterType'");
-
-                    $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId, $semesterType);
-                    $this->removeDuplicateSchedules($departmentId, $currentSemester);
-
-                    $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
-                    error_log("generateSchedulesAjax: Generated " . count($consolidatedSchedules) . " schedules");
-
-                    $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
-                    $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
-                    $unassignedCourses = array_map(function ($course) {
-                        return ['course_code' => $course['course_code']];
-                    }, array_filter($this->getCurriculumCourses($curriculumId), fn($c) => !in_array($c['course_code'], $assignedCourseCodes)));
-
-                    $totalCourses = count($allCourseCodes);
-                    $totalSections = count(array_unique(array_column($consolidatedSchedules, 'section_id')));
-                    $successRate = $totalCourses > 0 ? (count($assignedCourseCodes) / $totalCourses) * 100 : 0;
-                    $successRate = number_format($successRate, 2) . '%';
-
-                    echo json_encode([
-                        'success' => true,
-                        'schedules' => $consolidatedSchedules,
-                        'unassignedCourses' => $unassignedCourses,
-                        'totalCourses' => $totalCourses,
-                        'totalSections' => $totalSections,
-                        'successRate' => $successRate,
-                        'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses"
-                    ]);
-                } else {
+                if (!$curriculumId) {
                     error_log("generateSchedulesAjax: Missing curriculum ID for generate_schedule");
                     echo json_encode(['success' => false, 'message' => 'Missing curriculum ID']);
+                    exit;
                 }
+
+                error_log("generateSchedulesAjax: Starting generation for curriculum $curriculumId...");
+
+                // Force a small delay to ensure client shows loading screen
+                // Remove this line if generation already takes time
+                // usleep(500000); // 0.5 second delay
+
+                $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
+                $classrooms = $cachedData['classrooms'];
+                $faculty = $cachedData['faculty'];
+                $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
+
+                error_log("generateSchedulesAjax: Loaded data - Sections: " . count($sections) . ", Classrooms: " . count($classrooms) . ", Faculty: " . count($faculty));
+
+                $semesterName = strtolower($currentSemester['semester_name'] ?? '');
+                $isMidYearSummer = in_array($semesterName, ['midyear', 'summer', 'mid-year', 'mid year', '3rd']);
+                $semesterType = $isMidYearSummer ? $semesterName : 'regular';
+
+                error_log("generateSchedulesAjax: Current semester: '{$currentSemester['semester_name']}', type: '$semesterType'");
+                error_log("generateSchedulesAjax: Calling generateSchedules()...");
+
+                $startTime = microtime(true);
+
+                $schedules = $this->generateSchedules(
+                    $curriculumId,
+                    $yearLevels,
+                    $collegeId,
+                    $currentSemester,
+                    $classrooms,
+                    $faculty,
+                    $departmentId,
+                    $semesterType
+                );
+
+                $endTime = microtime(true);
+                $executionTime = round($endTime - $startTime, 2);
+
+                error_log("generateSchedulesAjax: Generation completed in {$executionTime} seconds");
+
+                $this->removeDuplicateSchedules($departmentId, $currentSemester);
+
+                $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
+                error_log("generateSchedulesAjax: Consolidated to " . count($consolidatedSchedules) . " schedules");
+
+                $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
+                $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
+                $unassignedCourses = array_map(
+                    function ($course) {
+                        return ['course_code' => $course['course_code']];
+                    },
+                    array_filter(
+                        $this->getCurriculumCourses($curriculumId),
+                        fn($c) => !in_array($c['course_code'], $assignedCourseCodes)
+                    )
+                );
+
+                $totalCourses = count($allCourseCodes);
+                $totalSections = count(array_unique(array_column($consolidatedSchedules, 'section_id')));
+                $successRate = $totalCourses > 0 ? (count($assignedCourseCodes) / $totalCourses) * 100 : 0;
+                $successRate = number_format($successRate, 2) . '%';
+
+                $response = [
+                    'success' => true,
+                    'schedules' => $consolidatedSchedules,
+                    'unassignedCourses' => $unassignedCourses,
+                    'totalCourses' => $totalCourses,
+                    'totalSections' => $totalSections,
+                    'successRate' => $successRate,
+                    'executionTime' => $executionTime,
+                    'message' => "Generated " . count($consolidatedSchedules) . " schedules in {$executionTime}s"
+                ];
+
+                error_log("generateSchedulesAjax: Sending response: " . json_encode(['success' => true, 'count' => count($consolidatedSchedules)]));
+
+                echo json_encode($response);
                 break;
 
             case 'delete_schedules':
@@ -2320,8 +2362,6 @@ class ChairController
 
         return $conflicts;
     }
-
-    // IMPROVED: Enhanced room assignment logic in scheduleCourseSectionsInDifferentTimeSlots()
 
     private function scheduleCourseSectionsInDifferentTimeSlots(
         $course,

@@ -750,10 +750,67 @@ if ($userDepartmentId) {
         </div>
 
         <!-- Loading Overlay -->
-        <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
-            <div class="bg-white p-8 rounded-lg shadow-xl text-center">
-                <div class="pulsing-loader mx-auto mb-4"></div>
-                <p class="text-gray-700 font-medium">Generating schedules...</p>
+        <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-8 rounded-xl shadow-2xl text-center max-w-md mx-4 transform transition-all">
+                <!-- Animated Loader -->
+                <div class="relative w-24 h-24 mx-auto mb-6">
+                    <div class="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-yellow-500 rounded-full border-t-transparent animate-spin"></div>
+                    <div class="absolute inset-2 border-4 border-yellow-300 rounded-full border-t-transparent animate-spin" style="animation-duration: 1.5s; animation-direction: reverse;"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <i class="fas fa-calendar-alt text-yellow-500 text-2xl"></i>
+                    </div>
+                </div>
+
+                <!-- Loading Text -->
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Generating Schedules</h3>
+                <p class="text-gray-600 mb-4" id="loading-message">Please wait while we create optimized schedules...</p>
+
+                <!-- Progress Steps (Optional) -->
+                <div class="mt-4 space-y-2 text-left" id="loading-steps">
+                    <div class="flex items-center text-sm text-gray-600">
+                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                            <i class="fas fa-check text-xs text-green-500 hidden step-check-1"></i>
+                        </div>
+                        <span id="step-1">Loading courses and sections...</span>
+                    </div>
+                    <div class="flex items-center text-sm text-gray-600">
+                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                            <i class="fas fa-check text-xs text-green-500 hidden step-check-2"></i>
+                        </div>
+                        <span id="step-2">Finding available faculty...</span>
+                    </div>
+                    <div class="flex items-center text-sm text-gray-600">
+                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                            <i class="fas fa-check text-xs text-green-500 hidden step-check-3"></i>
+                        </div>
+                        <span id="step-3">Allocating classrooms...</span>
+                    </div>
+                    <div class="flex items-center text-sm text-gray-600">
+                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
+                            <i class="fas fa-spinner fa-spin text-xs text-yellow-500 step-spinner-4"></i>
+                            <i class="fas fa-check text-xs text-green-500 hidden step-check-4"></i>
+                        </div>
+                        <span id="step-4">Generating schedules...</span>
+                    </div>
+                </div>
+
+                <!-- Animated Progress Bar -->
+                <div class="mt-6">
+                    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 h-2 rounded-full animate-pulse"
+                            style="width: 100%; animation: progressPulse 2s ease-in-out infinite;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tip of the day (optional) -->
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg text-left">
+                    <p class="text-xs text-blue-700">
+                        <i class="fas fa-lightbulb mr-1"></i>
+                        <strong>Tip:</strong> Schedule generation considers faculty availability, room capacity, and time slot optimization.
+                    </p>
+                </div>
             </div>
         </div>
 
@@ -2617,9 +2674,17 @@ if ($userDepartmentId) {
                     return;
                 }
 
-                // Show loading overlay
+                // Show loading overlay IMMEDIATELY
                 const loadingOverlay = document.getElementById('loading-overlay');
                 loadingOverlay.classList.remove('hidden');
+
+                // Disable the button to prevent double-clicks
+                const generateBtn = document.getElementById('generate-btn');
+                const originalText = generateBtn.innerHTML;
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
+
+                console.log('Starting schedule generation...');
 
                 // Build form data
                 const formData = new URLSearchParams({
@@ -2628,49 +2693,158 @@ if ($userDepartmentId) {
                     semester_id: form.querySelector('[name="semester_id"]').value
                 });
 
-                fetch('/chair/generate-schedules', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: formData
-                    })
-                    .then(response => {
-                        // Check if response is ok
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('Received data:', data); // Debug log
+                // Add a small delay to ensure loading screen is visible
+                setTimeout(() => {
+                    fetch('/chair/generate-schedules', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: formData
+                        })
+                        .then(response => {
+                            console.log('Response received, status:', response.status);
 
-                        // Hide loading overlay
-                        loadingOverlay.classList.add('hidden');
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Generation complete, received data:', data);
 
-                        if (!data.success) {
-                            showNotification(data.message || 'Error generating schedules', 'error');
-                            return; // Stop here if generation failed
-                        }
+                            if (!data.success) {
+                                // Hide loading overlay on error
+                                loadingOverlay.classList.add('hidden');
+                                generateBtn.disabled = false;
+                                generateBtn.innerHTML = originalText;
 
-                        // Update schedule data ONLY if successful
-                        window.scheduleData = data.schedules || [];
+                                showNotification(data.message || 'Error generating schedules', 'error');
+                                return;
+                            }
 
-                        // Update display first
-                        safeUpdateScheduleDisplay(window.scheduleData);
+                            // Update schedule data
+                            window.scheduleData = data.schedules || [];
+                            console.log('Updated schedule data with', window.scheduleData.length, 'schedules');
 
-                        // THEN show modal after display is updated
-                        showReportModal(data);
+                            // Update display first
+                            safeUpdateScheduleDisplay(window.scheduleData);
 
-                    })
-                    .catch(error => {
-                        loadingOverlay.classList.add('hidden');
-                        console.error('Generate error:', error);
-                        showNotification('Error generating schedules: ' + error.message, 'error');
-                    });
+                            // Small delay before hiding loading and showing modal
+                            setTimeout(() => {
+                                // Hide loading overlay
+                                loadingOverlay.classList.add('hidden');
+
+                                // Re-enable button
+                                generateBtn.disabled = false;
+                                generateBtn.innerHTML = originalText;
+
+                                // Show report modal
+                                showReportModal(data);
+
+                                // Show success notification
+                                showNotification('Schedules generated successfully!', 'success');
+                            }, 500); // 500ms delay to ensure smooth transition
+
+                        })
+                        .catch(error => {
+                            console.error('Generation error:', error);
+
+                            // Hide loading overlay on error
+                            loadingOverlay.classList.add('hidden');
+
+                            // Re-enable button
+                            generateBtn.disabled = false;
+                            generateBtn.innerHTML = originalText;
+
+                            showNotification('Error generating schedules: ' + error.message, 'error');
+                        });
+                }, 300); // 300ms delay to ensure loading screen shows
             });
 
-            // Helper function to get consistent color for a schedule
+            // Enhanced loading overlay with better UX
+            function showLoadingOverlay(message = 'Generating schedules...') {
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    const loadingText = loadingOverlay.querySelector('p');
+                    if (loadingText) {
+                        loadingText.textContent = message;
+                    }
+                    loadingOverlay.classList.remove('hidden');
+                    loadingOverlay.style.display = 'flex';
+
+                    // Prevent body scroll
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            function hideLoadingOverlay() {
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('hidden');
+                    loadingOverlay.style.display = 'none';
+
+                    // Restore body scroll
+                    document.body.style.overflow = '';
+                }
+            }
+
+            // Add progress indicator (optional enhancement)
+            function showLoadingWithProgress(currentStep, totalSteps, message) {
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (!loadingOverlay) return;
+
+                const loadingContent = loadingOverlay.querySelector('.bg-white');
+                if (!loadingContent) return;
+
+                const progress = Math.round((currentStep / totalSteps) * 100);
+
+                loadingContent.innerHTML = `
+                    <div class="pulsing-loader mx-auto mb-4"></div>
+                    <p class="text-gray-700 font-medium mb-3">${message}</p>
+                    <div class="w-64 bg-gray-200 rounded-full h-2">
+                        <div class="bg-yellow-500 h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">${progress}% Complete</p>
+                `;
+            }
+
+            function simulateLoadingProgress() {
+                const steps = [{
+                        id: 1,
+                        delay: 500,
+                        message: 'Courses and sections loaded'
+                    },
+                    {
+                        id: 2,
+                        delay: 1000,
+                        message: 'Faculty availability checked'
+                    },
+                    {
+                        id: 3,
+                        delay: 1500,
+                        message: 'Classrooms allocated'
+                    },
+                    {
+                        id: 4,
+                        delay: 2000,
+                        message: 'Finalizing schedules...'
+                    }
+                ];
+
+                steps.forEach(step => {
+                    setTimeout(() => {
+                        const checkmark = document.querySelector(`.step-check-${step.id}`);
+                        const spinner = document.querySelector(`.step-spinner-${step.id}`);
+                        const stepText = document.getElementById(`step-${step.id}`);
+
+                        if (checkmark) checkmark.classList.remove('hidden');
+                        if (spinner) spinner.classList.add('hidden');
+                        if (stepText && step.message) stepText.textContent = step.message;
+                    }, step.delay);
+                });
+            }
+
             function getScheduleColor(schedule) {
                 const colors = [
                     'bg-blue-100 border-blue-300 text-blue-800',

@@ -346,6 +346,9 @@
   .inset-0 {
     inset: calc(var(--spacing) * 0);
   }
+  .inset-2 {
+    inset: calc(var(--spacing) * 2);
+  }
   .inset-y-0 {
     inset-block: calc(var(--spacing) * 0);
   }
@@ -1322,6 +1325,9 @@
   }
   .border-yellow-500 {
     border-color: var(--color-yellow-500);
+  }
+  .border-t-transparent {
+    border-top-color: transparent;
   }
   .bg-\[var\(--solid-green\)\] {
     background-color: var(--solid-green);
