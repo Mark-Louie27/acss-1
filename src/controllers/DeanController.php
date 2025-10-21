@@ -517,23 +517,32 @@ class DeanController extends BaseController
     {
         $stats = ['total_pending' => 0];
         $currentSemester = $this->getCurrentSemester();
-        if ($currentSemester) {
+        $userId = $_SESSION['user_id'];
+        $collegeId = $this->getDeanCollegeId($userId);
+
+        if ($currentSemester && $collegeId) {
             try {
                 $stmt = $this->db->prepare("
                 SELECT COUNT(DISTINCT s.schedule_id) as total_pending
                 FROM schedules s
+                JOIN courses c ON s.course_id = c.course_id 
+                JOIN departments d ON c.department_id = d.department_id
                 WHERE s.semester_id = :semester_id 
+                AND d.college_id = :college_id
                 AND s.status IN ('Pending', 'Faculty_Submitted', 'Dean_Pending')
-            ");
-                $stmt->execute([':semester_id' => $currentSemester['semester_id']]);
+                ");
+                $stmt->execute([
+                    ':semester_id' => $currentSemester['semester_id'],
+                    ':college_id' => $collegeId
+                ]);
                 $stats['total_pending'] = (int) $stmt->fetchColumn();
-                error_log("getStats: Found {$stats['total_pending']} pending schedules for semester {$currentSemester['semester_id']}");
+                error_log("getStats: Found {$stats['total_pending']} pending schedules for semester {$currentSemester['semester_id']} in college $collegeId");
             } catch (PDOException $e) {
                 error_log("getStats: PDO Error - " . $e->getMessage());
                 $stats['total_pending'] = 0;
             }
         } else {
-            error_log("getStats: No current semester found");
+            error_log("getStats: No current semester found or invalid college ID");
         }
         return $stats;
     }

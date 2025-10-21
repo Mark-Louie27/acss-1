@@ -46,7 +46,34 @@ ob_start();
                 <svg class="w-4 h-4 mr-1 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <?php echo htmlspecialchars($currentSemesterId['semester_name']); ?>
+                <?php
+                $semName = '';
+                $acadYear = '';
+
+                if (!empty($currentSemesterId) && is_array($currentSemesterId)) {
+                    // semester_name may be a string or an array
+                    if (isset($currentSemesterId['semester_name'])) {
+                        $sn = $currentSemesterId['semester_name'];
+                        if (is_array($sn)) {
+                            // try common keys inside the semester_name array
+                            $semName = $sn['name'] ?? $sn['semester_name'] ?? '';
+                            $acadYear = $sn['academic_year'] ?? $acadYear;
+                        } else {
+                            $semName = $sn;
+                        }
+                    }
+                    // academic_year might be at the top level
+                    $acadYear = $currentSemesterId['academic_year'] ?? $acadYear;
+                }
+
+                $display = trim(
+                    ($semName !== '' ? $semName : '') .
+                    ($semName !== '' && $acadYear !== '' ? ' — ' : '') .
+                    ($acadYear !== '' ? $acadYear : '')
+                );
+
+                echo htmlspecialchars($display ?: 'No semester selected');
+                ?>
             </div>
         </div>
     </div>
