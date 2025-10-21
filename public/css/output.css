@@ -376,6 +376,9 @@
   .top-20 {
     top: calc(var(--spacing) * 20);
   }
+  .top-full {
+    top: 100%;
+  }
   .-right-1 {
     right: calc(var(--spacing) * -1);
   }
@@ -1221,6 +1224,10 @@
   .border-b-2 {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 2px;
+  }
+  .border-l {
+    border-left-style: var(--tw-border-style);
+    border-left-width: 1px;
   }
   .border-l-4 {
     border-left-style: var(--tw-border-style);
@@ -2519,6 +2526,18 @@
         content: var(--tw-content);
         border-color: var(--color-white);
       }
+    }
+  }
+  .first\:rounded-t-lg {
+    &:first-child {
+      border-top-left-radius: var(--radius-lg);
+      border-top-right-radius: var(--radius-lg);
+    }
+  }
+  .last\:rounded-b-lg {
+    &:last-child {
+      border-bottom-right-radius: var(--radius-lg);
+      border-bottom-left-radius: var(--radius-lg);
     }
   }
   .last\:border-r-0 {

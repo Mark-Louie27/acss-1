@@ -95,10 +95,6 @@
                 </div>
 
                 <?php
-                // Check if session is not already started before starting it
-                if (session_status() === PHP_SESSION_NONE) {
-                    session_start();
-                }
                 $awaitingApproval = false;
                 if (isset($_SESSION['user_id']) && isset($_SESSION['is_active']) && $_SESSION['is_active'] == 0) {
                     $awaitingApproval = true;

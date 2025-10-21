@@ -3,13 +3,9 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
 require_once __DIR__ . '/../services/SchedulingService.php';
+require_once __DIR__ . '/BaseController.php';
 
-// Start session only if not already active
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-class ChairController
+class ChairController extends BaseController
 {
     public $db;
     private $authService;
@@ -19,13 +15,14 @@ class ChairController
 
     public function __construct()
     {
+        parent::__construct();
         error_log("ChairController instantiated");
         $this->db = (new Database())->connect();
         if ($this->db === null) {
             error_log("Failed to connect to the database in ChairController");
             die("Database connection failed. Please try again later.");
         }
-        $this->restrictToChair();
+
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         $this->authService = new AuthService($this->db);
@@ -67,6 +64,10 @@ class ChairController
 
     public function dashboard()
     {
+        error_log("dashboard: Starting for user_id: " . ($this->getCurrentUserId() ?? 'none'));
+        error_log("dashboard: User roles: " . json_encode($this->userRoles));
+
+        $this->requireAnyRole('chair', 'dean');
         try {
             $chairId = $_SESSION['user_id'];
             error_log("dashboard: Starting dashboard method for user_id: $chairId");
@@ -305,6 +306,7 @@ class ChairController
 
     public function mySchedule()
     {
+        $this->requireAnyRole('chair', 'dean');
         try {
             $chairId = $_SESSION['user_id'];
             error_log("mySchedule: Starting mySchedule method for user_id: $chairId");
@@ -728,15 +730,6 @@ class ChairController
         }
     }
 
-    private function validateCurriculumCourse($curriculumId, $courseId)
-    {
-        $stmt = $this->db->prepare("SELECT 1 FROM curriculum_courses 
-                                  WHERE curriculum_id = :curriculum_id 
-                                  AND course_id = :course_id");
-        $stmt->execute([':curriculum_id' => $curriculumId, ':course_id' => $courseId]);
-        return $stmt->fetchColumn();
-    }
-
     private function getCurricula($departmentId)
     {
         $stmt = $this->db->prepare("SELECT curriculum_id, curriculum_name FROM curricula WHERE department_id = :dept_id AND status = 'Active'");
@@ -905,7 +898,7 @@ class ChairController
             $transactionActive = true;
 
             // Delete all schedules created today for the current department
-            $stmt = $this->db->prepare("DELETE FROM schedules WHERE department_id = :department_id");
+            $stmt = $this->db->prepare("DELETE FROM schedules WHERE department_id = :department_id AND DATE(created_at) = CURDATE()");
             $stmt->execute([':department_id' => $departmentId]);
             $deletedCount = $stmt->rowCount();
 
@@ -1522,6 +1515,7 @@ class ChairController
 
     public function manageSchedule()
     {
+        $this->requireAnyRole('chair', 'dean');
         $chairId = $_SESSION['user_id'] ?? null;
         $departmentId = $this->getChairDepartment($chairId);
         $currentSemester = $this->getCurrentSemester();
@@ -1587,13 +1581,7 @@ class ChairController
     public function generateSchedulesAjax()
     {
         header('Content-Type: application/json');
-
-        if (ob_get_level()) {
-            ob_end_flush();
-        }
-
-        set_time_limit(300); // 5 minutes max
-        ini_set('max_execution_time', 300);
+        error_log("generateSchedulesAjax: Request received at " . date('Y-m-d H:i:s'));
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             error_log("generateSchedulesAjax: Invalid request method: {$_SERVER['REQUEST_METHOD']}");
@@ -1667,97 +1655,61 @@ class ChairController
             case 'generate_schedule':
                 $curriculumId = $_POST['curriculum_id'] ?? null;
                 $yearLevels = $_POST['year_levels'] ?? [];
-
                 if (!is_array($yearLevels)) {
                     $yearLevels = array_map('trim', explode(',', $yearLevels));
                 }
                 $yearLevels = array_filter($yearLevels);
-
                 if (empty($yearLevels)) {
                     $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
                     error_log("generateSchedulesAjax: No year levels provided, using default: " . implode(', ', $yearLevels));
+                } else {
+                    error_log("generateSchedulesAjax: Year levels provided: " . implode(', ', $yearLevels));
                 }
 
-                if (!$curriculumId) {
+                if ($curriculumId) {
+                    $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
+                    $classrooms = $cachedData['classrooms'];
+                    $faculty = $cachedData['faculty'];
+                    $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
+                    error_log("generateSchedulesAjax: Sections count: " . count($sections));
+                    error_log("generateSchedulesAjax: Classrooms count: " . count($classrooms) . ", Faculty count: " . count($faculty));
+
+                    $semesterName = strtolower($currentSemester['semester_name'] ?? '');
+                    $isMidYearSummer = in_array($semesterName, ['midyear', 'summer', 'mid-year', 'mid year', '3rd']);
+                    $semesterType = $isMidYearSummer ? $semesterName : 'regular';
+
+                    error_log("generateSchedulesAjax: Current semester name: '{$currentSemester['semester_name']}', detected type: '$semesterType'");
+
+                    $schedules = $this->generateSchedules($curriculumId, $yearLevels, $collegeId, $currentSemester, $classrooms, $faculty, $departmentId, $semesterType);
+                    $this->removeDuplicateSchedules($departmentId, $currentSemester);
+
+                    $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
+                    error_log("generateSchedulesAjax: Generated " . count($consolidatedSchedules) . " schedules");
+
+                    $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
+                    $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
+                    $unassignedCourses = array_map(function ($course) {
+                        return ['course_code' => $course['course_code']];
+                    }, array_filter($this->getCurriculumCourses($curriculumId), fn($c) => !in_array($c['course_code'], $assignedCourseCodes)));
+
+                    $totalCourses = count($allCourseCodes);
+                    $totalSections = count(array_unique(array_column($consolidatedSchedules, 'section_id')));
+                    $successRate = $totalCourses > 0 ? (count($assignedCourseCodes) / $totalCourses) * 100 : 0;
+                    $successRate = number_format($successRate, 2) . '%';
+
+                    echo json_encode([
+                        'success' => true,
+                        'schedules' => $consolidatedSchedules,
+                        'unassignedCourses' => $unassignedCourses,
+                        'totalCourses' => $totalCourses,
+                        'totalSections' => $totalSections,
+                        'successRate' => $successRate,
+                        'message' => "Schedules generated: " . count($consolidatedSchedules) . " unique courses"
+                    ]);
+                } else {
                     error_log("generateSchedulesAjax: Missing curriculum ID for generate_schedule");
                     echo json_encode(['success' => false, 'message' => 'Missing curriculum ID']);
-                    exit;
                 }
-
-                error_log("generateSchedulesAjax: Starting generation for curriculum $curriculumId...");
-
-                // Force a small delay to ensure client shows loading screen
-                // Remove this line if generation already takes time
-                // usleep(500000); // 0.5 second delay
-
-                $cachedData = $_SESSION['schedule_cache'][$departmentId] ?? $this->loadCommonData($departmentId, $currentSemester, $collegeId);
-                $classrooms = $cachedData['classrooms'];
-                $faculty = $cachedData['faculty'];
-                $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
-
-                error_log("generateSchedulesAjax: Loaded data - Sections: " . count($sections) . ", Classrooms: " . count($classrooms) . ", Faculty: " . count($faculty));
-
-                $semesterName = strtolower($currentSemester['semester_name'] ?? '');
-                $isMidYearSummer = in_array($semesterName, ['midyear', 'summer', 'mid-year', 'mid year', '3rd']);
-                $semesterType = $isMidYearSummer ? $semesterName : 'regular';
-
-                error_log("generateSchedulesAjax: Current semester: '{$currentSemester['semester_name']}', type: '$semesterType'");
-                error_log("generateSchedulesAjax: Calling generateSchedules()...");
-
-                $startTime = microtime(true);
-
-                $schedules = $this->generateSchedules(
-                    $curriculumId,
-                    $yearLevels,
-                    $collegeId,
-                    $currentSemester,
-                    $classrooms,
-                    $faculty,
-                    $departmentId,
-                    $semesterType
-                );
-
-                $endTime = microtime(true);
-                $executionTime = round($endTime - $startTime, 2);
-
-                error_log("generateSchedulesAjax: Generation completed in {$executionTime} seconds");
-
-                $this->removeDuplicateSchedules($departmentId, $currentSemester);
-
-                $consolidatedSchedules = $this->getConsolidatedSchedules($departmentId, $currentSemester);
-                error_log("generateSchedulesAjax: Consolidated to " . count($consolidatedSchedules) . " schedules");
-
-                $allCourseCodes = array_column($this->getCurriculumCourses($curriculumId), 'course_code');
-                $assignedCourseCodes = array_unique(array_column($consolidatedSchedules, 'course_code'));
-                $unassignedCourses = array_map(
-                    function ($course) {
-                        return ['course_code' => $course['course_code']];
-                    },
-                    array_filter(
-                        $this->getCurriculumCourses($curriculumId),
-                        fn($c) => !in_array($c['course_code'], $assignedCourseCodes)
-                    )
-                );
-
-                $totalCourses = count($allCourseCodes);
-                $totalSections = count(array_unique(array_column($consolidatedSchedules, 'section_id')));
-                $successRate = $totalCourses > 0 ? (count($assignedCourseCodes) / $totalCourses) * 100 : 0;
-                $successRate = number_format($successRate, 2) . '%';
-
-                $response = [
-                    'success' => true,
-                    'schedules' => $consolidatedSchedules,
-                    'unassignedCourses' => $unassignedCourses,
-                    'totalCourses' => $totalCourses,
-                    'totalSections' => $totalSections,
-                    'successRate' => $successRate,
-                    'executionTime' => $executionTime,
-                    'message' => "Generated " . count($consolidatedSchedules) . " schedules in {$executionTime}s"
-                ];
-
-                error_log("generateSchedulesAjax: Sending response: " . json_encode(['success' => true, 'count' => count($consolidatedSchedules)]));
-
-                echo json_encode($response);
                 break;
 
             case 'delete_schedules':
@@ -2244,7 +2196,7 @@ class ChairController
             return [];
         }
     }
-   
+
     private function validateScheduleIntegrity($schedules, $facultyAssignments)
     {
         $conflicts = [];
@@ -2363,46 +2315,53 @@ class ChairController
         return $conflicts;
     }
 
-    private function scheduleCourseSectionsInDifferentTimeSlots(
-        $course,
-        $sectionsForCourse,
-        $targetDays,
-        $timeSlots,
-        &$sectionScheduleTracker,
-        $facultySpecializations,
-        &$facultyAssignments,
-        $currentSemester,
-        $departmentId,
-        &$schedules,
-        &$onlineSlotTracker,
-        &$roomAssignments,
-        &$usedTimeSlots,
-        $subjectType,
-        $isLecture = false,
-        $isLab = false,
-        $forceF2F = false,
-        $component = null,
-        $facultyId = null
-    ) {
+    private function scheduleCourseSectionsInDifferentTimeSlots($course, $sectionsForCourse, $targetDays, $timeSlots, &$sectionScheduleTracker, $facultySpecializations, &$facultyAssignments, $currentSemester, $departmentId, &$schedules, &$onlineSlotTracker, &$roomAssignments, &$usedTimeSlots, $subjectType, $isLecture = false, $isLab = false, $forceF2F = false, $component = null, $facultyId = null)
+    {
         $scheduledSections = [];
         $courseDetails = $this->getCourseDetails($course['course_id']);
         $hasLecture = ($courseDetails['lecture_hours'] ?? 0) > 0;
         $hasLab = ($courseDetails['lab_hours'] ?? 0) > 0;
 
-        // Determine room type based on component and course configuration
-        $roomType = $this->determineRequiredRoomType(
-            $courseDetails,
-            $isLecture,
-            $isLab,
-            $component
-        );
+        // UNIFIED FACULTY: If course has both lecture and lab, ensure same faculty
+        if ($hasLecture && $hasLab && !$facultyId) {
+            error_log("UNIFIED FACULTY: Course {$courseDetails['course_code']} needs single faculty for both lecture and lab");
+
+            $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
+            $facultyId = $this->findBestFaculty(
+                $facultySpecializations,
+                $course['course_id'],
+                $targetDays,
+                $timeSlots[0][0],
+                $timeSlots[0][1],
+                $collegeId,
+                $departmentId,
+                $schedules,
+                $facultyAssignments,
+                $courseDetails['course_code'],
+                $sectionsForCourse[0]['section_id']
+            );
+
+            if ($facultyId) {
+                error_log("UNIFIED FACULTY: Selected faculty $facultyId for both components of {$courseDetails['course_code']}");
+            }
+        }
+
+        // Determine duration based on component type
+        if ($isLecture) {
+            $requiredDuration = ($courseDetails['lecture_hours'] ?? 3) / count($targetDays);
+        } elseif ($isLab) {
+            $requiredDuration = ($courseDetails['lab_hours'] ?? 3) / count($targetDays);
+        } else {
+            $requiredDuration = ($courseDetails['units'] ?? 3) / count($targetDays);
+        }
 
         foreach ($sectionsForCourse as $section) {
             $sectionScheduledSuccessfully = false;
 
+            // NEW: Check if this course-section-component combination is already scheduled
             $scheduleKey = $course['course_id'] . '-' . $section['section_id'] . '-' . ($component ?? 'main');
 
-            // Check if already scheduled
+            // Check if already scheduled in current generation
             $alreadyScheduled = false;
             foreach ($schedules as $existingSchedule) {
                 if (
@@ -2421,16 +2380,10 @@ class ChairController
                 continue;
             }
 
-            $requiredDuration = $this->calculateRequiredDuration(
-                $courseDetails,
-                $isLecture,
-                $isLab,
-                count($targetDays)
-            );
-
             foreach ($timeSlots as $timeSlot) {
                 list($startTime, $endTime, $slotDuration) = $timeSlot;
 
+                // Check if duration matches
                 if (abs($slotDuration - $requiredDuration) > 0.5) {
                     continue;
                 }
@@ -2465,36 +2418,57 @@ class ChairController
                     continue;
                 }
 
-                // IMPROVED: Smart room assignment based on component type
+                // CRITICAL FIX: Use ONE room for ALL days of the same course-section
                 $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
+                $needsLabRoom = $isLab || ($courseDetails['lab_hours'] ?? 0) > 0;
+                $roomPreference = $needsLabRoom ? 'laboratory' : 'lecture';
+
+                // Find ONE room that's available for ALL target days
                 $sharedRoom = null;
                 $roomAvailableAllDays = false;
 
                 if ($forceF2F || $subjectType === 'Professional Course') {
-                    $sharedRoom = $this->findConsistentRoomForAllDays(
-                        $departmentId,
-                        $section['max_students'],
-                        $targetDays,
-                        $startTime,
-                        $endTime,
-                        $schedules,
-                        $roomType,
-                        $component,
-                        $collegeId,
-                        $courseDetails['course_code']
-                    );
+                    // Check if a single room is available for all days
+                    foreach ($targetDays as $checkDay) {
+                        $testRoom = $this->getSpecificRoomType(
+                            $departmentId,
+                            $section['max_students'],
+                            $checkDay,
+                            $startTime,
+                            $endTime,
+                            $schedules,
+                            $roomPreference,
+                            $component,
+                            $collegeId
+                        );
 
-                    if (!$sharedRoom) {
-                        error_log("No {$roomType} room available for all days for {$courseDetails['course_code']} ({$component})");
-                        continue;
+                        if (!$testRoom || !$testRoom['room_id']) {
+                            $roomAvailableAllDays = false;
+                            break;
+                        }
+
+                        if (!$sharedRoom) {
+                            $sharedRoom = $testRoom;
+                            $roomAvailableAllDays = true;
+                        } elseif ($sharedRoom['room_id'] !== $testRoom['room_id']) {
+                            // Different room needed for different days - not ideal but acceptable
+                            error_log("WARNING: Different rooms available on different days for {$courseDetails['course_code']}");
+                            $roomAvailableAllDays = false;
+                            break;
+                        }
                     }
-                    $roomAvailableAllDays = true;
+
+                    if (!$roomAvailableAllDays || !$sharedRoom) {
+                        error_log("No consistent room available for all days for {$courseDetails['course_code']} ({$component})");
+                        continue; // Try next time slot
+                    }
                 } else {
+                    // Online course
                     $sharedRoom = ['room_id' => null, 'room_name' => 'Online'];
                     $roomAvailableAllDays = true;
                 }
 
-                // Save schedules for all days with the same room
+                // Save schedules for all days with the SAME room
                 $allDaysSuccess = true;
                 $savedScheduleIds = [];
 
@@ -2519,7 +2493,6 @@ class ChairController
                         'year_level' => $section['year_level'],
                         'department_id' => $departmentId,
                         'component_type' => $component,
-                        'room_type' => $roomType,
                         'days_pattern' => implode('', array_map(fn($d) => substr($d, 0, 1), $targetDays))
                     ];
 
@@ -2533,6 +2506,7 @@ class ChairController
                     $savedScheduleIds[] = $response['data']['schedule_id'];
                     $schedules[] = array_merge($response['data'], $scheduleData);
 
+                    // Update tracking
                     $this->updateSectionScheduleTracker($sectionScheduleTracker, $section['section_id'], $day, $startTime, $endTime);
 
                     if ($sharedRoom['room_id']) {
@@ -2546,8 +2520,7 @@ class ChairController
                             'end_time' => $endTime,
                             'course_code' => $courseDetails['course_code'],
                             'section_name' => $section['section_name'],
-                            'component' => $component,
-                            'room_type' => $roomType
+                            'component' => $component
                         ];
                     }
 
@@ -2555,6 +2528,7 @@ class ChairController
                 }
 
                 if ($allDaysSuccess) {
+                    // Update faculty assignments - ONE entry for the entire course schedule
                     $facultyAssignments[] = [
                         'faculty_id' => $facultyId,
                         'course_id' => $course['course_id'],
@@ -2566,16 +2540,16 @@ class ChairController
                         'units' => $courseDetails['units'],
                         'hours' => ($courseDetails['lecture_hours'] + $courseDetails['lab_hours']) ?: $courseDetails['units'],
                         'component' => $component,
-                        'room_type' => $roomType,
                         'schedule_ids' => $savedScheduleIds
                     ];
 
                     $scheduledSections[] = $section['section_id'];
                     $sectionScheduledSuccessfully = true;
 
-                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} in {$sharedRoom['room_name']} ({$roomType}) with faculty $facultyId");
-                    break;
+                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} in {$sharedRoom['room_name']} with faculty $facultyId");
+                    break; // Move to next section
                 } else {
+                    // Rollback saved schedules for this failed attempt
                     foreach ($savedScheduleIds as $scheduleId) {
                         $this->deleteScheduleFromDB($scheduleId);
                     }
@@ -2588,111 +2562,6 @@ class ChairController
         }
 
         return count($scheduledSections) === count($sectionsForCourse);
-    }
-
-    // NEW HELPER: Determine required room type based on component
-    private function determineRequiredRoomType($courseDetails, $isLecture, $isLab, $component)
-    {
-        $labHours = $courseDetails['lab_hours'] ?? 0;
-        $lectureHours = $courseDetails['lecture_hours'] ?? 0;
-
-        // Explicit component type takes priority
-        if ($component === 'Lab') {
-            return 'laboratory';
-        }
-        if ($component === 'Lecture') {
-            return 'lecture';
-        }
-
-        // For combined courses, check actual hours
-        if ($isLab && $labHours > 0) {
-            return 'laboratory';
-        }
-
-        if ($isLecture && $lectureHours > 0) {
-            return 'lecture';
-        }
-
-        // Default to lecture room
-        return 'lecture';
-    }
-
-    // NEW HELPER: Calculate required duration
-    private function calculateRequiredDuration($courseDetails, $isLecture, $isLab, $dayCount)
-    {
-        if ($isLecture && ($courseDetails['lecture_hours'] ?? 0) > 0) {
-            return $courseDetails['lecture_hours'] / $dayCount;
-        }
-
-        if ($isLab && ($courseDetails['lab_hours'] ?? 0) > 0) {
-            return $courseDetails['lab_hours'] / $dayCount;
-        }
-
-        return ($courseDetails['units'] ?? 3) / $dayCount;
-    }
-
-    // NEW HELPER: Find one room available for ALL target days
-    private function findConsistentRoomForAllDays(
-        $departmentId,
-        $maxStudents,
-        $targetDays,
-        $startTime,
-        $endTime,
-        $schedules,
-        $roomType,
-        $component,
-        $collegeId,
-        $courseCode
-    ) {
-        $candidateRooms = [];
-
-        // Get available rooms for each day
-        foreach ($targetDays as $day) {
-            $availableRoomsOnDay = $this->getSpecificRoomType(
-                $departmentId,
-                $maxStudents,
-                $day,
-                $startTime,
-                $endTime,
-                $schedules,
-                $roomType,
-                $component,
-                $collegeId
-            );
-
-            if (!$availableRoomsOnDay || !$availableRoomsOnDay['room_id']) {
-                error_log("No {$roomType} room available on {$day} for {$courseCode}");
-                return null;
-            }
-
-            $candidateRooms[$day] = $availableRoomsOnDay;
-        }
-
-        // Find room that appears on all days (preferred) or use first available
-        $roomFrequency = [];
-        foreach ($candidateRooms as $day => $room) {
-            $roomId = $room['room_id'];
-            if (!isset($roomFrequency[$roomId])) {
-                $roomFrequency[$roomId] = ['count' => 0, 'room' => $room];
-            }
-            $roomFrequency[$roomId]['count']++;
-        }
-
-        // Sort by frequency (rooms available most days first)
-        uasort($roomFrequency, fn($a, $b) => $b['count'] <=> $a['count']);
-
-        if (!empty($roomFrequency)) {
-            $bestRoom = reset($roomFrequency);
-            if ($bestRoom['count'] === count($targetDays)) {
-                error_log("✅ Found consistent {$roomType} room for all days: {$bestRoom['room']['room_name']}");
-                return $bestRoom['room'];
-            } else {
-                error_log("⚠️ Using {$roomType} room available on {$bestRoom['count']} of " . count($targetDays) . " days");
-                return $bestRoom['room'];
-            }
-        }
-
-        return null;
     }
 
     private function getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $roomPreference = 'classroom', $component = null, $collegeId = null)
@@ -4761,6 +4630,7 @@ class ChairController
 
     public function viewScheduleHistory()
     {
+        $this->requireAnyRole('chair', 'dean');
         $chairId = $_SESSION['user_id'] ?? null;
         $departmentId = $this->getChairDepartment($chairId);
         $error = $success = null;
@@ -5115,6 +4985,7 @@ class ChairController
 
     public function classroom()
     {
+        $this->requireAnyRole('chair', 'dean');
         error_log("classroom: Starting classroom method");
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         if ($isAjax) {
@@ -5549,6 +5420,7 @@ class ChairController
 
     public function sections()
     {
+        $this->requireAnyRole('chair', 'dean');
         error_log("sections: Starting sections method");
         try {
             $chairId = $_SESSION['user_id'];
@@ -6435,6 +6307,7 @@ class ChairController
      */
     public function curriculum()
     {
+        $this->requireAnyRole('chair', 'dean');
         error_log("curriculum: Starting curriculum method");
         try {
             $chairId = $_SESSION['user_id'] ?? 0;
@@ -6865,6 +6738,7 @@ class ChairController
      */
     public function courses()
     {
+        $this->requireAnyRole('chair', 'dean');
         error_log("courses: Starting courses method at " . date('Y-m-d H:i:s'));
         try {
             $chairId = $_SESSION['user_id'] ?? 0;
@@ -7153,6 +7027,7 @@ class ChairController
 
     public function search()
     {
+        $this->requireAnyRole('chair', 'dean');
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         if (!$isAjax || $_SERVER['REQUEST_METHOD'] !== 'POST') {
             error_log("search: Invalid request - Expected POST AJAX, got " . $_SERVER['REQUEST_METHOD']);
@@ -7337,6 +7212,7 @@ class ChairController
 
     public function faculty()
     {
+        $this->requireAnyRole('chair', 'dean');
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
@@ -7850,6 +7726,7 @@ class ChairController
 
     public function profile()
     {
+        $this->requireAnyRole('chair', 'dean');
         try {
             if (!$this->authService->isLoggedIn()) {
                 $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view your profile'];
@@ -8281,6 +8158,7 @@ class ChairController
 
     public function settings()
     {
+        $this->requireAnyRole('chair', 'dean');
         if (!$this->authService->isLoggedIn()) {
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to access settings'];
             header('Location: /login');

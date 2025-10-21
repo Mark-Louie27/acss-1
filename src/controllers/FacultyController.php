@@ -18,7 +18,6 @@ class FacultyController
             error_log("Failed to connect to the database in FacultyController");
             die("Database connection failed. Please try again later.");
         }
-        $this->restrictToFaculty();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->authService = new AuthService($this->db);
         $this->schedulingService = new SchedulingService($this->db);

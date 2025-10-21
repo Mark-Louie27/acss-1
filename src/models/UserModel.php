@@ -293,7 +293,7 @@ class UserModel
                 case 6: // Faculty
                     // Faculty record already created above
                     break;
-                
+
                 default:
                     // No role-specific table for other roles
                     break;
@@ -595,6 +595,25 @@ class UserModel
         }
     }
 
+    public function getUserRoles($userId)
+    {
+        try {
+            $query = "
+            SELECT r.role_name
+            FROM user_roles ur
+            JOIN roles r ON ur.role_id = r.role_id
+            WHERE ur.user_id = :user_id
+            ";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error fetching user roles: " . $e->getMessage());
+            return [];
+        }
+    }
+
     /**
      * Get all colleges
      * @return array
@@ -813,6 +832,4 @@ class UserModel
             return ['success' => false, 'error' => 'Database error: ' . $e->getMessage()];
         }
     }
-
 }
-

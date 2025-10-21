@@ -14,11 +14,13 @@ $success = '';
 $roles = [];
 $colleges = [];
 $departments = [];
+$departmentId = 0; // Default to 0 for fetching all departments
 
-// Fetch roles and colleges for dropdowns
+// Fetch roles, colleges, and departments for dropdowns
 try {
     $roles = $userModel->getRoles();
     $colleges = $userModel->getColleges();
+    $departments = $userModel->getProgramsByDepartment($departmentId); // Fetch all departments
 } catch (Exception $e) {
     $error = "Error loading registration data: " . $e->getMessage();
 }
@@ -34,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'email',
             'first_name',
             'last_name',
-            'role_id',
             'college_id',
             'department_id'
         ];
@@ -49,6 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Passwords do not match.");
         }
 
+        // Determine program_id based on department_id
+        $programId = null;
+        $programs = $userModel->getProgramsByDepartment((int)$_POST['department_id']);
+        if (!empty($programs)) {
+            $programId = $programs[0]['program_id']; // Use the first program_id if multiple exist
+        } elseif (in_array(5, (array)$_POST['roles'])) {
+            throw new Exception("No program associated with the selected department for Program Chair.");
+        }
+
         $userData = [
             'employee_id' => trim($_POST['employee_id']),
             'username' => trim($_POST['username']),
@@ -59,17 +69,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'middle_name' => trim($_POST['middle_name'] ?? ''),
             'last_name' => trim($_POST['last_name']),
             'suffix' => trim($_POST['suffix'] ?? ''),
-            'role_id' => (int)$_POST['role_id'],
+            'roles' => isset($_POST['roles']) ? (array)$_POST['roles'] : [], // Multi-select roles
             'college_id' => (int)$_POST['college_id'],
             'department_id' => (int)$_POST['department_id'],
-            'is_active' => 0,
+            'program_id' => $programId, // Auto-filled based on department
             'academic_rank' => trim($_POST['academic_rank'] ?? ''),
             'employment_type' => trim($_POST['employment_type'] ?? ''),
-            'classification' => trim($_POST['classification'] ?? '')
+            'classification' => trim($_POST['classification'] ?? ''),
+            'role_id' => !empty($_POST['roles']) ? (int)reset($_POST['roles']) : null // Add role_id
         ];
 
+        if (empty($userData['roles'])) {
+            throw new Exception("At least one role must be selected.");
+        }
+
+        // Check for existing roles that should be unique
+        $existingRoles = $authService->checkExistingRoles($userData['college_id'], $userData['department_id'], $userData['program_id']);
+        foreach ($userData['roles'] as $roleId) {
+            if (in_array($roleId, [1, 4]) && isset($existingRoles[$roleId]['college_id']) && $existingRoles[$roleId]['college_id'] == $userData['college_id']) {
+                throw new Exception("A user with the {$existingRoles[$roleId]['role_name']} role already exists for this college.");
+            }
+            if ($roleId == 5 && isset($existingRoles[$roleId]['program_id']) && $existingRoles[$roleId]['program_id'] == $userData['program_id']) {
+                throw new Exception("A Program Chair already exists for this program.");
+            }
+        }
+
         if ($authService->register($userData)) {
-            $success = "Registration successful! You can now login.";
+            $success = in_array(5, $userData['roles']) || in_array(6, $userData['roles'])
+                ? "Registration submitted successfully. Awaiting Dean approval."
+                : "Registration successful! You can now login.";
             header('Location: /login?success=' . urlencode($success));
             exit;
         } else {
@@ -130,7 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             opacity: 1;
         }
 
-        /* Custom responsive utilities */
         .form-container {
             min-height: 100vh;
         }
@@ -152,13 +179,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        /* Improved input spacing */
         .input-group {
             margin-bottom: 1rem;
         }
 
         .input-group:last-child {
             margin-bottom: 0;
+        }
+
+        .multi-select {
+            height: 150px;
+            /* Adjust height for multi-select visibility */
+            overflow-y: auto;
+        }
+
+        .role-checkbox:disabled+label {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .role-checkbox:disabled {
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -394,30 +435,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="border-b border-gray-200 pb-6">
                         <h3 class="text-lg lg:text-xl font-semibold text-gray-700 mb-4">Academic Information</h3>
 
-                        <!-- Role -->
-                        <div class="input-group">
-                            <label for="role_id" class="block text-sm font-medium text-gray-700 mb-2">Role <span class="text-red-500">*</span></label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg class="h-5 w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <!-- Roles Section -->
+                        <div class="input-group mt-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-3">
+                                <div class="flex items-center">
+                                    <svg class="h-5 w-5 text-yellow-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a2 2 0 00-2-2h-3m-2 4h-5a2 2 0 01-2-2v-3m7-7a4 4 0 11-8 0 4 4 0 018 0z" />
                                     </svg>
+                                    Select Roles <span class="text-red-500">*</span>
                                 </div>
-                                <select id="role_id" name="role_id" required
-                                    class="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-md shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
-                                    <option value="">Select Role</option>
-                                    <?php foreach ($roles as $role): ?>
-                                        <option value="<?= $role['role_id'] ?>" <?= (isset($_POST['role_id']) && $_POST['role_id'] == $role['role_id']) ? 'selected' : '' ?>>
+                                <p class="text-xs text-gray-500 mt-1">Note: You can select both Dean and Program Chair together, but other roles cannot be combined</p>
+                            </label>
+
+                            <div class="space-y-2 p-4 border border-gray-300 rounded-md bg-gray-50" id="roles-container">
+                                <?php foreach ($roles as $role): ?>
+                                    <div class="flex items-center">
+                                        <input type="checkbox"
+                                            id="role_<?= $role['role_id'] ?>"
+                                            name="roles[]" value="<?= $role['role_id'] ?>"
+                                            class="role-checkbox h-4 w-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                                            data-role-id="<?= $role['role_id'] ?>"
+                                            required>
+                                        <label for="role_<?= $role['role_id'] ?>" class="ml-3 block text-sm text-gray-700 cursor-pointer">
                                             <?= htmlspecialchars($role['role_name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
+                            <p id="roles-error" class="mt-2 text-sm text-red-600 hidden">Please select at least one role</p>
                         </div>
 
                         <!-- College -->
@@ -458,6 +503,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <select id="department_id" name="department_id" required
                                     class="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-md shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
                                     <option value="">Select Department</option>
+                                    <?php foreach ($departments as $department): ?>
+                                        <option value="<?= $department['department_id'] ?>" <?= (isset($_POST['department_id']) && $_POST['department_id'] == $department['department_id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($department['department_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
                                 <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                     <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -479,19 +529,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <select id="academic_rank" name="academic_rank"
                                     class="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-md shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 appearance-none">
                                     <option value="">Select Academic Rank</option>
+                                    <!-- Instructor Ranks -->
                                     <option value="Instructor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor I') ? 'selected' : '' ?>>Instructor I</option>
                                     <option value="Instructor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor II') ? 'selected' : '' ?>>Instructor II</option>
                                     <option value="Instructor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Instructor III') ? 'selected' : '' ?>>Instructor III</option>
+
+                                    <!-- Assistant Professor Ranks -->
                                     <option value="Assistant Professor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor I') ? 'selected' : '' ?>>Assistant Professor I</option>
                                     <option value="Assistant Professor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor II') ? 'selected' : '' ?>>Assistant Professor II</option>
                                     <option value="Assistant Professor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor III') ? 'selected' : '' ?>>Assistant Professor III</option>
                                     <option value="Assistant Professor IV" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Assistant Professor IV') ? 'selected' : '' ?>>Assistant Professor IV</option>
+
+                                    <!-- Associate Professor Ranks -->
                                     <option value="Associate Professor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor I') ? 'selected' : '' ?>>Associate Professor I</option>
                                     <option value="Associate Professor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor II') ? 'selected' : '' ?>>Associate Professor II</option>
                                     <option value="Associate Professor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor III') ? 'selected' : '' ?>>Associate Professor III</option>
                                     <option value="Associate Professor IV" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor IV') ? 'selected' : '' ?>>Associate Professor IV</option>
                                     <option value="Associate Professor V" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Associate Professor V') ? 'selected' : '' ?>>Associate Professor V</option>
-                                    <option value="Professor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor') ? 'selected' : '' ?>>Professor</option>
+
+                                    <!-- Full Professor Ranks -->
+                                    <option value="Professor I" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor I') ? 'selected' : '' ?>>Professor I</option>
+                                    <option value="Professor II" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor II') ? 'selected' : '' ?>>Professor II</option>
+                                    <option value="Professor III" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor III') ? 'selected' : '' ?>>Professor III</option>
+                                    <option value="Professor IV" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor IV') ? 'selected' : '' ?>>Professor IV</option>
+                                    <option value="Professor V" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor V') ? 'selected' : '' ?>>Professor V</option>
+                                    <option value="Professor VI" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor VI') ? 'selected' : '' ?>>Professor VI</option>
+                                    <option value="Professor VII" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor VII') ? 'selected' : '' ?>>Professor VII</option>
+                                    <option value="Professor VIII" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor VIII') ? 'selected' : '' ?>>Professor VIII</option>
+                                    <option value="Professor IX" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor IX') ? 'selected' : '' ?>>Professor IX</option>
+                                    <option value="Professor X" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor X') ? 'selected' : '' ?>>Professor X</option>
+                                    <option value="Professor XI" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor XI') ? 'selected' : '' ?>>Professor XI</option>
+                                    <option value="Professor XII" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor XII') ? 'selected' : '' ?>>Professor XII</option>
+
+                                    <!-- University Professor -->
+                                    <option value="University Professor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'University Professor') ? 'selected' : '' ?>>University Professor</option>
+
+                                    <!-- Emeritus Ranks -->
+                                    <option value="Professor Emeritus" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Professor Emeritus') ? 'selected' : '' ?>>Professor Emeritus</option>
+                                    <option value="Distinguished Professor" <?= (isset($_POST['academic_rank']) && $_POST['academic_rank'] == 'Distinguished Professor') ? 'selected' : '' ?>>Distinguished Professor</option>
                                 </select>
                                 <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                     <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -603,6 +678,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script>
+        // Role selection logic
+        function handleRoleSelection() {
+            const checkedRoles = $('.role-checkbox:checked');
+            const deanChecked = checkedRoles.filter('[value="4"]').length > 0; // Assuming Dean is role_id 4
+            const programChairChecked = checkedRoles.filter('[value="5"]').length > 0; // Assuming Program Chair is role_id 5
+
+            // Enable/disable other roles based on selection
+            $('.role-checkbox').each(function() {
+                const roleId = $(this).val();
+                const isDeanOrProgramChair = roleId === '4' || roleId === '5';
+
+                if (checkedRoles.length > 0) {
+                    if (isDeanOrProgramChair) {
+                        // If Dean or Program Chair is selected, allow both to be selected together
+                        if (deanChecked || programChairChecked) {
+                            // Allow other Dean/Program Chair to be selected
+                            if (!$(this).is(':checked') && isDeanOrProgramChair) {
+                                $(this).prop('disabled', false);
+                            }
+                            // Disable non-Dean/ProgramChair roles
+                            if (!isDeanOrProgramChair) {
+                                $(this).prop('disabled', true);
+                            }
+                        }
+                    } else {
+                        // If a non-Dean/ProgramChair role is selected, disable all others
+                        if (!$(this).is(':checked')) {
+                            $(this).prop('disabled', true);
+                        }
+                    }
+                } else {
+                    // No roles selected, enable all
+                    $(this).prop('disabled', false);
+                }
+            });
+        }
+
         // Load departments when college is selected
         function loadDepartments() {
             const collegeId = $('#college_id').val();
@@ -642,6 +754,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $(document).ready(function() {
+            // Bind role selection logic
+            $('.role-checkbox').on('change', handleRoleSelection);
+
+            // Initialize role selection state
+            handleRoleSelection();
+
             // Bind the loadDepartments function to college selection change
             $('#college_id').on('change', loadDepartments);
 
@@ -663,6 +781,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     errorElement.addClass('hidden');
                 }
             });
+
+            // Form submission validation
+            $('form').on('submit', function(e) {
+                const checkedRoles = $('.role-checkbox:checked');
+                if (checkedRoles.length === 0) {
+                    e.preventDefault();
+                    $('#roles-error').removeClass('hidden');
+                    $('#roles-container').addClass('border-red-500');
+                    return false;
+                } else {
+                    $('#roles-error').addClass('hidden');
+                    $('#roles-container').removeClass('border-red-500');
+                }
+            });
+
+            // Ensure at least one role is pre-checked or required
+            if ($('.role-checkbox:checked').length === 0) {
+                $('#roles-error').removeClass('hidden');
+                $('#roles-container').addClass('border-red-500');
+            }
 
             // Smooth scroll behavior for better UX
             $('html').css('scroll-behavior', 'smooth');

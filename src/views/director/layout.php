@@ -1,9 +1,5 @@
 <?php
 require_once __DIR__ . '/../../controllers/DirectorController.php';
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 3) {
-    header('Location: /login?error=Unauthorized access');
-    exit;
-}
 
 // Fetch profile picture from session or database
 $profilePicture = $_SESSION['profile_picture'] ?? null;

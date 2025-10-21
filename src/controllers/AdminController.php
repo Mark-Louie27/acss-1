@@ -19,7 +19,6 @@ class AdminController
 
         $this->emailService = new EmailService();
         $this->authService = new AuthService($this->db);
-        $this->restrictToAdmin();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
@@ -117,7 +116,7 @@ class AdminController
     public function activityLogs()
     {
         try {
-           
+
             $activityStmt = $this->db->prepare("
             SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name,
                    d.department_name, col.college_name
@@ -131,7 +130,7 @@ class AdminController
             $activities = $activityStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $data = [
-                
+
                 'activities' => $activities,
                 'title' => 'Activity Monitor - All Departments'
             ];
@@ -523,7 +522,7 @@ class AdminController
 
                 if (empty($college_name) || empty($college_code)) {
                     $_SESSION['error'] = "College name and code are required";
-                    header('Location: /admin/colleges');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
@@ -531,14 +530,14 @@ class AdminController
                 $stmt->execute([':college_code' => $college_code]);
                 if ($stmt->fetchColumn() > 0) {
                     $_SESSION['error'] = "College code already exists";
-                    header('Location: /admin/colleges');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
                 $stmt = $this->db->prepare("
-                INSERT INTO colleges (college_name, college_code)
-                VALUES (:college_name, :college_code)
-            ");
+            INSERT INTO colleges (college_name, college_code)
+            VALUES (:college_name, :college_code)
+        ");
                 $stmt->execute([
                     ':college_name' => $college_name,
                     ':college_code' => $college_code
@@ -550,11 +549,11 @@ class AdminController
                 $college_id = $_POST['college_id'] ?? null;
                 $program_name = trim($_POST['program_name'] ?? '');
                 $program_code = trim($_POST['program_code'] ?? '');
-                $program_type = $_POST['program_type'] ?? 'Major'; // Default to 'Major'
+                $program_type = $_POST['program_type'] ?? 'Major';
 
                 if (empty($department_name) || empty($college_id) || empty($program_name) || empty($program_code)) {
                     $_SESSION['error'] = "Department name, college, program name, and program code are required";
-                    header('Location: /admin/colleges');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
@@ -563,7 +562,7 @@ class AdminController
                 $stmt->execute([':department_name' => $department_name, ':college_id' => $college_id]);
                 if ($stmt->fetchColumn() > 0) {
                     $_SESSION['error'] = "Department already exists in this college";
-                    header('Location: /admin/colleges');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
@@ -572,7 +571,7 @@ class AdminController
                 $stmt->execute([':program_code' => $program_code]);
                 if ($stmt->fetchColumn() > 0) {
                     $_SESSION['error'] = "Program code already exists";
-                    header('Location: /admin/colleges');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
@@ -581,9 +580,9 @@ class AdminController
 
                 // Insert department
                 $stmt = $this->db->prepare("
-                INSERT INTO departments (department_name, college_id)
-                VALUES (:department_name, :college_id)
-            ");
+            INSERT INTO departments (department_name, college_id)
+            VALUES (:department_name, :college_id)
+        ");
                 $stmt->execute([
                     ':department_name' => $department_name,
                     ':college_id' => $college_id
@@ -592,9 +591,9 @@ class AdminController
 
                 // Insert program
                 $stmt = $this->db->prepare("
-                INSERT INTO programs (program_name, program_code, program_type, department_id, is_active)
-                VALUES (:program_name, :program_code, :program_type, :department_id, 1)
-            ");
+            INSERT INTO programs (program_name, program_code, program_type, department_id, is_active)
+            VALUES (:program_name, :program_code, :program_type, :department_id, 1)
+        ");
                 $stmt->execute([
                     ':program_name' => $program_name,
                     ':program_code' => $program_code,
@@ -607,17 +606,17 @@ class AdminController
                 $_SESSION['success'] = "Department and associated program created successfully";
             } else {
                 $_SESSION['error'] = "Invalid request type";
-                header('Location: /admin/colleges');
+                header('Location: /admin/colleges_departments'); // CHANGED
                 exit;
             }
 
-            header('Location: /admin/colleges');
+            header('Location: /admin/colleges_departments'); // CHANGED
             exit;
         } catch (PDOException $e) {
-            $this->db->rollBack(); // Roll back transaction on error
+            $this->db->rollBack();
             error_log("Create college/department error: " . $e->getMessage());
             $_SESSION['error'] = "Failed to create $type";
-            header('Location: /admin/colleges');
+            header('Location: /admin/colleges_departments'); // CHANGED
             exit;
         }
     }
@@ -636,7 +635,7 @@ class AdminController
 
             if (empty($type) || empty($id)) {
                 $_SESSION['error'] = "Invalid request";
-                header('Location: /admin/colleges_departments');
+                header('Location: /admin/colleges_departments'); // CHANGED
                 exit;
             }
 
@@ -646,7 +645,7 @@ class AdminController
 
                 if (empty($college_name) || empty($college_code)) {
                     $_SESSION['error'] = "College name and code are required";
-                    header('Location: /admin/colleges_departments');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
@@ -662,7 +661,7 @@ class AdminController
 
                 if (empty($department_name) || empty($college_id) || empty($program_name) || empty($program_code)) {
                     $_SESSION['error'] = "All fields are required";
-                    header('Location: /admin/colleges_departments');
+                    header('Location: /admin/colleges_departments'); // CHANGED
                     exit;
                 }
 
@@ -687,13 +686,13 @@ class AdminController
                 $_SESSION['success'] = "Department and program updated successfully";
             }
 
-            header('Location: /admin/colleges_departments');
+            header('Location: /admin/colleges_departments'); // CHANGED
             exit;
         } catch (PDOException $e) {
             $this->db->rollBack();
             error_log("Update college/department error: " . $e->getMessage());
             $_SESSION['error'] = "Failed to update $type";
-            header('Location: /admin/colleges_departments');
+            header('Location: /admin/colleges_departments'); // CHANGED
             exit;
         }
     }

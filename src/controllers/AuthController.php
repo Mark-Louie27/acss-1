@@ -8,11 +8,17 @@ class AuthController
 {
     private $authService;
     private $db;
+    private $userModel;
 
     public function __construct()
     {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
         $this->db = (new Database())->connect();
         $this->authService = new AuthService($this->db);
+        $this->userModel = new UserModel($this->db);
     }
 
     /**
@@ -24,7 +30,7 @@ class AuthController
             $this->redirectBasedOnRole();
         }
 
-        $rememberMe = isset($_POST['remember-me']) && $_POST['remember-me'] === '1'; // Changed to match checkbox value
+        $rememberMe = isset($_POST['remember-me']) && $_POST['remember-me'] === '1';
         $error = $_GET['error'] ?? '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -38,50 +44,36 @@ class AuthController
                 return;
             }
 
-            $query = "SELECT u.user_id, u.password_hash, u.is_active, u.role_id, u.email FROM users u WHERE u.employee_id = :employee_id";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':employee_id' => $employeeId]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $userData = $this->authService->login($employeeId, $password);
 
-            if ($user && password_verify($password, $user['password_hash'])) {
-                if ($user['is_active'] == 0) {
-                    error_log("Login failed for employee_id: $employeeId - Account is pending approval");
-                    $error = "Your account is pending approval. Please contact the Dean.";
-                    require_once __DIR__ . '/../views/auth/login.php';
-                    return;
-                }
+            if ($userData) {
+                // Let AuthService handle all session setup
+                $this->authService->startSession($userData);
 
-                $userData = $this->authService->login($employeeId, $password);
-                if ($userData) {
-                    $this->authService->startSession($userData);
-                
-                    if ($rememberMe) {
-                        $token = bin2hex(random_bytes(32));
-                        $expiry = time() + (30 * 24 * 60 * 60); // 30 days
-                        setcookie('remember_me', $token, $expiry, '/', '', true, true); // Secure, HttpOnly cookie
+                error_log("Login successful for employee_id: $employeeId with roles: " . json_encode($_SESSION['roles']));
 
-                        $updateQuery = "UPDATE users SET remember_token = :token, remember_token_expiry = :expiry WHERE user_id = :user_id";
+                if ($rememberMe) {
+                    $token = bin2hex(random_bytes(32));
+                    $expiry = time() + (30 * 24 * 60 * 60);
+                    setcookie('remember_me', $token, $expiry, '/', '', true, true);
+
+                    $updateQuery = "UPDATE users SET remember_token = :token, remember_token_expiry = :expiry WHERE user_id = :user_id";
+                    $stmt = $this->db->prepare($updateQuery);
+                    $stmt->execute([
+                        ':token' => $token,
+                        ':expiry' => date('Y-m-d H:i:s', $expiry),
+                        ':user_id' => $userData['user_id']
+                    ]);
+                    error_log("Remember token saved for user_id: " . $userData['user_id']);
+                } else {
+                    if (isset($_COOKIE['remember_me'])) {
+                        $updateQuery = "UPDATE users SET remember_token = NULL, remember_token_expiry = NULL WHERE user_id = :user_id";
                         $stmt = $this->db->prepare($updateQuery);
-                        $result = $stmt->execute([
-                            ':token' => $token,
-                            ':expiry' => date('Y-m-d H:i:s', $expiry),
-                            ':user_id' => $user['user_id']
-                        ]);
-                        if (!$result) {
-                            error_log("Failed to update remember_token for user_id: " . $user['user_id'] . " - " . implode(", ", $stmt->errorInfo()));
-                        } else {
-                            error_log("Remember token saved for user_id: " . $user['user_id']);
-                        }
-                    } else {
-                        if (isset($_COOKIE['remember_me'])) {
-                            $updateQuery = "UPDATE users SET remember_token = NULL, remember_token_expiry = NULL WHERE user_id = :user_id";
-                            $stmt = $this->db->prepare($updateQuery);
-                            $stmt->execute([':user_id' => $user['user_id']]);
-                            setcookie('remember_me', '', time() - 3600, '/', '', true, true);
-                        }
+                        $stmt->execute([':user_id' => $userData['user_id']]);
+                        setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                     }
                 }
-                error_log("Login successful for employee_id: $employeeId");
+
                 $this->redirectBasedOnRole();
             } else {
                 error_log("Login failed for employee_id: $employeeId - Invalid credentials");
@@ -91,19 +83,14 @@ class AuthController
         } else {
             if (isset($_COOKIE['remember_me'])) {
                 $token = $_COOKIE['remember_me'];
-                $query = "SELECT user_id, employee_id, role_id, is_active FROM users WHERE remember_token = :token AND remember_token_expiry > NOW()";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([':token' => $token]);
-                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                $userData = $this->authService->loginWithToken($token);
 
-                if ($user && $user['is_active'] == 1) {
-                    $_SESSION['user_id'] = $user['user_id'];
-                    $_SESSION['role_id'] = $user['role_id'];
-                    $_SESSION['is_active'] = $user['is_active'];
-                    error_log("Auto-login successful for user_id: " . $user['user_id']);
+                if ($userData) {
+                    $this->authService->startSession($userData);
+                    error_log("Auto-login successful for user_id: " . $userData['user_id']);
                     $this->redirectBasedOnRole();
                 } else {
-                    error_log("Auto-login failed for token: $token - Invalid or inactive user");
+                    error_log("Auto-login failed for token: $token");
                     setcookie('remember_me', '', time() - 3600, '/', '', true, true);
                 }
             }
@@ -121,6 +108,7 @@ class AuthController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            error_log("Received roles: " . print_r($_POST['roles'] ?? 'empty', true));
             $data = [
                 'employee_id' => trim($_POST['employee_id'] ?? ''),
                 'username' => trim($_POST['username'] ?? ''),
@@ -131,14 +119,17 @@ class AuthController
                 'last_name' => trim($_POST['last_name'] ?? ''),
                 'suffix' => trim($_POST['suffix'] ?? ''),
                 'phone' => trim($_POST['phone'] ?? ''),
-                'role_id' => intval($_POST['role_id'] ?? 0),
+                'roles' => isset($_POST['roles']) ? (array)$_POST['roles'] : [], // Multi-select roles
                 'college_id' => intval($_POST['college_id'] ?? 0),
                 'department_id' => intval($_POST['department_id'] ?? 0),
                 'academic_rank' => trim($_POST['academic_rank'] ?? ''),
                 'employment_type' => trim($_POST['employment_type'] ?? ''),
                 'classification' => trim($_POST['classification'] ?? ''),
-                'program_id' => !empty($_POST['program_id']) ? intval($_POST['program_id']) : null
+                'program_id' => !empty($_POST['program_id']) ? intval($_POST['program_id']) : null,
+                'role_id' => !empty($_POST['roles']) ? (int)reset($_POST['roles']) : null // Use first role as primary
             ];
+
+            error_log("Data sent to register: " . print_r($data, true));
 
             $errors = [];
             if (empty($data['employee_id'])) $errors[] = "Employee ID is required.";
@@ -147,17 +138,27 @@ class AuthController
             if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) $errors[] = "Valid email is required.";
             if (empty($data['first_name'])) $errors[] = "First name is required.";
             if (empty($data['last_name'])) $errors[] = "Last name is required.";
-            if ($data['role_id'] < 1 || $data['role_id'] > 6) $errors[] = "Invalid role selected.";
-            if ($data['college_id'] < 1) $errors[] = "Invalid college selected.";
-            if ($data['department_id'] < 1) $errors[] = "Invalid department selected.";
-            if ($data['role_id'] == 5 && empty($data['program_id'])) {
-                $errors[] = "Program ID is required for Program Chair.";
+            if (empty($data['roles'])) $errors[] = "At least one role must be selected.";
+            if (empty($data['college_id'])) $errors[] = "College is required.";
+            if (empty($data['department_id'])) $errors[] = "Department is required.";
+            if (empty($data['role_id'])) $errors[] = "A valid role is required."; // Validate primary role
+            if (in_array(5, $data['roles']) && empty($data['program_id'])) $errors[] = "Program ID is required for Program Chair.";
+
+            // Check for existing roles that should be unique
+            $existingRoles = $this->authService->checkExistingRoles($data['college_id'], $data['department_id'], $data['program_id']);
+            foreach ($data['roles'] as $roleId) {
+                if (in_array($roleId, [1, 4]) && isset($existingRoles[$roleId]['college_id']) && $existingRoles[$roleId]['college_id'] == $data['college_id']) {
+                    $errors[] = "A user with the {$existingRoles[$roleId]['role_name']} role already exists for this college.";
+                }
+                if ($roleId == 5 && isset($existingRoles[$roleId]['program_id']) && $existingRoles[$roleId]['program_id'] == $data['program_id']) {
+                    $errors[] = "A Program Chair already exists for this program.";
+                }
             }
 
             if (empty($errors)) {
                 try {
                     if ($this->authService->register($data)) {
-                        $success = $data['role_id'] == 5 || $data['role_id'] == 6
+                        $success = in_array(5, $data['roles']) || in_array(6, $data['roles'])
                             ? "Registration submitted successfully. Awaiting Dean approval."
                             : "Registration successful. You can now log in.";
                         header('Location: /login?success=' . urlencode($success));
@@ -311,6 +312,69 @@ class AuthController
         exit;
     }
 
+    public function switchRole()
+    {
+        try {
+            // Check if user is logged in
+            if (!isset($_SESSION['user_id'])) {
+                http_response_code(401);
+                echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+                return;
+            }
+
+            // Get the requested role from POST data
+            $role = $_POST['role'] ?? '';
+            if (empty($role)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Role is required']);
+                return;
+            }
+
+            // Fetch user's available roles
+            $userId = $_SESSION['user_id'];
+            $roles = $this->userModel->getUserRoles($userId);
+            $availableRoles = array_column($roles, 'role_name');
+
+            // Validate the requested role
+            $roleLower = strtolower($role);
+            if (!in_array(ucfirst($role), $availableRoles)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Invalid role']);
+                return;
+            }
+
+            // Update session with the new current role
+            $_SESSION['current_role'] = ucfirst($role);
+            error_log("Switched role to: " . $_SESSION['current_role'] . " for user_id: $userId");
+
+            // Determine redirect URL based on role
+            $redirectUrl = '/';
+            switch ($roleLower) {
+                case 'program_chair':
+                    $redirectUrl = '/chair/dashboard';
+                    break;
+                case 'faculty':
+                    $redirectUrl = '/faculty/dashboard';
+                    break;
+                case 'dean':
+                    $redirectUrl = '/dean/dashboard'; // Add dean route if not already defined
+                    break;
+                    // Add other roles as needed
+            }
+
+            // Return success response
+            echo json_encode([
+                'success' => true,
+                'message' => 'Role switched successfully',
+                'redirect' => $redirectUrl
+            ]);
+        } catch (Exception $e) {
+            error_log("Error switching role: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Internal server error']);
+        }
+    }
+
     /**
      * Handle logout request
      */
@@ -326,34 +390,41 @@ class AuthController
      */
     private function redirectBasedOnRole()
     {
-        if (!isset($_SESSION['role_id'])) {
+        $roles = $_SESSION['roles'] ?? [];
+        error_log("redirectBasedOnRole: User roles: " . json_encode($roles));
+
+        if (empty($roles)) {
+            error_log("redirectBasedOnRole: No roles found, logging out");
             $this->logout();
             exit;
         }
 
-        $roleId = (int)$_SESSION['role_id'];
+        $roleMappings = [
+            'admin' => '/admin/dashboard',
+            'vpaa' => '/admin/dashboard',
+            'd.i' => '/director/dashboard',  // Add this to handle "D.I" from database
+            'dean' => '/dean/dashboard',
+            'chair' => '/chair/dashboard',
+            'faculty' => '/faculty/dashboard'
+        ];
 
-        switch ($roleId) {
-            case 1: // Admin
-            case 2: // Also Admin
-                header('Location: /admin/dashboard');
-                break;
-            case 3: // DI
-                header('Location: /director/dashboard');
-                break;
-            case 4: // Dean
-                header('Location: /dean/dashboard');
-                break;
-            case 5: // Program Chair
-                header('Location: /chair/dashboard');
-                break;
-            case 6: // Faculty
-                header('Location: /faculty/dashboard');
-                break;
-            default:
-                $this->logout();
+        foreach ($roles as $role) {
+            $role = strtolower(trim($role));
+            if (isset($roleMappings[$role])) {
+                error_log("redirectBasedOnRole: Redirecting to " . $roleMappings[$role] . " for role $role");
+
+                // CRITICAL: Ensure session cookie is sent
+                session_regenerate_id(false); // Regenerate but keep data
+
+                // Force immediate redirect with session cookie
+                $url = $roleMappings[$role];
+                header("Location: $url", true, 303); // 303 See Other (POST to GET)
                 exit;
+            }
         }
+
+        error_log("redirectBasedOnRole: No valid role found, logging out");
+        $this->logout();
         exit;
     }
 }

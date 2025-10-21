@@ -1,26 +1,22 @@
 <?php
 require_once __DIR__ . '/../config/Database.php';
-require_once __DIR__ . '/AuthController.php';
 
 class BaseController
 {
     protected $db;
-    protected $userRoles; // Explicitly declare the property
+    protected $userRoles;
 
     public function __construct()
     {
-        // Initialize database connection
-        $this->db = (new Database())->connect();
-        $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        // Ensure session is started
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
-        // Load user roles from session, default to empty array if not set
+        $this->db = (new Database())->connect();
+        $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
         $this->userRoles = $_SESSION['roles'] ?? [];
-        error_log("BaseController: Initialized with userRoles: " . json_encode($this->userRoles));
+        error_log("BaseController: userRoles set to: " . json_encode($this->userRoles));
     }
 
     protected function hasRole($role)
@@ -44,13 +40,22 @@ class BaseController
 
     protected function requireAnyRole(...$roles)
     {
-        if (!isset($this->userRoles)) {
-            error_log("BaseController: userRoles is not set");
+
+        if (!isset($this->userRoles) || empty($this->userRoles)) {
+            error_log("BaseController: userRoles is empty/not set, checking SESSION directly");
+            error_log("SESSION['roles']: " . json_encode($_SESSION['roles'] ?? []));
             http_response_code(403);
             include __DIR__ . '/../views/errors/403.php';
             exit;
         }
-        $hasRole = array_intersect(array_map('strtolower', $roles), array_map('strtolower', $this->userRoles));
+
+        $hasRole = array_intersect(
+            array_map('strtolower', $roles),
+            array_map('strtolower', $this->userRoles)
+        );
+
+        error_log("requireAnyRole: Result - hasRole: " . json_encode($hasRole) . ", empty: " . (empty($hasRole) ? 'yes' : 'no'));
+
         if (empty($hasRole)) {
             error_log("BaseController: Access denied, required roles: " . json_encode($roles) . ", user roles: " . json_encode($this->userRoles));
             http_response_code(403);

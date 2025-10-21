@@ -19,12 +19,9 @@ require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 function handleAdminRoutes($path)
 {
     error_log("Entering handleAdminRoutes with path: $path");
-    AuthMiddleware::handle('admin'); // Require admin role
-
     require_once __DIR__ . '/../src/controllers/AdminController.php';
     $controller = new AdminController();
 
-    // Normalize path for comparison
     $normalizedPath = '/' . trim($path, '/');
     error_log("Normalized path: $normalizedPath");
 
@@ -47,7 +44,8 @@ function handleAdminRoutes($path)
             $controller->manageUsers();
             break;
         case '/admin/colleges':
-        case '/admin/departments': // Redirect departments to colleges
+        case '/admin/departments':
+        case '/admin/colleges_departments':
             error_log("Routing to AdminController::collegesDepartments");
             $controller->collegesDepartments();
             break;
@@ -57,6 +55,7 @@ function handleAdminRoutes($path)
             break;
         case '/admin/colleges_departments/update':
             error_log("Routing to AdminController::update college/departments");
+            $controller->updateCollegeDepartment();
             break;
         case '/admin/classroom':
             error_log("Routing to AdminController::classroom");
@@ -106,12 +105,9 @@ function handleVpaaRoutes($path)
 function handleDirectorRoutes($path)
 {
     error_log("Entering handleDirectorRoutes with path: $path");
-    AuthMiddleware::handle('di'); // Require di role
-
     require_once __DIR__ . '/../src/controllers/DirectorController.php';
     $controller = new DirectorController();
 
-    // Normalize path for comparison
     $normalizedPath = '/' . trim($path, '/');
     error_log("Normalized path: $normalizedPath");
 
@@ -154,18 +150,15 @@ function handleDirectorRoutes($path)
             echo "Page not found";
             exit;
     }
-   
 }
 
 function handleDeanRoutes($path)
 {
     error_log("Entering handleDeanRoutes with path: $path");
-    AuthMiddleware::handle('dean'); // Require dean role
 
     require_once __DIR__ . '/../src/controllers/DeanController.php';
     $controller = new DeanController();
 
-    // Normalize path for comparison
     $normalizedPath = '/' . trim($path, '/');
     error_log("Normalized path: $normalizedPath");
 
@@ -180,7 +173,7 @@ function handleDeanRoutes($path)
             $controller->manageSchedule();
             break;
         case '/dean/activities':
-            $controller->activities();  
+            $controller->activities();
             break;
         case '/dean/classroom':
             $controller->classroom();
@@ -221,12 +214,10 @@ function handleDeanRoutes($path)
 function handleChairRoutes($path)
 {
     error_log("Entering handleChairRoutes with path: $path");
-    AuthMiddleware::handle('chair');
 
     require_once __DIR__ . '/../src/controllers/ChairController.php';
     $controller = new ChairController();
 
-    // Normalize path for comparison
     $normalizedPath = '/' . trim($path, '/');
     error_log("Normalized path: $normalizedPath");
 
@@ -246,14 +237,6 @@ function handleChairRoutes($path)
         case '/chair/generate-schedules':
             error_log("Routing to ChairController::generateSchedule");
             $controller->generateSchedulesAjax();
-            exit;
-        case '/chair/addSchedule':
-            error_log("Routing to ChairController::addSchedule");
-            $controller->addSchedule($request);
-            exit;
-        case '/chair/updateSchedule':
-            error_log("Routing to ChairController::updateSchedule");
-            $controller->updateSchedule($request);
             exit;
         case '/chair/delete-all-schedules':
             error_log("Routing to ChairController::delete all schedules");
@@ -283,7 +266,7 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::courses");
             $controller->courses();
             exit;
-        case '/chair/checkCourseCode': // New route for AJAX check
+        case '/chair/checkCourseCode':
             error_log("Routing to ChairController::checkCourseCode");
             $controller->checkCourseCode();
             break;
@@ -319,12 +302,10 @@ function handleChairRoutes($path)
 function handleFacultyRoutes($path)
 {
     error_log("Entering handleFacultyRoutes with path: $path");
-    AuthMiddleware::handle('faculty'); // Require faculty role
 
     require_once __DIR__ . '/../src/controllers/FacultyController.php';
     $controller = new FacultyController();
 
-    // Normalize path for comparison
     $normalizedPath = '/' . trim($path, '/');
     error_log("Normalized path: $normalizedPath");
 
@@ -394,9 +375,6 @@ if (in_array($path, $publicRoutes)) {
             $controller->login();
             break;
         case 'register':
-            $controller->register();
-            break;
-        case 'register-step2':
             $controller->register();
             break;
         case 'forgot-password':
@@ -474,31 +452,144 @@ if (preg_match('#^api/departments/(\d+)/programs$#', $path, $matches)) {
     exit;
 }
 
-// Get user role from session
-$roleId = $_SESSION['role_id'] ?? null;
+// Add this BEFORE the role switch handler for debugging
+if ($path === 'switch-role' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'session_id' => session_id(),
+        'user_id' => $_SESSION['user_id'] ?? null,
+        'roles' => $_SESSION['roles'] ?? [],
+        'current_role' => $_SESSION['current_role'] ?? null,
+        'post_data' => $_POST
+    ]);
+    exit;
+}
 
-// Proceed with role-based routing (e.g., dashboards)
+// Handle role switching for multi-role users
+if ($path === 'switch-role' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+
+    // Security checks
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+
+    $requestedRole = $_POST['role'] ?? null;
+    $userRoles = $_SESSION['roles'] ?? [];
+
+    // Log for debugging
+    error_log("Role switch attempt - Requested: " . $requestedRole);
+    error_log("User roles: " . json_encode($userRoles));
+
+    if (!$requestedRole) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Role not specified']);
+        exit;
+    }
+
+    // Normalize roles for comparison (case-insensitive)
+    $normalizedUserRoles = array_map('strtolower', $userRoles);
+    $normalizedRequestedRole = strtolower($requestedRole);
+
+    error_log("Normalized requested role: " . $normalizedRequestedRole);
+    error_log("Normalized user roles: " . json_encode($normalizedUserRoles));
+
+    // Check if requested role exists in user's roles
+    if (!in_array($normalizedRequestedRole, $normalizedUserRoles)) {
+        error_log("Role not found in user roles!");
+        http_response_code(400);
+        echo json_encode([
+            'error' => 'Invalid role',
+            'requested' => $requestedRole,
+            'available' => $userRoles
+        ]);
+        exit;
+    }
+
+    // Find the actual role from the session (preserve original case)
+    $actualRole = null;
+    foreach ($userRoles as $role) {
+        if (strtolower($role) === $normalizedRequestedRole) {
+            $actualRole = $role;
+            break;
+        }
+    }
+
+    // Update current_role with the actual role from session
+    $_SESSION['current_role'] = $actualRole;
+    error_log("Role switched successfully for user_id: {$_SESSION['user_id']}, new role: $actualRole");
+
+    // Determine redirect URL based on role
+    $redirectUrl = '/';
+    switch ($normalizedRequestedRole) {
+        case 'admin':
+            $redirectUrl = '/admin/dashboard';
+            break;
+        case 'vpaa':
+            $redirectUrl = '/admin/dashboard';
+            break;
+        case 'd.i':
+            $redirectUrl = '/director/dashboard';
+            break;
+        case 'dean':
+            $redirectUrl = '/dean/dashboard';
+            break;
+        case 'chair':
+            $redirectUrl = '/chair/dashboard';
+            break;
+        case 'faculty':
+            $redirectUrl = '/faculty/dashboard';
+            break;
+        default:
+            error_log("Unknown role for redirect: $normalizedRequestedRole");
+            $redirectUrl = '/';
+    }
+
+    echo json_encode([
+        'success' => true,
+        'message' => "Switched to $actualRole role",
+        'redirect' => $redirectUrl
+    ]);
+    exit;
+}
+
+// Get user roles from session
+$roles = $_SESSION['roles'] ?? [];
+$currentRole = $_SESSION['current_role'] ?? (empty($roles) ? null : $roles[0]);
+
+// If no roles or current_role, redirect to login
+if (empty($roles) || !$currentRole) {
+    error_log("No roles or current_role in session, redirecting to login");
+    header('Location: /login');
+    exit;
+}
+
+error_log("Routing for current_role: $currentRole");
 
 // Handle role-specific routes
-switch ($roleId) {
-    case 1: // Admin
-    case 2: // Also Admin
+switch (strtolower($currentRole)) {
+    case 'admin':
         handleAdminRoutes($path);
         break;
-    case 3: // DI
+    case 'vpaa':
+        handleAdminRoutes($path); // VPAA uses admin routes
+        break;
+    case 'd.i':
         handleDirectorRoutes($path);
         break;
-    case 4: // Dean
+    case 'dean':
         handleDeanRoutes($path);
         break;
-    case 5: // Chair
+    case 'chair':
         handleChairRoutes($path);
         break;
-    case 6: // Faculty
+    case 'faculty':
         handleFacultyRoutes($path);
         break;
     default:
-        error_log("Unauthorized role: $roleId");
+        error_log("Unknown current_role: $currentRole");
         http_response_code(403);
         echo "Unauthorized role";
         exit;

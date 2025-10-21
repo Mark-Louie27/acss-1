@@ -25,7 +25,6 @@ class DirectorController
         $this->api = new ApiController();
         $this->authService = new AuthService($this->db);
         $this->schedulingService = new SchedulingService($this->db);
-        $this->restrictToDi();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 

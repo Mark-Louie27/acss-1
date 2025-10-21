@@ -4,10 +4,10 @@ require_once __DIR__ . '/../models/UserModel.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
 require_once __DIR__ . '/../services/SchedulingService.php';
+require_once __DIR__ . '/BaseController.php';
 
-class DeanController
+class DeanController extends BaseController
 {
-    private $db;
     private $userModel;
     private $emailService;
     private $authService;
@@ -15,6 +15,7 @@ class DeanController
 
     public function __construct()
     {
+        parent::__construct();
         error_log("DeanController instantiated");
         $this->db = (new Database())->connect();
         if ($this->db === null) {
@@ -23,7 +24,6 @@ class DeanController
         }
         $this->userModel = new UserModel();
         $this->authService = new AuthService($this->db);
-        $this->restrictToDean();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->emailService = new EmailService();
         $this->schedulingService = new SchedulingService($this->db);
@@ -137,6 +137,7 @@ class DeanController
 
     public function dashboard()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'];
         $user = $this->userModel->getUserById($userId);
 
@@ -348,6 +349,7 @@ class DeanController
 
     public function activities()
     {
+        $this->requireRole('dean');
         try {
             $userId = $_SESSION['user_id'] ?? null;
             if (!$userId) {
@@ -600,6 +602,7 @@ class DeanController
 
     public function mySchedule()
     {
+        $this->requireRole('dean');
         try {
             $userId = $_SESSION['user_id'];
             error_log("mySchedule: Starting mySchedule method for user_id: $userId");
@@ -820,6 +823,7 @@ class DeanController
 
     public function manageSchedule()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
 
@@ -949,6 +953,7 @@ class DeanController
 
     public function classroom()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
 
@@ -1106,6 +1111,7 @@ class DeanController
 
     public function faculty()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
             error_log("faculty: No user_id in session");
@@ -1302,6 +1308,7 @@ class DeanController
     // Assumed logActivity method (add to class if not present)
     private function logActivity($userId, $departmentId, $actionType, $actionDescription, $entityType, $entityId, $metadataId = null)
     {
+        $this->requireRole('dean');
         try {
             $stmt = $this->db->prepare("
             INSERT INTO activity_logs 
@@ -1376,6 +1383,7 @@ class DeanController
 
     public function courses()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
 
@@ -1505,6 +1513,7 @@ class DeanController
 
     public function curriculum()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'];
         $collegeId = $this->getDeanCollegeId($userId);
 
@@ -1667,6 +1676,7 @@ class DeanController
 
     public function profile()
     {
+        $this->requireRole('dean');
         try {
             if (!$this->authService->isLoggedIn()) {
                 $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view your profile'];
@@ -2098,6 +2108,7 @@ class DeanController
 
     public function settings()
     {
+        $this->requireRole('dean');
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
             error_log("settings: No user_id in session");

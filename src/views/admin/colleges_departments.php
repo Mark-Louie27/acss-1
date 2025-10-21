@@ -395,6 +395,39 @@ ob_start();
 </div>
 
 <script>
+    // Toast notification functions
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        toast.style.transform = 'translateX(120%)';
+
+        document.body.appendChild(toast);
+
+        // Animate in
+        setTimeout(() => {
+            toast.style.transform = 'translateX(0)';
+        }, 100);
+
+        // Remove after delay
+        setTimeout(() => {
+            toast.style.transform = 'translateX(120%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 500);
+        }, 3500);
+    }
+
+    function showSuccessToast(message) {
+        showToast(message, 'success');
+    }
+
+    function showErrorToast(message) {
+        showToast(message, 'error');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
@@ -470,23 +503,25 @@ ob_start();
             });
         });
 
-        // Form validation
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', (e) => {
-                let isValid = true;
-                form.querySelectorAll('[required]').forEach(input => {
-                    if (!input.value.trim()) {
-                        e.preventDefault();
-                        isValid = false;
-                        const error = input.nextElementSibling;
-                        if (error && error.tagName === 'P') {
-                            error.classList.remove('hidden');
-                        }
+        // Real-time validation
+        document.querySelectorAll('form [required]').forEach(input => {
+            input.addEventListener('blur', function() {
+                const error = this.nextElementSibling;
+                if (error && error.tagName === 'P' && error.textContent.includes('required')) {
+                    if (!this.value.trim()) {
+                        error.classList.remove('hidden');
+                    } else {
+                        error.classList.add('hidden');
                     }
-                });
-                if (!isValid) {
-                    e.preventDefault();
-                    alert('Please fill in all required fields.');
+                }
+            });
+
+            input.addEventListener('input', function() {
+                const error = this.nextElementSibling;
+                if (error && error.tagName === 'P' && error.textContent.includes('required')) {
+                    if (this.value.trim()) {
+                        error.classList.add('hidden');
+                    }
                 }
             });
         });
