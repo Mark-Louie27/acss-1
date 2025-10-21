@@ -1128,11 +1128,6 @@
       border-color: var(--color-gray-200);
     }
   }
-  .divide-gray-700 {
-    :where(& > :not(:last-child)) {
-      border-color: var(--color-gray-700);
-    }
-  }
   .truncate {
     overflow: hidden;
     text-overflow: ellipsis;

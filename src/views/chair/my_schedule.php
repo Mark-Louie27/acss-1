@@ -399,7 +399,7 @@ ob_start();
         <p style="margin: 2px 0; font-size: 7px; line-height: 1.3;"><strong>Actual Teaching Load (ATL) :</strong> ${actualTeachingLoad.toFixed(2)}</p>
         <p style="margin: 2px 0; font-size: 7px; line-height: 1.3;"><strong>Total Working Load (ETL+ATL) :</strong> ${totalWorkingLoad.toFixed(2)}</p>
         <p style="margin: 2px 0; font-size: 7px; line-height: 1.3;"><strong>Excess (24 Hours) :</strong> ${excessHours.toFixed(2)}</p>
-    `;
+     `;
 
         // Add faculty information section (18 rows)
         scheduleRows += `
@@ -462,7 +462,7 @@ ob_start();
                 </tr>
             </table>
         </div>
-    `;
+        `;
 
         // Complete table structure matching the document layout
         const completeTable = `
@@ -512,7 +512,7 @@ ob_start();
                 ${scheduleRows}
             </tbody>
         </table>
-    `;
+        `;
 
         // Signature section matching document layout
         const signatureSection = `
@@ -537,7 +537,7 @@ ob_start();
                 </td>
             </tr>
         </table>
-    `;
+        `;
 
         const printContent = `
         <div style="width: 100%; max-width: 100%; font-family: Arial, sans-serif; font-size: 7px; color: #000; background: white; padding: 10mm;">
@@ -553,7 +553,7 @@ ob_start();
             
             ${showAllSchedules ? '<p style="text-align: center; color: #e76f51; font-size: 7px; margin-top: 5px;">Showing all schedules (no schedules found for the current semester).</p>' : ''}
         </div>
-    `;
+        `;
 
         const printWindow = window.open('', '', 'height=800,width=1200');
         if (!printWindow) {
@@ -561,7 +561,7 @@ ob_start();
             return;
         }
 
-        printWindow.document.write('<html><head><title>Faculty Teaching Load</title>');
+       
         printWindow.document.write(`
         <style>
             @page { 
@@ -614,7 +614,7 @@ ob_start();
                 }
             }
         </style>
-    `);
+        `);
         printWindow.document.write('</head><body>');
         printWindow.document.write(printContent);
         printWindow.document.write('</body></html>');

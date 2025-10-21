@@ -2202,17 +2202,10 @@ class ChairController
             return [];
         }
     }
-
-    // ============================================================================
-    // NEW METHOD: Validate Schedule Integrity
-    // ============================================================================
+   
     private function validateScheduleIntegrity($schedules, $facultyAssignments)
     {
         $conflicts = [];
-
-        error_log("========================================");
-        error_log("VALIDATING SCHEDULE INTEGRITY");
-        error_log("========================================");
 
         // Check for faculty conflicts
         $assignmentsList = [];
@@ -2328,53 +2321,48 @@ class ChairController
         return $conflicts;
     }
 
-    private function scheduleCourseSectionsInDifferentTimeSlots($course, $sectionsForCourse, $targetDays, $timeSlots, &$sectionScheduleTracker, $facultySpecializations, &$facultyAssignments, $currentSemester, $departmentId, &$schedules, &$onlineSlotTracker, &$roomAssignments, &$usedTimeSlots, $subjectType, $isLecture = false, $isLab = false, $forceF2F = false, $component = null, $facultyId = null)
-    {
+    // IMPROVED: Enhanced room assignment logic in scheduleCourseSectionsInDifferentTimeSlots()
+
+    private function scheduleCourseSectionsInDifferentTimeSlots(
+        $course,
+        $sectionsForCourse,
+        $targetDays,
+        $timeSlots,
+        &$sectionScheduleTracker,
+        $facultySpecializations,
+        &$facultyAssignments,
+        $currentSemester,
+        $departmentId,
+        &$schedules,
+        &$onlineSlotTracker,
+        &$roomAssignments,
+        &$usedTimeSlots,
+        $subjectType,
+        $isLecture = false,
+        $isLab = false,
+        $forceF2F = false,
+        $component = null,
+        $facultyId = null
+    ) {
         $scheduledSections = [];
         $courseDetails = $this->getCourseDetails($course['course_id']);
         $hasLecture = ($courseDetails['lecture_hours'] ?? 0) > 0;
         $hasLab = ($courseDetails['lab_hours'] ?? 0) > 0;
 
-        // UNIFIED FACULTY: If course has both lecture and lab, ensure same faculty
-        if ($hasLecture && $hasLab && !$facultyId) {
-            error_log("UNIFIED FACULTY: Course {$courseDetails['course_code']} needs single faculty for both lecture and lab");
-
-            $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
-            $facultyId = $this->findBestFaculty(
-                $facultySpecializations,
-                $course['course_id'],
-                $targetDays,
-                $timeSlots[0][0],
-                $timeSlots[0][1],
-                $collegeId,
-                $departmentId,
-                $schedules,
-                $facultyAssignments,
-                $courseDetails['course_code'],
-                $sectionsForCourse[0]['section_id']
-            );
-
-            if ($facultyId) {
-                error_log("UNIFIED FACULTY: Selected faculty $facultyId for both components of {$courseDetails['course_code']}");
-            }
-        }
-
-        // Determine duration based on component type
-        if ($isLecture) {
-            $requiredDuration = ($courseDetails['lecture_hours'] ?? 3) / count($targetDays);
-        } elseif ($isLab) {
-            $requiredDuration = ($courseDetails['lab_hours'] ?? 3) / count($targetDays);
-        } else {
-            $requiredDuration = ($courseDetails['units'] ?? 3) / count($targetDays);
-        }
+        // Determine room type based on component and course configuration
+        $roomType = $this->determineRequiredRoomType(
+            $courseDetails,
+            $isLecture,
+            $isLab,
+            $component
+        );
 
         foreach ($sectionsForCourse as $section) {
             $sectionScheduledSuccessfully = false;
 
-            // NEW: Check if this course-section-component combination is already scheduled
             $scheduleKey = $course['course_id'] . '-' . $section['section_id'] . '-' . ($component ?? 'main');
 
-            // Check if already scheduled in current generation
+            // Check if already scheduled
             $alreadyScheduled = false;
             foreach ($schedules as $existingSchedule) {
                 if (
@@ -2393,10 +2381,16 @@ class ChairController
                 continue;
             }
 
+            $requiredDuration = $this->calculateRequiredDuration(
+                $courseDetails,
+                $isLecture,
+                $isLab,
+                count($targetDays)
+            );
+
             foreach ($timeSlots as $timeSlot) {
                 list($startTime, $endTime, $slotDuration) = $timeSlot;
 
-                // Check if duration matches
                 if (abs($slotDuration - $requiredDuration) > 0.5) {
                     continue;
                 }
@@ -2431,57 +2425,36 @@ class ChairController
                     continue;
                 }
 
-                // CRITICAL FIX: Use ONE room for ALL days of the same course-section
+                // IMPROVED: Smart room assignment based on component type
                 $collegeId = $this->getChairCollege($_SESSION['user_id'])['college_id'] ?? null;
-                $needsLabRoom = $isLab || ($courseDetails['lab_hours'] ?? 0) > 0;
-                $roomPreference = $needsLabRoom ? 'laboratory' : 'lecture';
-
-                // Find ONE room that's available for ALL target days
                 $sharedRoom = null;
                 $roomAvailableAllDays = false;
 
                 if ($forceF2F || $subjectType === 'Professional Course') {
-                    // Check if a single room is available for all days
-                    foreach ($targetDays as $checkDay) {
-                        $testRoom = $this->getSpecificRoomType(
-                            $departmentId,
-                            $section['max_students'],
-                            $checkDay,
-                            $startTime,
-                            $endTime,
-                            $schedules,
-                            $roomPreference,
-                            $component,
-                            $collegeId
-                        );
+                    $sharedRoom = $this->findConsistentRoomForAllDays(
+                        $departmentId,
+                        $section['max_students'],
+                        $targetDays,
+                        $startTime,
+                        $endTime,
+                        $schedules,
+                        $roomType,
+                        $component,
+                        $collegeId,
+                        $courseDetails['course_code']
+                    );
 
-                        if (!$testRoom || !$testRoom['room_id']) {
-                            $roomAvailableAllDays = false;
-                            break;
-                        }
-
-                        if (!$sharedRoom) {
-                            $sharedRoom = $testRoom;
-                            $roomAvailableAllDays = true;
-                        } elseif ($sharedRoom['room_id'] !== $testRoom['room_id']) {
-                            // Different room needed for different days - not ideal but acceptable
-                            error_log("WARNING: Different rooms available on different days for {$courseDetails['course_code']}");
-                            $roomAvailableAllDays = false;
-                            break;
-                        }
+                    if (!$sharedRoom) {
+                        error_log("No {$roomType} room available for all days for {$courseDetails['course_code']} ({$component})");
+                        continue;
                     }
-
-                    if (!$roomAvailableAllDays || !$sharedRoom) {
-                        error_log("No consistent room available for all days for {$courseDetails['course_code']} ({$component})");
-                        continue; // Try next time slot
-                    }
+                    $roomAvailableAllDays = true;
                 } else {
-                    // Online course
                     $sharedRoom = ['room_id' => null, 'room_name' => 'Online'];
                     $roomAvailableAllDays = true;
                 }
 
-                // Save schedules for all days with the SAME room
+                // Save schedules for all days with the same room
                 $allDaysSuccess = true;
                 $savedScheduleIds = [];
 
@@ -2506,6 +2479,7 @@ class ChairController
                         'year_level' => $section['year_level'],
                         'department_id' => $departmentId,
                         'component_type' => $component,
+                        'room_type' => $roomType,
                         'days_pattern' => implode('', array_map(fn($d) => substr($d, 0, 1), $targetDays))
                     ];
 
@@ -2519,7 +2493,6 @@ class ChairController
                     $savedScheduleIds[] = $response['data']['schedule_id'];
                     $schedules[] = array_merge($response['data'], $scheduleData);
 
-                    // Update tracking
                     $this->updateSectionScheduleTracker($sectionScheduleTracker, $section['section_id'], $day, $startTime, $endTime);
 
                     if ($sharedRoom['room_id']) {
@@ -2533,7 +2506,8 @@ class ChairController
                             'end_time' => $endTime,
                             'course_code' => $courseDetails['course_code'],
                             'section_name' => $section['section_name'],
-                            'component' => $component
+                            'component' => $component,
+                            'room_type' => $roomType
                         ];
                     }
 
@@ -2541,7 +2515,6 @@ class ChairController
                 }
 
                 if ($allDaysSuccess) {
-                    // Update faculty assignments - ONE entry for the entire course schedule
                     $facultyAssignments[] = [
                         'faculty_id' => $facultyId,
                         'course_id' => $course['course_id'],
@@ -2553,16 +2526,16 @@ class ChairController
                         'units' => $courseDetails['units'],
                         'hours' => ($courseDetails['lecture_hours'] + $courseDetails['lab_hours']) ?: $courseDetails['units'],
                         'component' => $component,
+                        'room_type' => $roomType,
                         'schedule_ids' => $savedScheduleIds
                     ];
 
                     $scheduledSections[] = $section['section_id'];
                     $sectionScheduledSuccessfully = true;
 
-                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} in {$sharedRoom['room_name']} with faculty $facultyId");
-                    break; // Move to next section
+                    error_log("✅ Scheduled {$courseDetails['course_code']} ({$component}) for section {$section['section_name']} in {$sharedRoom['room_name']} ({$roomType}) with faculty $facultyId");
+                    break;
                 } else {
-                    // Rollback saved schedules for this failed attempt
                     foreach ($savedScheduleIds as $scheduleId) {
                         $this->deleteScheduleFromDB($scheduleId);
                     }
@@ -2575,6 +2548,111 @@ class ChairController
         }
 
         return count($scheduledSections) === count($sectionsForCourse);
+    }
+
+    // NEW HELPER: Determine required room type based on component
+    private function determineRequiredRoomType($courseDetails, $isLecture, $isLab, $component)
+    {
+        $labHours = $courseDetails['lab_hours'] ?? 0;
+        $lectureHours = $courseDetails['lecture_hours'] ?? 0;
+
+        // Explicit component type takes priority
+        if ($component === 'Lab') {
+            return 'laboratory';
+        }
+        if ($component === 'Lecture') {
+            return 'lecture';
+        }
+
+        // For combined courses, check actual hours
+        if ($isLab && $labHours > 0) {
+            return 'laboratory';
+        }
+
+        if ($isLecture && $lectureHours > 0) {
+            return 'lecture';
+        }
+
+        // Default to lecture room
+        return 'lecture';
+    }
+
+    // NEW HELPER: Calculate required duration
+    private function calculateRequiredDuration($courseDetails, $isLecture, $isLab, $dayCount)
+    {
+        if ($isLecture && ($courseDetails['lecture_hours'] ?? 0) > 0) {
+            return $courseDetails['lecture_hours'] / $dayCount;
+        }
+
+        if ($isLab && ($courseDetails['lab_hours'] ?? 0) > 0) {
+            return $courseDetails['lab_hours'] / $dayCount;
+        }
+
+        return ($courseDetails['units'] ?? 3) / $dayCount;
+    }
+
+    // NEW HELPER: Find one room available for ALL target days
+    private function findConsistentRoomForAllDays(
+        $departmentId,
+        $maxStudents,
+        $targetDays,
+        $startTime,
+        $endTime,
+        $schedules,
+        $roomType,
+        $component,
+        $collegeId,
+        $courseCode
+    ) {
+        $candidateRooms = [];
+
+        // Get available rooms for each day
+        foreach ($targetDays as $day) {
+            $availableRoomsOnDay = $this->getSpecificRoomType(
+                $departmentId,
+                $maxStudents,
+                $day,
+                $startTime,
+                $endTime,
+                $schedules,
+                $roomType,
+                $component,
+                $collegeId
+            );
+
+            if (!$availableRoomsOnDay || !$availableRoomsOnDay['room_id']) {
+                error_log("No {$roomType} room available on {$day} for {$courseCode}");
+                return null;
+            }
+
+            $candidateRooms[$day] = $availableRoomsOnDay;
+        }
+
+        // Find room that appears on all days (preferred) or use first available
+        $roomFrequency = [];
+        foreach ($candidateRooms as $day => $room) {
+            $roomId = $room['room_id'];
+            if (!isset($roomFrequency[$roomId])) {
+                $roomFrequency[$roomId] = ['count' => 0, 'room' => $room];
+            }
+            $roomFrequency[$roomId]['count']++;
+        }
+
+        // Sort by frequency (rooms available most days first)
+        uasort($roomFrequency, fn($a, $b) => $b['count'] <=> $a['count']);
+
+        if (!empty($roomFrequency)) {
+            $bestRoom = reset($roomFrequency);
+            if ($bestRoom['count'] === count($targetDays)) {
+                error_log("✅ Found consistent {$roomType} room for all days: {$bestRoom['room']['room_name']}");
+                return $bestRoom['room'];
+            } else {
+                error_log("⚠️ Using {$roomType} room available on {$bestRoom['count']} of " . count($targetDays) . " days");
+                return $bestRoom['room'];
+            }
+        }
+
+        return null;
     }
 
     private function getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $roomPreference = 'classroom', $component = null, $collegeId = null)

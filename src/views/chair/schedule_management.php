@@ -2249,30 +2249,47 @@ if ($userDepartmentId) {
                 const yearLevel = document.getElementById('filter-year').value;
                 const section = document.getElementById('filter-section').value;
                 const room = document.getElementById('filter-room').value;
+
+                console.log('Filtering view tab by:', {
+                    yearLevel,
+                    section,
+                    room
+                });
+
                 const scheduleCells = document.querySelectorAll('#timetableGrid .schedule-cell');
+                let visibleCount = 0;
 
                 scheduleCells.forEach(cell => {
                     const items = cell.querySelectorAll('.schedule-item');
-                    let shouldShow = false;
+                    let cellHasVisibleItem = false;
 
                     items.forEach(item => {
                         const itemYearLevel = item.getAttribute('data-year-level');
                         const itemSectionName = item.getAttribute('data-section-name');
                         const itemRoomName = item.getAttribute('data-room-name');
+
                         const matchesYear = !yearLevel || itemYearLevel === yearLevel;
                         const matchesSection = !section || itemSectionName === section;
                         const matchesRoom = !room || itemRoomName === room;
 
                         if (matchesYear && matchesSection && matchesRoom) {
                             item.style.display = 'block';
-                            shouldShow = true;
+                            cellHasVisibleItem = true;
+                            visibleCount++;
                         } else {
                             item.style.display = 'none';
                         }
                     });
 
-                    cell.style.display = shouldShow ? 'block' : 'block';
+                    // Don't hide the cell itself, just the items
+                    // This keeps the grid structure intact
                 });
+
+                if (yearLevel || section || room) {
+                    showNotification(`Showing ${visibleCount} matching schedule(s)`, 'info', 2000);
+                }
+
+                console.log(`View filter result: ${visibleCount} schedules visible`);
             }
 
             function clearFilters() {
@@ -2280,6 +2297,7 @@ if ($userDepartmentId) {
                 document.getElementById('filter-section').value = '';
                 document.getElementById('filter-room').value = '';
                 filterSchedules();
+                showNotification('Filters cleared', 'success', 2000);
             }
 
             // Safe function to update schedule display without escapeHtml issues

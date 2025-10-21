@@ -558,7 +558,6 @@ ob_start();
             return;
         }
 
-        printWindow.document.write('<html><head><title>Faculty Teaching Load</title>');
         printWindow.document.write(`
         <style>
             @page { 

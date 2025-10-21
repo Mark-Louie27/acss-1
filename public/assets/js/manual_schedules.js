@@ -621,202 +621,6 @@ function updateDayField() {
   }
 }
 
-// Enhanced handleScheduleSubmit with conflict detection display
-// Enhanced conflict detection with visual feedback
-function handleScheduleSubmit(e) {
-  e.preventDefault();
-  console.log("Submitting schedule form...");
-
-  // Reset conflict styles
-  resetConflictStyles();
-
-  // Verify we're working with current semester
-  const currentSemesterId = window.currentSemester?.semester_id;
-  if (!currentSemesterId) {
-    showNotification("No active semester selected", "error");
-    return;
-  }
-
-  // Get all form values
-  const formData = new FormData(document.getElementById("schedule-form"));
-  const data = {
-    action: currentEditingId ? "update_schedule" : "add_schedule",
-    schedule_id: formData.get("schedule_id"),
-    course_code: formData.get("course_code").trim(),
-    course_name: formData.get("course_name").trim(),
-    section_name: formData.get("section_name").trim(),
-    faculty_name: formData.get("faculty_name").trim(),
-    room_name: formData.get("room_name").trim() || "Online",
-    day_of_week: formData.get("day_of_week"),
-    start_time: formData.get("start_time"),
-    end_time: formData.get("end_time"),
-    schedule_type: formData.get("schedule_type") || "f2f",
-    semester_id: currentSemesterId,
-  };
-
-  console.log("Form data:", data);
-
-  // Validate required fields with conflict highlighting
-  let hasEmptyFields = false;
-  const requiredFields = [
-    { id: "course-code", value: data.course_code, name: "Course Code" },
-    { id: "course-name", value: data.course_name, name: "Course Name" },
-    { id: "section-name", value: data.section_name, name: "Section" },
-    { id: "faculty-name", value: data.faculty_name, name: "Faculty" },
-    { id: "day-select", value: data.day_of_week, name: "Day Pattern" },
-  ];
-
-  requiredFields.forEach((field) => {
-    if (!field.value) {
-      highlightConflictField(field.id, `${field.name} is required`);
-      hasEmptyFields = true;
-    }
-  });
-
-  if (hasEmptyFields) {
-    showNotification("Please fill out all required fields.", "error");
-    return;
-  }
-
-  // Validate time logic
-  if (data.start_time >= data.end_time) {
-    highlightConflictField("start-time", "Start time must be before end time");
-    highlightConflictField("end-time", "End time must be after start time");
-    showNotification("End time must be after start time.", "error");
-    return;
-  }
-
-  // Show loading state
-  const submitButton = e.target.querySelector('button[type="submit"]');
-  const originalText = submitButton.innerHTML;
-  submitButton.innerHTML =
-    '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
-  submitButton.disabled = true;
-
-  // Submit form to generateSchedulesAjax endpoint
-  fetch("/chair/generate-schedules", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams(data),
-  })
-    .then((response) => {
-      console.log("Response status:", response.status);
-      return response.json();
-    })
-    .then((result) => {
-      console.log("Save response:", result);
-
-      if (result.success) {
-        closeModal();
-        resetConflictStyles();
-
-        let message =
-          result.message ||
-          (currentEditingId
-            ? "Schedule updated successfully!"
-            : "Schedule added successfully!");
-
-        // Handle multiple schedules for day patterns
-        if (result.schedules && result.schedules.length > 1) {
-          message = `Schedules added successfully for ${result.schedules.length} days!`;
-
-          // Add all new schedules to local data
-          result.schedules.forEach((schedule) => {
-            window.scheduleData.push({
-              ...schedule,
-              semester_id: currentSemesterId,
-            });
-          });
-        } else if (result.schedules && result.schedules.length === 1) {
-          // Single schedule (update or add)
-          if (currentEditingId) {
-            const index = window.scheduleData.findIndex(
-              (s) => s.schedule_id == currentEditingId
-            );
-            if (index !== -1) {
-              window.scheduleData[index] = {
-                ...window.scheduleData[index],
-                ...result.schedules[0],
-                semester_id: currentSemesterId,
-              };
-            }
-          } else {
-            window.scheduleData.push({
-              ...result.schedules[0],
-              semester_id: currentSemesterId,
-            });
-          }
-        }
-
-        if (result.partial_success) {
-          message += ` (${result.failed_days} day(s) had conflicts)`;
-        }
-
-        showNotification(message, "success");
-
-        // Refresh display
-        safeUpdateScheduleDisplay(window.scheduleData);
-        initializeDragAndDrop();
-
-        // Rebuild course mappings with new data
-        buildCurrentSemesterCourseMappings();
-      } else {
-        // Show conflicts with field highlighting
-        resetConflictStyles();
-
-        if (result.conflicts && result.conflicts.length > 0) {
-          const conflictDetails = result.conflicts.join("\n• ");
-
-          // Highlight specific fields based on conflict type
-          result.conflicts.forEach((conflict) => {
-            if (conflict.includes("faculty")) {
-              highlightConflictField(
-                "faculty-name",
-                "Faculty has scheduling conflict"
-              );
-            }
-            if (conflict.includes("room")) {
-              highlightConflictField("room-name", "Room is already occupied");
-            }
-            if (conflict.includes("section")) {
-              highlightConflictField(
-                "section-name",
-                "Section has scheduling conflict"
-              );
-            }
-            if (conflict.includes("time")) {
-              highlightConflictField("start-time", "Time conflict detected");
-              highlightConflictField("end-time", "Time conflict detected");
-            }
-          });
-
-          showNotification(
-            `Schedule conflicts detected:\n• ${conflictDetails}`,
-            "error",
-            10000
-          );
-        } else {
-          showNotification(
-            result.message || "Failed to save schedule.",
-            "error"
-          );
-        }
-      }
-    })
-    .catch((error) => {
-      console.error("Error saving schedule:", error);
-      showNotification("Error saving schedule: " + error.message, "error");
-      resetConflictStyles();
-    })
-    .finally(() => {
-      // Restore button state
-      submitButton.innerHTML = originalText;
-      submitButton.disabled = false;
-    });
-}
-
 // Conflict styling functions
 function highlightConflictField(fieldId, message) {
   const field = document.getElementById(fieldId);
@@ -852,6 +656,260 @@ function resetConflictStyles() {
   // Remove conflict tooltips
   const tooltips = form.querySelectorAll(".conflict-tooltip");
   tooltips.forEach((tooltip) => tooltip.remove());
+}
+
+function checkScheduleConflicts(formData, excludeScheduleId = null) {
+  const conflicts = {
+    faculty: [],
+    room: [],
+    section: [],
+    hasConflict: false,
+  };
+
+  const currentSemesterId = window.currentSemester?.semester_id;
+  if (!currentSemesterId) return conflicts;
+
+  // Filter schedules for current semester only
+  const currentSemesterSchedules = window.scheduleData.filter(
+    (s) =>
+      s.semester_id == currentSemesterId && s.schedule_id != excludeScheduleId
+  );
+
+  // Parse times for comparison
+  const newStart = new Date(`2000-01-01 ${formData.start_time}`);
+  const newEnd = new Date(`2000-01-01 ${formData.end_time}`);
+
+  currentSemesterSchedules.forEach((schedule) => {
+    // Only check schedules on the same day
+    if (schedule.day_of_week !== formData.day_of_week) return;
+
+    const scheduleStart = new Date(
+      `2000-01-01 ${schedule.start_time.substring(0, 5)}`
+    );
+    const scheduleEnd = new Date(
+      `2000-01-01 ${schedule.end_time.substring(0, 5)}`
+    );
+
+    // Check for time overlap
+    const hasTimeOverlap = newStart < scheduleEnd && newEnd > scheduleStart;
+
+    if (hasTimeOverlap) {
+      // Faculty conflict
+      if (schedule.faculty_name === formData.faculty_name) {
+        conflicts.faculty.push({
+          course: schedule.course_code,
+          section: schedule.section_name,
+          time: `${formatTime(
+            schedule.start_time.substring(0, 5)
+          )} - ${formatTime(schedule.end_time.substring(0, 5))}`,
+        });
+        conflicts.hasConflict = true;
+      }
+
+      // Room conflict (skip if Online)
+      if (
+        formData.room_name !== "Online" &&
+        schedule.room_name === formData.room_name
+      ) {
+        conflicts.room.push({
+          course: schedule.course_code,
+          section: schedule.section_name,
+          time: `${formatTime(
+            schedule.start_time.substring(0, 5)
+          )} - ${formatTime(schedule.end_time.substring(0, 5))}`,
+        });
+        conflicts.hasConflict = true;
+      }
+
+      // Section conflict
+      if (schedule.section_name === formData.section_name) {
+        conflicts.section.push({
+          course: schedule.course_code,
+          faculty: schedule.faculty_name,
+          time: `${formatTime(
+            schedule.start_time.substring(0, 5)
+          )} - ${formatTime(schedule.end_time.substring(0, 5))}`,
+        });
+        conflicts.hasConflict = true;
+      }
+    }
+  });
+
+  return conflicts;
+}
+
+// Real-time conflict checking when fields change
+function setupRealTimeConflictDetection() {
+  const fieldsToWatch = [
+    "faculty-name",
+    "room-name",
+    "section-name",
+    "day-select",
+    "start-time",
+    "end-time",
+  ];
+
+  fieldsToWatch.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (field) {
+      field.addEventListener("change", () => {
+        debounce(() => validateFormForConflicts(), 500)();
+      });
+    }
+  });
+}
+
+// Debounce function to avoid excessive checks
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Validate form for conflicts and show errors
+function validateFormForConflicts() {
+  // Clear previous errors
+  clearAllFieldErrors();
+
+  const formData = {
+    faculty_name: document.getElementById("faculty-name").value,
+    room_name: document.getElementById("room-name").value,
+    section_name: document.getElementById("section-name").value,
+    day_of_week: document.getElementById("day-select").value,
+    start_time: document.getElementById("start-time").value + ":00",
+    end_time: document.getElementById("end-time").value + ":00",
+  };
+
+  // Only validate if all required fields are filled
+  if (
+    !formData.faculty_name ||
+    !formData.section_name ||
+    !formData.start_time ||
+    !formData.end_time
+  ) {
+    return;
+  }
+
+  const conflicts = checkScheduleConflicts(formData, currentEditingId);
+
+  // Display conflicts
+  if (conflicts.faculty.length > 0) {
+    const messages = conflicts.faculty.map(
+      (c) => `${c.course} (${c.section}) at ${c.time}`
+    );
+    showFieldError(
+      "faculty-name",
+      `Faculty conflict with: ${messages.join(", ")}`
+    );
+  }
+
+  if (conflicts.room.length > 0) {
+    const messages = conflicts.room.map(
+      (c) => `${c.course} (${c.section}) at ${c.time}`
+    );
+    showFieldError("room-name", `Room conflict with: ${messages.join(", ")}`);
+  }
+
+  if (conflicts.section.length > 0) {
+    const messages = conflicts.section.map(
+      (c) => `${c.course} with ${c.faculty} at ${c.time}`
+    );
+    showFieldError(
+      "section-name",
+      `Section conflict with: ${messages.join(", ")}`
+    );
+  }
+
+  return conflicts;
+}
+
+// Show field error with message (inline below input)
+function showFieldError(fieldId, message) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+
+  // Add error styling with animation
+  field.classList.add("border-red-500", "bg-red-50");
+  field.classList.remove("border-gray-300", "border-yellow-500");
+
+  // Add shake animation
+  field.style.animation = "shake 0.3s";
+  setTimeout(() => {
+    field.style.animation = "";
+  }, 300);
+
+  // Create or update error message
+  let errorDiv = field.parentNode.querySelector(".field-error-message");
+  if (!errorDiv) {
+    errorDiv = document.createElement("div");
+    errorDiv.className =
+      "field-error-message text-red-600 text-xs mt-1 flex items-start animate-slideDown";
+    errorDiv.innerHTML =
+      '<i class="fas fa-exclamation-circle mt-0.5 mr-1 flex-shrink-0"></i><span class="error-text"></span>';
+    field.parentNode.appendChild(errorDiv);
+  }
+
+  errorDiv.querySelector(".error-text").textContent = message;
+  errorDiv.style.display = "flex";
+}
+
+// Show field warning (for non-critical issues)
+function showFieldWarning(fieldId, message) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+
+  // Add warning styling
+  field.classList.add("border-yellow-500", "bg-yellow-50");
+  field.classList.remove("border-gray-300", "border-red-500");
+
+  // Create or update warning message
+  let warningDiv = field.parentNode.querySelector(".field-warning-message");
+  if (!warningDiv) {
+    warningDiv = document.createElement("div");
+    warningDiv.className =
+      "field-warning-message text-yellow-700 text-xs mt-1 flex items-start animate-slideDown";
+    warningDiv.innerHTML =
+      '<i class="fas fa-exclamation-triangle mt-0.5 mr-1 flex-shrink-0"></i><span class="warning-text"></span>';
+    field.parentNode.appendChild(warningDiv);
+  }
+
+  warningDiv.querySelector(".warning-text").textContent = message;
+  warningDiv.style.display = "flex";
+}
+
+// Clear error for specific field
+function clearFieldError(fieldId) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+
+  field.classList.remove("border-red-500", "bg-red-50");
+  field.classList.add("border-gray-300");
+
+  const errorDiv = field.parentNode.querySelector(".field-error-message");
+  if (errorDiv) {
+    errorDiv.remove();
+  }
+}
+
+// Clear all field errors
+function clearAllFieldErrors() {
+  const fields = [
+    "faculty-name",
+    "room-name",
+    "section-name",
+    "day-select",
+    "start-time",
+    "end-time",
+    "course-code",
+    "course-name",
+  ];
+  fields.forEach((fieldId) => clearFieldError(fieldId));
 }
 
 // Enhanced showNotification function with longer duration support
@@ -1388,11 +1446,6 @@ function suggestFacultyForSection(courseCode, sectionName) {
 
 // FIXED: Open add modal with current semester data
 function openAddModal() {
-  console.log(
-    "Opening add modal for current semester:",
-    window.currentSemester
-  );
-
   // Rebuild course mappings to ensure we have latest data
   buildCurrentSemesterCourseMappings();
 
@@ -1430,9 +1483,12 @@ function openAddModal() {
   }
 
   currentEditingId = null;
+   clearAllFieldErrors();
 
   // Show modal
   showModal();
+
+  setTimeout(() => setupRealTimeConflictDetection(), 100);
 }
 
 // FIXED: Open add modal for specific time slot
@@ -1548,6 +1604,9 @@ function handleScheduleSubmit(e) {
   e.preventDefault();
   console.log("Submitting schedule form...");
 
+  // Clear all errors first
+  clearAllFieldErrors();
+
   // Verify we're working with current semester
   const currentSemesterId = window.currentSemester?.semester_id;
   if (!currentSemesterId) {
@@ -1575,23 +1634,59 @@ function handleScheduleSubmit(e) {
   console.log("Form data:", data);
 
   // Validate required fields
-  if (
-    !data.course_code ||
-    !data.course_name ||
-    !data.section_name ||
-    !data.faculty_name ||
-    !data.day_of_week ||
-    !data.start_time ||
-    !data.end_time
-  ) {
+  let hasEmptyFields = false;
+  const requiredFields = [
+    { id: "course-code", value: data.course_code, name: "Course Code" },
+    { id: "course-name", value: data.course_name, name: "Course Name" },
+    { id: "section-name", value: data.section_name, name: "Section" },
+    { id: "faculty-name", value: data.faculty_name, name: "Faculty" },
+    { id: "day-select", value: data.day_of_week, name: "Day Pattern" },
+  ];
+
+  requiredFields.forEach((field) => {
+    if (!field.value) {
+      showFieldError(field.id, `${field.name} is required`);
+      hasEmptyFields = true;
+    }
+  });
+
+  if (hasEmptyFields) {
     showNotification("Please fill out all required fields.", "error");
     return;
   }
 
   // Validate time logic
   if (data.start_time >= data.end_time) {
+    showFieldError("start-time", "Start time must be before end time");
+    showFieldError("end-time", "End time must be after start time");
     showNotification("End time must be after start time.", "error");
     return;
+  }
+
+  // Check for conflicts before submitting
+  const conflicts = checkScheduleConflicts(data, currentEditingId);
+
+  if (conflicts.hasConflict) {
+    // Show specific field errors
+    if (conflicts.faculty.length > 0) {
+      const messages = conflicts.faculty.map((c) => `${c.course} at ${c.time}`);
+      showFieldError("faculty-name", `Conflict: ${messages.join(", ")}`);
+    }
+    if (conflicts.room.length > 0) {
+      const messages = conflicts.room.map((c) => `${c.course} at ${c.time}`);
+      showFieldError("room-name", `Conflict: ${messages.join(", ")}`);
+    }
+    if (conflicts.section.length > 0) {
+      const messages = conflicts.section.map((c) => `${c.course} at ${c.time}`);
+      showFieldError("section-name", `Conflict: ${messages.join(", ")}`);
+    }
+
+    showNotification(
+      "Schedule conflicts detected. Please resolve them before saving.",
+      "error",
+      7000
+    );
+    return; // Don't submit if there are conflicts
   }
 
   // Show loading state
@@ -1618,6 +1713,7 @@ function handleScheduleSubmit(e) {
 
       if (result.success) {
         closeModal();
+        clearAllFieldErrors();
 
         let message =
           result.message ||
@@ -1628,8 +1724,6 @@ function handleScheduleSubmit(e) {
         // Handle multiple schedules for day patterns
         if (result.schedules && result.schedules.length > 1) {
           message = `Schedules added successfully for ${result.schedules.length} days!`;
-
-          // Add all new schedules to local data
           result.schedules.forEach((schedule) => {
             window.scheduleData.push({
               ...schedule,
@@ -1637,7 +1731,6 @@ function handleScheduleSubmit(e) {
             });
           });
         } else if (result.schedules && result.schedules.length === 1) {
-          // Single schedule (update or add)
           if (currentEditingId) {
             const index = window.scheduleData.findIndex(
               (s) => s.schedule_id == currentEditingId
@@ -1662,21 +1755,31 @@ function handleScheduleSubmit(e) {
         }
 
         showNotification(message, "success");
-
-        // Refresh display
         safeUpdateScheduleDisplay(window.scheduleData);
         initializeDragAndDrop();
-
-        // Rebuild course mappings with new data
         buildCurrentSemesterCourseMappings();
       } else {
-        // Show conflicts in a user-friendly way
+        // Server-side conflict detection
+        clearAllFieldErrors();
+
         if (result.conflicts && result.conflicts.length > 0) {
+          result.conflicts.forEach((conflict) => {
+            if (conflict.includes("faculty")) {
+              showFieldError("faculty-name", "Faculty has scheduling conflict");
+            }
+            if (conflict.includes("room")) {
+              showFieldError("room-name", "Room is already occupied");
+            }
+            if (conflict.includes("section")) {
+              showFieldError("section-name", "Section has scheduling conflict");
+            }
+          });
+
           const conflictDetails = result.conflicts.join("\n• ");
           showNotification(
-            `Schedule conflicts detected:\n• ${conflictDetails}`,
+            `Schedule conflicts:\n• ${conflictDetails}`,
             "error",
-            10000 // Show for 10 seconds
+            10000
           );
         } else {
           showNotification(
@@ -1689,9 +1792,9 @@ function handleScheduleSubmit(e) {
     .catch((error) => {
       console.error("Error saving schedule:", error);
       showNotification("Error saving schedule: " + error.message, "error");
+      clearAllFieldErrors();
     })
     .finally(() => {
-      // Restore button state
       submitButton.innerHTML = originalText;
       submitButton.disabled = false;
     });
@@ -1861,19 +1964,22 @@ function confirmDeleteSchedules() {
     });
 }
 
-// Enhanced filter function
 function filterSchedulesManual() {
   const yearLevel = document.getElementById("filter-year-manual").value;
   const section = document.getElementById("filter-section-manual").value;
   const room = document.getElementById("filter-room-manual").value;
 
-  console.log("Filtering by:", { yearLevel, section, room });
+  console.log("Filtering grid by:", { yearLevel, section, room });
 
+  // Get all schedule cards in the grid
   const scheduleCards = document.querySelectorAll(
     "#schedule-grid .schedule-card"
   );
   const dropZones = document.querySelectorAll("#schedule-grid .drop-zone");
 
+  let visibleCount = 0;
+
+  // Filter schedule cards
   scheduleCards.forEach((card) => {
     const cardYearLevel = card.getAttribute("data-year-level");
     const cardSectionName = card.getAttribute("data-section-name");
@@ -1885,37 +1991,62 @@ function filterSchedulesManual() {
 
     if (matchesYear && matchesSection && matchesRoom) {
       card.style.display = "block";
-      card.parentElement.style.display = "block";
+      visibleCount++;
     } else {
       card.style.display = "none";
-      // Don't hide the parent drop-zone, just the card
     }
   });
 
-  // Show/hide add buttons based on visibility
+  // Handle drop zones and add buttons visibility
   dropZones.forEach((zone) => {
-    const card = zone.querySelector(".schedule-card");
+    const cards = zone.querySelectorAll(".schedule-card");
     const addButton = zone.querySelector(
       'button[onclick*="openAddModalForSlot"]'
     );
 
-    if (addButton) {
-      if (card && card.style.display === "none") {
-        addButton.style.display = "block";
-      } else if (card && card.style.display === "block") {
-        addButton.style.display = "none";
-      } else {
-        addButton.style.display = "block";
+    // Check if any cards in this zone are visible
+    let hasVisibleCard = false;
+    cards.forEach((card) => {
+      if (card.style.display !== "none") {
+        hasVisibleCard = true;
+      }
+    });
+
+    // If filtering is active and no visible cards, show the add button
+    if ((yearLevel || section || room) && !hasVisibleCard) {
+      // Hide the zone content but keep the structure
+      cards.forEach((card) => (card.style.display = "none"));
+      if (addButton) addButton.style.display = "flex";
+    } else if (hasVisibleCard) {
+      // If there are visible cards, hide the add button
+      if (addButton) addButton.style.display = "none";
+    } else if (!yearLevel && !section && !room) {
+      // No filter active, show add button only if no cards exist
+      if (cards.length === 0 && addButton) {
+        addButton.style.display = "flex";
       }
     }
   });
+
+  // Show feedback message
+  if (yearLevel || section || room) {
+    showNotification(
+      `Showing ${visibleCount} matching schedule(s)`,
+      "info",
+      2000
+    );
+  }
+
+  console.log(`Filter result: ${visibleCount} schedules visible`);
 }
 
+// Clear filters for manual tab
 function clearFiltersManual() {
   document.getElementById("filter-year-manual").value = "";
   document.getElementById("filter-section-manual").value = "";
   document.getElementById("filter-room-manual").value = "";
   filterSchedulesManual();
+  showNotification("Filters cleared", "success", 2000);
 }
 
 function refreshManualView() {
@@ -1924,50 +2055,13 @@ function refreshManualView() {
 
 // Initialize event listeners
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("Manual schedules JS loaded");
-  console.log("Current semester:", window.currentSemester);
-  console.log("Schedule data count:", window.scheduleData?.length || 0);
-
-  // Build initial course mappings from current semester
-  buildCurrentSemesterCourseMappings();
-
-  // Initialize drag-and-drop
-  initializeDragAndDrop();
-
-  // Modal click outside to close
-  const modal = document.getElementById("schedule-modal");
-  if (modal) {
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) {
-        closeModal();
-      }
-    });
-  }
-
-  // Delete modal click outside to close
-  const deleteModal = document.getElementById("delete-confirmation-modal");
-  if (deleteModal) {
-    deleteModal.addEventListener("click", function (e) {
-      if (e.target === deleteModal) {
-        closeDeleteModal();
-      }
-    });
-  }
-
-  console.log("Manual schedules initialized successfully");
-  console.log(
-    "Available courses for current semester:",
-    Object.keys(currentSemesterCourses).length
-  );
-});
-
-// Initialize event listeners
-document.addEventListener("DOMContentLoaded", function () {
   // Initialize drag-and-drop
   initializeDragAndDrop();
 
   // Build initial course mappings from current semester
   buildCurrentSemesterCourseMappings();
+
+  setupRealTimeConflictDetection();
 
   // Add event listener for add schedule button
   const addScheduleBtn = document.getElementById("add-schedule-btn");
