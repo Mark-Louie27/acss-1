@@ -70,19 +70,73 @@ ob_start();
             </div>
         </div>
 
+        <!-- Compact Schedule Status Card -->
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Total Schedules</h3>
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Schedule Status</h3>
                 <div class="p-2 rounded-full bg-yellow-50 text-yellow-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
             </div>
-            <div class="flex justify-between items-end">
-                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($schedulesCount ?? 156); ?></p>
-                <a href="/chair/schedule" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium">
-                    View
+
+            <!-- Total Count -->
+            <div class="mb-3">
+                <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($scheduleStatusCounts['total'] ?? 0); ?></p>
+                <p class="text-sm text-gray-500">Total Schedules</p>
+            </div>
+
+            <!-- Status Progress Bars -->
+            <div class="space-y-2">
+                <!-- Approved -->
+                <?php if ($scheduleStatusCounts['approved'] > 0): ?>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-green-600 font-medium">Approved</span>
+                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['approved']); ?></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-green-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['approved'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Dean Approved -->
+                <?php if ($scheduleStatusCounts['dean_approved'] > 0): ?>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-blue-600 font-medium">Dean Approved</span>
+                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['dean_approved']); ?></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-blue-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['dean_approved'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Pending -->
+                <?php if ($scheduleStatusCounts['pending'] > 0): ?>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-yellow-600 font-medium">Pending</span>
+                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['pending']); ?></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-yellow-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['pending'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Rejected -->
+                <?php if ($scheduleStatusCounts['rejected'] > 0): ?>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-red-600 font-medium">Rejected</span>
+                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['rejected']); ?></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-red-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['rejected'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-gray-200">
+                <a href="/chair/schedule_management" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium justify-center">
+                    View Details
                     <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
@@ -227,7 +281,7 @@ ob_start();
                     Add Curriculum
                 </a>
 
-                
+
             </div>
         </div>
     </div>
@@ -438,6 +492,34 @@ ob_start();
 </script>
 
 <style>
+    /* Progress bar animations */
+    .progress-bar {
+        transition: width 0.8s ease-in-out;
+    }
+
+    /* Status color coding */
+    .status-approved {
+        color: #10B981;
+    }
+
+    .status-dean-approved {
+        color: #3B82F6;
+    }
+
+    .status-pending {
+        color: #F59E0B;
+    }
+
+    .status-rejected {
+        color: #EF4444;
+    }
+
+    /* Hover effects for status items */
+    .status-item:hover {
+        transform: translateX(4px);
+        transition: transform 0.2s ease-in-out;
+    }
+
     .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
         height: 8px;

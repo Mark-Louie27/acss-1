@@ -37,20 +37,6 @@ class ChairController extends BaseController
         return $this->db;
     }
 
-    /**
-     * Restrict access to Program Chair (role_id = 5)
-     */
-    private function restrictToChair()
-    {
-        error_log("restrictToChair: Checking session - user_id: " . ($_SESSION['user_id'] ?? 'none') . ", role_id: " . ($_SESSION['role_id'] ?? 'none'));
-        if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 5) {
-            error_log("restrictToChair: Redirecting to login due to unauthorized access");
-            header('Location: /login?error=Unauthorized access');
-            exit;
-        }
-    }
-
-
     public function getChairDepartment($chairId)
     {
         $stmt = $this->db->prepare("SELECT p.department_id 
@@ -104,18 +90,65 @@ class ChairController extends BaseController
             $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} Semester A.Y {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
             $currentSemesterId = $currentSemester['semester_id'] ?? null;
 
-            // Get counts for dashboard - FIXED PARAMETERS
-            $schedulesCountStmt = $this->db->prepare("
-            SELECT COUNT(*) FROM schedules s 
+            // NEW: Get schedule approval status breakdown
+            $scheduleStatusStmt = $this->db->prepare("
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM schedules s 
             JOIN courses c ON s.course_id = c.course_id 
             WHERE c.department_id = ?
-            " . ($currentSemesterId ? "AND s.semester_id = ?" : ""));
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+            GROUP BY status
+            ORDER BY 
+                CASE status
+                    WHEN 'Approved' THEN 1
+                    WHEN 'Dean_Approved' THEN 2
+                    WHEN 'Pending' THEN 3
+                    WHEN 'Rejected' THEN 4
+                    ELSE 5
+                END
+        ");
+
             $params = [$departmentId];
             if ($currentSemesterId) {
                 $params[] = $currentSemesterId;
             }
-            $schedulesCountStmt->execute($params);
-            $schedulesCount = $schedulesCountStmt->fetchColumn();
+            $scheduleStatusStmt->execute($params);
+            $scheduleStatusData = $scheduleStatusStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Initialize status counts
+            $scheduleStatusCounts = [
+                'total' => 0,
+                'approved' => 0,
+                'dean_approved' => 0,
+                'pending' => 0,
+                'rejected' => 0,
+                'other' => 0
+            ];
+
+            // Process status data
+            foreach ($scheduleStatusData as $statusRow) {
+                $scheduleStatusCounts['total'] += $statusRow['count'];
+
+                switch ($statusRow['status']) {
+                    case 'Approved':
+                        $scheduleStatusCounts['approved'] = $statusRow['count'];
+                        break;
+                    case 'Dean_Approved':
+                        $scheduleStatusCounts['dean_approved'] = $statusRow['count'];
+                        break;
+                    case 'Pending':
+                        $scheduleStatusCounts['pending'] = $statusRow['count'];
+                        break;
+                    case 'Rejected':
+                        $scheduleStatusCounts['rejected'] = $statusRow['count'];
+                        break;
+                    default:
+                        $scheduleStatusCounts['other'] += $statusRow['count'];
+                        break;
+                }
+            }
 
             // Fixed faculty count to include all faculty in the department, not just primary
             $facultyCountStmt = $this->db->prepare("
