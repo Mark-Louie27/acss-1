@@ -263,12 +263,6 @@ class AdminController
     public function manageUsers()
     {
         try {
-            if (!$this->authService->isLoggedIn() || $_SESSION['role_id'] !== 1) { // Assuming role_id 1 is admin
-                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Unauthorized access'];
-                header('Location: /login');
-                exit;
-            }
-
             $action = $_GET['action'] ?? 'list';
             $userId = $_GET['user_id'] ?? null;
             $csrfToken = $this->authService->generateCsrfToken();

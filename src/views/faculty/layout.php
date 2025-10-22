@@ -1,9 +1,5 @@
 <?php
 require_once __DIR__ . '/../../controllers/FacultyController.php';
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 6) {
-    header('Location: /login?error=Unauthorized access');
-    exit;
-}
 
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];

@@ -298,6 +298,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 font-size: 0.875rem;
             }
         }
+
+        /* Add to existing styles in register.php */
+        .input-error {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Update the password error style to match */
+        #password-error {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #password-error svg {
+            flex-shrink: 0;
+        }
     </style>
 </head>
 
@@ -843,24 +874,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const requiredInputs = currentStepElement.querySelectorAll('[required]');
             let isValid = true;
 
+            // Clear previous errors
+            currentStepElement.querySelectorAll('.input-error').forEach(el => {
+                el.classList.remove('input-error');
+            });
+            currentStepElement.querySelectorAll('.error-message').forEach(el => {
+                el.remove();
+            });
+
             requiredInputs.forEach(input => {
                 if (!input.value.trim()) {
-                    input.classList.add('border-red-500');
+                    input.classList.add('input-error');
                     isValid = false;
-                } else {
-                    input.classList.remove('border-red-500');
+
+                    // Create error message
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.innerHTML = `
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                ${input.labels[0]?.textContent.replace('*', '').trim()} is required
+            `;
+                    input.parentNode.appendChild(errorDiv);
                 }
             });
 
             if (step === 2) {
-                // Fix: Check if passwords match using the new function
+                // Validate passwords match
                 if (!validatePasswords()) {
                     isValid = false;
                 }
-            }
-
-            if (!isValid) {
-                alert('Please fill in all required fields.');
             }
 
             return isValid;
@@ -873,13 +917,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (password.value && confirmPassword.value) {
                 if (password.value !== confirmPassword.value) {
-                    password.classList.add('border-red-500', 'bg-red-50');
-                    confirmPassword.classList.add('border-red-500', 'bg-red-50');
+                    password.classList.add('input-error');
+                    confirmPassword.classList.add('input-error');
                     passwordError.classList.remove('hidden');
                     return false;
                 } else {
-                    password.classList.remove('border-red-500', 'bg-red-50');
-                    confirmPassword.classList.remove('border-red-500', 'bg-red-50');
+                    password.classList.remove('input-error');
+                    confirmPassword.classList.remove('input-error');
                     passwordError.classList.add('hidden');
                     return true;
                 }
