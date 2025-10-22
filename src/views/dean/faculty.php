@@ -266,7 +266,7 @@ ob_start();
                                                             if (strpos($profilePicture, '/') === 0) {
                                                                 $profilePath = $profilePicture; // Absolute path
                                                             } else {
-                                                                $profilePath = '/uploads/profiles/' . $profilePicture; // Relative path
+                                                                $profilePath = '/uploads/profile_pictures/' . $profilePicture; // Relative path
                                                             }
 
                                                             // Check if file exists
@@ -396,7 +396,7 @@ ob_start();
                                                             if (strpos($profilePicture, '/') === 0) {
                                                                 $profilePath = $profilePicture; // Absolute path
                                                             } else {
-                                                                $profilePath = '/uploads/profiles/' . $profilePicture; // Relative path
+                                                                $profilePath = '/uploads/profile_pictures/' . $profilePicture; // Relative path
                                                             }
 
                                                             // Check if file exists
@@ -642,7 +642,7 @@ ob_start();
                 profilePicturePath = userData.profile_picture;
             } else {
                 // Assume it's a filename in the uploads directory
-                profilePicturePath = '/uploads/profiles/' + userData.profile_picture;
+                profilePicturePath = '/uploads/profile_pictures/' + userData.profile_picture;
             }
 
             profilePictureHtml = `

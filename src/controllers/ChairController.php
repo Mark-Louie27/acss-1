@@ -39,21 +39,20 @@ class ChairController extends BaseController
         }
     }
 
-    // Load departments for the Program Chair from chair_departments table
     private function loadUserDepartments($userId)
     {
         $query = "
-            SELECT cd.department_id, d.department_name, cd.is_primary
-            FROM chair_departments cd
-            JOIN departments d ON cd.department_id = d.department_id
-            WHERE cd.user_id = :user_id
-        ";
+        SELECT cd.department_id, d.department_name, cd.is_primary
+        FROM chair_departments cd
+        JOIN departments d ON cd.department_id = d.department_id
+        WHERE cd.user_id = :user_id
+    ";
         $stmt = $this->db->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         $this->userDepartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+        error_log("loadUserDepartments for user_id=$userId returned: " . json_encode($this->userDepartments));
         if (empty($this->userDepartments)) {
-            error_log("No departments found for Program Chair user_id=$userId");
+            error_log("No departments found for user_id=$userId");
         } else {
             error_log("Loaded " . count($this->userDepartments) . " departments for user_id=$userId");
         }
@@ -139,23 +138,23 @@ class ChairController extends BaseController
 
             // NEW: Get schedule approval status breakdown
             $scheduleStatusStmt = $this->db->prepare("
-                SELECT 
-                    status,
-                    COUNT(*) as count
-                FROM schedules s 
-                JOIN courses c ON s.course_id = c.course_id 
-                WHERE c.department_id = ?
-                " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
-                GROUP BY status
-                ORDER BY 
-                    CASE status
-                        WHEN 'Approved' THEN 1
-                        WHEN 'Dean_Approved' THEN 2
-                        WHEN 'Pending' THEN 3
-                        WHEN 'Rejected' THEN 4
-                        ELSE 5
-                    END
-            ");
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM schedules s 
+            JOIN courses c ON s.course_id = c.course_id 
+            WHERE c.department_id = ?
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+            GROUP BY status
+            ORDER BY 
+                CASE status
+                    WHEN 'Approved' THEN 1
+                    WHEN 'Dean_Approved' THEN 2
+                    WHEN 'Pending' THEN 3
+                    WHEN 'Rejected' THEN 4
+                    ELSE 5
+                END
+        ");
 
             $params = [$departmentId];
             if ($currentSemesterId) {
@@ -199,29 +198,29 @@ class ChairController extends BaseController
 
             // Fixed faculty count to include all faculty in the department, not just primary
             $facultyCountStmt = $this->db->prepare("
-                SELECT COUNT(DISTINCT f.faculty_id) as faculty_count
-                FROM faculty f
-                JOIN users u ON f.user_id = u.user_id
-                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                WHERE fd.department_id = :department_id
-            ");
+            SELECT COUNT(DISTINCT f.faculty_id) as faculty_count
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            WHERE fd.department_id = :department_id
+        ");
             $facultyCountStmt->execute([':department_id' => $departmentId]);
             $facultyCount = $facultyCountStmt->fetchColumn();
 
             $coursesCountStmt = $this->db->prepare("
-                SELECT COUNT(*) FROM courses WHERE department_id = ?
-            ");
+            SELECT COUNT(*) FROM courses WHERE department_id = ?
+        ");
             $coursesCountStmt->execute([$departmentId]);
             $coursesCount = $coursesCountStmt->fetchColumn();
 
             // Get curricula with active status
             $curriculaStmt = $this->db->prepare("
-                SELECT c.curriculum_id, c.curriculum_name, c.total_units, c.status, p.program_name 
-                FROM curricula c 
-                JOIN programs p ON c.department_id = p.department_id 
-                WHERE c.department_id = ?
-                ORDER BY c.curriculum_name
-            ");
+            SELECT c.curriculum_id, c.curriculum_name, c.total_units, c.status, p.program_name 
+            FROM curricula c 
+            JOIN programs p ON c.department_id = p.department_id 
+            WHERE c.department_id = ?
+            ORDER BY c.curriculum_name
+        ");
             $curriculaStmt->execute([$departmentId]);
             $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -229,49 +228,49 @@ class ChairController extends BaseController
 
             // Get my schedules (filtered by chair's faculty_id)
             $chairFacultyIdStmt = $this->db->prepare("
-                SELECT faculty_id FROM faculty WHERE user_id = ?
-            ");
+            SELECT faculty_id FROM faculty WHERE user_id = ?
+        ");
             $chairFacultyIdStmt->execute([$chairId]);
             $chairFacultyId = $chairFacultyIdStmt->fetchColumn();
 
             $mySchedulesStmt = $this->db->prepare("
-                SELECT 
-                    s.schedule_id, 
-                    c.course_name, 
-                    c.course_code, 
-                    CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
-                    r.room_name, 
-                    GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
-                        CASE s.day_of_week 
-                            WHEN 'Monday' THEN 1
-                            WHEN 'Tuesday' THEN 2
-                            WHEN 'Wednesday' THEN 3
-                            WHEN 'Thursday' THEN 4
-                            WHEN 'Friday' THEN 5
-                            WHEN 'Saturday' THEN 6
-                            WHEN 'Sunday' THEN 7
-                        END
-                        SEPARATOR ', '
-                    ) as day_of_week,
-                    s.start_time, 
-                    s.end_time, 
-                    s.schedule_type, 
-                    sec.section_name,
-                    sem.semester_name, 
-                    sem.academic_year
-                FROM schedules s
-                JOIN courses c ON s.course_id = c.course_id
-                JOIN faculty f ON s.faculty_id = f.faculty_id
-                JOIN users u ON f.user_id = u.user_id
-                LEFT JOIN sections sec ON s.section_id = sec.section_id
-                LEFT JOIN classrooms r ON s.room_id = r.room_id
-                LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
-                WHERE s.faculty_id = ?
-                " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
-                GROUP BY c.course_id, s.faculty_id, s.start_time, s.end_time, s.schedule_type, sec.section_name, r.room_name
-                ORDER BY s.created_at DESC
-                LIMIT 5
-            ");
+            SELECT 
+                s.schedule_id, 
+                c.course_name, 
+                c.course_code, 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+                r.room_name, 
+                GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                    CASE s.day_of_week 
+                        WHEN 'Monday' THEN 1
+                        WHEN 'Tuesday' THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday' THEN 4
+                        WHEN 'Friday' THEN 5
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 7
+                    END
+                    SEPARATOR ', '
+                ) as day_of_week,
+                s.start_time, 
+                s.end_time, 
+                s.schedule_type, 
+                sec.section_name,
+                sem.semester_name, 
+                sem.academic_year
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN faculty f ON s.faculty_id = f.faculty_id
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
+            WHERE s.faculty_id = ?
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+            GROUP BY c.course_id, s.faculty_id, s.start_time, s.end_time, s.schedule_type, sec.section_name, r.room_name
+            ORDER BY s.created_at DESC
+            LIMIT 5
+        ");
 
             $params = [$chairFacultyId];
             if ($currentSemesterId) {
@@ -291,23 +290,23 @@ class ChairController extends BaseController
 
             // Get schedule distribution data for chart - FIXED
             $scheduleDistStmt = $this->db->prepare("
-                SELECT s.day_of_week, COUNT(*) as count 
-                FROM schedules s 
-                JOIN courses c ON s.course_id = c.course_id 
-                WHERE c.department_id = ?
-                " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
-                GROUP BY s.day_of_week
-                ORDER BY 
-                    CASE s.day_of_week 
-                        WHEN 'Monday' THEN 1
-                        WHEN 'Tuesday' THEN 2
-                        WHEN 'Wednesday' THEN 3
-                        WHEN 'Thursday' THEN 4
-                        WHEN 'Friday' THEN 5
-                        WHEN 'Saturday' THEN 6
-                        WHEN 'Sunday' THEN 7
-                    END
-            ");
+            SELECT s.day_of_week, COUNT(*) as count 
+            FROM schedules s 
+            JOIN courses c ON s.course_id = c.course_id 
+            WHERE c.department_id = ?
+            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+            GROUP BY s.day_of_week
+            ORDER BY 
+                CASE s.day_of_week 
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END
+        ");
 
             $params = [$departmentId];
             if ($currentSemesterId) {
@@ -329,18 +328,18 @@ class ChairController extends BaseController
 
             // FIXED: Get faculty workload data for chart
             $workloadStmt = $this->db->prepare("
-                SELECT 
-                    CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
-                    COUNT(DISTINCT s.schedule_id) as course_count
-                FROM faculty f
-                JOIN users u ON f.user_id = u.user_id
-                LEFT JOIN schedules s ON f.faculty_id = s.faculty_id AND s.semester_id = ?
-                WHERE u.department_id = ?
-                GROUP BY f.faculty_id, u.title, u.first_name, u.last_name
-                HAVING course_count > 0
-                ORDER BY course_count DESC
-                LIMIT 5
-            ");
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+                COUNT(DISTINCT s.schedule_id) as course_count
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id AND s.semester_id = ?
+            WHERE u.department_id = ?
+            GROUP BY f.faculty_id, u.title, u.first_name, u.last_name
+            HAVING course_count > 0
+            ORDER BY course_count DESC
+            LIMIT 5
+        ");
 
             $workloadParams = [$currentSemesterId, $departmentId];
             $workloadStmt->execute($workloadParams);
@@ -387,6 +386,8 @@ class ChairController extends BaseController
                 exit;
             }
 
+            // Extract variables into the view scope
+            extract($data);
             require_once $viewPath;
         } catch (Exception $e) {
             error_log("dashboard: Full error: " . $e->getMessage());
@@ -7397,7 +7398,7 @@ class ChairController extends BaseController
                 f.academic_rank, 
                 f.employment_type, 
                 c.course_name AS specialization,
-                COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
+                COALESCE(u.profile_picture) AS profile_picture,
                 GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
                 c2.college_name
             FROM 
@@ -7739,7 +7740,7 @@ class ChairController extends BaseController
                             f.academic_rank, 
                             f.employment_type, 
                             GROUP_CONCAT(CONCAT(c.course_name, IF(s.expertise_level IS NOT NULL, CONCAT(' (', s.expertise_level, ')'), '')) SEPARATOR ', ') AS specialization,
-                            COALESCE(u.profile_picture, '/uploads/profiles/') AS profile_picture,
+                            COALESCE(u.profile_picture) AS profile_picture,
                             GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
                             c2.college_name,
                             u.email

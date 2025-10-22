@@ -226,6 +226,10 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::dashboard");
             $controller->dashboard();
             exit;
+        case '/chair/switch-department':
+            error_log("Routing to ChairController::switchDepartment");
+            $controller->switchDepartment();
+            exit;
         case '/chair/my_schedule':
             error_log("Routing to ChairController::my_schedule");
             $controller->mySchedule();

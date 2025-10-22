@@ -11,7 +11,9 @@ ob_start();
                 <h1 class="text-2xl sm:text-3xl font-bold">PRMSU Scheduling System</h1>
                 <p class="text-gray-300 text-sm sm:text-base mt-1"><?php echo htmlspecialchars($departmentName ?? 'Unknown Department'); ?></p>
             </div>
-            <?php if (!empty($departments)): ?>
+            <?php
+            error_log("dashboard.php: Received departments: " . json_encode($departments ?? 'undefined'));
+            if (!empty($departments)): ?>
                 <form method="POST" action="/chair/switch-department" class="mb-4 md:mb-0">
                     <select name="department_id" onchange="this.form.submit()" class="bg-gray-700 text-white p-2 rounded">
                         <?php foreach ($departments as $dept): ?>
@@ -21,6 +23,8 @@ ob_start();
                         <?php endforeach; ?>
                     </select>
                 </form>
+            <?php else: ?>
+                <p>Debug: No departments available.</p>
             <?php endif; ?>
             <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
                 <span class="bg-gray-700 px-3 py-1 rounded-full flex items-center">

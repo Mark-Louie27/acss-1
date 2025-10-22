@@ -577,6 +577,19 @@ $modal_content = $modal_content ?? '';
                         </div>
                     </div>
                 <?php endif; ?>
+                <?php if (!empty($userDepartments) && $availableRoles): ?>
+                    <div class="relative pl-4 border-l border-gray-300">
+                        <form method="POST" action="/chair/switch-department" class="mb-0">
+                            <select name="department_id" onchange="this.form.submit()" class="bg-gray-700 text-white p-2 rounded text-sm">
+                                <?php foreach ($userDepartments as $dept): ?>
+                                    <option value="<?= $dept['department_id'] ?>" <?= $dept['department_id'] == $currentDepartmentId ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($dept['department_name']) ?> <?= $dept['is_primary'] ? '(Primary)' : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </form>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </header>

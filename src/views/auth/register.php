@@ -29,88 +29,6 @@ try {
     $error = "Error loading registration data: " . $e->getMessage();
 }
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $requiredFields = [
-            'employee_id',
-            'username',
-            'password',
-            'confirm_password',
-            'email',
-            'first_name',
-            'last_name',
-            'college_id',
-            'department_id'
-        ];
-
-        foreach ($requiredFields as $field) {
-            if (empty($_POST[$field])) {
-                throw new Exception("All required fields must be filled.");
-            }
-        }
-
-        if ($_POST['password'] !== $_POST['confirm_password']) {
-            throw new Exception("Passwords do not match.");
-        }
-
-        // Determine program_id based on department_id
-        $programId = null;
-        $programs = $userModel->getProgramsByDepartment((int)$_POST['department_id']);
-        if (!empty($programs)) {
-            $programId = $programs[0]['program_id'];
-        } elseif (in_array(5, (array)$_POST['roles'])) {
-            throw new Exception("No program associated with the selected department for Program Chair.");
-        }
-
-        $userData = [
-            'employee_id' => trim($_POST['employee_id']),
-            'username' => trim($_POST['username']),
-            'password' => $_POST['password'],
-            'email' => trim($_POST['email']),
-            'phone' => trim($_POST['phone'] ?? ''),
-            'first_name' => trim($_POST['first_name']),
-            'middle_name' => trim($_POST['middle_name'] ?? ''),
-            'last_name' => trim($_POST['last_name']),
-            'suffix' => trim($_POST['suffix'] ?? ''),
-            'roles' => isset($_POST['roles']) ? (array)$_POST['roles'] : [],
-            'college_id' => (int)$_POST['college_id'],
-            'department_id' => (int)$_POST['department_id'],
-            'program_id' => $programId,
-            'academic_rank' => trim($_POST['academic_rank'] ?? ''),
-            'employment_type' => trim($_POST['employment_type'] ?? ''),
-            'classification' => trim($_POST['classification'] ?? ''),
-            'role_id' => !empty($_POST['roles']) ? (int)reset($_POST['roles']) : null
-        ];
-
-        if (empty($userData['roles'])) {
-            throw new Exception("At least one role must be selected.");
-        }
-
-        // Check for existing roles that should be unique
-        $existingRoles = $authService->checkExistingRoles($userData['college_id'], $userData['department_id'], $userData['program_id']);
-        foreach ($userData['roles'] as $roleId) {
-            if (in_array($roleId, [1, 4]) && isset($existingRoles[$roleId]['college_id']) && $existingRoles[$roleId]['college_id'] == $userData['college_id']) {
-                throw new Exception("A user with the {$existingRoles[$roleId]['role_name']} role already exists for this college.");
-            }
-            if ($roleId == 5 && isset($existingRoles[$roleId]['program_id']) && $existingRoles[$roleId]['program_id'] == $userData['program_id']) {
-                throw new Exception("A Program Chair already exists for this program.");
-            }
-        }
-
-        if ($authService->register($userData)) {
-            $success = in_array(5, $userData['roles']) || in_array(6, $userData['roles'])
-                ? "Registration submitted successfully. Awaiting Dean approval."
-                : "Registration successful! You can now login.";
-            header('Location: /login?success=' . urlencode($success));
-            exit;
-        } else {
-            throw new Exception("Registration failed. Please try again.");
-        }
-    } catch (Exception $e) {
-        $error = $e->getMessage();
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -297,37 +215,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 height: 32px;
                 font-size: 0.875rem;
             }
-        }
-
-        /* Add to existing styles in register.php */
-        .input-error {
-            border-color: #ef4444 !important;
-            background-color: #fef2f2 !important;
-        }
-
-        .error-message {
-            color: #ef4444;
-            font-size: 0.75rem;
-            margin-top: 0.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        /* Update the password error style to match */
-        #password-error {
-            margin-top: 0.5rem;
-            padding: 0.75rem;
-            background-color: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 0.375rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        #password-error svg {
-            flex-shrink: 0;
         }
     </style>
 </head>
@@ -535,15 +422,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
 
-                        <div id="password-error" class="hidden mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                            <div class="flex items-center">
-                                <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                                <span class="text-red-700 text-sm">Passwords do not match</span>
-                            </div>
-                        </div>
-
                         <!-- Password -->
                         <div class="input-group">
                             <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password <span class="text-red-500">*</span></label>
@@ -571,6 +449,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <input type="password" id="confirm_password" name="confirm_password" required
                                     class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-md shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
                                     placeholder="Confirm your password">
+                            </div>
+                        </div>
+
+                        <!-- Add this after confirm password input in Step 2 -->
+                        <div id="password-error" class="hidden mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <span class="text-red-700 text-sm">Passwords do not match</span>
                             </div>
                         </div>
 
@@ -814,7 +702,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="text-center mt-4 text-sm text-gray-500">
-                    © <span id="currentYear"></span> President Ramon Magsaysay State University. All rights reserved.
+                    © 2025 President Ramon Magsaysay State University. All rights reserved.
                 </div>
             </div>
         </div>
@@ -824,8 +712,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script>
         let currentStep = 1;
         let selectedRoles = [];
-
-        document.getElementById("currentYear").textContent = new Date().getFullYear();
 
         // Step navigation
         function nextStep() {
@@ -874,37 +760,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const requiredInputs = currentStepElement.querySelectorAll('[required]');
             let isValid = true;
 
-            // Clear previous errors
-            currentStepElement.querySelectorAll('.input-error').forEach(el => {
-                el.classList.remove('input-error');
-            });
-            currentStepElement.querySelectorAll('.error-message').forEach(el => {
-                el.remove();
-            });
-
             requiredInputs.forEach(input => {
                 if (!input.value.trim()) {
-                    input.classList.add('input-error');
+                    input.classList.add('border-red-500');
                     isValid = false;
-
-                    // Create error message
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'error-message';
-                    errorDiv.innerHTML = `
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-                ${input.labels[0]?.textContent.replace('*', '').trim()} is required
-            `;
-                    input.parentNode.appendChild(errorDiv);
+                } else {
+                    input.classList.remove('border-red-500');
                 }
             });
 
             if (step === 2) {
-                // Validate passwords match
-                if (!validatePasswords()) {
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirm_password').value;
+                if (password !== confirmPassword) {
+                    document.getElementById('password-error').classList.remove('hidden');
                     isValid = false;
+                } else {
+                    document.getElementById('password-error').classList.add('hidden');
                 }
+            }
+
+            if (!isValid) {
+                alert('Please fill in all required fields.');
             }
 
             return isValid;
@@ -917,13 +794,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (password.value && confirmPassword.value) {
                 if (password.value !== confirmPassword.value) {
-                    password.classList.add('input-error');
-                    confirmPassword.classList.add('input-error');
+                    password.classList.add('border-red-500', 'bg-red-50');
+                    confirmPassword.classList.add('border-red-500', 'bg-red-50');
                     passwordError.classList.remove('hidden');
                     return false;
                 } else {
-                    password.classList.remove('input-error');
-                    confirmPassword.classList.remove('input-error');
+                    password.classList.remove('border-red-500', 'bg-red-50');
+                    confirmPassword.classList.remove('border-red-500', 'bg-red-50');
                     passwordError.classList.add('hidden');
                     return true;
                 }
@@ -1193,7 +1070,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $('#college_id').on('change', loadDepartments);
             updateRoleSelection();
 
-            // Add password validation on input
             $('#password, #confirm_password').on('input', validatePasswords);
 
             <?php if (isset($_POST['college_id']) && !empty($_POST['college_id'])): ?>
