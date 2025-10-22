@@ -59,7 +59,7 @@ class AuthService
                     'middle_name' => $user['middle_name'] ?? '',
                     'suffix' => $user['suffix'] ?? '',
                     'email' => $user['email'],
-                    'role_id' => $user['role_id'],
+                  
                     'roles' => $roles,  // CHANGED: Array of all roles, not single role_name
                     'department_id' => $user['department_id'],
                     'college_id' => $user['college_id'],
@@ -137,6 +137,33 @@ class AuthService
                 throw new Exception("Email {$data['email']} already exists");
             }
 
+            // Validate role uniqueness before registration
+            if (!empty($data['roles'])) {
+                foreach ($data['roles'] as $roleId) {
+                    // Check college-level roles (Admin=1, Dean=4)
+                    if (in_array($roleId, [1, 4])) {
+                        $existingUser = $this->checkExistingCollegeRole($roleId, $data['college_id']);
+                        if ($existingUser) {
+                            $roleName = $roleId == 1 ? 'Admin' : 'Dean';
+                            throw new Exception("A $roleName already exists for this college: {$existingUser['first_name']} {$existingUser['last_name']} (Employee ID: {$existingUser['employee_id']})");
+                        }
+                    }
+
+                    // Check department-level roles for Program Chair (role_id=5)
+                    if ($roleId == 5) {
+                        $departmentIds = $data['department_ids'] ?? [$data['department_id']];
+
+                        foreach ($departmentIds as $deptId) {
+                            $existingUser = $this->checkExistingDepartmentRole($roleId, $deptId);
+                            if ($existingUser) {
+                                $deptInfo = $this->getDepartmentInfo($deptId);
+                                throw new Exception("A Program Chair already exists for {$deptInfo['department_name']}: {$existingUser['first_name']} {$existingUser['last_name']} (Employee ID: {$existingUser['employee_id']})");
+                            }
+                        }
+                    }
+                }
+            }
+
             // Insert into users table (all users pending approval)
             $query = "
             INSERT INTO users (
@@ -156,7 +183,7 @@ class AuthService
                 ':middle_name' => $data['middle_name'] ?? null,
                 ':last_name' => $data['last_name'],
                 ':suffix' => $data['suffix'] ?? null,
-                ':department_id' => $data['department_id'],
+                ':department_id' => $data['department_id'], // Primary department
                 ':college_id' => $data['college_id'],
                 ':role_id' => $data['role_id']
             ]);
@@ -167,7 +194,7 @@ class AuthService
             $query = "
             INSERT INTO faculty (user_id, employee_id, academic_rank, employment_type, classification, max_hours)
             VALUES (:user_id, :employee_id, :academic_rank, :employment_type, :classification, :max_hours)
-            ";
+        ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':user_id' => $userId,
@@ -234,7 +261,41 @@ class AuthService
                         ':program_id' => $data['program_id'],
                         ':start_date' => date('Y-m-d')
                     ]);
-                    error_log("register: Inserted program_chair for user_id=$userId");
+                    error_log("register: Inserted program_chair for user_id=$userId, program_id={$data['program_id']}");
+
+                    // Insert into chair_departments for multiple department support
+                    if (isset($data['department_ids']) && is_array($data['department_ids']) && count($data['department_ids']) > 0) {
+                        $primaryDeptId = $data['department_id']; // Primary department from main field
+                        $deptStmt = $this->db->prepare("
+                        INSERT INTO chair_departments (user_id, department_id, is_primary, assigned_date)
+                        VALUES (:user_id, :department_id, :is_primary, NOW())
+                    ");
+
+                        foreach ($data['department_ids'] as $deptId) {
+                            $isPrimary = ($deptId == $primaryDeptId) ? 1 : 0;
+                            $deptStmt->execute([
+                                ':user_id' => $userId,
+                                ':department_id' => $deptId,
+                                ':is_primary' => $isPrimary
+                            ]);
+
+                            error_log("register: Assigned department $deptId to user $userId (Primary: " . ($isPrimary ? 'Yes' : 'No') . ")");
+                        }
+
+                        error_log("register: Assigned " . count($data['department_ids']) . " departments to Program Chair user_id=$userId");
+                    } else {
+                        // Single department - still add to chair_departments for consistency
+                        $deptStmt = $this->db->prepare("
+                        INSERT INTO chair_departments (user_id, department_id, is_primary, assigned_date)
+                        VALUES (:user_id, :department_id, 1, NOW())
+                    ");
+                        $deptStmt->execute([
+                            ':user_id' => $userId,
+                            ':department_id' => $data['department_id']
+                        ]);
+
+                        error_log("register: Assigned primary department {$data['department_id']} to Program Chair user_id=$userId");
+                    }
                 }
             }
 
@@ -255,6 +316,87 @@ class AuthService
             }
             error_log("Error during registration for employee_id {$data['employee_id']}: " . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * Check if a college-level role already exists
+     */
+    private function checkExistingCollegeRole($roleId, $collegeId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT u.user_id, u.employee_id, u.first_name, u.last_name
+            FROM users u
+            INNER JOIN user_roles ur ON u.user_id = ur.user_id
+            WHERE u.college_id = :college_id
+            AND ur.role_id = :role_id
+            AND u.is_active = 1
+            LIMIT 1
+        ");
+
+            $stmt->execute([
+                ':college_id' => $collegeId,
+                ':role_id' => $roleId
+            ]);
+
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error checking existing college role: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Check if a department-level role already exists
+     */
+    private function checkExistingDepartmentRole($roleId, $departmentId)
+    {
+        try {
+            // For Program Chair, check both users table and chair_departments
+            $stmt = $this->db->prepare("
+            SELECT DISTINCT u.user_id, u.employee_id, u.first_name, u.last_name
+            FROM users u
+            INNER JOIN user_roles ur ON u.user_id = ur.user_id
+            LEFT JOIN chair_departments cd ON u.user_id = cd.user_id
+            WHERE ur.role_id = :role_id
+            AND (u.department_id = :department_id OR cd.department_id = :department_id)
+            AND u.is_active = 1
+            LIMIT 1
+        ");
+
+            $stmt->execute([
+                ':role_id' => $roleId,
+                ':department_id' => $departmentId
+            ]);
+
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error checking existing department role: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get department information
+     */
+    private function getDepartmentInfo($departmentId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT d.department_name, d.department_code, c.college_name
+            FROM departments d
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE d.department_id = :department_id
+        ");
+
+            $stmt->execute([':department_id' => $departmentId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            return $result ?: ['department_name' => 'Unknown Department', 'department_code' => '', 'college_name' => ''];
+        } catch (PDOException $e) {
+            error_log("Error getting department info: " . $e->getMessage());
+            return ['department_name' => 'Unknown Department', 'department_code' => '', 'college_name' => ''];
         }
     }
 
