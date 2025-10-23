@@ -23,8 +23,6 @@ ob_start();
                         <?php endforeach; ?>
                     </select>
                 </form>
-            <?php else: ?>
-                <p>Debug: No departments available.</p>
             <?php endif; ?>
             <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
                 <span class="bg-gray-700 px-3 py-1 rounded-full flex items-center">

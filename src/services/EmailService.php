@@ -280,13 +280,6 @@ class EmailService
         }
     }
 
-    /**
-     * Send verification email (to be replaced with PHPMailer)
-     * @param int $userId
-     * @param string $token
-     * @param string $newPassword
-     * @return void
-     */
     public function sendVerificationEmail($userId, $token, $newPassword)
     {
         $stmt = $this->db->prepare("SELECT email FROM users WHERE user_id = :user_id");
@@ -313,13 +306,6 @@ class EmailService
         }
     }
 
-    /**
-     * Send confirmation email for new registration
-     * @param string $toEmail
-     * @param string $name
-     * @param string $role
-     * @return bool
-     */
     public function sendConfirmationEmail($toEmail, $name, $role)
     {
         try {
@@ -431,13 +417,6 @@ class EmailService
         }
     }
 
-    /**
-     * Send notification email to admins or other roles
-     * @param string $toEmail
-     * @param string $subject
-     * @param string $message
-     * @return bool
-     */
     public function sendNotificationEmail($toEmail, $subject, $message)
     {
         try {
@@ -526,6 +505,33 @@ class EmailService
         } catch (Exception $e) {
             error_log("Error sending notification email to $toEmail: " . $this->mailer->ErrorInfo);
             return false;
+        }
+    }
+
+    public function sendDeclineEmail($to, $name, $role)
+    {
+        try {
+            $subject = "Account Registration Declined";
+            $message = "Dear $name,\n\nYour account registration for role: $role has been declined.\n\nThank you.";
+
+            // Check if mail function is available
+            if (function_exists('mail')) {
+                $headers = "From: noreply@yourdomain.com\r\n";
+                $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+
+                $result = @mail($to, $subject, $message, $headers);
+                if (!$result) {
+                    error_log("Email sending failed for: $to");
+                    // Don't throw error, just log it
+                } else {
+                    error_log("Decline email sent successfully to: $to for $name ($role)");
+                }
+            } else {
+                error_log("mail() function not available for: $to");
+            }
+        } catch (Exception $e) {
+            error_log("Email error in sendDeclineEmail: " . $e->getMessage());
+            // Don't re-throw, just log the error
         }
     }
 }
