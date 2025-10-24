@@ -82,16 +82,43 @@ class ChairController extends BaseController
     // Method to switch department
     public function switchDepartment()
     {
+        // Set JSON header immediately
+        header('Content-Type: application/json');
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['department_id'])) {
             $newDeptId = intval($_POST['department_id']);
+
+            // Check if user has access to this department
             if (in_array($newDeptId, array_column($this->userDepartments, 'department_id'))) {
                 $_SESSION['current_department_id'] = $newDeptId;
                 $this->currentDepartmentId = $newDeptId;
+
                 error_log("Switched to department_id=$newDeptId for user_id=" . ($_SESSION['user_id'] ?? 'unknown'));
+
+                // Return JSON success response
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Department switched successfully',
+                    'department_id' => $newDeptId
+                ]);
+            } else {
+                // Return JSON error response
+                http_response_code(403);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'You do not have access to this department'
+                ]);
             }
+        } else {
+            // Return JSON error for invalid request
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Invalid request'
+            ]);
         }
-        header('Location: /chair/dashboard');
-        exit;
+
+        exit; // Important: stop execution after JSON output
     }
 
     public function dashboard()

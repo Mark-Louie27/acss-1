@@ -28,7 +28,7 @@ if (!$userDepartmentId) {
 }
 
 // Fetch college logo based on department ID
-$collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png'; // Fallback to university logo
+$collegeLogoPath = '/assets/logo/main_logo/PRMSUlogo.png';
 if ($userDepartmentId) {
     try {
         $db = (new Database())->connect();
@@ -43,12 +43,56 @@ if ($userDepartmentId) {
     }
 }
 
+// MOVED: Get departments for switcher
+$userDepartments = [];
+$currentDepartmentId = $_SESSION['current_department_id'] ?? $userDepartmentId;
+
+try {
+    $db = (new Database())->connect();
+    $stmt = $db->prepare("
+        SELECT 
+            cd.department_id, 
+            d.department_name, 
+            cd.is_primary,
+            c.college_name
+        FROM chair_departments cd
+        JOIN departments d ON cd.department_id = d.department_id
+        JOIN colleges c ON d.college_id = c.college_id
+        WHERE cd.user_id = :user_id
+        ORDER BY cd.is_primary DESC, d.department_name ASC
+    ");
+    $stmt->execute([':user_id' => $_SESSION['user_id']]);
+    $userDepartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fallback if no departments found
+    if (empty($userDepartments) && $userDepartmentId) {
+        $stmt = $db->prepare("
+            SELECT 
+                d.department_id, 
+                d.department_name, 
+                1 as is_primary,
+                c.college_name
+            FROM departments d
+            JOIN colleges c ON d.college_id = c.college_id
+            WHERE d.department_id = :department_id
+        ");
+        $stmt->execute([':department_id' => $userDepartmentId]);
+        $userDepartments = [$stmt->fetch(PDO::FETCH_ASSOC)];
+    }
+} catch (PDOException $e) {
+    error_log("layout: Error loading departments - " . $e->getMessage());
+}
+
 $chairController = new ChairController();
 $deadlineStatus = $chairController->checkScheduleDeadlineStatus($userDepartmentId);
 $isScheduleLocked = $deadlineStatus['locked'] ?? false;
 
 $currentUri = $_SERVER['REQUEST_URI'];
 $modal_content = $modal_content ?? '';
+
+// Get available roles
+$availableRoles = $_SESSION['roles'] ?? [];
+$currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 ?>
 
 <!DOCTYPE html>
@@ -547,23 +591,60 @@ $modal_content = $modal_content ?? '';
                     </div>
                 </div>
 
-                <?php
-                $availableRoles = $_SESSION['roles'] ?? [];
-                $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
-                ?>
+                <!-- Department Switcher - Only show if user has MULTIPLE departments -->
+                <?php if (!empty($userDepartments) && count($userDepartments) > 1): ?>
+                    <div class="relative pl-4 border-l border-gray-300 group">
+                        <button class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-yellow-500 hover:bg-gray-100 rounded-lg transition-colors">
+                            <i class="fas fa-building"></i>
+                            <span class="hidden sm:inline text-xs">
+                                <?php
+                                $currentDeptName = '';
+                                foreach ($userDepartments as $dept) {
+                                    if ($dept['department_id'] == $currentDepartmentId) {
+                                        $currentDeptName = htmlspecialchars($dept['department_name']);
+                                        break;
+                                    }
+                                }
+                                echo $currentDeptName ?: 'Department';
+                                ?>
+                            </span>
+                            <i class="fas fa-chevron-down text-xs transition-transform group-hover:rotate-180"></i>
+                        </button>
 
+                        <!-- Department Dropdown Menu -->
+                        <div class="absolute top-full right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-64 max-w-xs opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 slide-in-right">
+                            <form method="POST" action="/chair/switch-department" id="department-switch-form">
+                                <?php foreach ($userDepartments as $dept): ?>
+                                    <button type="button" class="department-switch-item w-full text-left px-4 py-2 hover:bg-yellow-50 transition-colors flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg <?php echo $dept['department_id'] == $currentDepartmentId ? 'bg-yellow-100 text-yellow-700 font-semibold' : 'text-gray-700'; ?>" data-dept-id="<?php echo $dept['department_id']; ?>">
+                                        <i class="fas fa-<?php echo $dept['is_primary'] ? 'star text-yellow-500' : 'building text-gray-400'; ?> text-sm"></i>
+                                        <span class="flex-1 truncate text-sm"><?php echo htmlspecialchars($dept['department_name']); ?></span>
+                                        <?php if ($dept['is_primary']): ?>
+                                            <span class="text-xs text-yellow-600 font-medium ml-2">Primary</span>
+                                        <?php endif; ?>
+                                        <?php if ($dept['department_id'] == $currentDepartmentId): ?>
+                                            <i class="fas fa-check ml-2 text-yellow-500 text-sm"></i>
+                                        <?php endif; ?>
+                                    </button>
+                                <?php endforeach; ?>
+                                <input type="hidden" name="department_id" id="selected-department-id">
+                            </form>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Role Switcher - Only show if user has multiple roles -->
                 <?php if (count($availableRoles) > 1): ?>
-                    <div class="relative pl-4 border-l border-gray-300">
-                        <button id="role-switcher-btn" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-yellow-500 transition-colors rounded-lg hover:bg-gray-100" aria-label="Switch role">
+                    <div class="relative pl-4 border-l border-gray-300 group">
+                        <button class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-yellow-500 hover:bg-gray-100 rounded-lg transition-colors">
                             <i class="fas fa-exchange-alt"></i>
                             <span class="hidden sm:inline text-xs">
                                 <?php echo ucfirst($currentRole); ?>
                             </span>
-                            <i class="fas fa-chevron-down text-xs"></i>
+                            <i class="fas fa-chevron-down text-xs transition-transform group-hover:rotate-180"></i>
                         </button>
 
                         <!-- Role Dropdown Menu -->
-                        <div id="role-switcher-menu" class="hidden absolute top-full right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-max">
+                        <div class="absolute top-full right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-max opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 slide-in-right">
                             <?php foreach ($availableRoles as $role): ?>
                                 <?php $roleLower = strtolower($role); ?>
                                 <button type="button" class="role-switch-item w-full text-left px-4 py-2 hover:bg-yellow-50 transition-colors flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg <?php echo $roleLower === strtolower($currentRole) ? 'bg-yellow-100 text-yellow-700 font-semibold' : 'text-gray-700'; ?>" data-role="<?php echo $roleLower; ?>">
@@ -575,19 +656,6 @@ $modal_content = $modal_content ?? '';
                                 </button>
                             <?php endforeach; ?>
                         </div>
-                    </div>
-                <?php endif; ?>
-                <?php if (!empty($userDepartments) && $availableRoles): ?>
-                    <div class="relative pl-4 border-l border-gray-300">
-                        <form method="POST" action="/chair/switch-department" class="mb-0">
-                            <select name="department_id" onchange="this.form.submit()" class="bg-gray-700 text-white p-2 rounded text-sm">
-                                <?php foreach ($userDepartments as $dept): ?>
-                                    <option value="<?= $dept['department_id'] ?>" <?= $dept['department_id'] == $currentDepartmentId ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($dept['department_name']) ?> <?= $dept['is_primary'] ? '(Primary)' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </form>
                     </div>
                 <?php endif; ?>
             </div>
@@ -944,6 +1012,86 @@ $modal_content = $modal_content ?? '';
                     }
                 });
             });
+        });
+
+        // Department Switcher functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const departmentSwitchItems = document.querySelectorAll('.department-switch-item');
+            const departmentSwitchForm = document.getElementById('department-switch-form');
+            const selectedDepartmentInput = document.getElementById('selected-department-id');
+
+            departmentSwitchItems.forEach(item => {
+                item.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    const departmentId = this.dataset.deptId;
+
+                    if (this.classList.contains('bg-yellow-100')) {
+                        return;
+                    }
+
+                    selectedDepartmentInput.value = departmentId;
+
+                    // Show loading state
+                    const currentButton = this;
+                    const originalContent = currentButton.innerHTML;
+                    currentButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Switching...';
+                    currentButton.disabled = true;
+
+                    try {
+                        const response = await fetch('/chair/switch-department', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: `department_id=${departmentId}`
+                        });
+
+                        // Debug: Check what's actually being returned
+                        const responseText = await response.text();
+                        console.log('Raw response:', responseText);
+
+                        // Try to parse as JSON, but handle the case where it's HTML
+                        let data;
+                        try {
+                            data = JSON.parse(responseText);
+                        } catch (parseError) {
+                            console.error('Failed to parse JSON. Response is:', responseText.substring(0, 200));
+                            throw new Error('Server returned HTML instead of JSON. Check if endpoint exists.');
+                        }
+
+                        if (data.success) {
+                            showToast('Department switched successfully!', 'success');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } else {
+                            showToast(data.error || 'Failed to switch department', 'error');
+                            currentButton.innerHTML = originalContent;
+                            currentButton.disabled = false;
+                        }
+                    } catch (error) {
+                        console.error('Department switch error:', error);
+                        showToast('Endpoint not found or server error. Check console.', 'error');
+                        currentButton.innerHTML = originalContent;
+                        currentButton.disabled = false;
+                    }
+                });
+            });
+
+            function showToast(message, type = 'info') {
+                const toastContainer = document.getElementById('toast-container');
+                if (!toastContainer) return;
+
+                const toast = document.createElement('div');
+                toast.className = `p-4 rounded-lg shadow-lg text-white ${
+            type === 'success' ? 'bg-green-500' : 
+            type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+        }`;
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+
+                setTimeout(() => toast.remove(), 3000);
+            }
         });
 
         // Prevent sidebar from interfering with modals

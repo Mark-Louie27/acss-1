@@ -21,6 +21,9 @@ if ($userDepartmentId) {
 
 <link rel="stylesheet" href="/css/schedule_management.css">
 
+<!-- Force Git to track this change -->
+
+
 <div class="bg-gray-50 min-h-screen">
     <!-- Header -->
     <header class="bg-white shadow-lg border-b border-gray-200">
@@ -750,67 +753,10 @@ if ($userDepartmentId) {
         </div>
 
         <!-- Loading Overlay -->
-        <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-            <div class="bg-white p-8 rounded-xl shadow-2xl text-center max-w-md mx-4 transform transition-all">
-                <!-- Animated Loader -->
-                <div class="relative w-24 h-24 mx-auto mb-6">
-                    <div class="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
-                    <div class="absolute inset-0 border-4 border-yellow-500 rounded-full border-t-transparent animate-spin"></div>
-                    <div class="absolute inset-2 border-4 border-yellow-300 rounded-full border-t-transparent animate-spin" style="animation-duration: 1.5s; animation-direction: reverse;"></div>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <i class="fas fa-calendar-alt text-yellow-500 text-2xl"></i>
-                    </div>
-                </div>
-
-                <!-- Loading Text -->
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Generating Schedules</h3>
-                <p class="text-gray-600 mb-4" id="loading-message">Please wait while we create optimized schedules...</p>
-
-                <!-- Progress Steps (Optional) -->
-                <div class="mt-4 space-y-2 text-left" id="loading-steps">
-                    <div class="flex items-center text-sm text-gray-600">
-                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
-                            <i class="fas fa-check text-xs text-green-500 hidden step-check-1"></i>
-                        </div>
-                        <span id="step-1">Loading courses and sections...</span>
-                    </div>
-                    <div class="flex items-center text-sm text-gray-600">
-                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
-                            <i class="fas fa-check text-xs text-green-500 hidden step-check-2"></i>
-                        </div>
-                        <span id="step-2">Finding available faculty...</span>
-                    </div>
-                    <div class="flex items-center text-sm text-gray-600">
-                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
-                            <i class="fas fa-check text-xs text-green-500 hidden step-check-3"></i>
-                        </div>
-                        <span id="step-3">Allocating classrooms...</span>
-                    </div>
-                    <div class="flex items-center text-sm text-gray-600">
-                        <div class="w-4 h-4 rounded-full border-2 border-gray-300 mr-3 flex items-center justify-center">
-                            <i class="fas fa-spinner fa-spin text-xs text-yellow-500 step-spinner-4"></i>
-                            <i class="fas fa-check text-xs text-green-500 hidden step-check-4"></i>
-                        </div>
-                        <span id="step-4">Generating schedules...</span>
-                    </div>
-                </div>
-
-                <!-- Animated Progress Bar -->
-                <div class="mt-6">
-                    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                        <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 h-2 rounded-full animate-pulse"
-                            style="width: 100%; animation: progressPulse 2s ease-in-out infinite;">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tip of the day (optional) -->
-                <div class="mt-4 p-3 bg-blue-50 rounded-lg text-left">
-                    <p class="text-xs text-blue-700">
-                        <i class="fas fa-lightbulb mr-1"></i>
-                        <strong>Tip:</strong> Schedule generation considers faculty availability, room capacity, and time slot optimization.
-                    </p>
-                </div>
+        <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-8 rounded-lg shadow-xl text-center">
+                <div class="pulsing-loader mx-auto mb-4"></div>
+                <p class="text-gray-700 font-medium">Generating schedules...</p>
             </div>
         </div>
 
@@ -875,8 +821,7 @@ if ($userDepartmentId) {
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Section</label>
                         <select id="section-name" name="section_name"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                            required>
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change" required>
                             <option value="">Select Section</option>
                             <?php
                             // Group sections by year level for better organization
@@ -915,8 +860,7 @@ if ($userDepartmentId) {
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
                         <select id="faculty-name" name="faculty_name"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                            required>
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change" required>
                             <option value="">Select Faculty</option>
                             <?php foreach ($faculty as $fac): ?>
                                 <option value="<?php echo htmlspecialchars($fac['name']); ?>">
@@ -929,7 +873,7 @@ if ($userDepartmentId) {
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Room</label>
                         <select id="room-name" name="room_name"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change" required>
                             <option value="Online">Online</option>
                             <?php foreach ($classrooms as $room): ?>
                                 <option value="<?php echo htmlspecialchars($room['room_name']); ?>">
@@ -943,8 +887,8 @@ if ($userDepartmentId) {
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
                             <select id="start-time" name="start_time_display"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                                onchange="updateTimeFields()">
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change"
+                                onchange="updateTimeFields()" required>
                                 <option value="07:30">7:30 AM</option>
                                 <option value="08:30">8:30 AM</option>
                                 <option value="09:00">9:00 AM</option>
@@ -974,8 +918,8 @@ if ($userDepartmentId) {
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
                             <select id="end-time" name="end_time_display"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                                onchange="updateTimeFields()">
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change"
+                                onchange="updateTimeFields()" required>
                                 <option value="08:30">8:30 AM</option>
                                 <option value="09:00">9:00 AM</option>
                                 <option value="09:30">9:30 AM</option>
@@ -1118,6 +1062,32 @@ if ($userDepartmentId) {
                 </div>
             </div>
         </div>
+
+        <style>
+            .conflict-tooltip {
+                position: absolute;
+                bottom: -25px;
+                left: 0;
+                background: #fee2e2;
+                color: #dc2626;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                white-space: nowrap;
+                z-index: 10;
+                border: 1px solid #fca5a5;
+            }
+
+            .conflict-tooltip::after {
+                content: '';
+                position: absolute;
+                top: -5px;
+                left: 10px;
+                border: 5px solid transparent;
+                border-bottom-color: #fee2e2;
+            }
+        </style>
+
 
         <script>
             // Global data
@@ -2306,47 +2276,30 @@ if ($userDepartmentId) {
                 const yearLevel = document.getElementById('filter-year').value;
                 const section = document.getElementById('filter-section').value;
                 const room = document.getElementById('filter-room').value;
-
-                console.log('Filtering view tab by:', {
-                    yearLevel,
-                    section,
-                    room
-                });
-
                 const scheduleCells = document.querySelectorAll('#timetableGrid .schedule-cell');
-                let visibleCount = 0;
 
                 scheduleCells.forEach(cell => {
                     const items = cell.querySelectorAll('.schedule-item');
-                    let cellHasVisibleItem = false;
+                    let shouldShow = false;
 
                     items.forEach(item => {
                         const itemYearLevel = item.getAttribute('data-year-level');
                         const itemSectionName = item.getAttribute('data-section-name');
                         const itemRoomName = item.getAttribute('data-room-name');
-
                         const matchesYear = !yearLevel || itemYearLevel === yearLevel;
                         const matchesSection = !section || itemSectionName === section;
                         const matchesRoom = !room || itemRoomName === room;
 
                         if (matchesYear && matchesSection && matchesRoom) {
                             item.style.display = 'block';
-                            cellHasVisibleItem = true;
-                            visibleCount++;
+                            shouldShow = true;
                         } else {
                             item.style.display = 'none';
                         }
                     });
 
-                    // Don't hide the cell itself, just the items
-                    // This keeps the grid structure intact
+                    cell.style.display = shouldShow ? 'block' : 'block';
                 });
-
-                if (yearLevel || section || room) {
-                    showNotification(`Showing ${visibleCount} matching schedule(s)`, 'info', 2000);
-                }
-
-                console.log(`View filter result: ${visibleCount} schedules visible`);
             }
 
             function clearFilters() {
@@ -2354,7 +2307,6 @@ if ($userDepartmentId) {
                 document.getElementById('filter-section').value = '';
                 document.getElementById('filter-room').value = '';
                 filterSchedules();
-                showNotification('Filters cleared', 'success', 2000);
             }
 
             // Safe function to update schedule display without escapeHtml issues
@@ -2674,17 +2626,9 @@ if ($userDepartmentId) {
                     return;
                 }
 
-                // Show loading overlay IMMEDIATELY
+                // Show loading overlay
                 const loadingOverlay = document.getElementById('loading-overlay');
                 loadingOverlay.classList.remove('hidden');
-
-                // Disable the button to prevent double-clicks
-                const generateBtn = document.getElementById('generate-btn');
-                const originalText = generateBtn.innerHTML;
-                generateBtn.disabled = true;
-                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
-
-                console.log('Starting schedule generation...');
 
                 // Build form data
                 const formData = new URLSearchParams({
@@ -2693,158 +2637,49 @@ if ($userDepartmentId) {
                     semester_id: form.querySelector('[name="semester_id"]').value
                 });
 
-                // Add a small delay to ensure loading screen is visible
-                setTimeout(() => {
-                    fetch('/chair/generate-schedules', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: formData
-                        })
-                        .then(response => {
-                            console.log('Response received, status:', response.status);
+                fetch('/chair/generate-schedules', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: formData
+                    })
+                    .then(response => {
+                        // Check if response is ok
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Received data:', data); // Debug log
 
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            console.log('Generation complete, received data:', data);
+                        // Hide loading overlay
+                        loadingOverlay.classList.add('hidden');
 
-                            if (!data.success) {
-                                // Hide loading overlay on error
-                                loadingOverlay.classList.add('hidden');
-                                generateBtn.disabled = false;
-                                generateBtn.innerHTML = originalText;
+                        if (!data.success) {
+                            showNotification(data.message || 'Error generating schedules', 'error');
+                            return; // Stop here if generation failed
+                        }
 
-                                showNotification(data.message || 'Error generating schedules', 'error');
-                                return;
-                            }
+                        // Update schedule data ONLY if successful
+                        window.scheduleData = data.schedules || [];
 
-                            // Update schedule data
-                            window.scheduleData = data.schedules || [];
-                            console.log('Updated schedule data with', window.scheduleData.length, 'schedules');
+                        // Update display first
+                        safeUpdateScheduleDisplay(window.scheduleData);
 
-                            // Update display first
-                            safeUpdateScheduleDisplay(window.scheduleData);
+                        // THEN show modal after display is updated
+                        showReportModal(data);
 
-                            // Small delay before hiding loading and showing modal
-                            setTimeout(() => {
-                                // Hide loading overlay
-                                loadingOverlay.classList.add('hidden');
-
-                                // Re-enable button
-                                generateBtn.disabled = false;
-                                generateBtn.innerHTML = originalText;
-
-                                // Show report modal
-                                showReportModal(data);
-
-                                // Show success notification
-                                showNotification('Schedules generated successfully!', 'success');
-                            }, 500); // 500ms delay to ensure smooth transition
-
-                        })
-                        .catch(error => {
-                            console.error('Generation error:', error);
-
-                            // Hide loading overlay on error
-                            loadingOverlay.classList.add('hidden');
-
-                            // Re-enable button
-                            generateBtn.disabled = false;
-                            generateBtn.innerHTML = originalText;
-
-                            showNotification('Error generating schedules: ' + error.message, 'error');
-                        });
-                }, 300); // 300ms delay to ensure loading screen shows
+                    })
+                    .catch(error => {
+                        loadingOverlay.classList.add('hidden');
+                        console.error('Generate error:', error);
+                        showNotification('Error generating schedules: ' + error.message, 'error');
+                    });
             });
 
-            // Enhanced loading overlay with better UX
-            function showLoadingOverlay(message = 'Generating schedules...') {
-                const loadingOverlay = document.getElementById('loading-overlay');
-                if (loadingOverlay) {
-                    const loadingText = loadingOverlay.querySelector('p');
-                    if (loadingText) {
-                        loadingText.textContent = message;
-                    }
-                    loadingOverlay.classList.remove('hidden');
-                    loadingOverlay.style.display = 'flex';
-
-                    // Prevent body scroll
-                    document.body.style.overflow = 'hidden';
-                }
-            }
-
-            function hideLoadingOverlay() {
-                const loadingOverlay = document.getElementById('loading-overlay');
-                if (loadingOverlay) {
-                    loadingOverlay.classList.add('hidden');
-                    loadingOverlay.style.display = 'none';
-
-                    // Restore body scroll
-                    document.body.style.overflow = '';
-                }
-            }
-
-            // Add progress indicator (optional enhancement)
-            function showLoadingWithProgress(currentStep, totalSteps, message) {
-                const loadingOverlay = document.getElementById('loading-overlay');
-                if (!loadingOverlay) return;
-
-                const loadingContent = loadingOverlay.querySelector('.bg-white');
-                if (!loadingContent) return;
-
-                const progress = Math.round((currentStep / totalSteps) * 100);
-
-                loadingContent.innerHTML = `
-                    <div class="pulsing-loader mx-auto mb-4"></div>
-                    <p class="text-gray-700 font-medium mb-3">${message}</p>
-                    <div class="w-64 bg-gray-200 rounded-full h-2">
-                        <div class="bg-yellow-500 h-2 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">${progress}% Complete</p>
-                `;
-            }
-
-            function simulateLoadingProgress() {
-                const steps = [{
-                        id: 1,
-                        delay: 500,
-                        message: 'Courses and sections loaded'
-                    },
-                    {
-                        id: 2,
-                        delay: 1000,
-                        message: 'Faculty availability checked'
-                    },
-                    {
-                        id: 3,
-                        delay: 1500,
-                        message: 'Classrooms allocated'
-                    },
-                    {
-                        id: 4,
-                        delay: 2000,
-                        message: 'Finalizing schedules...'
-                    }
-                ];
-
-                steps.forEach(step => {
-                    setTimeout(() => {
-                        const checkmark = document.querySelector(`.step-check-${step.id}`);
-                        const spinner = document.querySelector(`.step-spinner-${step.id}`);
-                        const stepText = document.getElementById(`step-${step.id}`);
-
-                        if (checkmark) checkmark.classList.remove('hidden');
-                        if (spinner) spinner.classList.add('hidden');
-                        if (stepText && step.message) stepText.textContent = step.message;
-                    }, step.delay);
-                });
-            }
-
+            // Helper function to get consistent color for a schedule
             function getScheduleColor(schedule) {
                 const colors = [
                     'bg-blue-100 border-blue-300 text-blue-800',
