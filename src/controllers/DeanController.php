@@ -2115,19 +2115,19 @@ class DeanController extends BaseController
         }
     }
 
-    public function settings()
+    public function manageDepartments()
     {
         $this->requireRole('dean');
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
-            error_log("settings: No user_id in session");
+            error_log("manageDepartments: No user_id in session");
             http_response_code(401);
             return ['error' => 'No user session'];
         }
 
         $collegeId = $this->getDeanCollegeId($userId);
         if (!$collegeId) {
-            error_log("settings: No college found for dean user_id: $userId");
+            error_log("manageDepartments: No college found for dean user_id: $userId");
             http_response_code(403);
             return ['error' => 'No college assigned to this dean'];
         }
@@ -2142,22 +2142,15 @@ class DeanController extends BaseController
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             }
 
-            // Handle POST actions
+            // Handle POST actions for department and program management
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Validate CSRF token
                 if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-                    error_log("settings: Invalid CSRF token");
+                    error_log("manageDepartments: Invalid CSRF token");
                     $error = "Invalid request";
                     http_response_code(403);
                 } else {
-                    if (isset($_POST['update_settings'])) {
-                        $result = $this->updateSettings($_POST, $collegeId);
-                        if (isset($result['error'])) {
-                            $error = $result['error'];
-                        } else {
-                            $success = $result['success'];
-                        }
-                    } elseif (isset($_POST['add_department'])) {
+                    if (isset($_POST['add_department'])) {
                         $result = $this->addDepartment($_POST, $collegeId);
                         if (isset($result['error'])) {
                             $error = $result['error'];
@@ -2199,6 +2192,90 @@ class DeanController extends BaseController
                         } else {
                             $success = $result['success'];
                         }
+                    }
+                }
+            }
+
+            // Fetch college details for display
+            $query = "SELECT college_name FROM colleges WHERE college_id = :college_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':college_id' => $collegeId]);
+            $college = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['college_name' => ''];
+
+            // Fetch departments
+            $query = "SELECT department_id, department_name, department_code FROM departments WHERE college_id = :college_id ORDER BY department_name";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':college_id' => $collegeId]);
+            $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch programs
+            $query = "
+            SELECT p.program_id, p.program_code, p.program_name, p.department_id, d.department_name
+            FROM programs p
+            JOIN departments d ON p.department_id = d.department_id
+            WHERE d.college_id = :college_id AND p.is_active = 1
+            ORDER BY d.department_name, p.program_name";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':college_id' => $collegeId]);
+            $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Load manage departments view
+            require_once __DIR__ . '/../views/dean/manage_departments.php';
+        } catch (PDOException $e) {
+            error_log("manageDepartments: PDO Error - " . $e->getMessage());
+            $error = "Database error occurred";
+            http_response_code(500);
+            require_once __DIR__ . '/../views/dean/manage_departments.php';
+        } catch (Exception $e) {
+            error_log("manageDepartments: Error - " . $e->getMessage());
+            $error = $e->getMessage();
+            http_response_code(500);
+            require_once __DIR__ . '/../views/dean/manage_departments.php';
+        }
+    }
+
+    public function settings()
+    {
+        $this->requireRole('dean');
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            error_log("settings: No user_id in session");
+            http_response_code(401);
+            return ['error' => 'No user session'];
+        }
+
+        $collegeId = $this->getDeanCollegeId($userId);
+        if (!$collegeId) {
+            error_log("settings: No college found for dean user_id: $userId");
+            http_response_code(403);
+            return ['error' => 'No college assigned to this dean'];
+        }
+
+        $controller = $this;
+        $error = null;
+        $success = null;
+
+        try {
+            // Generate CSRF token
+            if (!isset($_SESSION['csrf_token'])) {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            }
+
+            // Handle POST actions - Only settings-related actions
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Validate CSRF token
+                if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+                    error_log("settings: Invalid CSRF token");
+                    $error = "Invalid request";
+                    http_response_code(403);
+                } else {
+                    if (isset($_POST['update_settings'])) {
+                        $result = $this->updateSettings($_POST, $collegeId);
+                        if (isset($result['error'])) {
+                            $error = $result['error'];
+                        } else {
+                            $success = $result['success'];
+                        }
                     } elseif (isset($_POST['change_password'])) {
                         $result = $this->changePassword($_POST, $userId);
                         if (isset($result['error'])) {
@@ -2215,23 +2292,6 @@ class DeanController extends BaseController
             $stmt = $this->db->prepare($query);
             $stmt->execute([':college_id' => $collegeId]);
             $college = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['college_name' => '', 'logo_path' => null];
-
-            // Fetch departments
-            $query = "SELECT department_id, department_name FROM departments WHERE college_id = :college_id ORDER BY department_name";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':college_id' => $collegeId]);
-            $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Fetch programs
-            $query = "
-                SELECT p.program_id, p.program_code, p.program_name, p.department_id, d.department_name
-                FROM programs p
-                JOIN departments d ON p.department_id = d.department_id
-                WHERE d.college_id = :college_id AND p.is_active = 1
-                ORDER BY d.department_name, p.program_name";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':college_id' => $collegeId]);
-            $programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Load settings view
             require_once __DIR__ . '/../views/dean/settings.php';
@@ -2359,24 +2419,44 @@ class DeanController extends BaseController
     {
         try {
             $departmentName = trim($data['department_name'] ?? '');
+            $departmentCode = trim($data['department_code'] ?? '');
+
             if (empty($departmentName) || strlen($departmentName) > 100) {
                 error_log("Invalid department name provided");
                 return ['error' => 'Department name must be 1-100 characters'];
             }
 
-            // Check if department exists
+            if (empty($departmentCode) || strlen($departmentCode) > 10) {
+                error_log("Invalid department code provided");
+                return ['error' => 'Department code must be 1-10 characters'];
+            }
+
+            // Check if department code exists
+            $query = "SELECT COUNT(*) FROM departments WHERE department_code = :department_code AND college_id = :college_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':department_code' => $departmentCode, ':college_id' => $collegeId]);
+            if ($stmt->fetchColumn() > 0) {
+                error_log("Department code already exists: $departmentCode");
+                return ['error' => 'Department code already exists'];
+            }
+
+            // Check if department name exists
             $query = "SELECT COUNT(*) FROM departments WHERE department_name = :department_name AND college_id = :college_id";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':department_name' => $departmentName, ':college_id' => $collegeId]);
             if ($stmt->fetchColumn() > 0) {
-                error_log("Department already exists: $departmentName");
-                return ['error' => 'Department already exists'];
+                error_log("Department name already exists: $departmentName");
+                return ['error' => 'Department name already exists'];
             }
 
             // Insert department
-            $query = "INSERT INTO departments (department_name, college_id) VALUES (:department_name, :college_id)";
+            $query = "INSERT INTO departments (department_code, department_name, college_id) VALUES (:department_code, :department_name, :college_id)";
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':department_name' => $departmentName, ':college_id' => $collegeId]);
+            $stmt->execute([
+                ':department_code' => $departmentCode,
+                ':department_name' => $departmentName,
+                ':college_id' => $collegeId
+            ]);
 
             return ['success' => 'Department added successfully'];
         } catch (PDOException $e) {
@@ -2390,9 +2470,16 @@ class DeanController extends BaseController
         try {
             $departmentId = intval($data['department_id'] ?? 0);
             $departmentName = trim($data['department_name'] ?? '');
+            $departmentCode = trim($data['department_code'] ?? '');
+
             if (empty($departmentName) || strlen($departmentName) > 100) {
                 error_log("Invalid department name provided");
                 return ['error' => 'Department name must be 1-100 characters'];
+            }
+
+            if (empty($departmentCode) || strlen($departmentCode) > 10) {
+                error_log("Invalid department code provided");
+                return ['error' => 'Department code must be 1-10 characters'];
             }
 
             // Verify department belongs to college
@@ -2404,10 +2491,27 @@ class DeanController extends BaseController
                 return ['error' => 'Department not found'];
             }
 
-            // Update department
-            $query = "UPDATE departments SET department_name = :department_name WHERE department_id = :department_id";
+            // Check if department code exists (excluding current department)
+            $query = "SELECT COUNT(*) FROM departments WHERE department_code = :department_code AND college_id = :college_id AND department_id != :department_id";
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':department_name' => $departmentName, ':department_id' => $departmentId]);
+            $stmt->execute([
+                ':department_code' => $departmentCode,
+                ':college_id' => $collegeId,
+                ':department_id' => $departmentId
+            ]);
+            if ($stmt->fetchColumn() > 0) {
+                error_log("Department code already exists: $departmentCode");
+                return ['error' => 'Department code already exists'];
+            }
+
+            // Update department
+            $query = "UPDATE departments SET department_code = :department_code, department_name = :department_name WHERE department_id = :department_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':department_code' => $departmentCode,
+                ':department_name' => $departmentName,
+                ':department_id' => $departmentId
+            ]);
 
             return ['success' => 'Department updated successfully'];
         } catch (PDOException $e) {

@@ -172,6 +172,9 @@ function handleDeanRoutes($path)
         case '/dean/manage_schedules':
             $controller->manageSchedule();
             break;
+        case '/dean/manage_department':
+            $controller->manageDepartments();
+            break;
         case '/dean/activities':
             $controller->activities();
             break;

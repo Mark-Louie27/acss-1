@@ -365,6 +365,79 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
             font-weight: 500;
         }
 
+        /* Dropdown for Manage pages */
+        .nav-dropdown {
+            position: relative;
+        }
+
+        .nav-dropdown-toggle {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: #d1d5db;
+            text-decoration: none;
+            font-size: 0.875rem;
+            width: 100%;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-dropdown-toggle:hover {
+            color: #e5ad0f;
+        }
+
+        .nav-dropdown-toggle i {
+            margin-right: 0.75rem;
+            width: 16px;
+            flex-shrink: 0;
+        }
+
+        .nav-dropdown-toggle .chevron {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-dropdown-menu {
+            display: none;
+            padding-left: 1rem;
+            background: #1f2937;
+        }
+
+        .nav-dropdown-menu.show {
+            display: block;
+            animation: slideInRight 0.2s ease forwards;
+        }
+
+        .nav-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            color: #d1d5db;
+            text-decoration: none;
+            font-size: 0.875rem;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dropdown-item:hover {
+            background-color: #374151;
+            color: #e5ad0f;
+        }
+
+        .nav-dropdown-item i {
+            margin-right: 0.75rem;
+            width: 16px;
+            flex-shrink: 0;
+        }
+
+        .nav-dropdown-item.active-nav {
+            border-left: 4px solid #e5ad0f;
+            background-color: rgba(229, 173, 15, 0.1);
+            font-weight: 500;
+            color: #e5ad0f;
+        }
+
         /* Main content - responsive */
         .main-content {
             transition: all 0.3s ease;
@@ -476,6 +549,10 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
 
             .breadcrumb {
                 font-size: 0.75rem;
+            }
+
+            .nav-dropdown-menu {
+                padding-left: 0.5rem;
             }
         }
 
@@ -676,53 +753,48 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
                 <span>My Schedule</span>
             </a>
 
-            <!-- College Department Schedule Management-->
-            <a href="/dean/manage_schedules" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-plus-circle w-5 mr-3 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Manage college Departments Schedule</span>
-                <?php if (isset($stats) && $stats['total_pending'] > 0): ?>
-                    <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        <?php echo $stats['total_pending']; ?>
-                    </span>
-                <?php endif; ?>
-            </a>
+            <!-- Manage Dropdown -->
+            <div class="nav-dropdown">
+                <button class="nav-dropdown-toggle flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                    <i class="fas fa-cogs w-5 mr-3 <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                    <span>Manage</span>
+                    <i class="fas fa-chevron-down chevron ml-auto text-xs transition-transform <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'rotate-180' : '' ?>"></i>
+                </button>
+                <div class="nav-dropdown-menu <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'show' : '' ?>">
+                    <a href="/dean/manage_department" class="nav-dropdown-item <?= strpos($currentUri, '/dean/manage_department') !== false ? 'active-nav' : '' ?>">
+                        <i class="fas fa-university w-5 mr-3 <?= strpos($currentUri, '/dean/manage_department') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                        <span>Manage College Departments</span>
+                    </a>
+                    <a href="/dean/manage_schedules" class="nav-dropdown-item <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'active-nav' : '' ?>">
+                        <i class="fas fa-plus-circle w-5 mr-3 <?= strpos($currentUri, '/dean/manage_schedules') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                        <span>Manage College Departments Schedule</span>
+                        <?php if (isset($stats) && $stats['total_pending'] > 0): ?>
+                            <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                <?php echo $stats['total_pending']; ?>
+                            </span>
+                        <?php endif; ?>
+                    </a>
+                    <a href="/dean/classroom" class="nav-dropdown-item <?= strpos($currentUri, '/dean/classroom') !== false ? 'active-nav' : '' ?>">
+                        <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/dean/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                        <span>Manage Classrooms</span>
+                    </a>
+                    <a href="/dean/faculty" class="nav-dropdown-item <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav' : '' ?>">
+                        <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                        <span>Manage Faculty</span>
+                        <?php if (isset($pendingFacultyCount) && $pendingFacultyCount > 0): ?>
+                            <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                <?php echo $pendingFacultyCount; ?>
+                            </span>
+                        <?php endif; ?>
+                    </a>
+                </div>
+            </div>
 
-            <!-- My set monitor Link -->
+            <!-- My Activity Logs Link -->
             <a href="/dean/activities" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo strpos($currentUri, '/dean/activities') !== false ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
                 <i class="fa-solid fa-desktop w-5 mr-3 <?php echo strpos($currentUri, '/dean/activities') !== false ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
                 <span>College Activity Logs</span>
             </a>
-
-            <!-- Classrooms Link -->
-            <a href="/dean/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/dean/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Manage Classrooms</span>
-            </a>
-
-            <!-- Faculty Link -->
-            <a href="/dean/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Manage Faculty</span>
-                <?php if (isset($pendingFacultyCount) && $pendingFacultyCount > 0): ?>
-                    <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        <?php echo $pendingFacultyCount; ?>
-                    </span>
-                <?php endif; ?>
-            </a>
-
-            <!-- Courses Link 
-            <a href="/dean/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/courses') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/dean/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Courses</span>
-            </a>
-
-            
-            <a href="/dean/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/dean/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Curriculum</span>
-            </a>
-
-            -->
 
             <!-- Profile Link -->
             <a href="/dean/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/profile') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
@@ -800,6 +872,8 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
         const profileButton = document.querySelector('.profile-button');
         const dropdownMenu = document.querySelector('.dropdown-menu');
         const profileChevron = document.querySelector('.profile-chevron');
+        const manageDropdownToggle = document.querySelector('.nav-dropdown-toggle');
+        const manageDropdownMenu = document.querySelector('.nav-dropdown-menu');
 
         // Mobile sidebar toggle
         function toggleSidebar() {
@@ -854,10 +928,10 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 dropdownMenu.classList.remove('show');
-                profileChevron.style.transform = 'rotate(0deg)';
-                profileButton.setAttribute('aria-expanded', 'false');
-                closeSidebar();
-            }
+                profileChevron.style.transform = ('rotate(0deg)');
+            profileButton.setAttribute('aria-expanded', 'false');
+            closeSidebar();
+        }
         });
 
         // Touch support for mobile devices
@@ -901,7 +975,7 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
             profileButton.setAttribute('aria-expanded', 'false');
 
             // Add focus management for accessibility
-            const navLinks = sidebar.querySelectorAll('.nav-item');
+            const navLinks = sidebar.querySelectorAll('.nav-item, .nav-dropdown-item');
             navLinks.forEach(link => {
                 link.addEventListener('focus', () => {
                     link.scrollIntoView({
@@ -910,6 +984,33 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
                     });
                 });
             });
+
+            // Manage dropdown toggle
+            if (manageDropdownToggle && manageDropdownMenu) {
+                manageDropdownToggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const isOpen = manageDropdownMenu.classList.contains('show');
+                    manageDropdownMenu.classList.toggle('show');
+                    manageDropdownToggle.querySelector('.chevron').style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                });
+
+                // Close manage dropdown on outside click
+                document.addEventListener('click', (e) => {
+                    if (!manageDropdownToggle.contains(e.target) && !manageDropdownMenu.contains(e.target)) {
+                        manageDropdownMenu.classList.remove('show');
+                        manageDropdownToggle.querySelector('.chevron').style.transform = 'rotate(0deg)';
+                    }
+                });
+
+                // Close manage dropdown on escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && manageDropdownMenu.classList.contains('show')) {
+                        manageDropdownMenu.classList.remove('show');
+                        manageDropdownToggle.querySelector('.chevron').style.transform = 'rotate(0deg)';
+                    }
+                });
+            }
         });
 
         document.addEventListener('DOMContentLoaded', function() {
