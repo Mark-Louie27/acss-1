@@ -46,7 +46,7 @@ class ChairController extends BaseController
         FROM chair_departments cd
         JOIN departments d ON cd.department_id = d.department_id
         WHERE cd.user_id = :user_id
-    ";
+        ";
         $stmt = $this->db->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         $this->userDepartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1649,7 +1649,8 @@ class ChairController extends BaseController
     {
         $this->requireAnyRole('chair', 'dean');
         $chairId = $_SESSION['user_id'] ?? null;
-        $departmentId = $this->getChairDepartment($chairId);
+        // Get department for the Chair - use currentDepartmentId if Program Chair
+        $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
         $currentSemester = $this->getCurrentSemester();
         $_SESSION['current_semester'] = $currentSemester;
         $activeTab = $_GET['tab'] ?? 'generate';
@@ -4795,7 +4796,8 @@ class ChairController extends BaseController
     {
         $this->requireAnyRole('chair', 'dean');
         $chairId = $_SESSION['user_id'] ?? null;
-        $departmentId = $this->getChairDepartment($chairId);
+        // Get department for the Chair - use currentDepartmentId if Program Chair
+        $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
         $error = $success = null;
         $historicalSchedules = [];
         $allSemesters = [];
@@ -5157,7 +5159,8 @@ class ChairController extends BaseController
 
         try {
             $chairId = $_SESSION['user_id'] ?? null;
-            $departmentId = $this->getChairDepartment($chairId);
+            // Get department for the Chair - use currentDepartmentId if Program Chair
+            $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
             $classrooms = [];
             $departments = [];
             $error = null;
@@ -5587,7 +5590,8 @@ class ChairController extends BaseController
         error_log("sections: Starting sections method");
         try {
             $chairId = $_SESSION['user_id'];
-            $departmentId = $this->getChairDepartment($chairId);
+            // Get department for the Chair - use currentDepartmentId if Program Chair
+            $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
             $error = null;
             $success = null;
 
@@ -6471,10 +6475,10 @@ class ChairController extends BaseController
     public function curriculum()
     {
         $this->requireAnyRole('chair', 'dean');
-        error_log("curriculum: Starting curriculum method");
         try {
             $chairId = $_SESSION['user_id'] ?? 0;
-            $departmentId = $this->getChairDepartment($chairId);
+            // Get department for the Chair - use currentDepartmentId if Program Chair
+            $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
             if (!$departmentId) {
                 error_log("curriculum: No department found for chairId: $chairId");
                 $error = "No department assigned to this chair.";
@@ -6902,10 +6906,10 @@ class ChairController extends BaseController
     public function courses()
     {
         $this->requireAnyRole('chair', 'dean');
-        error_log("courses: Starting courses method at " . date('Y-m-d H:i:s'));
         try {
             $chairId = $_SESSION['user_id'] ?? 0;
-            $departmentId = $this->getChairDepartment($chairId);
+            // Get department for the Chair - use currentDepartmentId if Program Chair
+            $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
 
             $error = null;
             $success = null;
@@ -6988,7 +6992,6 @@ class ChairController extends BaseController
                                 $data['is_active'],
                                 $courseId
                             ];
-                            error_log("Updating course: Params = " . json_encode($updateParams));
                             $stmt->execute($updateParams);
                             $success = "Course updated successfully.";
                             $this->logActivity($chairId, $departmentId, 'Update Course', "Updated course ID $courseId", 'courses', $courseId);
@@ -7012,7 +7015,6 @@ class ChairController extends BaseController
                                 $data['lab_hours'],
                                 $data['is_active']
                             ];
-                            error_log("Inserting course: Params = " . json_encode($insertParams));
                             $stmt->execute($insertParams);
                             $courseId = $this->db->lastInsertId();
                             $success = "Course added successfully.";
@@ -7382,7 +7384,8 @@ class ChairController extends BaseController
         }
 
         $chairId = $_SESSION['user_id'] ?? null;
-        $departmentId = $this->getChairDepartment($chairId);
+        // Get department for the Chair - use currentDepartmentId if Program Chair
+        $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
 
         $error = null;
         $success = null;
@@ -7413,50 +7416,55 @@ class ChairController extends BaseController
 
         $fetchFaculty = function ($collegeId, $departmentId) {
             $baseUrl = $this->baseUrl;
+
+            // FIXED: Use the passed $departmentId parameter
             $query = "
-            SELECT 
-                u.user_id, 
-                u.employee_id,
-                u.title, 
-                u.first_name,
-                u.middle_name, 
-                u.last_name,
-                u.suffix, 
-                f.academic_rank, 
-                f.employment_type, 
-                c.course_name AS specialization,
-                COALESCE(u.profile_picture) AS profile_picture,
-                GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
-                c2.college_name
-            FROM 
-                faculty f 
-                JOIN users u ON f.user_id = u.user_id 
-                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                JOIN departments d ON fd.department_id = d.department_id
-                JOIN colleges c2 ON d.college_id = c2.college_id
-                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
+        SELECT 
+            u.user_id, 
+            u.employee_id,
+            u.title, 
+            u.first_name,
+            u.middle_name, 
+            u.last_name,
+            u.suffix, 
+            f.academic_rank, 
+            f.employment_type, 
+            c.course_name AS specialization,
+            COALESCE(u.profile_picture) AS profile_picture,
+            GROUP_CONCAT(DISTINCT d.department_name SEPARATOR ', ') AS department_names, 
+            c2.college_name
+        FROM 
+            faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            JOIN colleges c2 ON d.college_id = c2.college_id
+            LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
                 AND s.is_primary_specialization = 1
-                LEFT JOIN courses c ON s.course_id = c.course_id
-            WHERE 
-                fd.department_id = :department_id
-            GROUP BY 
-                u.user_id, f.faculty_id
-            ORDER BY 
-                u.last_name, u.first_name";
+            LEFT JOIN courses c ON s.course_id = c.course_id
+        WHERE 
+            fd.department_id = :department_id  -- FIXED: Filter by specific department
+        GROUP BY 
+            u.user_id, f.faculty_id
+        ORDER BY 
+            u.last_name, u.first_name";
+
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':department_id' => $departmentId]);
+            $stmt->execute([':department_id' => $departmentId]);  // FIXED: Use parameter
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             foreach ($results as &$result) {
-                if ($result['profile_picture'] && $result['profile_picture']) {
+                if ($result['profile_picture']) {
                     $result['profile_picture'] = $baseUrl . $result['profile_picture'];
                 }
             }
             return $results;
         };
 
-        if ($departmentId && $collegeId) {
+        // FIXED: Call with currentDepartmentId
+        if ($this->currentDepartmentId && $collegeId) {
             try {
-                $faculty = $fetchFaculty($collegeId, $departmentId);
+                $faculty = $fetchFaculty($collegeId, $this->currentDepartmentId);
                 error_log("faculty: Fetched " . count($faculty) . " faculty members");
             } catch (PDOException $e) {
                 $error = "Failed to load faculty: " . htmlspecialchars($e->getMessage());

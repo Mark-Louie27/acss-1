@@ -316,7 +316,7 @@ if ($userDepartmentId) {
                     <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="min-w-full">
                             <!-- Header with days -->
-                            <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                            <div class="grid grid-cols-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
                                 <div class="px-3 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
                                     <span class="hidden sm:inline">Time</span>
                                     <span class="sm:hidden">⌚</span>
@@ -341,9 +341,13 @@ if ($userDepartmentId) {
                                     <span class="hidden sm:inline">Friday</span>
                                     <span class="sm:hidden">Fri</span>
                                 </div>
-                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
                                     <span class="hidden sm:inline">Saturday</span>
                                     <span class="sm:hidden">Sat</span>
+                                </div>
+                                <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                                    <span class="hidden sm:inline">Sunday</span>
+                                    <span class="sm:hidden">Sun</span>
                                 </div>
                             </div>
 
@@ -362,11 +366,11 @@ if ($userDepartmentId) {
                                     ['17:00', '18:00']
                                 ];
 
-                                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']; // Added Sunday
                                 ?>
 
                                 <?php foreach ($timeSlots as $slotIndex => $time): ?>
-                                    <div class="grid grid-cols-7 min-h-[100px] hover:bg-gray-50 transition-colors duration-200">
+                                    <div class="grid grid-cols-8 min-h-[100px] hover:bg-gray-50 transition-colors duration-200">
                                         <!-- Time Column -->
                                         <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start">
                                             <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
@@ -652,7 +656,7 @@ if ($userDepartmentId) {
                 <div class="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="min-w-full">
                         <!-- Header with days -->
-                        <div class="grid grid-cols-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                        <div class="grid grid-cols-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
                             <div class="px-3 py-3 text-sm font-semibold text-gray-700 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
                                 <span class="hidden sm:inline">Time</span>
                                 <span class="sm:hidden">⌚</span>
@@ -677,9 +681,13 @@ if ($userDepartmentId) {
                                 <span class="hidden sm:inline">Friday</span>
                                 <span class="sm:hidden">Fri</span>
                             </div>
-                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700 border-r border-gray-200">
                                 <span class="hidden sm:inline">Saturday</span>
                                 <span class="sm:hidden">Sat</span>
+                            </div>
+                            <div class="px-2 py-3 text-sm font-semibold text-center text-gray-700">
+                                <span class="hidden sm:inline">Sunday</span>
+                                <span class="sm:hidden">Sun</span>
                             </div>
                         </div>
 
@@ -690,7 +698,7 @@ if ($userDepartmentId) {
                                 $duration = strtotime($time[1]) - strtotime($time[0]);
                                 $rowSpan = $duration / 7200;
                                 ?>
-                                <div class="grid grid-cols-7 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
+                                <div class="grid grid-cols-8 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
                                     <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10" rowspan="<?php echo $rowSpan; ?>">
                                         <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
                                         <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
@@ -958,6 +966,7 @@ if ($userDepartmentId) {
                             <option value="Thursday">Thursday</option>
                             <option value="Friday">Friday</option>
                             <option value="Saturday">Saturday</option>
+                            <option value="Sunday">Sunday</option>
                             <option value="MWF">MWF (Mon, Wed, Fri)</option>
                             <option value="TTH">TTH (Tue, Thu)</option>
                             <option value="MW">MW (Mon, Wed)</option>
@@ -1148,12 +1157,22 @@ if ($userDepartmentId) {
             }
 
             // Filter schedules for manual tab
+            // Fixed filter function for manual tab (grid view)
             function filterSchedulesManual() {
                 const yearLevel = document.getElementById('filter-year-manual').value;
                 const section = document.getElementById('filter-section-manual').value;
                 const room = document.getElementById('filter-room-manual').value;
 
+                console.log('Filtering with:', {
+                    yearLevel,
+                    section,
+                    room
+                }); // Debug log
+
+                // Get all schedule cards in the grid
                 const scheduleCards = document.querySelectorAll('#schedule-grid .schedule-card');
+
+                console.log('Found schedule cards:', scheduleCards.length); // Debug log
 
                 scheduleCards.forEach(card => {
                     const cardYearLevel = card.getAttribute('data-year-level');
@@ -1164,10 +1183,28 @@ if ($userDepartmentId) {
                     const matchesSection = !section || cardSectionName === section;
                     const matchesRoom = !room || cardRoomName === room;
 
+                    // Show or hide the entire card
                     if (matchesYear && matchesSection && matchesRoom) {
                         card.style.display = 'block';
+                        card.classList.remove('hidden');
                     } else {
                         card.style.display = 'none';
+                        card.classList.add('hidden');
+                    }
+                });
+
+                // Also handle empty cells - show/hide the add buttons based on filters
+                const dropZones = document.querySelectorAll('#schedule-grid .drop-zone');
+                dropZones.forEach(zone => {
+                    const hasVisibleSchedules = Array.from(zone.querySelectorAll('.schedule-card'))
+                        .some(card => card.style.display !== 'none' && !card.classList.contains('hidden'));
+
+                    // If zone has no visible schedules and all filters are empty, show add button
+                    if (!hasVisibleSchedules) {
+                        const addButton = zone.querySelector('button');
+                        if (addButton) {
+                            addButton.style.display = (!yearLevel && !section && !room) ? 'flex' : 'none';
+                        }
                     }
                 });
             }
@@ -1675,22 +1712,22 @@ if ($userDepartmentId) {
                         const schedules = facultySchedules[facultyName];
 
                         tableHTML += `
-            <div class="faculty-section">
-                <div class="faculty-name">${facultyName}</div>
-                <table class="schedule-table">
-                    <thead>
-                        <tr>
-                            <th class="time-column">Time</th>
-                            <th class="days-column">Days</th>
-                            <th class="course-column">Course Code and Title</th>
-                            
-                            <th class="room-column">Room</th>
-                            <th class="section-column">Year/Section</th>
-                            <th class="students-column">No. of Students</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
+                            <div class="faculty-section">
+                                <div class="faculty-name">${facultyName}</div>
+                                <table class="schedule-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="time-column">Time</th>
+                                            <th class="days-column">Days</th>
+                                            <th class="course-column">Course Code and Title</th>
+                                            
+                                            <th class="room-column">Room</th>
+                                            <th class="section-column">Year/Section</th>
+                                            <th class="students-column">No. of Students</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
 
                         // Group schedules by course and time for better display
                         const groupedSchedules = groupSchedulesForDisplay(schedules);
@@ -1715,14 +1752,14 @@ if ($userDepartmentId) {
                     <td class="section-column">${schedule.section}</td>
                     <td class="students-column">${schedule.students || ""}</td>
                 </tr>
-            `;
+                    `;
                         });
 
                         tableHTML += `
-                    </tbody>
-                </table>
-            </div>
-        `;
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
                     });
 
                 return tableHTML;
@@ -1800,6 +1837,7 @@ if ($userDepartmentId) {
                     Thursday: "TH",
                     Friday: "F",
                     Saturday: "S",
+                    Sunday: "SU",
                 };
 
                 const pattern = days.map((day) => dayMap[day] || day).join("");
@@ -2309,8 +2347,6 @@ if ($userDepartmentId) {
                 filterSchedules();
             }
 
-            // Safe function to update schedule display without escapeHtml issues
-            // Enhanced function to update schedule display without overlapping issues
             function safeUpdateScheduleDisplay(schedules) {
                 window.scheduleData = schedules;
 
@@ -2374,8 +2410,8 @@ if ($userDepartmentId) {
                         const minHeight = rowSpan * 80;
 
                         const row = document.createElement('div');
-                        row.className = `grid grid-cols-7 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
-                        row.style.gridRow = `span ${rowSpan}`;
+                        row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`; // Changed to grid-cols-8
+                        row.style.gridRow = `span ${rowSpan}`
 
                         // Time cell - match PHP structure
                         const timeCell = document.createElement('div');
@@ -2390,7 +2426,7 @@ if ($userDepartmentId) {
                         row.appendChild(timeCell);
 
                         // Day cells
-                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach(day => {
                             const cell = document.createElement('div');
                             cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative drop-zone`;
                             cell.dataset.day = day;
@@ -2457,7 +2493,7 @@ if ($userDepartmentId) {
                         const minHeight = rowSpan * 80;
 
                         const row = document.createElement('div');
-                        row.className = `grid grid-cols-7 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+                        row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
                         row.style.gridRow = `span ${rowSpan}`;
 
                         // Time cell
@@ -2468,7 +2504,7 @@ if ($userDepartmentId) {
                         row.appendChild(timeCell);
 
                         // Day cells
-                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].forEach(day => {
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach(day => {
                             const cell = document.createElement('div');
                             cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative schedule-cell`;
 

@@ -335,7 +335,7 @@ ob_start();
         // Schedule Distribution Chart
         const scheduleCtx = document.getElementById('scheduleChart').getContext('2d');
         const scheduleData = <?php echo $scheduleDistJson ?? '[0,0,0,0,0,0]'; ?>;
-        const scheduleDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const scheduleDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
         new Chart(scheduleCtx, {
             type: 'bar',

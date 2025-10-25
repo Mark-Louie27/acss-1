@@ -164,7 +164,7 @@ $searchTerm = isset($_GET['search']) && trim($_GET['search']) !== '' ? $_GET['se
             </div>
         </div>
 
-        <div id="addCourseModal" class="modal fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 hidden">
+        <div id="addCourseModal" class="modal fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 modal-content scale-95">
             <div class="flex justify-between items-center p-6 border-b border-yellow-light bg-gradient-header rounded-t-xl">
                 <h5 class="text-xl font-bold text-gray-darker">Add New Course</h5>
@@ -263,7 +263,7 @@ $searchTerm = isset($_GET['search']) && trim($_GET['search']) !== '' ? $_GET['se
         </div>
 
         <?php if ($editCourse): ?>
-            <div id="editCourseModal" class="modal fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
+            <div id="editCourseModal" class="modal fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 modal-content scale-95">
                 <div class="flex justify-between items-center p-6 border-b border-yellow-light bg-gradient-header rounded-t-xl">
                 <h5 class="text-xl font-bold text-gray-darker">Edit Course</h5>
