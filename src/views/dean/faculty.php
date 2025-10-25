@@ -251,7 +251,7 @@ ob_start();
                                         <tr class="hover:bg-gray-50 transition-colors table-row chair-row"
                                             data-department="<?php echo $chair['department_id']; ?>"
                                             data-status="<?php echo $chair['is_active'] ? 'active' : 'inactive'; ?>"
-                                            data-name="<?php echo htmlspecialchars(strtolower($chair['last_name'] . ' ' . $chair['first_name'])); ?>"
+                                            data-name="<?php echo htmlspecialchars(strtolower($chair['title'] . ' ' . $chair['last_name'] . ' ' . $chair['first_name'])); ?>"
                                             data-user-id="<?php echo $chair['user_id']; ?>">
                                             <!-- In the table rows, replace the profile picture section with this: -->
                                             <td class="px-4 md:px-6 py-4 whitespace-nowrap cursor-pointer" onclick="showUserModal(<?php echo $chair['user_id']; ?>, 'chair')">
@@ -381,7 +381,7 @@ ob_start();
                                         <tr class="hover:bg-gray-50 transition-colors table-row faculty-row"
                                             data-department="<?php echo $member['department_id']; ?>"
                                             data-status="<?php echo $member['is_active'] ? 'active' : 'inactive'; ?>"
-                                            data-name="<?php echo htmlspecialchars(strtolower($member['last_name'] . ' ' . $member['first_name'])); ?>"
+                                            data-name="<?php echo htmlspecialchars(strtolower($member['title'] . ' ' . $member['last_name'] . ' ' . $member['first_name'])); ?>"
                                             data-user-id="<?php echo $member['user_id']; ?>">
                                             <!-- In the table rows, replace the profile picture section with this: -->
                                             <td class="px-4 md:px-6 py-4 whitespace-nowrap cursor-pointer" onclick="showUserModal(<?php echo $member['user_id']; ?>, 'faculty')">

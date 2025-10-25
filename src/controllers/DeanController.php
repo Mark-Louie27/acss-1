@@ -1143,24 +1143,49 @@ class DeanController extends BaseController
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             $error = null;
 
-            // FIXED: Use NULL instead of invalid directory path for default profile picture
+            // FIXED: Fetch Program Chairs - use separate parameters for UNION
             $queryChairs = "
-            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
-                u.profile_picture, u.is_active, 
-                pc.program_id, p.program_name, f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name
-            FROM users u
-            JOIN faculty f ON u.user_id = f.user_id
-            JOIN program_chairs pc ON u.user_id = pc.user_id
-            JOIN programs p ON pc.program_id = p.program_id
-            JOIN departments d ON p.department_id = d.department_id
-            JOIN colleges c ON d.college_id = c.college_id
-            WHERE d.college_id = :college_id AND pc.is_current = 1 AND u.role_id = 5
-            ORDER BY u.last_name, u.first_name";
-            $stmtdeans = $this->db->prepare($queryChairs);
-            $stmtdeans->execute([':college_id' => $collegeId]);
-            $programChairs = $stmtdeans->fetchAll(PDO::FETCH_ASSOC);
+            WITH chair_data AS (
+                SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
+                    u.profile_picture, u.is_active, 
+                    cd.department_id AS program_id, d.department_name AS program_name, f.academic_rank, f.employment_type, 
+                    cd.department_id, d.department_name, c.college_name
+                FROM users u
+                JOIN faculty f ON u.user_id = f.user_id
+                JOIN user_roles ur ON u.user_id = ur.user_id
+                JOIN chair_departments cd ON u.user_id = cd.user_id AND cd.is_primary = 1
+                JOIN departments d ON cd.department_id = d.department_id
+                JOIN colleges c ON d.college_id = c.college_id
+                WHERE ur.role_id = 5 AND d.college_id = :college_id_1
 
-            // Fetch Faculty - FIXED: Remove COALESCE with invalid path
+                UNION
+
+                SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
+                    u.profile_picture, u.is_active, 
+                    pc.program_id, p.program_name, f.academic_rank, f.employment_type, 
+                    p.department_id, d.department_name, c.college_name
+                FROM users u
+                JOIN faculty f ON u.user_id = f.user_id
+                JOIN program_chairs pc ON u.user_id = pc.user_id AND pc.is_current = 1
+                JOIN programs p ON pc.program_id = p.program_id
+                JOIN departments d ON p.department_id = d.department_id
+                JOIN colleges c ON d.college_id = c.college_id
+                LEFT JOIN chair_departments cd ON u.user_id = cd.user_id AND cd.is_primary = 1
+                WHERE cd.user_id IS NULL AND d.college_id = :college_id_2
+            )
+            SELECT * FROM chair_data
+            ORDER BY last_name, first_name";
+
+            $stmtChairs = $this->db->prepare($queryChairs);
+            // Bind both parameters with the same value
+            $stmtChairs->execute([
+                ':college_id_1' => $collegeId,
+                ':college_id_2' => $collegeId
+            ]);
+            $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($programChairs) . " program chairs");
+
+            // Fetch Faculty using user_roles
             $queryFaculty = "
             SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
                 u.profile_picture, u.is_active, 
@@ -1170,12 +1195,14 @@ class DeanController extends BaseController
             FROM users u
             JOIN colleges c ON u.college_id = c.college_id
             JOIN faculty f ON u.user_id = f.user_id
+            JOIN user_roles ur ON u.user_id = ur.user_id
             LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.is_primary = 1
             LEFT JOIN departments d ON fd.department_id = d.department_id
             LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
             LEFT JOIN courses co ON s.course_id = co.course_id
-            WHERE u.college_id = :college_id AND u.role_id = 6
+            WHERE ur.role_id = 6 AND u.college_id = :college_id
             ORDER BY u.last_name, u.first_name";
+
             $stmtFaculty = $this->db->prepare($queryFaculty);
             if (!$stmtFaculty) {
                 throw new PDOException("Failed to prepare queryFaculty: " . implode(', ', $this->db->errorInfo()));
@@ -1184,40 +1211,52 @@ class DeanController extends BaseController
             $faculty = $stmtFaculty->fetchAll(PDO::FETCH_ASSOC);
             error_log("faculty: Fetched " . count($faculty) . " faculty members");
 
-            // FIXED: Remove COALESCE with invalid path for pending users
+            // Fetch Pending Users using user_roles
             $queryPending = "
             SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
                 u.profile_picture, u.is_active, 
-                u.role_id, r.role_name, f.academic_rank, f.employment_type, d.department_name, d.department_id, c.college_name
+                ur.role_id, r.role_name, f.academic_rank, f.employment_type, 
+                COALESCE(d.department_name, 'No Department') AS department_name, 
+                COALESCE(d.department_id, 0) AS department_id, c.college_name
             FROM users u
             JOIN faculty f ON u.user_id = f.user_id
-            JOIN roles r ON u.role_id = r.role_id
-            JOIN departments d ON u.department_id = d.department_id
-            JOIN colleges c ON d.college_id = c.college_id
-            WHERE u.college_id = :college_id AND u.is_active = 0 AND u.role_id IN (5, 6)
+            JOIN user_roles ur ON u.user_id = ur.user_id
+            JOIN roles r ON ur.role_id = r.role_id
+            LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.is_primary = 1
+            LEFT JOIN departments d ON fd.department_id = d.department_id
+            JOIN colleges c ON u.college_id = c.college_id
+            WHERE u.college_id = :college_id AND u.is_active = 0 AND ur.role_id IN (5, 6)
             ORDER BY u.created_at";
+
             $stmtPending = $this->db->prepare($queryPending);
             $stmtPending->execute([':college_id' => $collegeId]);
             $pendingUsers = $stmtPending->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($pendingUsers) . " pending users");
 
+            // Fetch Departments
             $queryDepartments = "
-        SELECT department_id, department_name
-        FROM departments
-        WHERE college_id = :college_id
-        ORDER BY department_name";
+            SELECT department_id, department_name
+            FROM departments
+            WHERE college_id = :college_id
+            ORDER BY department_name";
+
             $stmtDepartments = $this->db->prepare($queryDepartments);
             $stmtDepartments->execute([':college_id' => $collegeId]);
             $departments = $stmtDepartments->fetchAll(PDO::FETCH_ASSOC);
+            error_log("faculty: Fetched " . count($departments) . " departments");
 
+            // Fetch Current Semester
             $querySemester = "
-        SELECT semester_name, academic_year
-        FROM semesters
-        WHERE is_current = 1
-        LIMIT 1";
+            SELECT semester_name, academic_year
+            FROM semesters
+            WHERE is_current = 1
+            LIMIT 1";
+
             $stmtSemester = $this->db->prepare($querySemester);
             $stmtSemester->execute();
             $currentSemester = $stmtSemester->fetch(PDO::FETCH_ASSOC) ?: ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
 
+            // Handle AJAX POST requests
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Content-Type: application/json');
                 if (isset($_POST['action'], $_POST['user_id']) && in_array($_POST['action'], ['activate', 'deactivate', 'promote', 'demote'])) {
@@ -1225,17 +1264,25 @@ class DeanController extends BaseController
                     echo json_encode($result);
                     exit;
                 } else {
-                    error_log("faculty: Invalid POST data");
+                    error_log("faculty: Invalid POST data - " . json_encode($_POST));
                     echo json_encode(['success' => false, 'error' => 'Invalid request data']);
                     exit;
                 }
             }
 
+            // Render the view
             require_once __DIR__ . '/../views/dean/faculty.php';
         } catch (PDOException $e) {
-            error_log("faculty: PDO Error - " . $e->getMessage());
             http_response_code(500);
             $error = "Database error: " . $e->getMessage();
+            $programChairs = $faculty = $pendingUsers = $departments = [];
+            $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
+            require_once __DIR__ . '/../views/dean/faculty.php';
+        } catch (Exception $e) {
+            error_log("faculty: General Error - " . $e->getMessage());
+            error_log("faculty: Stack trace - " . $e->getTraceAsString());
+            http_response_code(500);
+            $error = "Error: " . $e->getMessage();
             $programChairs = $faculty = $pendingUsers = $departments = [];
             $currentSemester = ['semester_name' => 'N/A', 'academic_year' => 'N/A'];
             require_once __DIR__ . '/../views/dean/faculty.php';
@@ -1268,9 +1315,10 @@ class DeanController extends BaseController
                 $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id AND college_id = :college_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
-                $query = "SELECT u.email, u.first_name, u.last_name, u.role_id AS user_role_id, r.role_name 
+                $query = "SELECT u.email, u.first_name, u.last_name, ur.role_id AS user_role_id, r.role_name 
                       FROM users u 
-                      JOIN roles r ON u.role_id = r.role_id 
+                      JOIN user_roles ur ON u.user_id = ur.user_id
+                      JOIN roles r ON ur.role_id = r.role_id 
                       WHERE u.user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId]);
