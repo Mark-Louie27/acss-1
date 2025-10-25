@@ -178,6 +178,10 @@ function handleDeanRoutes($path)
         case '/dean/activities':
             $controller->activities();
             break;
+        case '/dean/activities/load-more':
+            error_log("Routing to loadMoreActivities");
+            $controller->loadMoreActivities();
+            break;
         case '/dean/classroom':
             $controller->classroom();
             break;

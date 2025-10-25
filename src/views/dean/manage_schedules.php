@@ -68,8 +68,8 @@ ob_start();
 
                 $display = trim(
                     ($semName !== '' ? $semName : '') .
-                    ($semName !== '' && $acadYear !== '' ? ' — ' : '') .
-                    ($acadYear !== '' ? $acadYear : '')
+                        ($semName !== '' && $acadYear !== '' ? ' — ' : '') .
+                        ($acadYear !== '' ? $acadYear : '')
                 );
 
                 echo htmlspecialchars($display ?: 'No semester selected');
@@ -100,26 +100,52 @@ ob_start();
         </div>
     </div>
 
-    <!-- Approval Confirmation Modal -->
-    <div id="approveModal" class="fixed inset-0 bg-opacity-50 flex justify-center hidden overflow-y-auto h-75 z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 class="text-lg font-bold text-gray-900 mb-4">Confirm Approval</h3>
-            <p class="text-sm text-gray-600 mb-6">Are you sure you want to approve all pending schedules? This action cannot be undone.</p>
-            <div class="flex justify-end space-x-3">
-                <button id="cancelApprove" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
-                <button id="confirmApprove" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Approve All</button>
+    <!-- Approval Modal -->
+    <div id="approveModal" class="modal-backdrop fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4">
+                <h3 class="text-xl font-bold text-white flex items-center">
+                    <i class="fas fa-check-circle mr-3 text-2xl"></i>
+                    Confirm College Dean Approval
+                </h3>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-600 mb-6 leading-relaxed">
+                    Are you sure you want to approve all pending schedules? This will finalize the schedules and make them public.
+                </p>
+                <div class="flex gap-3">
+                    <button id="cancelApprove" class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all duration-200">
+                        Cancel
+                    </button>
+                    <button id="confirmApprove" class="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-lg transition-all duration-200">
+                        Approve All
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Rejection Confirmation Modal -->
-    <div id="rejectModal" class="fixed inset-0 bg-opacity-50 hidden flex justify-center overflow-y-auto h-75 z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 class="text-lg font-bold text-gray-900 mb-4">Confirm Rejection</h3>
-            <p class="text-sm text-gray-600 mb-6">Are you sure you want to reject all pending schedules? This action cannot be undone.</p>
-            <div class="flex justify-end space-x-3">
-                <button id="cancelReject" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
-                <button id="confirmReject" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Reject All</button>
+    <!-- Rejection Modal -->
+    <div id="rejectModal" class="modal-backdrop fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div class="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
+                <h3 class="text-xl font-bold text-white flex items-center">
+                    <i class="fas fa-times-circle mr-3 text-2xl"></i>
+                    Confirm Rejection
+                </h3>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-600 mb-6 leading-relaxed">
+                    Are you sure you want to reject all pending schedules? This action cannot be undone.
+                </p>
+                <div class="flex gap-3">
+                    <button id="cancelReject" class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all duration-200">
+                        Cancel
+                    </button>
+                    <button id="confirmReject" class="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg transition-all duration-200">
+                        Reject All
+                    </button>
+                </div>
             </div>
         </div>
     </div>

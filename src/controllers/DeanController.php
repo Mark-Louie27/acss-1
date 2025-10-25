@@ -352,6 +352,12 @@ class DeanController extends BaseController
         $this->requireRole('dean');
         try {
             $userId = $_SESSION['user_id'] ?? null;
+
+            // Get current semester information
+            $currentSemester = $this->getCurrentSemester();
+            $currentSemesterDisplay = $currentSemester ?
+                $currentSemester['semester_name'] . ' Semester, A.Y ' . $currentSemester['academic_year'] : 'Not Set';
+
             if (!$userId) {
                 error_log("activities: No user_id in session");
                 throw new Exception('User session not found');
@@ -372,13 +378,19 @@ class DeanController extends BaseController
                 throw new Exception('Failed to fetch activities');
             }
 
+            // Get departments for filter dropdown
+            $departments = $this->getCollegeDepartments($collegeId);
+
             // Prepare data array for the view
             $data = [
                 'activities' => $activities ?? [],
                 'title' => 'Dean Activities Dashboard',
                 'college_id' => $collegeId,
                 'department_id' => $departmentId,
-                'date' => $date
+                'date' => $date,
+                'current_semester_display' => $currentSemesterDisplay,
+                'current_semester' => $currentSemester,
+                'departments' => $departments
             ];
 
             // Load activities view
@@ -390,7 +402,9 @@ class DeanController extends BaseController
             $data = [
                 'activities' => [],
                 'title' => 'Dean Activities Dashboard',
-                'error' => "Database error occurred. Please try again."
+                'error' => "Database error occurred. Please try again.",
+                'current_semester_display' => 'Not Set',
+                'departments' => []
             ];
 
             require_once __DIR__ . '/../views/dean/activities.php';
@@ -401,10 +415,122 @@ class DeanController extends BaseController
             $data = [
                 'activities' => [],
                 'title' => 'Dean Activities Dashboard',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'current_semester_display' => 'Not Set',
+                'departments' => []
             ];
 
             require_once __DIR__ . '/../views/dean/activities.php';
+        }
+    }
+
+    // Add this helper function to get departments
+    private function getCollegeDepartments($collegeId)
+    {
+        try {
+            $query = "SELECT department_id, department_name FROM departments WHERE college_id = :college_id ORDER BY department_name";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':college_id' => $collegeId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getCollegeDepartments: Error - " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function loadMoreActivities()
+    {
+        ob_clean();
+        ob_start();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            error_log("Method not allowed, returning 405");
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed. Use POST.']);
+            ob_end_flush();
+            return;
+        }
+
+        $this->requireRole('dean');
+
+        try {
+            $userId = $_SESSION['user_id'] ?? null;
+            if (!$userId) {
+                error_log("Unauthorized: No user_id in session");
+                http_response_code(401);
+                echo json_encode(['error' => 'Unauthorized']);
+                ob_end_flush();
+                return;
+            }
+
+            $collegeId = $this->getDeanCollegeId($userId);
+            if (!$collegeId) {
+                error_log("No college assigned for user: $userId");
+                http_response_code(400);
+                echo json_encode(['error' => 'No college assigned']);
+                ob_end_flush();
+                return;
+            }
+
+            $offset = $_POST['offset'] ?? 0;
+            $departmentId = $_POST['department_id'] ?? null;
+            $date = $_POST['date'] ?? null;
+
+            $activities = $this->getMoreActivities($collegeId, $offset, $departmentId, $date);
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'activities' => $activities,
+                'hasMore' => count($activities) === 10
+            ]);
+            ob_end_flush();
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to load more activities']);
+            ob_end_flush();
+        }
+        error_log("Response sent, exiting");
+        exit;
+    }
+
+    private function getMoreActivities($collegeId, $offset, $departmentId = null, $date = null)
+    {
+        try {
+            $query = "
+            SELECT al.*, d.department_name, u.title, u.first_name, u.last_name, c.college_name
+            FROM activity_logs al
+            JOIN users u ON al.user_id = u.user_id
+            JOIN departments d ON al.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
+            WHERE d.college_id = :college_id";
+
+            $params = [':college_id' => $collegeId];
+
+            if ($departmentId) {
+                $query .= " AND al.department_id = :department_id";
+                $params[':department_id'] = $departmentId;
+            }
+            if ($date) {
+                $query .= " AND DATE(al.created_at) = :date";
+                $params[':date'] = $date;
+            }
+
+            $query .= " ORDER BY al.created_at DESC
+                   LIMIT 10 OFFSET :offset";
+
+            $stmt = $this->db->prepare($query);
+            $params[':offset'] = (int)$offset;
+
+            // PDO requires binding offset separately for some drivers
+            $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+            $stmt->execute($params);
+
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return is_array($result) ? $result : [];
+        } catch (PDOException $e) {
+            error_log("getMoreActivities: Error - " . $e->getMessage());
+            return [];
         }
     }
 

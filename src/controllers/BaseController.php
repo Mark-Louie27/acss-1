@@ -42,8 +42,6 @@ class BaseController
     {
 
         if (!isset($this->userRoles) || empty($this->userRoles)) {
-            error_log("BaseController: userRoles is empty/not set, checking SESSION directly");
-            error_log("SESSION['roles']: " . json_encode($_SESSION['roles'] ?? []));
             http_response_code(403);
             include __DIR__ . '/../views/errors/403.php';
             exit;
@@ -57,7 +55,6 @@ class BaseController
         error_log("requireAnyRole: Result - hasRole: " . json_encode($hasRole) . ", empty: " . (empty($hasRole) ? 'yes' : 'no'));
 
         if (empty($hasRole)) {
-            error_log("BaseController: Access denied, required roles: " . json_encode($roles) . ", user roles: " . json_encode($this->userRoles));
             http_response_code(403);
             include __DIR__ . '/../views/errors/403.php';
             exit;
