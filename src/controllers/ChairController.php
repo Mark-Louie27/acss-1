@@ -4796,7 +4796,6 @@ class ChairController extends BaseController
     {
         $this->requireAnyRole('chair', 'dean');
         $chairId = $_SESSION['user_id'] ?? null;
-        // Get department for the Chair - use currentDepartmentId if Program Chair
         $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
         $error = $success = null;
         $historicalSchedules = [];
@@ -4817,6 +4816,14 @@ class ChairController extends BaseController
         } else {
             $error = "No department assigned to chair.";
         }
+
+        $data = [
+            'error' => $error,
+            'success' => $success,
+            'historicalSchedules' => $historicalSchedules,
+            'allSemesters' => $allSemesters,
+            'title' => 'Schedule History'
+        ];
 
         require_once __DIR__ . '/../views/chair/schedule_history.php';
     }
@@ -4848,7 +4855,9 @@ class ChairController extends BaseController
     private function getHistoricalSchedules($departmentId, $semesterId = null, $academicYear = null)
     {
         try {
-            $sql = "SELECT s.*, c.course_code, c.course_name, u.first_name, u.last_name, r.room_name, se.section_name, sem.semester_name, sem.academic_year
+            $sql = "SELECT s.*, c.course_code, c.course_name, c.units, u.first_name, u.last_name, r.room_name, se.section_name, sem.semester_name, sem.academic_year,
+                GROUP_CONCAT(DISTINCT s.day_of_week SEPARATOR ', ') as all_days,
+                MIN(s.start_time) as start_time, MAX(s.end_time) as end_time
                 FROM schedules s
                 LEFT JOIN courses c ON s.course_id = c.course_id
                 LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
@@ -4868,6 +4877,7 @@ class ChairController extends BaseController
                 $params[':academicYear'] = $academicYear;
             }
 
+            $sql .= " GROUP BY s.course_id, s.faculty_id, s.section_id, s.room_id, s.semester_id, c.course_code, c.course_name, c.units, u.first_name, u.last_name, r.room_name, se.section_name, sem.semester_name, sem.academic_year";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -4877,10 +4887,11 @@ class ChairController extends BaseController
                     'schedule_id' => $schedule['schedule_id'],
                     'course_code' => $schedule['course_code'],
                     'course_name' => $schedule['course_name'],
+                    'units' => $schedule['units'] ?? 3,
                     'faculty_name' => trim($schedule['first_name'] . ' ' . $schedule['last_name']) ?: 'Unknown',
                     'room_name' => $schedule['room_name'] ?? 'Online',
                     'section_name' => $schedule['section_name'],
-                    'day_of_week' => $schedule['day_of_week'],
+                    'day_of_week' => $this->schedulingService->formatScheduleDays($schedule['all_days']), // Combine and format days
                     'start_time' => $schedule['start_time'],
                     'end_time' => $schedule['end_time'],
                     'schedule_type' => $schedule['schedule_type'],
@@ -4921,28 +4932,6 @@ class ChairController extends BaseController
         }
     }
 
-    private function formatScheduleHistory($schedules)
-    {
-        $formatted = [];
-        foreach ($schedules as $schedule) {
-            $key = $schedule['semester_name'] . ' - ' . $schedule['academic_year'];
-            if (!isset($formatted[$key])) {
-                $formatted[$key] = [];
-            }
-            $formatted[$key][] = sprintf(
-                "%s - %s (Section: %s, Faculty: %s, Room: %s, %s %s-%s)",
-                $schedule['course_code'],
-                $schedule['course_name'],
-                $schedule['section_name'],
-                $schedule['faculty_name'],
-                $schedule['room_name'],
-                $schedule['day_of_week'],
-                $schedule['start_time'],
-                $schedule['end_time']
-            );
-        }
-        return $formatted;
-    }
 
     /**
      * Manage classrooms
