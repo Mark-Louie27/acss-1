@@ -124,6 +124,10 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::monitoring");
             $controller->monitor();
             break;
+        case '/director/monitor/load-more':
+            error_log("Routing to loadMore");
+            $controller->loadMore();
+            break;
         case '/director/profile':
             error_log("Routing to DirectorController::profile");
             $controller->profile();

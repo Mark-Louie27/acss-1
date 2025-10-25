@@ -10,7 +10,7 @@ ob_start();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($data['title']); ?></title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+
     <style>
         @keyframes fadeIn {
             from {
@@ -55,8 +55,25 @@ ob_start();
     <div class="max-w-7xl mx-auto px-4 sm:p-6 lg:p-8 py-8">
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Header -->
+            <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in" style="animation-delay: 0.1s">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($data['title']); ?></h1>
+                        <div class="mt-2 flex items-center space-x-4">
+                            <div class="text-sm text-gray-600">
+                                <span class="inline-flex items-center bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full">
+                                    <i class="fas fa-calendar-alt mr-2"></i>
+                                    Current Semester: <?php echo htmlspecialchars($data['current_semester_display']); ?>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Total Activities -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in">
+            <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-500 mb-1">Total Activities</p>
@@ -78,7 +95,7 @@ ob_start();
             </div>
 
             <!-- Today's Activities -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in" style="animation-delay: 0.1s">
+            <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in" style="animation-delay: 0.1s">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-500 mb-1">Today's Activities</p>
@@ -108,7 +125,7 @@ ob_start();
             </div>
 
             <!-- Active Users -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in" style="animation-delay: 0.2s">
+            <div class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in" style="animation-delay: 0.2s">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-500 mb-1">Active Users</p>
@@ -130,25 +147,6 @@ ob_start();
                         <i class="fas fa-pulse text-purple-500 mr-1"></i>
                         <span class="text-purple-600 font-medium">Online</span>
                         <span class="text-gray-500 ml-1">now</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- System Status -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-fade-in" style="animation-delay: 0.3s">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500 mb-1">System Status</p>
-                        <p class="text-2xl font-bold text-green-600">Healthy</p>
-                    </div>
-                    <div class="w-12 h-12 bg-gradient-to-r from-gold-primary to-gold-dark rounded-lg flex items-center justify-center animate-pulse-slow">
-                        <i class="fas fa-heartbeat text-white"></i>
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <div class="flex items-center text-sm">
-                        <div class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                        <span class="text-green-600 font-medium">All systems operational</span>
                     </div>
                 </div>
             </div>
@@ -326,6 +324,96 @@ ob_start();
     </div>
 
     <script>
+        // JavaScript helper functions
+        function getActivityIcon(type) {
+            const icons = {
+                'login': {
+                    icon: 'fas fa-sign-in-alt',
+                    bg: 'bg-green-500'
+                },
+                'logout': {
+                    icon: 'fas fa-sign-out-alt',
+                    bg: 'bg-red-500'
+                },
+                'schedule': {
+                    icon: 'fas fa-calendar-alt',
+                    bg: 'bg-blue-500'
+                },
+                'update': {
+                    icon: 'fas fa-edit',
+                    bg: 'bg-yellow-500'
+                },
+                'delete': {
+                    icon: 'fas fa-trash',
+                    bg: 'bg-red-500'
+                },
+                'create': {
+                    icon: 'fas fa-plus',
+                    'bg': 'bg-green-500'
+                },
+                'system': {
+                    icon: 'fas fa-cog',
+                    bg: 'bg-gray-500'
+                },
+                'default': {
+                    icon: 'fas fa-info-circle',
+                    bg: 'bg-blue-500'
+                }
+            };
+            return icons[type] || icons['default'];
+        }
+
+        function getActivityType(type) {
+            const types = {
+                'login': {
+                    label: 'Login',
+                    class: 'bg-green-100 text-green-800'
+                },
+                'logout': {
+                    label: 'Logout',
+                    class: 'bg-red-100 text-red-800'
+                },
+                'schedule': {
+                    label: 'Schedule',
+                    class: 'bg-blue-100 text-blue-800'
+                },
+                'update': {
+                    label: 'Update',
+                    class: 'bg-yellow-100 text-yellow-800'
+                },
+                'delete': {
+                    label: 'Delete',
+                    class: 'bg-red-100 text-red-800'
+                },
+                'create': {
+                    label: 'Create',
+                    class: 'bg-green-100 text-green-800'
+                },
+                'system': {
+                    label: 'System',
+                    class: 'bg-gray-100 text-gray-800'
+                },
+                'default': {
+                    label: 'Activity',
+                    class: 'bg-blue-100 text-blue-800'
+                }
+            };
+            return types[type] || types['default'];
+        }
+
+        function timeAgo(datetime) {
+            const time = new Date() - new Date(datetime);
+            if (time < 60000) return 'just now';
+            if (time < 3600000) return Math.floor(time / 60000) + ' min ago';
+            if (time < 86400000) return Math.floor(time / 3600000) + ' hr ago';
+            if (time < 2592000000) return Math.floor(time / 86400000) + ' days ago';
+            return new Date(datetime).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize activity chart
             initActivityChart();
@@ -343,37 +431,59 @@ ob_start();
             const loadMoreBtn = document.getElementById('loadMoreBtn');
             if (loadMoreBtn) {
                 loadMoreBtn.addEventListener('click', function() {
+                    const offset = document.querySelectorAll('#activityFeed .activity-item').length;
                     fetch('/director/monitor/load-more', {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'application/x-www-form-urlencoded'
                             },
-                            body: JSON.stringify({
-                                offset: document.querySelectorAll('#activityFeed .activity-item').length
-                            })
+                            body: `offset=${offset}`
                         })
-                        .then(response => response.json())
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! Status: ${response.status}`);
+                            }
+                            return response.json();
+                        })
                         .then(data => {
-                            data.activities.forEach(activity => {
-                                const item = createActivityItem(activity);
-                                document.getElementById('activityFeed').appendChild(item);
-                            });
-                            if (data.activities.length < 10) loadMoreBtn.style.display = 'none'; // Hide if no more data
+                            if (data.success) {
+                                data.activities.forEach(activity => {
+                                    const item = createActivityItem(activity);
+                                    document.getElementById('activityFeed').appendChild(item);
+                                });
+                                if (!data.hasMore) loadMoreBtn.style.display = 'none';
+                            } else {
+                                showNotification(data.error || 'Failed to load more activities', 'error');
+                            }
                         })
-                        .catch(error => console.error('Load more error:', error));
+                        .catch(error => {
+                            console.error('Load more error:', error);
+                            showNotification('An error occurred while loading more activities.', 'error');
+                        });
                 });
 
                 function createActivityItem(activity) {
                     const div = document.createElement('div');
                     div.className = 'activity-item flex items-start space-x-3 p-4 rounded-lg border border-gray-100 hover:border-gold-primary hover:bg-gold-primary hover:bg-opacity-5';
                     div.innerHTML = `
-                        <div class="flex-shrink-0"><div class="w-8 h-8 rounded-full flex items-center justify-center ${getActivityIcon(activity.action_type).bg}"><i class="${getActivityIcon(activity.action_type).icon} text-white text-sm"></i></div></div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between"><p class="text-sm font-medium text-gray-900">${activity.first_name} ${activity.last_name}</p><p class="text-xs text-gray-500">${timeAgo(activity.created_at)}</p></div>
-                            <p class="text-sm text-gray-600 mt-1">${activity.action_description} ( ${activity.department_name}, ${activity.college_name} )</p>
-                            <div class="mt-2"><span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getActivityType(activity.action_type).class}">${getActivityType(activity.action_type).label}</span></div>
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center ${getActivityIcon(activity.action_type).bg}">
+                            <i class="${getActivityIcon(activity.action_type).icon}" text-white text-sm"></i>
                         </div>
-                    `;
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm font-medium text-gray-900">${activity.first_name} ${activity.last_name}</p>
+                            <p class="text-xs text-gray-500">${timeAgo(activity.created_at)}</p>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">${activity.action_description} ( ${activity.department_name}, ${activity.college_name} )</p>
+                        <div class="mt-2">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getActivityType(activity.action_type).class}">
+                                ${getActivityType(activity.action_type).label}
+                            </span>
+                        </div>
+                    </div>
+                `;
                     return div;
                 }
             }
@@ -479,11 +589,11 @@ ob_start();
 
                 notification.className = `fixed top-4 right-4 z-50 p-4 border-l-4 ${bgColor} rounded shadow-lg animate-slide-up`;
                 notification.innerHTML = `
-                    <div class="flex items-center">
-                        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'} mr-2"></i>
-                        <span>${message}</span>
-                    </div>
-                `;
+                <div class="flex items-center">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
 
                 document.body.appendChild(notification);
 

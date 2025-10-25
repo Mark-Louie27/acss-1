@@ -13,6 +13,16 @@ ob_start();
 
 <body class="bg-gray-50">
     <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <!-- Modal Container -->
+        <div id="modalContainer" class="fixed inset-0 z-50 justify-center items-center p-4 hidden">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity" id="modalBackdrop"></div>
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="relative transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all w-full max-w-md" id="modalContent">
+                    <!-- Modal content will be injected here -->
+                </div>
+            </div>
+        </div>
+
         <div class="container mx-auto px-4 py-8 max-w-7xl">
             <!-- Success/Error Messages -->
             <?php if (isset($_SESSION['success'])): ?>
@@ -406,6 +416,35 @@ ob_start();
     </div>
 
     <style>
+        :root {
+            --yellow-primary: #D4AF37;
+            /* Define your custom yellow */
+            --yellow-dark: #A68A2E;
+            /* Define a darker shade */
+        }
+
+        .bg-yellow-primary {
+            background-color: var(--yellow-primary);
+        }
+
+        .from-yellow-primary {
+            --tw-gradient-from: var(--yellow-primary);
+            --tw-gradient-to: rgb(212 175 55 / 0);
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+        }
+
+        .to-yellow-dark {
+            --tw-gradient-to: var(--yellow-dark);
+        }
+
+        .hover\:from-yellow-dark:hover {
+            --tw-gradient-from: var(--yellow-dark);
+        }
+
+        .hover\:to-yellow-primary:hover {
+            --tw-gradient-to: var(--yellow-primary);
+        }
+
         .preset-btn {
             @apply bg-gray-50 border border-gray-200 rounded-lg p-3 text-center hover:bg-yellow-primary hover:text-white hover:border-yellow-primary transition-all duration-200 cursor-pointer flex flex-col items-center;
         }
@@ -421,9 +460,220 @@ ob_start();
         .scope-option:has(input:checked) label {
             @apply text-yellow-dark;
         }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .slide-in-left {
+            animation: slideInLeft 0.5s ease-in;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-enter {
+            animation: modalEnter 0.2s ease-out;
+        }
+
+        .modal-exit {
+            animation: modalExit 0.15s ease-in;
+        }
     </style>
 
     <script>
+        // Modal System
+        class ModalManager {
+            constructor() {
+                this.modalContainer = document.getElementById('modalContainer');
+                this.modalContent = document.getElementById('modalContent');
+                this.modalBackdrop = document.getElementById('modalBackdrop');
+
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                this.modalBackdrop.addEventListener('click', () => this.hide());
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && this.modalContainer.classList.contains('flex')) {
+                        this.hide();
+                    }
+                });
+            }
+
+            show(content, options = {}) {
+                const {
+                    onConfirm,
+                    onCancel,
+                    type = 'info',
+                    title = ''
+                } = options;
+
+                this.modalContent.innerHTML = content;
+                this.modalContainer.classList.remove('hidden');
+                this.modalContainer.classList.add('flex');
+
+                // Store callbacks
+                this.currentOnConfirm = onConfirm;
+                this.currentOnCancel = onCancel;
+
+                // Add animation
+                this.modalContent.classList.add('modal-enter');
+
+                // Focus management
+                setTimeout(() => {
+                    const primaryButton = this.modalContent.querySelector('.btn-primary') ||
+                        this.modalContent.querySelector('button');
+                    if (primaryButton) primaryButton.focus();
+                }, 100);
+            }
+
+            hide() {
+                this.modalContent.classList.remove('modal-enter');
+                this.modalContent.classList.add('modal-exit');
+
+                setTimeout(() => {
+                    this.modalContainer.classList.remove('flex');
+                    this.modalContainer.classList.add('hidden');
+                    this.modalContent.classList.remove('modal-exit');
+                    this.modalContent.innerHTML = '';
+                }, 150);
+            }
+
+            // Pre-built modal types
+            alert(message, type = 'info', title = '') {
+                const icon = this.getIcon(type);
+                const colorClass = this.getColorClass(type);
+
+                const content = `
+                    <div class="p-6">
+                        <div class="flex items-center justify-center w-12 h-12 rounded-full ${colorClass.bg} mx-auto mb-4">
+                            <i class="${icon} ${colorClass.text} text-xl"></i>
+                        </div>
+                        ${title ? `<h3 class="text-lg font-semibold text-gray-900 text-center mb-2">${title}</h3>` : ''}
+                        <p class="text-gray-600 text-center">${message}</p>
+                        <div class="mt-6 flex justify-center">
+                            <button type="button" onclick="modal.hide()" class="btn-primary px-6 py-2 bg-yellow-primary text-white rounded-lg font-medium hover:bg-yellow-dark transition-colors">
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                this.show(content);
+            }
+
+            confirm(message, title = 'Confirmation', confirmText = 'Confirm', cancelText = 'Cancel') {
+                return new Promise((resolve) => {
+                    const content = `
+                        <div class="p-6">
+                            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mx-auto mb-4">
+                                <i class="fas fa-question-circle text-blue-600 text-xl"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-900 text-center mb-2">${title}</h3>
+                            <p class="text-gray-600 text-center">${message}</p>
+                            <div class="mt-6 flex gap-3 justify-center">
+                                <button type="button" onclick="modal.handleConfirm(false)" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+                                    ${cancelText}
+                                </button>
+                                <button type="button" onclick="modal.handleConfirm(true)" class="btn-primary px-6 py-2 bg-yellow-primary text-white rounded-lg font-medium hover:bg-yellow-dark transition-colors">
+                                    ${confirmText}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    this.show(content, {
+                        onConfirm: () => resolve(true),
+                        onCancel: () => resolve(false)
+                    });
+                });
+            }
+
+            warning(message, title = 'Warning') {
+                const content = `
+                    <div class="p-6">
+                        <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 text-center mb-2">${title}</h3>
+                        <p class="text-gray-600 text-center">${message}</p>
+                        <div class="mt-6 flex justify-center">
+                            <button type="button" onclick="modal.hide()" class="btn-primary px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">
+                                I Understand
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                this.show(content);
+            }
+
+            handleConfirm(result) {
+                if (result && this.currentOnConfirm) {
+                    this.currentOnConfirm();
+                } else if (!result && this.currentOnCancel) {
+                    this.currentOnCancel();
+                }
+                this.hide();
+            }
+
+            getIcon(type) {
+                const icons = {
+                    success: 'fas fa-check-circle',
+                    error: 'fas fa-times-circle',
+                    warning: 'fas fa-exclamation-triangle',
+                    info: 'fas fa-info-circle'
+                };
+                return icons[type] || icons.info;
+            }
+
+            getColorClass(type) {
+                const colors = {
+                    success: {
+                        bg: 'bg-green-100',
+                        text: 'text-green-600'
+                    },
+                    error: {
+                        bg: 'bg-red-100',
+                        text: 'text-red-600'
+                    },
+                    warning: {
+                        bg: 'bg-yellow-100',
+                        text: 'text-yellow-600'
+                    },
+                    info: {
+                        bg: 'bg-blue-100',
+                        text: 'text-blue-600'
+                    }
+                };
+                return colors[type] || colors.info;
+            }
+        }
+
+        // Initialize modal manager
+        const modal = new ModalManager();
+
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('deadlineForm');
             const submitBtn = document.getElementById('submitBtn');
@@ -547,22 +797,21 @@ ob_start();
             });
 
             // Form validation
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
                 const deadlineValue = deadlineInput.value;
                 const selectedScope = document.querySelector('input[name="apply_scope"]:checked')?.value;
 
                 if (!deadlineValue) {
-                    e.preventDefault();
-                    showAlert('Please select a deadline date and time.', 'error');
+                    modal.alert('Please select a deadline date and time.', 'error', 'Missing Information');
                     return;
                 }
 
-                // Validate selections based on scope
                 if (selectedScope === 'specific_colleges') {
                     const selectedColleges = document.querySelectorAll('input[name="selected_colleges[]"]:checked');
                     if (selectedColleges.length === 0) {
-                        e.preventDefault();
-                        showAlert('Please select at least one college.', 'error');
+                        modal.alert('Please select at least one college.', 'error', 'Selection Required');
                         return;
                     }
                 }
@@ -570,8 +819,7 @@ ob_start();
                 if (selectedScope === 'specific_departments') {
                     const selectedDepartments = document.querySelectorAll('input[name="selected_departments[]"]:checked');
                     if (selectedDepartments.length === 0) {
-                        e.preventDefault();
-                        showAlert('Please select at least one department.', 'error');
+                        modal.alert('Please select at least one department.', 'error', 'Selection Required');
                         return;
                     }
                 }
@@ -580,22 +828,64 @@ ob_start();
                 const now = new Date();
 
                 if (selectedDate <= now) {
-                    e.preventDefault();
-                    showAlert('Deadline must be in the future.', 'error');
+                    modal.alert('Deadline must be in the future.', 'error', 'Invalid Deadline');
                     return;
                 }
 
-                // Special confirmation for system-wide deadlines
                 if (selectedScope === 'all_colleges') {
-                    const confirmed = confirm('⚠️ SYSTEM-WIDE DEADLINE\n\nThis will set the deadline for ALL departments across ALL colleges in the entire system.\n\nAre you absolutely sure you want to proceed?');
+                    const confirmed = await modal.confirm(
+                        'This will set the deadline for ALL departments across ALL colleges in the entire system.\n\nAre you absolutely sure you want to proceed?',
+                        '⚠️ SYSTEM-WIDE DEADLINE',
+                        'Set System-wide Deadline',
+                        'Cancel'
+                    );
+
                     if (!confirmed) {
-                        e.preventDefault();
                         return;
                     }
                 }
 
+                // Show loading state
                 showLoadingState();
+
+                // Prepare form data
+                const formData = new FormData(form);
+                try {
+                    const response = await fetch(window.location.href, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        modal.alert('Deadline set successfully!', 'success');
+                        // Optionally reload the page or update UI
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        modal.alert(result.error || 'Failed to set deadline.', 'error');
+                    }
+                } catch (error) {
+                    modal.alert('An error occurred. Please try again.', 'error');
+                } finally {
+                    // Reset loading state
+                    hideLoadingState();
+                }
             });
+
+            function showLoadingState() {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                loadingIcon.classList.remove('hidden');
+                btnText.textContent = 'Setting Deadline...';
+            }
+
+            function hideLoadingState() {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                loadingIcon.classList.add('hidden');
+                btnText.textContent = 'Set Deadline'; // Reset to initial text or use dynamic text from updateScopeFeedback
+            }
 
             // Real-time validation feedback
             deadlineInput.addEventListener('change', function() {
@@ -625,35 +915,6 @@ ob_start();
                 feedbackEl.className = `mt-2 text-sm font-medium ${feedbackClass}`;
             });
 
-            function showLoadingState() {
-                submitBtn.disabled = true;
-                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                loadingIcon.classList.remove('hidden');
-                btnText.textContent = 'Setting Deadline...';
-            }
-
-            function showAlert(message, type) {
-                const alertDiv = document.createElement('div');
-                const bgColor = type === 'error' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200';
-                const textColor = type === 'error' ? 'text-red-800' : 'text-green-800';
-                const iconColor = type === 'error' ? 'text-red-500' : 'text-green-500';
-                const icon = type === 'error' ? 'fa-exclamation-triangle' : 'fa-check-circle';
-
-                alertDiv.className = `mb-6 ${bgColor} border rounded-lg p-4`;
-                alertDiv.innerHTML = `
-                    <div class="flex items-center">
-                        <i class="fas ${icon} ${iconColor} mr-3"></i>
-                        <span class="${textColor} font-medium">${message}</span>
-                    </div>
-                `;
-
-                const container = document.querySelector('.container');
-                container.insertBefore(alertDiv, container.querySelector('.grid'));
-
-                setTimeout(() => {
-                    alertDiv.remove();
-                }, 5000);
-            }
         });
 
         // Toggle functions for select all/none
@@ -700,6 +961,11 @@ ob_start();
 
             // Trigger feedback update
             document.querySelector('input[name="apply_scope"]:checked').dispatchEvent(new Event('change'));
+        }
+
+        // Global function to show modal alerts (for backward compatibility)
+        function showModalAlert(message, type = 'info', title = '') {
+            modal.alert(message, type, title);
         }
     </script>
 </body>

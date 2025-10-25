@@ -476,7 +476,7 @@ ob_start();
 </div>
 
 <!-- Approval Modal -->
-<div id="approveModal" class="modal-backdrop fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+<div id="approveModal" class="modal-backdrop fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
     <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div class="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4">
             <h3 class="text-xl font-bold text-white flex items-center">
@@ -501,7 +501,7 @@ ob_start();
 </div>
 
 <!-- Rejection Modal -->
-<div id="rejectModal" class="modal-backdrop fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+<div id="rejectModal" class="modal-backdrop fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
     <div class="modal-content bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div class="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
             <h3 class="text-xl font-bold text-white flex items-center">
