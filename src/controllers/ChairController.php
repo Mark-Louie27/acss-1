@@ -3965,40 +3965,6 @@ class ChairController extends BaseController
         error_log("========================================\n");
     }
 
-    private function findBestNonExpertFaculty($facultySpecializations, $courseId, $targetDays, $startTime, $endTime, $departmentId, $schedules, $facultyAssignments)
-    {
-        $nonExpertFaculty = array_filter($facultySpecializations, fn($faculty) => !in_array($courseId, $this->getCourseDetails([$faculty], $courseId)));
-
-        if (!empty($nonExpertFaculty)) {
-            error_log("🔍 Found " . count($nonExpertFaculty) . " non-expert faculty for course $courseId");
-
-            foreach ($nonExpertFaculty as $faculty) {
-                $facultyId = $faculty['faculty_id'];
-                $isCurrentDept = $faculty['department_id'] == $departmentId;
-                $courseDetails = $this->getCourseDetails($courseId);
-                $subjectType = $courseDetails['subject_type'] ?? 'General Education';
-
-                // New Rule: Check department and course type compatibility
-                if ($isCurrentDept && $subjectType !== 'Professional Course') {
-                    error_log("🚫 Non-expert faculty $facultyId from current dept skipped for $courseDetails (not Professional)");
-                    continue;
-                }
-                if (!$isCurrentDept && $subjectType === 'Professional Course') {
-                    error_log("🚫 Non-expert faculty $facultyId from other dept skipped for $courseDetails (Professional)");
-                    continue;
-                }
-
-                if ($this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
-                    error_log("✅ Non-expert faculty $facultyId is available - ASSIGNED!");
-                    return $facultyId;
-                }
-            }
-        }
-
-        error_log("❌ No available non-expert faculty for course $courseId");
-        return null;
-    }
-
     private function freeUpExpertFaculty($collegeId, $expertFacultyId, $targetDays, $startTime, $endTime, &$facultyAssignments, $facultySpecializations, $departmentId, $schedules, $expertCourseId)
     {
         error_log("Attempting to free up EXPERT faculty $expertFacultyId");

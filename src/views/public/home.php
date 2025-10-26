@@ -614,7 +614,7 @@
                 </div>
             </form>
 
-            <!-- Download Customization Form -->
+            <!-- Download Customization Form
             <div id="downloadForm" class="download-form">
                 <h4 class="text-md font-semibold mb-4 gold-gradient-text">Customize Your Schedule PDF</h4>
                 <form id="downloadScheduleForm" method="POST" action="/public/download-schedule-pdf">
@@ -673,6 +673,7 @@
                     <button type="button" class="btn-secondary mt-2 w-full" onclick="closeDownloadForm()">Cancel</button>
                 </form>
             </div>
+             -->
         </div>
 
         <!-- Schedule Table -->
