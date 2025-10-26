@@ -3,6 +3,7 @@ let draggedElement = null;
 let currentEditingId = null;
 let currentSemesterCourses = {};
 let validationTimeout;
+let currentDeleteScheduleId = null;
 const DEBOUNCE_DELAY = 300;
 
 function validateFieldRealTime(fieldType, value, relatedFields = {}) {
@@ -223,24 +224,26 @@ function initializeDragAndDrop() {
   });
 }
 
-function openDeleteAllModal() {
-  console.log("Opening delete all modal...");
-  const modal = document.getElementById("delete-all-modal");
+// Open delete ALL schedules modal
+function deleteAllSchedules() {
+  console.log("Opening delete all schedules modal...");
+  const modal = document.getElementById("delete-confirmation-modal");
   if (modal) {
     modal.classList.remove("hidden");
     modal.classList.add("flex");
     console.log("Delete all modal opened successfully");
   } else {
-    console.error("Delete all modal element not found!");
+    console.error("Delete confirmation modal element not found!");
     if (confirm("Are you sure you want to delete all schedules? This action cannot be undone.")) {
       confirmDeleteAllSchedules();
     }
   }
 }
 
-function closeDeleteAllModal() {
+// Close delete all modal
+function closeDeleteModal() {
   console.log("Closing delete all modal...");
-  const modal = document.getElementById("delete-all-modal");
+  const modal = document.getElementById("delete-confirmation-modal");
   if (modal) {
     modal.classList.add("hidden");
     modal.classList.remove("flex");
@@ -249,67 +252,128 @@ function closeDeleteAllModal() {
 
 function confirmDeleteAllSchedules() {
   console.log("Confirming deletion of all schedules...");
-  const deleteButton = document.querySelector('#delete-all-modal button[onclick="confirmDeleteAllSchedules()"]');
-  const originalText = deleteButton ? deleteButton.innerHTML : "";
 
-  if (deleteButton) {
-    deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
-    deleteButton.disabled = true;
+  // Show loading overlay
+  const loadingOverlay = document.getElementById("loading-overlay");
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove("hidden");
+    const loadingText = loadingOverlay.querySelector("p");
+    if (loadingText) {
+      loadingText.textContent = "Deleting schedules...";
+    }
   }
 
+  // Close modal immediately
+  closeDeleteModal();
+
+  // FIX: Send 'true' as string, backend expects this
   fetch("/chair/generate-schedules", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       action: "delete_schedules",
-      confirm: "true",
+      confirm: "true", // Changed from "1" to "true"
     }),
   })
     .then((response) => {
       console.log("Delete all response status:", response.status);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return response.text(); // Get text first to see raw response
     })
-    .then((data) => {
+    .then((text) => {
+      console.log("Delete all raw response:", text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("Failed to parse JSON:", e);
+        throw new Error("Invalid JSON response: " + text.substring(0, 200));
+      }
+
       console.log("Delete all response data:", data);
+
+      // Hide loading
+      if (loadingOverlay) {
+        loadingOverlay.classList.add("hidden");
+        const loadingText = loadingOverlay.querySelector("p");
+        if (loadingText) {
+          loadingText.textContent = "Generating schedules...";
+        }
+      }
+
       if (data.success) {
-        showNotification("All schedules deleted successfully!", "success");
+        const deletedCount = data.deleted_count || 0;
+        showNotification(
+          `Successfully deleted ${deletedCount} schedule(s)!`,
+          "success"
+        );
+
+        // Clear schedule data
         window.scheduleData = [];
+
+        // Update displays
         safeUpdateScheduleDisplay([]);
+
+        // Rebuild course mappings
         buildCurrentSemesterCourseMappings();
 
+        // Remove completion banner if exists
+        const banner = document.getElementById("schedule-completion-banner");
+        if (banner) {
+          banner.remove();
+        }
+
+        // Hide generation results
         const generationResults = document.getElementById("generation-results");
-        if (generationResults) generationResults.classList.add("hidden");
+        if (generationResults) {
+          generationResults.classList.add("hidden");
+        }
+
+        // Reload after short delay
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
       } else {
-        showNotification("Error: " + (data.message || "Failed to delete all schedules"), "error");
+        showNotification(
+          "Error: " +
+            (data.message || "Failed to delete all schedules") +
+            (data.debug ? "\n\nDebug: " + JSON.stringify(data.debug) : ""),
+          "error"
+        );
       }
     })
     .catch((error) => {
-      console.error("Delete all error:", error);
-      showNotification("Error deleting all schedules: " + error.message, "error");
-    })
-    .finally(() => {
-      if (deleteButton) {
-        deleteButton.innerHTML = originalText;
-        deleteButton.disabled = false;
+      // Hide loading on error
+      if (loadingOverlay) {
+        loadingOverlay.classList.add("hidden");
+        const loadingText = loadingOverlay.querySelector("p");
+        if (loadingText) {
+          loadingText.textContent = "Generating schedules...";
+        }
       }
-      closeDeleteAllModal();
+
+      console.error("Delete all error:", error);
+      showNotification(
+        "Error deleting all schedules: " + error.message,
+        "error"
+      );
     });
 }
 
-let currentDeleteScheduleId = null;
-
+// Open single delete modal
 function openDeleteSingleModal(scheduleId, courseCode, sectionName, day, startTime, endTime) {
   console.log("Opening single delete modal for schedule:", scheduleId);
   currentDeleteScheduleId = scheduleId;
 
   const detailsElement = document.getElementById("single-delete-details");
   if (detailsElement) {
-    detailsElement.innerHTML =
-      '<div class="text-sm">' +
-      '<div class="font-semibold">' + courseCode + ' - ' + sectionName + '</div>' +
-      '<div class="text-gray-600 mt-1">' + day + ' • ' + startTime + ' to ' + endTime + '</div>' +
-      '</div>';
+    detailsElement.innerHTML = `
+      <div class="text-sm">
+        <div class="font-semibold">${escapeHtml(courseCode)} - ${escapeHtml(sectionName)}</div>
+        <div class="text-gray-600 mt-1">${escapeHtml(day)} • ${escapeHtml(startTime)} to ${escapeHtml(endTime)}</div>
+      </div>
+    `;
   }
 
   const modal = document.getElementById("delete-single-modal");
@@ -319,12 +383,13 @@ function openDeleteSingleModal(scheduleId, courseCode, sectionName, day, startTi
     console.log("Single delete modal opened successfully");
   } else {
     console.error("Single delete modal element not found!");
-    if (confirm("Are you sure you want to delete " + courseCode + " - " + sectionName + "?")) {
+    if (confirm(`Are you sure you want to delete ${courseCode} - ${sectionName}?`)) {
       confirmDeleteSingleSchedule();
     }
   }
 }
 
+// Close single delete modal
 function closeDeleteSingleModal() {
   console.log("Closing single delete modal...");
   const modal = document.getElementById("delete-single-modal");
@@ -335,6 +400,7 @@ function closeDeleteSingleModal() {
   currentDeleteScheduleId = null;
 }
 
+// Confirm single schedule delete
 function confirmDeleteSingleSchedule() {
   if (!currentDeleteScheduleId) {
     console.error("No schedule ID set for deletion");
@@ -343,13 +409,23 @@ function confirmDeleteSingleSchedule() {
   }
 
   console.log("Confirming deletion of schedule:", currentDeleteScheduleId);
-  const deleteButton = document.querySelector('#delete-single-modal button[onclick="confirmDeleteSingleSchedule()"]');
-  const originalText = deleteButton ? deleteButton.innerHTML : "";
+  console.log(
+    "Current schedule data:",
+    window.scheduleData.find((s) => s.schedule_id == currentDeleteScheduleId)
+  );
 
-  if (deleteButton) {
-    deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
-    deleteButton.disabled = true;
+  // Show loading overlay
+  const loadingOverlay = document.getElementById("loading-overlay");
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove("hidden");
+    const loadingText = loadingOverlay.querySelector("p");
+    if (loadingText) {
+      loadingText.textContent = "Deleting schedule...";
+    }
   }
+
+  // Close modal immediately
+  closeDeleteSingleModal();
 
   fetch("/chair/generate-schedules", {
     method: "POST",
@@ -361,36 +437,80 @@ function confirmDeleteSingleSchedule() {
   })
     .then((response) => {
       console.log("Single delete response status:", response.status);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return response.text(); // Get text first to see raw response
     })
-    .then((data) => {
+    .then((text) => {
+      console.log("Single delete raw response:", text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("Failed to parse JSON:", e);
+        throw new Error("Invalid JSON response: " + text.substring(0, 200));
+      }
+
       console.log("Single delete response data:", data);
+
+      // Hide loading
+      if (loadingOverlay) {
+        loadingOverlay.classList.add("hidden");
+        const loadingText = loadingOverlay.querySelector("p");
+        if (loadingText) {
+          loadingText.textContent = "Generating schedules...";
+        }
+      }
+
       if (data.success) {
         showNotification("Schedule deleted successfully!", "success");
+
+        // Remove from schedule data
         window.scheduleData = window.scheduleData.filter(
           (s) => s.schedule_id != currentDeleteScheduleId
         );
+
+        console.log("Remaining schedules:", window.scheduleData.length);
+
+        // Update displays
         safeUpdateScheduleDisplay(window.scheduleData);
-        initializeDragAndDrop();
+
+        // Reinitialize drag and drop
+        setTimeout(() => {
+          initializeDragAndDrop();
+        }, 100);
+
+        // Rebuild course mappings
         buildCurrentSemesterCourseMappings();
       } else {
-        showNotification(data.message || "Failed to delete schedule.", "error");
+        showNotification(
+          data.message ||
+            "Failed to delete schedule." +
+              (data.debug ? "\n\nDebug: " + JSON.stringify(data.debug) : ""),
+          "error",
+          10000 // Show longer for debug info
+        );
       }
+
+      currentDeleteScheduleId = null;
     })
     .catch((error) => {
+      // Hide loading on error
+      if (loadingOverlay) {
+        loadingOverlay.classList.add("hidden");
+        const loadingText = loadingOverlay.querySelector("p");
+        if (loadingText) {
+          loadingText.textContent = "Generating schedules...";
+        }
+      }
+
       console.error("Single delete error:", error);
       showNotification("Error deleting schedule: " + error.message, "error");
-    })
-    .finally(() => {
-      if (deleteButton) {
-        deleteButton.innerHTML = originalText;
-        deleteButton.disabled = false;
-      }
-      closeDeleteSingleModal();
+      currentDeleteScheduleId = null;
     });
 }
 
+// Helper function to delete schedule (calls openDeleteSingleModal)
 function deleteSchedule(scheduleId) {
   const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
   if (schedule) {
@@ -407,6 +527,40 @@ function deleteSchedule(scheduleId) {
     showNotification("Error: Schedule not found", "error");
   }
 }
+
+// Helper function for escaping HTML (if not already defined)
+function escapeHtml(unsafe) {
+  if (!unsafe) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Close modals on ESC key
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape") {
+    closeDeleteModal();
+    closeDeleteSingleModal();
+    closeModal(); // Your existing modal close function
+  }
+});
+
+// Close modals when clicking outside
+document.addEventListener("click", function (event) {
+  const deleteAllModal = document.getElementById("delete-confirmation-modal");
+  const deleteSingleModal = document.getElementById("delete-single-modal");
+  
+  if (deleteAllModal && event.target === deleteAllModal) {
+    closeDeleteModal();
+  }
+  
+  if (deleteSingleModal && event.target === deleteSingleModal) {
+    closeDeleteSingleModal();
+  }
+});
 
 function formatTime(timeString) {
   if (!timeString) return "";
@@ -1230,46 +1384,174 @@ function saveAllChanges() {
     });
 }
 
-function filterSchedulesManual() {
-  const yearLevel = document.getElementById("filter-year-manual").value;
-  const section = document.getElementById("filter-section-manual").value;
-  const room = document.getElementById("filter-room-manual").value;
-  console.log("Filtering by:", { yearLevel, section, room });
+function toggleViewMode() {
+  const gridView = document.getElementById("grid-view");
+  const listView = document.getElementById("list-view");
+  const toggleBtn = document.getElementById("toggle-view-btn");
 
-  const scheduleCards = document.querySelectorAll("#schedule-grid .schedule-card");
-  const dropZones = document.querySelectorAll("#schedule-grid .drop-zone");
+  if (gridView.classList.contains("hidden")) {
+    gridView.classList.remove("hidden");
+    listView.classList.add("hidden");
+    toggleBtn.innerHTML =
+      '<i class="fas fa-list mr-1"></i><span>List View</span>';
+    console.log("Switched to GRID view");
+    filterSchedulesManual(); // Apply filters to grid view
+  } else {
+    gridView.classList.add("hidden");
+    listView.classList.remove("hidden");
+    toggleBtn.innerHTML =
+      '<i class="fas fa-th mr-1"></i><span>Grid View</span>';
+    console.log("Switched to LIST view");
+    filterSchedulesListView(); // Apply filters to list view
+  }
+}
 
-  scheduleCards.forEach((card) => {
-    const cardYearLevel = card.getAttribute("data-year-level");
-    const cardSectionName = card.getAttribute("data-section-name");
-    const cardRoomName = card.getAttribute("data-room-name");
+function filterSchedulesListView() {
+  const yearLevel = document
+    .getElementById("filter-year-manual")
+    .value.toLowerCase()
+    .trim();
+  const section = document
+    .getElementById("filter-section-manual")
+    .value.toLowerCase()
+    .trim();
+  const room = document
+    .getElementById("filter-room-manual")
+    .value.toLowerCase()
+    .trim();
 
-    const matchesYear = !yearLevel || cardYearLevel === yearLevel;
-    const matchesSection = !section || cardSectionName === section;
-    const matchesRoom = !room || cardRoomName === room;
+  console.log("=== LIST VIEW FILTER DEBUG ===");
+  console.log("Filter values:", { yearLevel, section, room });
+
+  const tableRows = document.querySelectorAll(
+    "#list-view tbody tr.schedule-row"
+  );
+  console.log("Total rows found:", tableRows.length);
+
+  let visibleCount = 0;
+
+  tableRows.forEach((row, index) => {
+    const rowYearLevel = (row.getAttribute("data-year-level") || "")
+      .toLowerCase()
+      .trim();
+    const rowSectionName = (row.getAttribute("data-section-name") || "")
+      .toLowerCase()
+      .trim();
+    const rowRoomName = (row.getAttribute("data-room-name") || "")
+      .toLowerCase()
+      .trim();
+
+    console.log(`Row ${index + 1}:`, {
+      rowYearLevel,
+      rowSectionName,
+      rowRoomName,
+    });
+
+    const matchesYear = !yearLevel || rowYearLevel === yearLevel;
+    const matchesSection = !section || rowSectionName === section;
+    const matchesRoom = !room || rowRoomName === room;
+
+    console.log(`Row ${index + 1} matches:`, {
+      matchesYear,
+      matchesSection,
+      matchesRoom,
+      shouldShow: matchesYear && matchesSection && matchesRoom,
+    });
 
     if (matchesYear && matchesSection && matchesRoom) {
-      card.style.display = "block";
-      card.parentElement.style.display = "block";
+      row.style.display = "";
+      visibleCount++;
+      console.log(`Row ${index + 1}: SHOWING`);
     } else {
-      card.style.display = "none";
+      row.style.display = "none";
+      console.log(`Row ${index + 1}: HIDING`);
     }
   });
 
-  dropZones.forEach((zone) => {
-    const card = zone.querySelector(".schedule-card");
-    const addButton = zone.querySelector('button[onclick*="openAddModalForSlot"]');
-    if (addButton) {
-      if (card && card.style.display === "none") {
-        addButton.style.display = "block";
-      } else if (card && card.style.display === "block") {
-        addButton.style.display = "none";
-      } else {
-        addButton.style.display = "block";
-      }
+  console.log("Visible rows after filter:", visibleCount);
+
+  const tbody = document.querySelector("#list-view tbody");
+  let noResultsRow = tbody.querySelector(".no-results-row");
+
+  if (visibleCount === 0 && tableRows.length > 0) {
+    console.log("No rows visible - showing no results message");
+    if (!noResultsRow) {
+      noResultsRow = document.createElement("tr");
+      noResultsRow.className = "no-results-row";
+      noResultsRow.innerHTML = `
+                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <i class="fas fa-search text-3xl mb-2"></i>
+                    <p class="mt-2">No schedules match the selected filters</p>
+                    <button onclick="clearFiltersManual()" class="mt-2 px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm">
+                        Clear Filters
+                    </button>
+                </td>
+            `;
+      tbody.appendChild(noResultsRow);
     }
-  });
+  } else if (visibleCount > 0 && noResultsRow) {
+    console.log(`${visibleCount} rows visible - removing no results message`);
+    noResultsRow.remove();
+  }
+  console.log("=== END FILTER DEBUG ===");
 }
+
+function filterSchedulesManual() {
+  const currentView = document
+    .getElementById("grid-view")
+    .classList.contains("hidden")
+    ? "list"
+    : "grid";
+  console.log("Current view:", currentView);
+
+  if (currentView === "list") {
+    filterSchedulesListView();
+  } else {
+    const yearLevel = document.getElementById("filter-year-manual").value;
+    const section = document.getElementById("filter-section-manual").value;
+    const room = document.getElementById("filter-room-manual").value;
+    console.log("Filtering by:", { yearLevel, section, room });
+
+    const scheduleCards = document.querySelectorAll(
+      "#schedule-grid .schedule-card"
+    );
+    const dropZones = document.querySelectorAll("#schedule-grid .drop-zone");
+
+    scheduleCards.forEach((card) => {
+      const cardYearLevel = card.getAttribute("data-year-level");
+      const cardSectionName = card.getAttribute("data-section-name");
+      const cardRoomName = card.getAttribute("data-room-name");
+
+      const matchesYear = !yearLevel || cardYearLevel === yearLevel;
+      const matchesSection = !section || cardSectionName === section;
+      const matchesRoom = !room || cardRoomName === room;
+
+      if (matchesYear && matchesSection && matchesRoom) {
+        card.style.display = "block";
+        card.parentElement.style.display = "block";
+      } else {
+        card.style.display = "none";
+      }
+    });
+
+    dropZones.forEach((zone) => {
+      const card = zone.querySelector(".schedule-card");
+      const addButton = zone.querySelector(
+        'button[onclick*="openAddModalForSlot"]'
+      );
+      if (addButton) {
+        if (card && card.style.display === "none") {
+          addButton.style.display = "block";
+        } else if (card && card.style.display === "block") {
+          addButton.style.display = "none";
+        } else {
+          addButton.style.display = "block";
+        }
+      }
+    });
+  }
+}
+
 
 function clearFiltersManual() {
   document.getElementById("filter-year-manual").value = "";
@@ -1290,6 +1572,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
   buildCurrentSemesterCourseMappings();
   initializeDragAndDrop();
+
+  const filters = [
+    "filter-year-manual",
+    "filter-section-manual",
+    "filter-room-manual",
+  ];
+
+  filters.forEach((filterId) => {
+    const filter = document.getElementById(filterId);
+    if (filter) {
+      filter.addEventListener("change", function () {
+        console.log(`Filter changed: ${filterId} = ${this.value}`);
+        filterSchedulesManual(); // Trigger filtering based on current view
+      });
+    }
+  });
 
   // Modal click outside to close
   const modal = document.getElementById("schedule-modal");

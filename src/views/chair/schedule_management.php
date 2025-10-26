@@ -285,19 +285,14 @@ if ($userDepartmentId) {
                                 <span>Add Schedule</span>
                             </button>
 
-                            <button id="save-changes-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="saveAllChanges()">
-                                <i class="fas fa-save"></i>
-                                <span>Save Changes</span>
+                            <button id="toggle-view-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="toggleViewMode()">
+                                <i class="fas fa-list mr-1"></i>
+                                <span>List View</span>
                             </button>
                         </div>
 
                         <div class="flex flex-wrap gap-2">
                             <!-- View Toggle Button -->
-                            <button id="toggle-view-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="toggleViewMode()">
-                                <i class="fas fa-list mr-1"></i>
-                                <span>List View</span>
-                            </button>
-
                             <button id="delete-all-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors text-sm" onclick="deleteAllSchedules()">
                                 <i class="fas fa-trash"></i>
                                 <span>Delete All</span>
@@ -510,7 +505,11 @@ if ($userDepartmentId) {
                                 </thead>
                                 <tbody class="divide-y divide-gray-200">
                                     <?php foreach ($schedules as $schedule): ?>
-                                        <tr class="hover:bg-gray-50 transition-colors duration-200 schedule-row" data-schedule-id="<?php echo $schedule['schedule_id']; ?>">
+                                        <tr class="hover:bg-gray-50 transition-colors duration-200 schedule-row"
+                                            data-schedule-id="<?php echo $schedule['schedule_id']; ?>"
+                                            data-year-level="<?php echo htmlspecialchars($schedule['year_level'] ?? ''); ?>"
+                                            data-section-name="<?php echo htmlspecialchars($schedule['section_name'] ?? ''); ?>"
+                                            data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>">
                                             <td class="px-4 py-3 text-sm text-gray-900 font-medium">
                                                 <?php echo htmlspecialchars($schedule['course_code']); ?>
                                             </td>
@@ -538,13 +537,13 @@ if ($userDepartmentId) {
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <button onclick="openDeleteSingleModal(
-                                                '<?php echo $schedule['schedule_id']; ?>', 
-                                                '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
-                                                '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
-                                                '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
-                                                '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
-                                                '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
-                                            )" class="text-red-600 hover:text-red-700 text-sm no-print">
+                                        '<?php echo $schedule['schedule_id']; ?>', 
+                                        '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
+                                        '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
+                                        '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
+                                        '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
+                                        '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
+                                    )" class="text-red-600 hover:text-red-700 text-sm no-print">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
@@ -1124,22 +1123,17 @@ if ($userDepartmentId) {
                 is_active: s.is_active ?? 1
             })) : [];
 
-            function toggleViewMode() {
-                const gridView = document.getElementById('grid-view');
-                const listView = document.getElementById('list-view');
-                const toggleBtn = document.getElementById('toggle-view-btn');
-
-                if (gridView.classList.contains('hidden')) {
-                    // Switch to Grid View
-                    gridView.classList.remove('hidden');
-                    listView.classList.add('hidden');
-                    toggleBtn.innerHTML = '<i class="fas fa-list mr-1"></i><span>List View</span>';
-                } else {
-                    // Switch to List View
-                    gridView.classList.add('hidden');
-                    listView.classList.remove('hidden');
-                    toggleBtn.innerHTML = '<i class="fas fa-th mr-1"></i><span>Grid View</span>';
-                }
+            function debugDataAttributes() {
+                console.log('=== CHECKING DATA ATTRIBUTES ===');
+                const rows = document.querySelectorAll('#list-view tr.schedule-row');
+                rows.forEach((row, index) => {
+                    console.log(`Row ${index + 1} attributes:`, {
+                        yearLevel: row.getAttribute('data-year-level'),
+                        sectionName: row.getAttribute('data-section-name'),
+                        roomName: row.getAttribute('data-room-name')
+                    });
+                });
+                console.log('=== END DATA ATTRIBUTES CHECK ===');
             }
 
             // Clear filters for manual tab
@@ -1154,59 +1148,6 @@ if ($userDepartmentId) {
             function refreshManualView() {
                 // You can add refresh logic here
                 location.reload(); // Simple refresh for now
-            }
-
-            // Filter schedules for manual tab
-            // Fixed filter function for manual tab (grid view)
-            function filterSchedulesManual() {
-                const yearLevel = document.getElementById('filter-year-manual').value;
-                const section = document.getElementById('filter-section-manual').value;
-                const room = document.getElementById('filter-room-manual').value;
-
-                console.log('Filtering with:', {
-                    yearLevel,
-                    section,
-                    room
-                }); // Debug log
-
-                // Get all schedule cards in the grid
-                const scheduleCards = document.querySelectorAll('#schedule-grid .schedule-card');
-
-                console.log('Found schedule cards:', scheduleCards.length); // Debug log
-
-                scheduleCards.forEach(card => {
-                    const cardYearLevel = card.getAttribute('data-year-level');
-                    const cardSectionName = card.getAttribute('data-section-name');
-                    const cardRoomName = card.getAttribute('data-room-name');
-
-                    const matchesYear = !yearLevel || cardYearLevel === yearLevel;
-                    const matchesSection = !section || cardSectionName === section;
-                    const matchesRoom = !room || cardRoomName === room;
-
-                    // Show or hide the entire card
-                    if (matchesYear && matchesSection && matchesRoom) {
-                        card.style.display = 'block';
-                        card.classList.remove('hidden');
-                    } else {
-                        card.style.display = 'none';
-                        card.classList.add('hidden');
-                    }
-                });
-
-                // Also handle empty cells - show/hide the add buttons based on filters
-                const dropZones = document.querySelectorAll('#schedule-grid .drop-zone');
-                dropZones.forEach(zone => {
-                    const hasVisibleSchedules = Array.from(zone.querySelectorAll('.schedule-card'))
-                        .some(card => card.style.display !== 'none' && !card.classList.contains('hidden'));
-
-                    // If zone has no visible schedules and all filters are empty, show add button
-                    if (!hasVisibleSchedules) {
-                        const addButton = zone.querySelector('button');
-                        if (addButton) {
-                            addButton.style.display = (!yearLevel && !section && !room) ? 'flex' : 'none';
-                        }
-                    }
-                });
             }
 
             // Enhanced full screen function
@@ -2308,7 +2249,6 @@ if ($userDepartmentId) {
                     }
                 });
             }
-
 
             function filterSchedules() {
                 const yearLevel = document.getElementById('filter-year').value;

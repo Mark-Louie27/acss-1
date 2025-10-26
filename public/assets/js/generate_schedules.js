@@ -1,4 +1,3 @@
-
 // Debug logging at the beginning of the script
 console.log("=== GENERATE SCHEDULES DEBUG ===");
 console.log("Raw data received:", window.jsData);
@@ -6,7 +5,10 @@ console.log("Sections data:", window.rawSectionsData);
 console.log("Faculty data:", window.faculty);
 console.log("Classrooms data:", window.classrooms);
 console.log("Curricula data:", window.curricula);
-console.log("Curriculum courses for current semester:", window.jsData?.curriculumCourses || []);
+console.log(
+  "Curriculum courses for current semester:",
+  window.jsData?.curriculumCourses || []
+);
 console.log("Current semester:", window.currentSemester);
 console.log("Department ID:", window.departmentId);
 
@@ -41,7 +43,8 @@ function initializeScheduleData() {
         course_code: c.course_code ?? "",
         course_name: c.course_name ?? "Unknown",
         year_level: c.curriculum_year ?? "Unknown",
-        semester: c.curriculum_semester ?? window.currentSemester?.semester_name,
+        semester:
+          c.curriculum_semester ?? window.currentSemester?.semester_name,
         subject_type: c.subject_type ?? "",
         units: c.units ?? 0,
         lecture_units: c.lecture_units ?? 0,
@@ -57,7 +60,8 @@ function initializeScheduleData() {
   if (window.curriculumCourses.length === 0) {
     const coursesList = document.getElementById("courses-list");
     if (coursesList) {
-      coursesList.innerHTML = '<p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>';
+      coursesList.innerHTML =
+        '<p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>';
     }
   }
 }
@@ -132,7 +136,9 @@ function showCompletionToast(type, title, messages) {
     <div class="flex items-start">
       <div class="flex-shrink-0">
         <i class="fas ${
-          type === "success" ? "fa-check-circle text-green-500" : "fa-exclamation-triangle text-yellow-500"
+          type === "success"
+            ? "fa-check-circle text-green-500"
+            : "fa-exclamation-triangle text-yellow-500"
         } text-xl"></i>
       </div>
       <div class="ml-3 flex-1">
@@ -147,7 +153,9 @@ function showCompletionToast(type, title, messages) {
       </div>
       <div class="ml-3 flex-shrink-0">
         <button class="${
-          type === "success" ? "text-green-400 hover:text-green-600" : "text-yellow-400 hover:text-yellow-600"
+          type === "success"
+            ? "text-green-400 hover:text-green-600"
+            : "text-yellow-400 hover:text-yellow-600"
         }" onclick="this.parentElement.parentElement.parentElement.remove()">
           <i class="fas fa-times"></i>
         </button>
@@ -182,75 +190,145 @@ function clearValidationErrors() {
 
 // Update courses list based on selected curriculum
 function updateCourses() {
-    const curriculumId = document.getElementById("curriculum_id").value;
-    const coursesList = document.getElementById("courses-list");
-    if (!coursesList) {
-        console.error("Courses list element not found");
-        return;
-    }
-    console.log("updateCourses called with curriculum:", curriculumId);
-    if (!curriculumId) {
-        coursesList.innerHTML = '<p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>';
-        return;
-    }
-    coursesList.innerHTML = '<p class="text-sm text-gray-600">Loading courses...</p>';
-    
-    // FIX: Add the missing 'action' parameter
-    fetch("/chair/generate-schedules", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-            action: "get_curriculum_courses",  // <- This was missing!
-            curriculum_id: curriculumId,
-            semester_id: window.currentSemester.semester_id,
-            department_id: window.departmentId,
-            college_id: window.jsData.collegeId
-        }),
-    })
+  const curriculumId = document.getElementById("curriculum_id").value;
+  const coursesList = document.getElementById("courses-list");
+  if (!coursesList) {
+    console.error("Courses list element not found");
+    return;
+  }
+  console.log("updateCourses called with curriculum:", curriculumId);
+  if (!curriculumId) {
+    coursesList.innerHTML =
+      '<p class="text-sm text-gray-600">Please select a curriculum to view available courses.</p>';
+    return;
+  }
+  coursesList.innerHTML =
+    '<p class="text-sm text-gray-600">Loading courses...</p>';
+
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      action: "get_curriculum_courses",
+      curriculum_id: curriculumId,
+      semester_id: window.currentSemester.semester_id,
+      department_id: window.departmentId,
+      college_id: window.jsData.collegeId,
+    }),
+  })
     .then((response) => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response.text();
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return response.text();
     })
     .then((text) => {
-        console.log("Raw response:", text); // Debug raw response
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.error("JSON parse error:", e, "Response:", text);
-            throw new Error("Invalid JSON response: " + e.message);
-        }
-        console.log("Fetched courses:", data.courses);
-        window.curriculumCourses = data.courses || [];
-        if (window.curriculumCourses.length === 0) {
-            coursesList.innerHTML = '<p class="text-sm text-red-600">No courses found for the selected curriculum and semester.</p>';
-        } else {
-            coursesList.innerHTML = `
+      console.log("Raw response:", text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("JSON parse error:", e, "Response:", text);
+        throw new Error("Invalid JSON response: " + e.message);
+      }
+      console.log("Fetched courses:", data.courses);
+      window.curriculumCourses = data.courses || [];
+      if (window.curriculumCourses.length === 0) {
+        coursesList.innerHTML =
+          '<p class="text-sm text-red-600">No courses found for the selected curriculum and semester.</p>';
+      } else {
+        coursesList.innerHTML = `
                 <ul class="list-disc pl-5 text-sm text-gray-700">
                     ${window.curriculumCourses
-                        .map(
-                            (course) => `
+                      .map(
+                        (course) => `
                                 <li>
-                                    ${escapeHtml(course.course_code)} - ${escapeHtml(course.course_name)}
-                                    (Year: ${escapeHtml(course.curriculum_year)}, Semester: ${escapeHtml(course.curriculum_semester)})
+                                    ${escapeHtml(
+                                      course.course_code
+                                    )} - ${escapeHtml(course.course_name)}
+                                    (Year: ${escapeHtml(
+                                      course.curriculum_year
+                                    )}, Semester: ${escapeHtml(
+                          course.curriculum_semester
+                        )})
                                 </li>
                             `
-                        )
-                        .join("")}
+                      )
+                      .join("")}
                 </ul>
             `;
-        }
+      }
     })
     .catch((error) => {
-        console.error("Error fetching courses:", error);
-        coursesList.innerHTML = '<p class="text-sm text-red-600">Error loading courses. Please try again.</p>';
-        showValidationToast(["Error loading courses: " + error.message]);
+      console.error("Error fetching courses:", error);
+      coursesList.innerHTML =
+        '<p class="text-sm text-red-600">Error loading courses. Please try again.</p>';
+      showValidationToast(["Error loading courses: " + error.message]);
     });
 }
 
-// Generate Schedules Functionality
+// Update schedule completion status banner
+function updateScheduleCompletionStatus(data) {
+  let statusBanner = document.getElementById("schedule-completion-banner");
+
+  // Remove existing banner if present
+  if (statusBanner) {
+    statusBanner.remove();
+  }
+
+  // Only show banner if there are unassigned courses
+  if (data.unassignedCourses && data.unassignedCourses.length > 0) {
+    const navTabs = document.querySelector("nav.flex.space-x-1");
+    statusBanner = document.createElement("div");
+    statusBanner.id = "schedule-completion-banner";
+    statusBanner.className =
+      "mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg shadow-sm";
+
+    statusBanner.innerHTML = `
+      <div class="flex items-start">
+        <div class="flex-shrink-0">
+          <i class="fas fa-exclamation-triangle text-yellow-600 text-xl"></i>
+        </div>
+        <div class="ml-3 flex-1">
+          <h3 class="text-sm font-semibold text-yellow-800">Schedule Generation Incomplete</h3>
+          <div class="mt-2 text-sm text-yellow-700">
+            <p class="mb-2">${
+              data.unassignedCourses.length
+            } course(s) could not be scheduled automatically:</p>
+            <ul class="list-disc list-inside ml-2">
+              ${data.unassignedCourses
+                .map((c) => `<li>${escapeHtml(c.course_code)}</li>`)
+                .join("")}
+            </ul>
+            <p class="mt-3">
+              <strong>Success Rate:</strong> ${data.successRate || "0%"} 
+              (${data.totalCourses - data.unassignedCourses.length} of ${
+      data.totalCourses
+    } courses scheduled)
+            </p>
+          </div>
+          <div class="mt-3">
+            <button onclick="switchTab('manual')" class="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline">
+              Go to Manual Edit to fix conflicts →
+            </button>
+          </div>
+        </div>
+        <div class="flex-shrink-0 ml-3">
+          <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-yellow-600 hover:text-yellow-800">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Insert after navigation tabs
+    if (navTabs && navTabs.parentElement) {
+      navTabs.parentElement.insertBefore(statusBanner, navTabs.nextSibling);
+    }
+  }
+}
+
 function generateSchedules() {
   const form = document.getElementById("generate-form");
   if (!form) {
@@ -298,21 +376,22 @@ function generateSchedules() {
   // Clear any previous validation highlighting
   clearValidationErrors();
 
-  // Show loading overlay
+  // Show loading overlay FIRST
   const loadingOverlay = document.getElementById("loading-overlay");
   if (loadingOverlay) {
     loadingOverlay.classList.remove("hidden");
+    console.log("⏳ Loading overlay shown");
   }
 
-  // FIX: Add the missing 'action' parameter
   const data = {
-    action: "generate_schedule",  // <- This was missing!
+    action: "generate_schedule",
     curriculum_id: curriculumId,
     semester_id: formData.get("semester_id"),
     tab: "generate",
   };
 
-  console.log("Sending data to backend:", data);
+  console.log("🚀 Sending data to backend:", data);
+  const startTime = performance.now();
 
   fetch("/chair/generate-schedules", {
     method: "POST",
@@ -322,73 +401,125 @@ function generateSchedules() {
     body: new URLSearchParams(data),
   })
     .then((response) => {
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      console.log("📡 Response received, status:", response.status);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
       return response.text();
     })
     .then((text) => {
-      let data;
+      console.log(
+        "📄 Raw response received (first 500 chars):",
+        text.substring(0, 500)
+      );
+
+      let responseData;
       try {
-        data = JSON.parse(text);
+        responseData = JSON.parse(text);
       } catch (e) {
-        console.error("Invalid JSON response:", text);
+        console.error("❌ Invalid JSON response:", text);
         throw new Error("Invalid response format: " + e.message);
       }
 
-      if (loadingOverlay) {
-        loadingOverlay.classList.add("hidden");
-      }
+      const fetchTime = performance.now() - startTime;
+      console.log(`⏱️ Fetch completed in ${fetchTime.toFixed(2)}ms`);
+      console.log("📊 Generation response:", responseData);
 
-      if (data.success) {
-        window.scheduleData = data.schedules || [];
+      // CRITICAL: Keep loading overlay visible during UI updates
+      console.log("🔄 Starting UI updates, loading overlay still visible...");
 
-        // Show success results
-        const generationResults = document.getElementById("generation-results");
-        if (generationResults) {
-          generationResults.classList.remove("hidden");
-          document.getElementById("total-courses").textContent = data.schedules ? data.schedules.length : 0;
-          document.getElementById("total-sections").textContent =
-            new Set(data.schedules?.map((s) => s.section_name)).size || 0;
+      if (responseData.success) {
+        // Step 1: Update global schedule data
+        console.log("📝 Step 1: Updating schedule data...");
+        window.scheduleData = responseData.schedules || [];
+        console.log(
+          `✅ Schedule data updated: ${window.scheduleData.length} schedules`
+        );
 
-          // Update success rate based on unassigned courses
-          const successRate = data.unassigned ? "95%" : "100%";
-          document.getElementById("success-rate").textContent = successRate;
-        }
+        // Step 2: Update the schedule display (this takes time!)
+        console.log("🎨 Step 2: Updating schedule display...");
+        const displayStartTime = performance.now();
 
-        // Update schedule display if in manual tab
-        const manualTab = document.getElementById("content-manual");
-        if (manualTab && !manualTab.classList.contains("hidden")) {
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
           safeUpdateScheduleDisplay(window.scheduleData);
-        }
 
-        // Show appropriate message based on completion
-        if (data.unassigned) {
-          showCompletionToast(
-            "warning",
-            "Schedules generated with some conflicts!",
-            [
-              "Some courses could not be automatically assigned",
-              "Check for time conflicts or resource limitations",
-              "You can manually adjust schedules in the Manual Edit tab",
-            ]
-          );
-        } else {
-          showCompletionToast("success", "Schedules generated successfully!", [
-            `${data.schedules.length} courses scheduled`,
-            `${
-              new Set(data.schedules?.map((s) => s.section_name)).size
-            } sections assigned`,
-            "All courses successfully scheduled without conflicts",
-          ]);
-        }
+          const displayTime = performance.now() - displayStartTime;
+          console.log(`✅ Display updated in ${displayTime.toFixed(2)}ms`);
+
+          // Step 3: Update completion status banner
+          console.log("🏁 Step 3: Updating completion status...");
+          updateScheduleCompletionStatus(responseData);
+
+          // Step 4: Show success results
+          console.log("📊 Step 4: Showing results...");
+          const generationResults =
+            document.getElementById("generation-results");
+          if (generationResults) {
+            generationResults.classList.remove("hidden");
+            document.getElementById("total-courses").textContent =
+              responseData.totalCourses || 0;
+            document.getElementById("total-sections").textContent =
+              responseData.totalSections || 0;
+            document.getElementById("success-rate").textContent =
+              responseData.successRate || "100%";
+          }
+
+          // Step 5: NOW hide the loading overlay after EVERYTHING is done
+          console.log("✨ Step 5: Hiding loading overlay...");
+          setTimeout(() => {
+            if (loadingOverlay) {
+              loadingOverlay.classList.add("hidden");
+              const totalTime = performance.now() - startTime;
+              console.log(
+                `✅ Loading overlay hidden after ${totalTime.toFixed(
+                  2
+                )}ms total`
+              );
+            }
+
+            // Step 6: Show notification AFTER loading is hidden
+            if (
+              responseData.unassignedCourses &&
+              responseData.unassignedCourses.length > 0
+            ) {
+              showCompletionToast(
+                "warning",
+                "Schedules generated with some conflicts!",
+                [
+                  `${responseData.unassignedCourses.length} course(s) could not be automatically assigned`,
+                  "Check for time conflicts or resource limitations",
+                  "You can manually adjust schedules in the Manual Edit tab",
+                ]
+              );
+            } else {
+              showCompletionToast(
+                "success",
+                "Schedules generated successfully!",
+                [
+                  `${responseData.schedules.length} courses scheduled`,
+                  `${responseData.totalSections} sections assigned`,
+                  "All courses successfully scheduled without conflicts",
+                ]
+              );
+            }
+          }, 300); // Small delay to ensure DOM updates are complete
+        });
       } else {
-        showValidationToast([data.message || "Failed to generate schedules"]);
+        // Hide loading on error immediately
+        if (loadingOverlay) {
+          loadingOverlay.classList.add("hidden");
+        }
+        showValidationToast([
+          responseData.message || "Failed to generate schedules",
+        ]);
       }
     })
     .catch((error) => {
+      // Hide loading on error
       if (loadingOverlay) {
         loadingOverlay.classList.add("hidden");
       }
-      console.error("Error:", error);
+      console.error("❌ Error:", error);
       showValidationToast(["Error generating schedules: " + error.message]);
     });
 }

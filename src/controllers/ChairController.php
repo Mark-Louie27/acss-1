@@ -1730,7 +1730,8 @@ class ChairController extends BaseController
         }
 
         $chairId = $_SESSION['user_id'] ?? null;
-        $departmentId = $this->getChairDepartment($chairId);
+        // Get department for the Chair - use currentDepartmentId if Program Chair
+        $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
         $currentSemester = $this->getCurrentSemester();
         $collegeData = $this->getChairCollege($chairId);
         $collegeId = $collegeData['college_id'] ?? null;
@@ -1885,25 +1886,49 @@ class ChairController extends BaseController
                 break;
 
             case 'delete_schedules':
-                if (isset($_POST['confirm']) && $_POST['confirm']) {
+                // Fix: Check for confirm parameter properly
+                $confirm = $_POST['confirm'] ?? null;
+                error_log("delete_schedules: confirm value = " . var_export($confirm, true));
+
+                if ($confirm && ($confirm === 'true' || $confirm === '1' || $confirm === 1 || $confirm === true)) {
+                    error_log("delete_schedules: Confirmation valid, proceeding with deletion");
                     $result = $this->deleteAllSchedules($departmentId);
-                    error_log("generateSchedulesAjax: delete_schedules result: " . json_encode($result));
+                    error_log("delete_schedules result: " . json_encode($result));
                     echo json_encode($result);
                 } else {
-                    error_log("generateSchedulesAjax: Confirmation required for delete_schedules");
-                    echo json_encode(['success' => false, 'message' => 'Confirmation required']);
+                    error_log("delete_schedules: Confirmation missing or invalid");
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Confirmation required',
+                        'debug' => [
+                            'confirm_received' => $confirm,
+                            'confirm_type' => gettype($confirm)
+                        ]
+                    ]);
                 }
                 break;
 
             case 'delete_schedule':
                 $scheduleId = $_POST['schedule_id'] ?? null;
+                error_log("delete_schedule: Received schedule_id = " . var_export($scheduleId, true));
+                error_log("delete_schedule: Department ID = " . var_export($departmentId, true));
+                error_log("delete_schedule: Current semester = " . json_encode($currentSemester));
+
                 if ($scheduleId) {
-                    $result = $this->deleteSingleSchedule($scheduleId, $departmentId);
-                    error_log("generateSchedulesAjax: delete_schedule result: " . json_encode($result));
+                    // Fix: Pass all required parameters
+                    $result = $this->deleteSingleSchedule($scheduleId, $departmentId, $currentSemester);
+                    error_log("delete_schedule result: " . json_encode($result));
                     echo json_encode($result);
                 } else {
-                    error_log("generateSchedulesAjax: Missing schedule_id for delete_schedule");
-                    echo json_encode(['success' => false, 'message' => 'Missing schedule ID']);
+                    error_log("delete_schedule: Missing schedule_id");
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Missing schedule ID',
+                        'debug' => [
+                            'schedule_id_received' => $scheduleId,
+                            'post_data' => $_POST
+                        ]
+                    ]);
                 }
                 break;
 
