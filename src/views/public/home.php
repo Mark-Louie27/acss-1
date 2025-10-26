@@ -606,12 +606,13 @@
                         </div>
                     </div>
                 </div>
-
+                <!--
                 <div class="md:col-span-2">
                     <button type="button" id="downloadScheduleBtn" class="btn-primary mt-4">
                         <i class="fas fa-download mr-2"></i> Download Schedule PDF
                     </button>
                 </div>
+                -->
             </form>
 
             <!-- Download Customization Form
@@ -961,42 +962,43 @@
                 }
             });
 
+            
             // Download button functionality
-            document.getElementById('downloadScheduleBtn').addEventListener('click', function() {
-                document.getElementById('downloadForm').classList.add('active');
-            });
+            //document.getElementById('downloadScheduleBtn').addEventListener('click', function() {
+              //  document.getElementById('downloadForm').classList.add('active');
+            //});
 
-            function closeDownloadForm() {
-                document.getElementById('downloadForm').classList.remove('active');
-            }
+            //function closeDownloadForm() {
+              //  document.getElementById('downloadForm').classList.remove('active');
+            //}
 
-            document.getElementById('downloadScheduleForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                fetch('/public/download-schedule-pdf', {
-                    method: 'POST',
-                    body: formData
-                }).then(response => {
-                    if (response.ok) {
-                        return response.blob();
-                    } else {
-                        throw new Error('Failed to generate PDF');
-                    }
-                }).then(blob => {
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'PRMSU_Schedule_' + new Date().toISOString().replace(/[:.]/g, '-') + '.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
-                    closeDownloadForm();
-                }).catch(error => {
-                    console.error('Error downloading PDF:', error);
-                    alert('An error occurred while downloading the PDF.');
-                });
-            });
+            //document.getElementById('downloadScheduleForm').addEventListener('submit', function(e) {
+              //  e.preventDefault();
+              //  const formData = new FormData(this);
+              //  fetch('/public/download-schedule-pdf', {
+               //     method: 'POST',
+                 //   body: formData
+                //}).then(response => {
+                  //  if (response.ok) {
+                    //    return response.blob();
+                    //} else {
+                      //  throw new Error('Failed to generate PDF');
+                    //}
+                //}).then(blob => {
+                  //  const url = window.URL.createObjectURL(blob);
+                    //const a = document.createElement('a');
+                   // a.href = url;
+                   // a.download = 'PRMSU_Schedule_' + new Date().toISOString().replace(/[:.]/g, '-') + '.pdf';
+                   // document.body.appendChild(a);
+                   // a.click();
+                   // a.remove();
+                   // window.URL.revokeObjectURL(url);
+                   // closeDownloadForm();
+                //}).catch(error => {
+                  //  console.error('Error downloading PDF:', error);
+                  //  alert('An error occurred while downloading the PDF.');
+               // });
+            //});
         });
 
         function fetchSchedules(page = 1) {
