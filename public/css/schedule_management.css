@@ -729,3 +729,48 @@ input.bg-red-50,
 select.bg-red-50 {
   background-color: #fef2f2 !important;
 }
+
+/* Dynamic grid styles */
+.schedule-card {
+    transition: all 0.2s ease-in-out;
+    min-height: 60px;
+}
+
+.schedule-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.drop-zone {
+    min-height: 60px;
+    transition: all 0.2s ease-in-out;
+}
+
+.drop-zone.drag-over {
+    background-color: #fefce8;
+    border-color: #f59e0b;
+}
+
+.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg);
+}
+
+/* Ensure consistent row heights */
+.grid-rows-\[minmax\(60px\2c auto\)\] > * {
+    min-height: 60px;
+}
+
+/* Smooth scrolling for the grid */
+.overflow-x-auto {
+    scroll-behavior: smooth;
+}
+
+/* Better visual feedback for time cells */
+.bg-gray-50 {
+    transition: background-color 0.2s ease;
+}
+
+.bg-gray-50:hover {
+    background-color: #f9fafb;
+}

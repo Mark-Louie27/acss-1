@@ -1011,7 +1011,8 @@ class ChairController extends BaseController
         }
 
         $chairId = $_SESSION['user_id'] ?? null;
-        $departmentId = $this->getChairDepartment($chairId);
+        // Get department for the Chair - use currentDepartmentId if Program Chair
+        $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
 
         if (!$departmentId) {
             echo json_encode(['success' => false, 'message' => 'Could not determine department.']);
@@ -1062,9 +1063,61 @@ class ChairController extends BaseController
 
     private function deleteSingleSchedule($scheduleId, $departmentId)
     {
+        header('Content-Type: application/json');
+
+        // Validate request method and confirmation
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
+            exit;
+        }
+
+        // Check for confirmation
+        if (!isset($_POST['confirm']) || $_POST['confirm'] !== 'true') {
+            echo json_encode(['success' => false, 'message' => 'Confirmation required.']);
+            exit;
+        }
+
+        // Validate schedule_id
+        if (!isset($_POST['schedule_id']) || empty($_POST['schedule_id'])) {
+            echo json_encode(['success' => false, 'message' => 'Schedule ID is required.']);
+            exit;
+        }
+
+        $scheduleId = $_POST['schedule_id'];
+
+        // Additional validation for schedule_id
+        if ($scheduleId === 'null' || $scheduleId === 'undefined' || $scheduleId === '') {
+            echo json_encode(['success' => false, 'message' => 'Invalid schedule ID.']);
+            exit;
+        }
+
+        // Validate that schedule_id is numeric
+        if (!is_numeric($scheduleId)) {
+            echo json_encode(['success' => false, 'message' => 'Invalid schedule ID format.']);
+            exit;
+        }
+
+        $scheduleId = (int)$scheduleId;
+
+        if ($scheduleId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid schedule ID.']);
+            exit;
+        }
+
+        $chairId = $_SESSION['user_id'] ?? null;
+
+        // Get department for the Chair - use currentDepartmentId if Program Chair
+        $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
+
+        if (!$departmentId) {
+            echo json_encode(['success' => false, 'message' => 'Could not determine department.']);
+            exit;
+        }
+
         try {
             // First verify the schedule belongs to this department
-            $verifyQuery = "SELECT s.schedule_id FROM schedules s 
+            $verifyQuery = "SELECT s.schedule_id 
+                       FROM schedules s 
                        JOIN sections sec ON s.section_id = sec.section_id 
                        WHERE s.schedule_id = :schedule_id AND sec.department_id = :department_id";
             $stmt = $this->db->prepare($verifyQuery);
@@ -1075,23 +1128,46 @@ class ChairController extends BaseController
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$result) {
-                return ['success' => false, 'message' => 'Schedule not found or access denied'];
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Schedule not found or access denied.',
+                    'debug' => [
+                        'schedule_id' => $scheduleId,
+                        'department_id' => $departmentId
+                    ]
+                ]);
+                exit;
             }
 
             // Delete the schedule
             $deleteQuery = "DELETE FROM schedules WHERE schedule_id = :schedule_id";
             $stmt = $this->db->prepare($deleteQuery);
-            $stmt->execute([':schedule_id' => $scheduleId]);
+            $success = $stmt->execute([':schedule_id' => $scheduleId]);
 
-            if ($stmt->execute()) {
-                return ['success' => true, 'message' => 'Schedule deleted successfully'];
+            if ($success) {
+                $deletedCount = $stmt->rowCount();
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Schedule deleted successfully',
+                    'deleted_count' => $deletedCount
+                ]);
             } else {
-                return ['success' => false, 'message' => 'Failed to delete schedule'];
+                $errorInfo = $stmt->errorInfo();
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Failed to delete schedule',
+                    'debug' => $errorInfo
+                ]);
             }
         } catch (Exception $e) {
             error_log("deleteSingleSchedule error: " . $e->getMessage());
-            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+            echo json_encode([
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage(),
+                'debug' => ['exception' => $e->getMessage()]
+            ]);
         }
+        exit;
     }
 
     private function getChairCollege($userId)
@@ -7396,55 +7472,50 @@ class ChairController extends BaseController
 
         $fetchFaculty = function ($collegeId, $departmentId) {
             $baseUrl = $this->baseUrl;
-
-            // FIXED: Use the passed $departmentId parameter
             $query = "
-        SELECT 
-            u.user_id, 
-            u.employee_id,
-            u.title, 
-            u.first_name,
-            u.middle_name, 
-            u.last_name,
-            u.suffix, 
-            f.academic_rank, 
-            f.employment_type, 
-            c.course_name AS specialization,
-            COALESCE(u.profile_picture) AS profile_picture,
-            GROUP_CONCAT(DISTINCT d.department_name SEPARATOR ', ') AS department_names, 
-            c2.college_name
-        FROM 
-            faculty f 
-            JOIN users u ON f.user_id = u.user_id 
-            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-            JOIN departments d ON fd.department_id = d.department_id
-            JOIN colleges c2 ON d.college_id = c2.college_id
-            LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
+            SELECT 
+                u.user_id, 
+                u.employee_id,
+                u.title, 
+                u.first_name,
+                u.middle_name, 
+                u.last_name,
+                u.suffix, 
+                f.academic_rank, 
+                f.employment_type, 
+                c.course_name AS specialization,
+                COALESCE(u.profile_picture) AS profile_picture,
+                GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
+                c2.college_name
+            FROM 
+                faculty f 
+                JOIN users u ON f.user_id = u.user_id 
+                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                JOIN departments d ON fd.department_id = d.department_id
+                JOIN colleges c2 ON d.college_id = c2.college_id
+                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
                 AND s.is_primary_specialization = 1
-            LEFT JOIN courses c ON s.course_id = c.course_id
-        WHERE 
-            fd.department_id = :department_id  -- FIXED: Filter by specific department
-        GROUP BY 
-            u.user_id, f.faculty_id
-        ORDER BY 
-            u.last_name, u.first_name";
-
+                LEFT JOIN courses c ON s.course_id = c.course_id
+            WHERE 
+                fd.department_id = :department_id
+            GROUP BY 
+                u.user_id, f.faculty_id
+            ORDER BY 
+                u.last_name, u.first_name";
             $stmt = $this->db->prepare($query);
-            $stmt->execute([':department_id' => $departmentId]);  // FIXED: Use parameter
+            $stmt->execute([':department_id' => $departmentId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
             foreach ($results as &$result) {
-                if ($result['profile_picture']) {
+                if ($result['profile_picture'] && $result['profile_picture']) {
                     $result['profile_picture'] = $baseUrl . $result['profile_picture'];
                 }
             }
             return $results;
         };
 
-        // FIXED: Call with currentDepartmentId
-        if ($this->currentDepartmentId && $collegeId) {
+        if ($departmentId && $collegeId) {
             try {
-                $faculty = $fetchFaculty($collegeId, $this->currentDepartmentId);
+                $faculty = $fetchFaculty($collegeId, $departmentId);
                 error_log("faculty: Fetched " . count($faculty) . " faculty members");
             } catch (PDOException $e) {
                 $error = "Failed to load faculty: " . htmlspecialchars($e->getMessage());

@@ -346,83 +346,116 @@ if ($userDepartmentId) {
                                 </div>
                             </div>
 
-                            <!-- Time slots grid -->
+                            <!-- Dynamic Time slots grid -->
                             <div id="schedule-grid" class="divide-y divide-gray-200">
                                 <?php
-                                $timeSlots = [
-                                    ['07:30', '08:30'],
-                                    ['08:30', '10:00'],
-                                    ['10:00', '11:00'],
-                                    ['11:00', '12:30'],
-                                    ['12:30', '13:30'],
-                                    ['13:00', '14:30'],
-                                    ['14:30', '15:30'],
-                                    ['15:30', '17:00'],
-                                    ['17:00', '18:00']
-                                ];
+                                // Generate dynamic time slots from 7:00 AM to 9:00 PM in 30-minute intervals
+                                $timeSlots = [];
+                                $startHour = 7;
+                                $endHour = 21;
 
-                                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']; // Added Sunday
+                                for ($hour = $startHour; $hour < $endHour; $hour++) {
+                                    for ($minute = 0; $minute < 60; $minute += 30) {
+                                        $currentTime = sprintf('%02d:%02d', $hour, $minute);
+                                        $nextTime = sprintf('%02d:%02d', $hour + ($minute + 30 >= 60 ? 1 : 0), ($minute + 30) % 60);
+
+                                        // Skip if next time exceeds end hour
+                                        if (($hour + ($minute + 30 >= 60 ? 1 : 0)) >= $endHour && ($minute + 30) % 60 > 0) {
+                                            continue;
+                                        }
+
+                                        $timeSlots[] = [$currentTime, $nextTime];
+                                    }
+                                }
+
+                                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+                                // Pre-process schedules for faster lookup
+                                $scheduleLookup = [];
+                                foreach ($schedules as $schedule) {
+                                    $day = $schedule['day_of_week'];
+                                    $start = substr($schedule['start_time'], 0, 5);
+                                    $end = substr($schedule['end_time'], 0, 5);
+
+                                    if (!isset($scheduleLookup[$day])) {
+                                        $scheduleLookup[$day] = [];
+                                    }
+
+                                    $scheduleLookup[$day][] = [
+                                        'schedule' => $schedule,
+                                        'start' => $start,
+                                        'end' => $end
+                                    ];
+                                }
                                 ?>
 
                                 <?php foreach ($timeSlots as $slotIndex => $time): ?>
-                                    <div class="grid grid-cols-8 min-h-[100px] hover:bg-gray-50 transition-colors duration-200">
+                                    <?php
+                                    $duration = strtotime($time[1]) - strtotime($time[0]);
+                                    $rowSpan = max(1, $duration / 1800); // 30-minute base unit
+                                    $minHeight = $rowSpan * 60; // Adjust height based on duration
+                                    ?>
+                                    <div class="grid grid-cols-8 min-h-[<?php echo $minHeight; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>">
                                         <!-- Time Column -->
-                                        <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start">
+                                        <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start" style="grid-row: span <?php echo $rowSpan; ?>">
                                             <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
                                             <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
                                         </div>
 
                                         <!-- Day Columns -->
                                         <?php foreach ($days as $day): ?>
-                                            <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone"
+                                            <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[<?php echo $minHeight; ?>px]"
                                                 data-day="<?php echo $day; ?>"
                                                 data-start-time="<?php echo $time[0]; ?>"
                                                 data-end-time="<?php echo $time[1]; ?>">
 
                                                 <?php
-                                                $schedulesList = [];
-                                                $hasExactStart = false;
+                                                $schedulesInSlot = [];
+                                                if (isset($scheduleLookup[$day])) {
+                                                    foreach ($scheduleLookup[$day] as $scheduleData) {
+                                                        $scheduleStart = $scheduleData['start'];
+                                                        $scheduleEnd = $scheduleData['end'];
 
-                                                foreach ($schedules as $schedule) {
-                                                    if ($schedule['day_of_week'] !== $day) continue;
+                                                        $slotStart = strtotime("1970-01-01 " . $time[0] . ":00");
+                                                        $slotEnd = strtotime("1970-01-01 " . $time[1] . ":00");
+                                                        $schedStart = strtotime("1970-01-01 " . $scheduleStart . ":00");
+                                                        $schedEnd = strtotime("1970-01-01 " . $scheduleEnd . ":00");
 
-                                                    $scheduleStart = substr($schedule['start_time'], 0, 5);
-                                                    $scheduleEnd = substr($schedule['end_time'], 0, 5);
-
-                                                    $slotStart = strtotime("1970-01-01 " . $time[0] . ":00");
-                                                    $slotEnd = strtotime("1970-01-01 " . $time[1] . ":00");
-                                                    $schedStart = strtotime("1970-01-01 " . $scheduleStart . ":00");
-                                                    $schedEnd = strtotime("1970-01-01 " . $scheduleEnd . ":00");
-
-                                                    // Check for overlap
-                                                    if ($schedStart < $slotEnd && $schedEnd > $slotStart) {
-                                                        $schedulesList[] = $schedule;
-                                                        if ($scheduleStart === $time[0]) {
-                                                            $hasExactStart = true;
+                                                        // Check if schedule overlaps with this time slot
+                                                        if ($schedStart < $slotEnd && $schedEnd > $slotStart) {
+                                                            $schedulesInSlot[] = [
+                                                                'schedule' => $scheduleData['schedule'],
+                                                                'isStartCell' => ($scheduleStart === $time[0]),
+                                                                'isEndCell' => ($scheduleEnd === $time[1])
+                                                            ];
                                                         }
                                                     }
                                                 }
                                                 ?>
 
-                                                <?php if (empty($schedulesList)): ?>
+                                                <?php if (empty($schedulesInSlot)): ?>
                                                     <button onclick="openAddModalForSlot('<?php echo $day; ?>', '<?php echo $time[0]; ?>', '<?php echo $time[1]; ?>')"
-                                                        class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-2 min-h-[100px]">
-                                                        <i class="fas fa-plus text-sm"></i>
+                                                        class="w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-1 min-h-[<?php echo $minHeight; ?>px]">
+                                                        <i class="fas fa-plus text-xs"></i>
                                                     </button>
                                                 <?php else: ?>
                                                     <div class="space-y-1 p-1">
-                                                        <?php foreach ($schedulesList as $schedule):
+                                                        <?php foreach ($schedulesInSlot as $scheduleData):
+                                                            $schedule = $scheduleData['schedule'];
+                                                            $isStartCell = $scheduleData['isStartCell'];
+
                                                             $colors = [
                                                                 'bg-blue-100 border-blue-300 text-blue-800',
                                                                 'bg-green-100 border-green-300 text-green-800',
                                                                 'bg-purple-100 border-purple-300 text-purple-800',
                                                                 'bg-orange-100 border-orange-300 text-orange-800',
-                                                                'bg-pink-100 border-pink-300 text-pink-800'
+                                                                'bg-pink-100 border-pink-300 text-pink-800',
+                                                                'bg-teal-100 border-teal-300 text-teal-800',
+                                                                'bg-amber-100 border-amber-300 text-amber-800'
                                                             ];
-                                                            $colorClass = $colors[array_rand($colors)];
-
-                                                            $scheduleStart = substr($schedule['start_time'], 0, 5);
-                                                            $isStartCell = ($scheduleStart === $time[0]);
+                                                            // Use schedule_id for consistent coloring
+                                                            $colorIndex = $schedule['schedule_id'] ? ($schedule['schedule_id'] % count($colors)) : array_rand($colors);
+                                                            $colorClass = $colors[$colorIndex];
                                                         ?>
                                                             <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 draggable cursor-move text-xs"
                                                                 draggable="true"
@@ -430,49 +463,55 @@ if ($userDepartmentId) {
                                                                 data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
                                                                 data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
                                                                 data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>"
-                                                                style="<?php echo !$isStartCell ? 'opacity: 0.5;' : ''; ?>">
+                                                                style="<?php echo !$isStartCell ? 'opacity: 0.6;' : ''; ?>">
 
-                                                                <div class="flex justify-between items-start mb-1">
-                                                                    <div class="font-semibold truncate flex-1">
-                                                                        <?php echo htmlspecialchars($schedule['course_code']); ?>
-                                                                        <?php if (!$isStartCell): ?>
-                                                                            <span class="text-xs text-gray-500">(cont.)</span>
-                                                                        <?php endif; ?>
-                                                                    </div>
-                                                                    <?php if ($isStartCell): ?>
+                                                                <?php if ($isStartCell): ?>
+                                                                    <div class="flex justify-between items-start mb-1">
+                                                                        <div class="font-semibold truncate flex-1">
+                                                                            <?php echo htmlspecialchars($schedule['course_code']); ?>
+                                                                        </div>
                                                                         <div class="flex space-x-1 flex-shrink-0 ml-1">
                                                                             <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 no-print">
                                                                                 <i class="fas fa-edit text-xs"></i>
-                                                                            </button>
-                                                                            <button onclick="openDeleteSingleModal(
-                                                        '<?php echo $schedule['schedule_id']; ?>', 
-                                                        '<?php echo htmlspecialchars($schedule['course_code']); ?>', 
-                                                        '<?php echo htmlspecialchars($schedule['section_name']); ?>', 
-                                                        '<?php echo htmlspecialchars($schedule['day_of_week']); ?>', 
-                                                        '<?php echo date('g:i A', strtotime($schedule['start_time'])); ?>', 
-                                                        '<?php echo date('g:i A', strtotime($schedule['end_time'])); ?>'
-                                                    )" class="text-red-600 hover:text-red-700 no-print">
-                                                                                <i class="fas fa-trash text-xs"></i>
-                                                                            </button>
+                                                                                <!-- Temporary debug in your PHP template -->
+                                                                                <?php
+                                                                                // Debug the schedule data
+                                                                                error_log("Schedule data for delete button: " . print_r($schedule, true));
+                                                                                error_log("Schedule ID: " . ($schedule['schedule_id'] ?? 'NOT SET'));
+                                                                                ?>
+
+                                                                                <button onclick="console.log('Delete clicked - Schedule ID:', <?php echo $schedule['schedule_id'] ?? 'null'; ?>); openDeleteSingleModal(
+    <?php echo $schedule['schedule_id'] ?? 'null'; ?>, 
+    '<?php echo htmlspecialchars($schedule['course_code'] ?? ''); ?>', 
+    '<?php echo htmlspecialchars($schedule['section_name'] ?? ''); ?>', 
+    '<?php echo htmlspecialchars($schedule['day_of_week'] ?? ''); ?>', 
+    '<?php echo isset($schedule['start_time']) ? date('g:i A', strtotime($schedule['start_time'])) : ''; ?>', 
+    '<?php echo isset($schedule['end_time']) ? date('g:i A', strtotime($schedule['end_time'])) : ''; ?>'
+)" class="text-red-600 hover:text-red-700 no-print">
+                                                                                    <i class="fas fa-trash text-xs"></i>
+                                                                                </button>
                                                                         </div>
-                                                                    <?php endif; ?>
-                                                                </div>
+                                                                    </div>
+                                                                <?php else: ?>
+                                                                    <div class="font-semibold truncate mb-1 text-center opacity-75">
+                                                                        <i class="fas fa-ellipsis-h text-xs"></i>
+                                                                    </div>
+                                                                <?php endif; ?>
 
-                                                                <div class="opacity-90 truncate">
-                                                                    <?php echo htmlspecialchars($schedule['section_name']); ?>
-                                                                </div>
-
-                                                                <div class="opacity-75 truncate">
-                                                                    <?php echo htmlspecialchars($schedule['faculty_name']); ?>
-                                                                </div>
-
-                                                                <div class="opacity-75 truncate">
-                                                                    <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
-                                                                </div>
-
-                                                                <div class="font-medium mt-1 hidden sm:block">
-                                                                    <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
-                                                                </div>
+                                                                <?php if ($isStartCell): ?>
+                                                                    <div class="opacity-90 truncate">
+                                                                        <?php echo htmlspecialchars($schedule['section_name']); ?>
+                                                                    </div>
+                                                                    <div class="opacity-75 truncate">
+                                                                        <?php echo htmlspecialchars($schedule['faculty_name']); ?>
+                                                                    </div>
+                                                                    <div class="opacity-75 truncate">
+                                                                        <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
+                                                                    </div>
+                                                                    <div class="font-medium mt-1 hidden sm:block text-xs">
+                                                                        <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
+                                                                    </div>
+                                                                <?php endif; ?>
                                                             </div>
                                                         <?php endforeach; ?>
                                                     </div>
@@ -895,31 +934,18 @@ if ($userDepartmentId) {
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
                             <select id="start-time" name="start_time_display"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change"
-                                onchange="updateTimeFields()" required>
-                                <option value="07:30">7:30 AM</option>
-                                <option value="08:30">8:30 AM</option>
-                                <option value="09:00">9:00 AM</option>
-                                <option value="09:30">9:30 AM</option>
-                                <option value="10:30">10:30 AM</option>
-                                <option value="10:30">10:30 AM</option>
-                                <option value="11:00">11:00 AM</option>
-                                <option value="11:30">11:30 AM</option>
-                                <option value="12:00">12:00 PM</option>
-                                <option value="12:30">12:30 PM</option>
-                                <option value="13:00">1:00 PM</option>
-                                <option value="13:30">1:30 PM</option>
-                                <option value="14:00">2:00 PM</option>
-                                <option value="14:30">2:30 PM</option>
-                                <option value="15:00">3:00 PM</option>
-                                <option value="15:30">3:30 PM</option>
-                                <option value="16:00">4:00 PM</option>
-                                <option value="16:30">4:30 PM</option>
-                                <option value="17:00">5:00 PM</option>
-                                <option value="17:30">5:30 PM</option>
-                                <option value="18:00">6:00 PM</option>
-                                <option value="18:30">6:30 PM</option>
-                                <option value="19:00">7:00 PM</option>
-                                <option value="19:30">7:30 PM</option>
+                                onchange="updateEndTimeOptions(); updateTimeFields()" required>
+                                <option value="">Select Start Time</option>
+                                <?php
+                                // Generate time options from 7:00 AM to 9:00 PM in 30-minute intervals
+                                for ($hour = 7; $hour < 22; $hour++) {
+                                    for ($minute = 0; $minute < 60; $minute += 30) {
+                                        $timeValue = sprintf('%02d:%02d', $hour, $minute);
+                                        $timeDisplay = date('g:i A', strtotime($timeValue));
+                                        echo "<option value=\"$timeValue\">$timeDisplay</option>";
+                                    }
+                                }
+                                ?>
                             </select>
                         </div>
                         <div>
@@ -927,29 +953,8 @@ if ($userDepartmentId) {
                             <select id="end-time" name="end_time_display"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 validate-on-change"
                                 onchange="updateTimeFields()" required>
-                                <option value="08:30">8:30 AM</option>
-                                <option value="09:00">9:00 AM</option>
-                                <option value="09:30">9:30 AM</option>
-                                <option value="10:30">10:30 AM</option>
-                                <option value="10:30">10:30 AM</option>
-                                <option value="11:00">11:00 AM</option>
-                                <option value="11:30">11:30 AM</option>
-                                <option value="12:00">12:00 PM</option>
-                                <option value="12:30">12:30 PM</option>
-                                <option value="13:00">13:00 PM</option>
-                                <option value="13:30">1:30 PM</option>
-                                <option value="14:00">2:00 PM</option>
-                                <option value="14:30">2:30 PM</option>
-                                <option value="15:00">3:00 PM</option>
-                                <option value="15:30">3:30 PM</option>
-                                <option value="16:00">4:00 PM</option>
-                                <option value="16:30">4:30 PM</option>
-                                <option value="17:00">5:00 PM</option>
-                                <option value="17:30">5:30 PM</option>
-                                <option value="18:00">6:00 PM</option>
-                                <option value="18:30">6:30 PM</option>
-                                <option value="19:00">7:00 PM</option>
-                                <option value="19:30">7:30 PM</option>
+                                <option value="">Select End Time</option>
+                                <!-- End times will be populated dynamically -->
                             </select>
                         </div>
                     </div>
