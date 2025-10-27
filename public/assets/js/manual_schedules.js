@@ -1,10 +1,408 @@
-// Manual Schedule Management - CLEANED VERSION
-let draggedElement = null;
 let currentEditingId = null;
 let currentSemesterCourses = {};
 let validationTimeout;
 let currentDeleteScheduleId = null;
 const DEBOUNCE_DELAY = 300;
+
+// Enhanced Drag and Drop with Conflict Detection
+let draggedElement = null;
+let originalPosition = null;
+
+function handleDragStart(e) {
+    draggedElement = e.target.closest(".schedule-card");
+    if (!draggedElement) return;
+    
+    // Store original position for revert if needed
+    originalPosition = {
+        day: draggedElement.closest('.drop-zone').dataset.day,
+        startTime: draggedElement.closest('.drop-zone').dataset.startTime,
+        endTime: draggedElement.closest('.drop-zone').dataset.endTime,
+        element: draggedElement
+    };
+    
+    e.dataTransfer.setData("text/plain", draggedElement.dataset.scheduleId);
+    e.dataTransfer.effectAllowed = "move";
+    draggedElement.classList.add("dragging", "opacity-50");
+    
+    console.log("🚀 Drag started:", {
+        scheduleId: draggedElement.dataset.scheduleId,
+        originalPosition: originalPosition
+    });
+}
+
+function handleDragEnd(e) {
+    if (draggedElement) {
+        draggedElement.classList.remove("dragging", "opacity-50");
+    }
+    draggedElement = null;
+    originalPosition = null;
+    
+    document.querySelectorAll(".drop-zone.drag-over").forEach((zone) => {
+        zone.classList.remove("drag-over");
+    });
+    
+    document.querySelectorAll(".drop-zone.conflict").forEach((zone) => {
+        zone.classList.remove("conflict");
+    });
+    
+    console.log("🏁 Drag ended");
+}
+
+function handleDragEnter(e) {
+    const dropZone = e.target.closest(".drop-zone");
+    if (dropZone && draggedElement) {
+        dropZone.classList.add("drag-over");
+        
+        // Check for conflicts in real-time
+        checkDropZoneConflicts(dropZone);
+        
+        e.preventDefault();
+    }
+}
+
+function handleDragOver(e) {
+    if (e.target.classList.contains("drop-zone")) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+    }
+}
+
+function handleDragLeave(e) {
+    if (e.target.classList.contains("drop-zone")) {
+        e.target.classList.remove("drag-over");
+        e.target.classList.remove("conflict");
+    }
+}
+
+async function handleDrop(e) {
+  e.preventDefault();
+  const dropZone = e.target.closest(".drop-zone");
+
+  if (!dropZone || !draggedElement) {
+    console.log("❌ Invalid drop zone or no dragged element");
+    return;
+  }
+
+  dropZone.classList.remove("drag-over", "conflict");
+
+  const scheduleId = e.dataTransfer.getData("text/plain");
+  const newDay = dropZone.dataset.day;
+  const newStartTime = dropZone.dataset.startTime;
+  const newEndTime = dropZone.dataset.endTime;
+
+  console.log("🎯 Drop detected:", {
+    scheduleId,
+    newDay,
+    newStartTime,
+    newEndTime,
+  });
+
+  // Check for conflicts using your PHP function
+  const conflicts = await checkScheduleConflicts(
+    scheduleId,
+    newDay,
+    newStartTime,
+    newEndTime
+  );
+
+  if (conflicts.length > 0) {
+    console.warn("❌ Conflicts detected:", conflicts);
+    showDropConflicts(conflicts);
+    revertDrag();
+    return;
+  }
+
+  // If no conflicts, proceed with the move
+  performScheduleMove(scheduleId, newDay, newStartTime, newEndTime, dropZone);
+}
+
+function checkScheduleConflicts(scheduleId, newDay, newStartTime, newEndTime) {
+  return new Promise((resolve) => {
+    const currentSchedule = window.scheduleData.find(
+      (s) => s.schedule_id == scheduleId
+    );
+
+    if (!currentSchedule) {
+      resolve([]);
+      return;
+    }
+
+    // Prepare data for PHP conflict check
+    const formData = new URLSearchParams({
+      action: "check_drag_conflicts",
+      schedule_id: scheduleId,
+      section_id: currentSchedule.section_id,
+      faculty_id: currentSchedule.faculty_id,
+      room_id: currentSchedule.room_id || "",
+      day_of_week: newDay,
+      start_time: newStartTime + ":00",
+      end_time: newEndTime + ":00",
+      semester_id: window.currentSemester?.semester_id || "",
+    });
+
+    fetch("/chair/generate-schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData,
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success && result.conflicts) {
+          resolve(result.conflicts);
+        } else {
+          resolve([]);
+        }
+      })
+      .catch((error) => {
+        console.error("Conflict check error:", error);
+        resolve([]); // Allow drop if check fails
+      });
+  });
+}
+
+// Get conflict type for better messaging
+function getConflictType(newStart, newEnd, existingStart, existingEnd) {
+    if (newStart >= existingStart && newEnd <= existingEnd) return 'completely_overlaps';
+    if (newStart < existingStart && newEnd > existingEnd) return 'completely_contains';
+    if (newStart < existingEnd && newEnd > existingEnd) return 'overlaps_end';
+    if (newStart < existingStart && newEnd > existingStart) return 'overlaps_start';
+    return 'partial_overlap';
+}
+
+function showDropZoneConflictTooltip(dropZone, conflicts) {
+  removeConflictTooltip(dropZone);
+
+  const tooltip = document.createElement("div");
+  tooltip.className =
+    "conflict-tooltip absolute bottom-full left-0 rounded p-2 text-xs z-50 whitespace-nowrap max-w-xs";
+
+  // Group conflicts by severity
+  const highConflicts = conflicts.filter((c) => c.severity === "high");
+  const mediumConflicts = conflicts.filter((c) => c.severity === "medium");
+  const lowConflicts = conflicts.filter((c) => c.severity === "low");
+
+  let tooltipContent =
+    '<div class="font-semibold mb-1">⚠️ Scheduling Conflicts:</div>';
+
+  // Show high severity conflicts first
+  if (highConflicts.length > 0) {
+    tooltipContent += '<div class="text-red-700 font-semibold">Critical:</div>';
+    highConflicts.slice(0, 2).forEach((conflict) => {
+      tooltipContent += `<div class="ml-2 text-red-600">• ${conflict.message}</div>`;
+    });
+  }
+
+  // Medium severity
+  if (mediumConflicts.length > 0) {
+    tooltipContent +=
+      '<div class="text-orange-600 font-medium mt-1">Important:</div>';
+    mediumConflicts.slice(0, 2).forEach((conflict) => {
+      tooltipContent += `<div class="ml-2 text-orange-600">• ${conflict.message}</div>`;
+    });
+  }
+
+  // Low severity
+  if (lowConflicts.length > 0) {
+    tooltipContent += '<div class="text-yellow-600 mt-1">Note:</div>';
+    lowConflicts.slice(0, 1).forEach((conflict) => {
+      tooltipContent += `<div class="ml-2 text-yellow-600">• ${conflict.message}</div>`;
+    });
+  }
+
+  // Show total count if there are more conflicts
+  const totalShown =
+    highConflicts.slice(0, 2).length +
+    mediumConflicts.slice(0, 2).length +
+    lowConflicts.slice(0, 1).length;
+  const totalConflicts = conflicts.length;
+
+  if (totalConflicts > totalShown) {
+    tooltipContent += `<div class="mt-1 text-gray-500">+ ${
+      totalConflicts - totalShown
+    } more conflicts</div>`;
+  }
+
+  tooltip.innerHTML = tooltipContent;
+
+  // Set background based on highest severity
+  if (highConflicts.length > 0) {
+    tooltip.classList.add("bg-red-100", "border-red-300", "text-red-800");
+    dropZone.classList.add("conflict-high");
+  } else if (mediumConflicts.length > 0) {
+    tooltip.classList.add(
+      "bg-orange-100",
+      "border-orange-300",
+      "text-orange-800"
+    );
+    dropZone.classList.add("conflict-medium");
+  } else {
+    tooltip.classList.add(
+      "bg-yellow-100",
+      "border-yellow-300",
+      "text-yellow-800"
+    );
+    dropZone.classList.add("conflict-low");
+  }
+
+  tooltip.classList.add("border");
+  dropZone.appendChild(tooltip);
+}
+
+function removeConflictTooltip(dropZone) {
+    const existingTooltip = dropZone.querySelector('.conflict-tooltip');
+    if (existingTooltip) {
+        existingTooltip.remove();
+    }
+}
+
+// Show drop conflicts to user
+function showDropConflicts(conflicts) {
+    const conflictMessages = conflicts.map(c => c.message).join('\n• ');
+    showNotification(
+        `Cannot move schedule due to conflicts:\n• ${conflictMessages}`,
+        'error',
+        8000
+    );
+}
+
+// Revert drag to original position
+function revertDrag() {
+    if (originalPosition && originalPosition.element) {
+        originalPosition.element.classList.remove('opacity-50');
+        showNotification("Schedule reverted due to conflicts", "warning", 3000);
+    }
+}
+
+// Perform the actual schedule move
+function performScheduleMove(scheduleId, newDay, newStartTime, newEndTime, dropZone) {
+    const scheduleIndex = window.scheduleData.findIndex(s => s.schedule_id == scheduleId);
+    
+    if (scheduleIndex === -1) {
+        console.error("Schedule not found:", scheduleId);
+        showNotification("Error: Schedule not found", "error");
+        return;
+    }
+
+    const originalSchedule = window.scheduleData[scheduleIndex];
+    
+    // Calculate new end time based on original duration
+    const originalStart = new Date(`2000-01-01 ${originalSchedule.start_time.substring(0, 5)}`);
+    const originalEnd = new Date(`2000-01-01 ${originalSchedule.end_time.substring(0, 5)}`);
+    const durationMs = originalEnd - originalStart;
+    const newEnd = new Date(`2000-01-01 ${newStartTime}`);
+    newEnd.setMinutes(newEnd.getMinutes() + (durationMs / 60000));
+    const formattedEndTime = newEnd.toTimeString().substring(0, 5);
+
+    console.log("🔄 Moving schedule:", {
+        from: `${originalSchedule.day_of_week} ${originalSchedule.start_time}-${originalSchedule.end_time}`,
+        to: `${newDay} ${newStartTime}-${formattedEndTime}`,
+        duration: `${durationMs / 60000} minutes`
+    });
+
+    // Update schedule data
+    window.scheduleData[scheduleIndex].day_of_week = newDay;
+    window.scheduleData[scheduleIndex].start_time = newStartTime + ":00";
+    window.scheduleData[scheduleIndex].end_time = formattedEndTime + ":00";
+
+    // Update display
+    safeUpdateScheduleDisplay(window.scheduleData);
+    
+    // Save to server
+    saveScheduleMoveToServer(scheduleId, newDay, newStartTime, formattedEndTime);
+    
+    showNotification(`Schedule moved to ${newDay} ${newStartTime}-${formattedEndTime}`, "success");
+}
+
+// Save schedule move to server
+function saveScheduleMoveToServer(scheduleId, newDay, newStartTime, newEndTime) {
+    const formData = new URLSearchParams({
+        action: 'update_schedule_drag',
+        schedule_id: scheduleId,
+        day_of_week: newDay,
+        start_time: newStartTime + ":00",
+        end_time: newEndTime + ":00"
+    });
+
+    fetch("/chair/generate-schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (!result.success) {
+            console.error("Failed to save schedule move:", result.message);
+            showNotification("Warning: Schedule move not saved to server", "warning");
+        } else {
+            console.log("✅ Schedule move saved to server");
+        }
+    })
+    .catch(error => {
+        console.error("Error saving schedule move:", error);
+        showNotification("Error: Failed to save schedule move", "error");
+    });
+}
+
+async function checkDropZoneConflicts(dropZone) {
+  if (!draggedElement) return;
+
+  const scheduleId = draggedElement.dataset.scheduleId;
+  const newDay = dropZone.dataset.day;
+  const newStartTime = dropZone.dataset.startTime;
+  const newEndTime = dropZone.dataset.endTime;
+
+  const conflicts = await checkScheduleConflicts(
+    scheduleId,
+    newDay,
+    newStartTime,
+    newEndTime
+  );
+
+  if (conflicts.length > 0) {
+    dropZone.classList.add("conflict");
+    showDropZoneConflictTooltip(dropZone, conflicts);
+  } else {
+    dropZone.classList.remove("conflict");
+    removeConflictTooltip(dropZone);
+  }
+}
+
+// Initialize enhanced drag and drop
+function initializeDragAndDrop() {
+    const dropZones = document.querySelectorAll(".drop-zone");
+    const draggables = document.querySelectorAll(".schedule-card.draggable");
+
+    console.log("🔄 Initializing drag and drop:", {
+        dropZones: dropZones.length,
+        draggables: draggables.length
+    });
+
+    // Remove existing event listeners
+    dropZones.forEach((zone) => {
+        zone.removeEventListener("dragover", handleDragOver);
+        zone.removeEventListener("dragenter", handleDragEnter);
+        zone.removeEventListener("dragleave", handleDragLeave);
+        zone.removeEventListener("drop", handleDrop);
+    });
+
+    draggables.forEach((draggable) => {
+        draggable.removeEventListener("dragstart", handleDragStart);
+        draggable.removeEventListener("dragend", handleDragEnd);
+    });
+
+    // Add new event listeners
+    dropZones.forEach((zone) => {
+        zone.addEventListener("dragover", handleDragOver);
+        zone.addEventListener("dragenter", handleDragEnter);
+        zone.addEventListener("dragleave", handleDragLeave);
+        zone.addEventListener("drop", handleDrop);
+    });
+
+    draggables.forEach((draggable) => {
+        draggable.addEventListener("dragstart", handleDragStart);
+        draggable.addEventListener("dragend", handleDragEnd);
+    });
+}
 
 function validateFieldRealTime(fieldType, value, relatedFields = {}) {
   clearTimeout(validationTimeout);
@@ -108,48 +506,6 @@ function validateFieldRealTime(fieldType, value, relatedFields = {}) {
         );
       });
   }, DEBOUNCE_DELAY);
-}
-
-function handleDragStart(e) {
-  draggedElement = e.target.closest(".schedule-card");
-  if (!draggedElement) return;
-  e.dataTransfer.setData("text/plain", draggedElement.dataset.scheduleId);
-  e.dataTransfer.effectAllowed = "move";
-  draggedElement.classList.add("dragging");
-  setTimeout(() => {
-    draggedElement.style.opacity = "0.4";
-  }, 0);
-}
-
-function handleDragEnd(e) {
-  if (draggedElement) {
-    draggedElement.style.opacity = "1";
-    draggedElement.classList.remove("dragging");
-  }
-  draggedElement = null;
-  document.querySelectorAll(".drop-zone.drag-over").forEach((zone) => {
-    zone.classList.remove("drag-over");
-  });
-}
-
-function handleDragEnter(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.target.classList.add("drag-over");
-    e.preventDefault();
-  }
-}
-
-function handleDragOver(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }
-}
-
-function handleDragLeave(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.target.classList.remove("drag-over");
-  }
 }
 
 function calculateEndTime(startTime, durationMinutes = 60) {
@@ -1450,13 +1806,9 @@ function filterSchedulesListView() {
     .value.toLowerCase()
     .trim();
 
-  console.log("=== LIST VIEW FILTER DEBUG ===");
-  console.log("Filter values:", { yearLevel, section, room });
-
   const tableRows = document.querySelectorAll(
     "#list-view tbody tr.schedule-row"
   );
-  console.log("Total rows found:", tableRows.length);
 
   let visibleCount = 0;
 
@@ -1520,10 +1872,8 @@ function filterSchedulesListView() {
       tbody.appendChild(noResultsRow);
     }
   } else if (visibleCount > 0 && noResultsRow) {
-    console.log(`${visibleCount} rows visible - removing no results message`);
     noResultsRow.remove();
   }
-  console.log("=== END FILTER DEBUG ===");
 }
 
 function filterSchedulesManual() {

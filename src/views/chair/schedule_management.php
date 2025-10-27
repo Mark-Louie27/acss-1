@@ -83,6 +83,73 @@ if ($userDepartmentId) {
             </div>
         <?php endif; ?>
 
+        <!-- Add this after your notifications section -->
+        <?php
+        // Check if there are unassigned courses or incomplete schedules
+        $hasIncompleteSchedules = false;
+        $unassignedCourses = [];
+
+        if (isset($schedules) && is_array($schedules)) {
+            // Get all curriculum courses for current semester
+            $allCurriculumCourses = $jsData['curriculumCourses'] ?? [];
+            $scheduledCourseCodes = array_unique(array_column($schedules, 'course_code'));
+
+            // Find unscheduled courses
+            foreach ($allCurriculumCourses as $course) {
+                if (!in_array($course['course_code'], $scheduledCourseCodes)) {
+                    $unassignedCourses[] = $course;
+                }
+            }
+
+            $hasIncompleteSchedules = !empty($unassignedCourses);
+        }
+        ?>
+
+        <!-- Incomplete Schedule Warning Banner -->
+        <?php if ($hasIncompleteSchedules && $activeTab === 'manual'): ?>
+            <div id="incomplete-schedule-banner" class="mb-6 flex items-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-yellow-500 text-xl mr-3"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm font-semibold text-yellow-800">Incomplete Schedule Detected</h3>
+                    <p class="text-sm text-yellow-700 mt-1">
+                        <?php echo count($unassignedCourses); ?> course(s) could not be scheduled automatically.
+                        You may need to manually schedule these courses.
+                    </p>
+                    <div class="mt-2">
+                        <button onclick="toggleUnassignedCourses()" class="text-sm text-yellow-600 hover:text-yellow-800 font-medium flex items-center">
+                            <span>View Unscheduled Courses</span>
+                            <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                    </div>
+                    <div id="unassigned-courses-list" class="hidden mt-3 p-3 bg-yellow-100 rounded-lg">
+                        <h4 class="text-sm font-semibold text-yellow-800 mb-2">Unscheduled Courses:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            <?php foreach ($unassignedCourses as $course): ?>
+                                <div class="text-sm text-yellow-700 p-2 bg-white rounded border border-yellow-200">
+                                    <div class="font-medium"><?php echo htmlspecialchars($course['course_code']); ?></div>
+                                    <div class="text-xs"><?php echo htmlspecialchars($course['course_name']); ?></div>
+                                    <div class="text-xs text-yellow-600 mt-1">
+                                        Year: <?php echo htmlspecialchars($course['curriculum_year']); ?> •
+                                        Units: <?php echo htmlspecialchars($course['units']); ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="mt-3 flex space-x-2">
+                            <button onclick="tryRegenerateIncomplete()" class="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded transition-colors">
+                                <i class="fas fa-sync-alt mr-1"></i>Try Regenerate
+                            </button>
+                            <button onclick="hideIncompleteWarning()" class="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded transition-colors">
+                                <i class="fas fa-times mr-1"></i>Dismiss
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Navigation Tabs -->
         <div class="mb-8">
             <nav class="flex space-x-1 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
@@ -463,6 +530,11 @@ if ($userDepartmentId) {
                                                                 data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
                                                                 data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
                                                                 data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>"
+                                                                data-faculty-name="<?php echo htmlspecialchars($schedule['faculty_name']); ?>"
+                                                                data-course-code="<?php echo htmlspecialchars($schedule['course_code']); ?>"
+                                                                data-original-day="<?php echo htmlspecialchars($schedule['day_of_week']); ?>"
+                                                                data-original-start="<?php echo substr($schedule['start_time'], 0, 5); ?>"
+                                                                data-original-end="<?php echo substr($schedule['end_time'], 0, 5); ?>">
                                                                 style="<?php echo !$isStartCell ? 'opacity: 0.6;' : ''; ?>">
 
                                                                 <?php if ($isStartCell): ?>
@@ -473,21 +545,14 @@ if ($userDepartmentId) {
                                                                         <div class="flex space-x-1 flex-shrink-0 ml-1">
                                                                             <button onclick="editSchedule('<?php echo $schedule['schedule_id']; ?>')" class="text-yellow-600 hover:text-yellow-700 no-print">
                                                                                 <i class="fas fa-edit text-xs"></i>
-                                                                                <!-- Temporary debug in your PHP template -->
-                                                                                <?php
-                                                                                // Debug the schedule data
-                                                                                error_log("Schedule data for delete button: " . print_r($schedule, true));
-                                                                                error_log("Schedule ID: " . ($schedule['schedule_id'] ?? 'NOT SET'));
-                                                                                ?>
-
                                                                                 <button onclick="console.log('Delete clicked - Schedule ID:', <?php echo $schedule['schedule_id'] ?? 'null'; ?>); openDeleteSingleModal(
-    <?php echo $schedule['schedule_id'] ?? 'null'; ?>, 
-    '<?php echo htmlspecialchars($schedule['course_code'] ?? ''); ?>', 
-    '<?php echo htmlspecialchars($schedule['section_name'] ?? ''); ?>', 
-    '<?php echo htmlspecialchars($schedule['day_of_week'] ?? ''); ?>', 
-    '<?php echo isset($schedule['start_time']) ? date('g:i A', strtotime($schedule['start_time'])) : ''; ?>', 
-    '<?php echo isset($schedule['end_time']) ? date('g:i A', strtotime($schedule['end_time'])) : ''; ?>'
-)" class="text-red-600 hover:text-red-700 no-print">
+                                                                                        <?php echo $schedule['schedule_id'] ?? 'null'; ?>, 
+                                                                                        '<?php echo htmlspecialchars($schedule['course_code'] ?? ''); ?>', 
+                                                                                        '<?php echo htmlspecialchars($schedule['section_name'] ?? ''); ?>', 
+                                                                                        '<?php echo htmlspecialchars($schedule['day_of_week'] ?? ''); ?>', 
+                                                                                        '<?php echo isset($schedule['start_time']) ? date('g:i A', strtotime($schedule['start_time'])) : ''; ?>', 
+                                                                                        '<?php echo isset($schedule['end_time']) ? date('g:i A', strtotime($schedule['end_time'])) : ''; ?>'
+                                                                                    )" class="text-red-600 hover:text-red-700 no-print">
                                                                                     <i class="fas fa-trash text-xs"></i>
                                                                                 </button>
                                                                         </div>
@@ -2618,6 +2683,103 @@ if ($userDepartmentId) {
                     semester_id: form.querySelector('[name="semester_id"]').value
                 });
 
+                // Add timeout to handle long-running requests
+                const timeoutDuration = 120000; // 2 minutes
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Request timeout')), timeoutDuration);
+                });
+
+                const fetchPromise = fetch('/chair/generate-schedules', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData
+                });
+
+                Promise.race([fetchPromise, timeoutPromise])
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Received data:', data);
+
+                        // Hide loading overlay ONLY after processing is complete
+                        loadingOverlay.classList.add('hidden');
+
+                        if (!data.success) {
+                            showNotification(data.message || 'Error generating schedules', 'error');
+                            return;
+                        }
+
+                        // Update schedule data ONLY if successful
+                        window.scheduleData = data.schedules || [];
+
+                        // Update display
+                        safeUpdateScheduleDisplay(window.scheduleData);
+
+                        // Show report modal
+                        showReportModal(data);
+
+                    })
+                    .catch(error => {
+                        // Hide loading overlay on error
+                        loadingOverlay.classList.add('hidden');
+                        console.error('Generate error:', error);
+                        showNotification('Error generating schedules: ' + error.message, 'error');
+                    });
+            });
+
+            // Toggle unassigned courses list
+            function toggleUnassignedCourses() {
+                const list = document.getElementById('unassigned-courses-list');
+                const button = event.target.closest('button');
+                const icon = button.querySelector('i');
+
+                if (list.classList.contains('hidden')) {
+                    list.classList.remove('hidden');
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-up');
+                } else {
+                    list.classList.add('hidden');
+                    icon.classList.remove('fa-chevron-up');
+                    icon.classList.add('fa-chevron-down');
+                }
+            }
+
+            // Hide the incomplete schedule warning
+            function hideIncompleteWarning() {
+                const banner = document.getElementById('incomplete-schedule-banner');
+                if (banner) {
+                    banner.style.display = 'none';
+                }
+            }
+
+            // Try to regenerate incomplete schedules
+            function tryRegenerateIncomplete() {
+                const form = document.getElementById('generate-form');
+                const curriculumId = form.querySelector('#curriculum_id').value;
+
+                if (!curriculumId) {
+                    showNotification('Please select a curriculum first.', 'error');
+                    return;
+                }
+
+                // Show loading
+                const loadingOverlay = document.getElementById('loading-overlay');
+                loadingOverlay.classList.remove('hidden');
+
+                // Add force_regenerate flag
+                const formData = new URLSearchParams({
+                    action: 'generate_schedule',
+                    curriculum_id: curriculumId,
+                    semester_id: form.querySelector('[name="semester_id"]').value,
+                    force_regenerate: 'true' // Add this flag for backend
+                });
+
                 fetch('/chair/generate-schedules', {
                         method: 'POST',
                         headers: {
@@ -2625,40 +2787,119 @@ if ($userDepartmentId) {
                         },
                         body: formData
                     })
-                    .then(response => {
-                        // Check if response is ok
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
+                    .then(response => response.json())
                     .then(data => {
-                        console.log('Received data:', data); // Debug log
-
-                        // Hide loading overlay
                         loadingOverlay.classList.add('hidden');
 
-                        if (!data.success) {
-                            showNotification(data.message || 'Error generating schedules', 'error');
-                            return; // Stop here if generation failed
+                        if (data.success) {
+                            window.scheduleData = data.schedules || [];
+                            safeUpdateScheduleDisplay(window.scheduleData);
+
+                            // Check if still incomplete
+                            if (data.unassignedCourses && data.unassignedCourses.length > 0) {
+                                showNotification(
+                                    `Regeneration completed but ${data.unassignedCourses.length} courses still need manual scheduling.`,
+                                    'warning'
+                                );
+                            } else {
+                                showNotification('All courses scheduled successfully!', 'success');
+                                hideIncompleteWarning();
+                            }
+                        } else {
+                            showNotification(data.message || 'Regeneration failed', 'error');
                         }
-
-                        // Update schedule data ONLY if successful
-                        window.scheduleData = data.schedules || [];
-
-                        // Update display first
-                        safeUpdateScheduleDisplay(window.scheduleData);
-
-                        // THEN show modal after display is updated
-                        showReportModal(data);
-
                     })
                     .catch(error => {
                         loadingOverlay.classList.add('hidden');
-                        console.error('Generate error:', error);
-                        showNotification('Error generating schedules: ' + error.message, 'error');
+                        console.error('Regenerate error:', error);
+                        showNotification('Error during regeneration: ' + error.message, 'error');
                     });
-            });
+            }
+
+            // Enhanced report modal to show incomplete schedules
+            function showReportModal(data) {
+                const reportModal = document.getElementById('report-modal');
+                const reportContent = document.getElementById('report-content');
+                const reportTitle = document.getElementById('report-title');
+
+                let statusText, statusClass, titleText;
+
+                // Determine status based on results
+                if (!data.schedules || data.schedules.length === 0) {
+                    statusText = 'No schedules were created. Please check if there are available sections, courses, faculty, and rooms.';
+                    statusClass = 'text-red-600 bg-red-50 border-red-200';
+                    titleText = 'Schedule Generation Failed';
+                } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
+                    statusText = `Partial success. ${data.unassignedCourses.length} courses could not be scheduled and need manual attention.`;
+                    statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
+                    titleText = 'Schedule Generation Partially Complete';
+
+                    // Show persistent warning on manual tab
+                    showPersistentIncompleteWarning(data.unassignedCourses);
+                } else {
+                    statusText = 'All schedules generated successfully!';
+                    statusClass = 'text-green-600 bg-green-50 border-green-200';
+                    titleText = 'Schedule Generation Complete';
+                }
+
+                // Build report content
+                reportContent.innerHTML = `
+                    <div class="p-4 ${statusClass} border rounded-lg mb-4">
+                        <p class="font-semibold">${statusText}</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
+                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalCourses || 0}</div>
+                            <div class="text-gray-600 mt-1">Total Courses</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
+                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalSections || 0}</div>
+                            <div class="text-gray-600 mt-1">Sections</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
+                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.successRate || '0%'}</div>
+                            <div class="text-gray-600 mt-1">Success Rate</div>
+                        </div>
+                    </div>
+                    ${data.unassignedCourses && data.unassignedCourses.length > 0 ? `
+                        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="text-sm font-medium text-yellow-800 mb-2">Unscheduled Courses (${data.unassignedCourses.length}):</p>
+                            <div class="max-h-40 overflow-y-auto">
+                                <ul class="text-sm text-yellow-700 list-disc list-inside">
+                                    ${data.unassignedCourses.map(c => `<li class="py-1">${c.course_code} - ${c.course_name || 'Unknown'}</li>`).join('')}
+                                </ul>
+                            </div>
+                            <p class="text-xs text-yellow-600 mt-2">
+                                <i class="fas fa-lightbulb mr-1"></i>
+                                These courses need manual scheduling. Switch to the Manual Edit tab to schedule them.
+                            </p>
+                        </div>
+                    ` : ''}
+                `;
+
+                reportTitle.textContent = titleText;
+                reportTitle.className = `text-lg font-semibold ${statusClass.split(' ')[0]}`;
+
+                // Show the modal
+                reportModal.classList.remove('hidden');
+                reportModal.classList.add('flex');
+            }
+
+            // Show persistent warning on manual tab
+            function showPersistentIncompleteWarning(unassignedCourses) {
+                // This will be displayed when user switches to manual tab
+                sessionStorage.setItem('incompleteSchedules', JSON.stringify(unassignedCourses));
+            }
+
+            // Check for incomplete schedules when switching to manual tab
+            function checkForIncompleteSchedules() {
+                const incomplete = sessionStorage.getItem('incompleteSchedules');
+                if (incomplete) {
+                    const unassignedCourses = JSON.parse(incomplete);
+                    // You can show a notification or update the UI
+                    console.log('Incomplete schedules detected:', unassignedCourses);
+                }
+                }
 
             // Helper function to get consistent color for a schedule
             function getScheduleColor(schedule) {

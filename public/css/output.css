@@ -404,6 +404,9 @@
   .bottom-0 {
     bottom: calc(var(--spacing) * 0);
   }
+  .bottom-full {
+    bottom: 100%;
+  }
   .left-0 {
     left: calc(var(--spacing) * 0);
   }
@@ -694,9 +697,6 @@
   }
   .min-h-\[40vh\] {
     min-height: 40vh;
-  }
-  .min-h-\[100px\] {
-    min-height: 100px;
   }
   .min-h-full {
     min-height: 100%;
@@ -1319,6 +1319,9 @@
   }
   .border-red-200 {
     border-color: var(--color-red-200);
+  }
+  .border-red-300 {
+    border-color: var(--color-red-300);
   }
   .border-red-400 {
     border-color: var(--color-red-400);

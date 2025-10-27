@@ -483,12 +483,77 @@ body.modal-open {
   justify-content: space-between;
 }
 
-/* Ensure drop zones can accommodate multiple schedules */
-.drop-zone {
-  min-height: 80px;
-  display: flex;
-  flex-direction: column;
+/* Drag and Drop Styles */
+.schedule-card.dragging {
+    transform: rotate(5deg);
+    z-index: 1000;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
 }
+
+.drop-zone.drag-over {
+    background-color: #f0f9ff;
+    border: 2px dashed #3b82f6;
+}
+
+.drop-zone.conflict {
+    background-color: #fef2f2;
+    border: 2px dashed #ef4444;
+    cursor: not-allowed;
+}
+
+.drop-zone.conflict::after {
+    content: "⚠️ Conflict";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #ef4444;
+    color: white;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    z-index: 10;
+}
+
+.conflict-tooltip {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 250px;
+}
+
+/* Smooth transitions */
+.schedule-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.drop-zone {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Visual feedback for drag operations */
+.drag-preview {
+    opacity: 0.8;
+    transform: scale(0.95);
+}
+
+.drop-zone.conflict-high {
+    background-color: #fef2f2 !important;
+    border: 2px dashed #dc2626 !important;
+}
+
+.drop-zone.conflict-medium {
+    background-color: #fff7ed !important;
+    border: 2px dashed #ea580c !important;
+}
+
+.drop-zone.conflict-low {
+    background-color: #fefce8 !important;
+    border: 2px dashed #ca8a04 !important;
+}
+
+/* Conflict type indicators */
+.conflict-time { background-color: #fef2f2; }
+.conflict-room { background-color: #fff7ed; }
+.conflict-faculty { background-color: #f0f9ff; }
+.conflict-section { background-color: #faf5ff; }
 
 /* Better scrolling for many schedules */
 .schedules-container {
@@ -773,4 +838,38 @@ select.bg-red-50 {
 
 .bg-gray-50:hover {
     background-color: #f9fafb;
+}
+
+/* Add to your CSS */
+#unassigned-courses-list {
+    transition: all 0.3s ease-in-out;
+}
+
+.conflict-warning {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Loading overlay improvements */
+#loading-overlay {
+    z-index: 9999;
+}
+
+.pulsing-loader {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #f59e0b;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

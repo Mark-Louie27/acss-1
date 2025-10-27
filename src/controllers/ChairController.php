@@ -1170,6 +1170,195 @@ class ChairController extends BaseController
         exit;
     }
 
+    public function updateScheduleDrag()
+    {
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+            exit;
+        }
+
+        $scheduleId = $_POST['schedule_id'] ?? null;
+        $dayOfWeek = $_POST['day_of_week'] ?? null;
+        $startTime = $_POST['start_time'] ?? null;
+        $endTime = $_POST['end_time'] ?? null;
+
+        // Validate inputs
+        if (!$scheduleId || !$dayOfWeek || !$startTime || !$endTime) {
+            echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+            exit;
+        }
+
+        try {
+            // Get the full schedule data for conflict checking
+            $scheduleQuery = "SELECT s.*, sec.section_id, f.faculty_id, r.room_id 
+                         FROM schedules s
+                         LEFT JOIN sections sec ON s.section_id = sec.section_id
+                         LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+                         LEFT JOIN classrooms r ON s.room_id = r.room_id
+                         WHERE s.schedule_id = :schedule_id";
+
+            $stmt = $this->db->prepare($scheduleQuery);
+            $stmt->execute([':schedule_id' => $scheduleId]);
+            $schedule = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$schedule) {
+                echo json_encode(['success' => false, 'message' => 'Schedule not found']);
+                exit;
+            }
+
+            $chairId = $_SESSION['user_id'] ?? null;
+            $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
+            $semesterId = $this->getCurrentSemester()['semester_id'];
+
+            // Use your existing conflict check with all parameters
+            $conflicts = $this->checkScheduleConflicts(
+                $schedule['section_id'],
+                $schedule['faculty_id'],
+                $schedule['room_id'],
+                $dayOfWeek,
+                $startTime,
+                $endTime,
+                $scheduleId, // exclude current schedule
+                $semesterId
+            );
+
+            if (!empty($conflicts)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Schedule conflicts detected',
+                    'conflicts' => $conflicts
+                ]);
+                exit;
+            }
+
+            // Update the schedule
+            $updateQuery = "UPDATE schedules 
+                       SET day_of_week = :day_of_week, 
+                           start_time = :start_time, 
+                           end_time = :end_time,
+                           updated_at = NOW()
+                       WHERE schedule_id = :schedule_id";
+
+            $stmt = $this->db->prepare($updateQuery);
+            $success = $stmt->execute([
+                ':day_of_week' => $dayOfWeek,
+                ':start_time' => $startTime,
+                ':end_time' => $endTime,
+                ':schedule_id' => $scheduleId
+            ]);
+
+            if ($success) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Schedule updated successfully'
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Failed to update schedule'
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log("updateScheduleDrag error: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+        exit;
+    }
+
+    public function checkDragConflicts()
+    {
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+            exit;
+        }
+
+        $scheduleId = $_POST['schedule_id'] ?? null;
+        $sectionId = $_POST['section_id'] ?? null;
+        $facultyId = $_POST['faculty_id'] ?? null;
+        $roomId = $_POST['room_id'] ?? null;
+        $dayOfWeek = $_POST['day_of_week'] ?? null;
+        $startTime = $_POST['start_time'] ?? null;
+        $endTime = $_POST['end_time'] ?? null;
+        $semesterId = $_POST['semester_id'] ?? null;
+
+        // Validate inputs
+        if (!$scheduleId || !$sectionId || !$facultyId || !$dayOfWeek || !$startTime || !$endTime || !$semesterId) {
+            echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+            exit;
+        }
+
+        try {
+            // Use your existing checkScheduleConflicts function
+            $conflicts = $this->checkScheduleConflicts(
+                $sectionId,
+                $facultyId,
+                $roomId,
+                $dayOfWeek,
+                $startTime,
+                $endTime,
+                $scheduleId, // exclude current schedule
+                $semesterId
+            );
+
+            // Format conflicts for frontend
+            $formattedConflicts = [];
+            foreach ($conflicts as $conflict) {
+                $formattedConflicts[] = [
+                    'type' => $this->getConflictTypeFromMessage($conflict),
+                    'message' => $conflict,
+                    'severity' => $this->getConflictSeverity($conflict)
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'conflicts' => $formattedConflicts,
+                'debug' => [
+                    'parameters' => [
+                        'sectionId' => $sectionId,
+                        'facultyId' => $facultyId,
+                        'roomId' => $roomId,
+                        'dayOfWeek' => $dayOfWeek,
+                        'startTime' => $startTime,
+                        'endTime' => $endTime,
+                        'excludeScheduleId' => $scheduleId,
+                        'semesterId' => $semesterId
+                    ]
+                ]
+            ]);
+        } catch (Exception $e) {
+            error_log("checkDragConflicts error: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'message' => 'Error checking conflicts: ' . $e->getMessage()
+            ]);
+        }
+        exit;
+    }
+
+    private function getConflictTypeFromMessage($message)
+    {
+        if (strpos($message, 'section') !== false) return 'section';
+        if (strpos($message, 'faculty') !== false) return 'faculty';
+        if (strpos($message, 'room') !== false) return 'room';
+        return 'time';
+    }
+
+    private function getConflictSeverity($message)
+    {
+        if (strpos($message, 'section') !== false) return 'high';
+        if (strpos($message, 'faculty') !== false) return 'medium';
+        if (strpos($message, 'room') !== false) return 'low';
+        return 'medium';
+    }
+
     private function getChairCollege($userId)
     {
         try {
@@ -2007,6 +2196,14 @@ class ChairController extends BaseController
                     ]);
                 }
                 break;
+
+            case 'update_schedule_drag':
+                $this->updateScheduleDrag();
+                return;
+
+            case 'check_drag_conflicts':
+                $this->checkDragConflicts();
+                return;
 
             default:
                 error_log("generateSchedulesAjax: Invalid action: $action");
