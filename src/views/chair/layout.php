@@ -632,10 +632,9 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                     </div>
                 <?php endif; ?>
 
-                <!-- Role Switcher - Only show if user has multiple roles -->
                 <?php if (count($availableRoles) > 1): ?>
                     <div class="relative pl-4 border-l border-gray-300 group">
-                        <button class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-yellow-500 hover:bg-gray-100 rounded-lg transition-colors">
+                        <button class="role-switcher-btn flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-yellow-500 hover:bg-gray-100 rounded-lg transition-colors">
                             <i class="fas fa-exchange-alt"></i>
                             <span class="hidden sm:inline text-xs">
                                 <?php echo ucfirst($currentRole); ?>
@@ -643,8 +642,7 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                             <i class="fas fa-chevron-down text-xs transition-transform group-hover:rotate-180"></i>
                         </button>
 
-                        <!-- Role Dropdown Menu -->
-                        <div class="absolute top-full right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-max opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 slide-in-right">
+                        <div id="role-switcher-menu" class="absolute top-full right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-max opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 slide-in-right">
                             <?php foreach ($availableRoles as $role): ?>
                                 <?php $roleLower = strtolower($role); ?>
                                 <button type="button" class="role-switch-item w-full text-left px-4 py-2 hover:bg-yellow-50 transition-colors flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg <?php echo $roleLower === strtolower($currentRole) ? 'bg-yellow-100 text-yellow-700 font-semibold' : 'text-gray-700'; ?>" data-role="<?php echo $roleLower; ?>">
@@ -1113,94 +1111,122 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            const roleSwitcherBtn = document.getElementById('role-switcher-btn');
+            const roleSwitcherBtn = document.querySelector('.role-switcher-btn');
             const roleSwitcherMenu = document.getElementById('role-switcher-menu');
             const roleSwitchItems = document.querySelectorAll('.role-switch-item');
 
-            if (!roleSwitcherBtn) return;
+            if (!roleSwitcherBtn) {
+                console.error('Role switcher button not found! Check if $availableRoles has multiple roles or if the button is rendered.');
+                return;
+            }
 
-            // Toggle menu
-            roleSwitcherBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                roleSwitcherMenu.classList.toggle('hidden');
-            });
+            console.log('Role switcher button found:', roleSwitcherBtn);
 
-            // Handle role switching
-            roleSwitchItems.forEach(item => {
-                item.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    const role = item.dataset.role;
-                    const currentRole = '<?php echo strtolower($currentRole); ?>';
+            // Toggle menu only if it exists
+            if (roleSwitcherMenu) {
+                roleSwitcherBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    roleSwitcherMenu.classList.toggle('hidden');
+                    console.log('Toggled role switcher menu');
+                });
 
-                    console.log('Switching to role:', role);
-                    console.log('Current role:', currentRole);
-
-                    if (role === currentRole) {
+                // Close menu on outside click
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('[id^="role-switcher"]') && roleSwitcherBtn) {
                         roleSwitcherMenu.classList.add('hidden');
-                        return;
-                    }
-
-                    // Disable button to prevent double-clicks
-                    item.disabled = true;
-                    item.style.opacity = '0.5';
-
-                    try {
-                        const formData = new FormData();
-                        formData.append('role', role);
-
-                        const response = await fetch('/switch-role', {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        console.log('Response status:', response.status);
-                        const data = await response.json();
-                        console.log('Response data:', data);
-
-                        if (data.success) {
-                            // Show toast notification
-                            const toastContainer = document.getElementById('toast-container');
-                            if (toastContainer) {
-                                const toast = document.createElement('div');
-                                toast.className = 'p-4 rounded-lg shadow-lg text-white bg-green-500';
-                                toast.textContent = data.message;
-                                toastContainer.appendChild(toast);
-
-                                setTimeout(() => toast.remove(), 3000);
-                            }
-
-                            // Redirect after brief delay
-                            setTimeout(() => {
-                                window.location.href = data.redirect;
-                            }, 500);
-                        } else {
-                            console.error('Switch failed:', data);
-                            alert(data.error || 'Failed to switch role');
-                            item.disabled = false;
-                            item.style.opacity = '1';
-                        }
-                    } catch (error) {
-                        console.error('Role switch error:', error);
-                        alert('An error occurred while switching roles');
-                        item.disabled = false;
-                        item.style.opacity = '1';
                     }
                 });
-            });
 
-            // Close menu on outside click
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('[id^="role-switcher"]') && roleSwitcherBtn) {
-                    roleSwitcherMenu.classList.add('hidden');
-                }
-            });
+                // Close on Escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && roleSwitcherMenu) {
+                        roleSwitcherMenu.classList.add('hidden');
+                    }
+                });
+            } else {
+                console.warn('Role switcher menu not found! Role switching may be disabled.');
+            }
 
-            // Close on Escape key
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && roleSwitcherMenu) {
-                    roleSwitcherMenu.classList.add('hidden');
-                }
-            });
+            // Handle role switching
+            if (roleSwitchItems.length > 0) {
+                roleSwitchItems.forEach(item => {
+                    item.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        const role = item.dataset.role;
+                        const currentRole = '<?php echo strtolower($currentRole); ?>';
+
+                        console.log('Attempting to switch from:', currentRole, 'to:', role);
+
+                        if (role === currentRole) {
+                            console.log('Role already active, no switch needed');
+                            if (roleSwitcherMenu) roleSwitcherMenu.classList.add('hidden');
+                            return;
+                        }
+
+                        item.disabled = true;
+                        item.style.opacity = '0.5';
+
+                        try {
+                            const formData = new FormData();
+                            formData.append('role', role);
+
+                            console.log('Sending request to /switch-role with role:', role);
+                            const response = await fetch('/switch-role', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            console.log('Response status:', response.status);
+                            const responseText = await response.text();
+                            console.log('Raw response:', responseText);
+
+                            let data;
+                            try {
+                                data = JSON.parse(responseText);
+                            } catch (parseError) {
+                                console.error('Failed to parse JSON. Raw response:', responseText.substring(0, 200));
+                                throw new Error('Invalid JSON response from /switch-role');
+                            }
+                            console.log('Parsed response data:', data);
+
+                            if (data.success) {
+                                showToast(data.message || 'Role switched successfully!', 'success');
+                                console.log('Redirecting to:', data.redirect);
+                                setTimeout(() => {
+                                    window.location.href = data.redirect || '/';
+                                }, 500);
+                            } else {
+                                console.error('Switch failed:', data.error || 'No error message');
+                                showToast(data.error || 'Failed to switch role', 'error');
+                            }
+                        } catch (error) {
+                            console.error('Role switch error:', error.message);
+                            showToast('An error occurred while switching roles: ' + error.message, 'error');
+                        } finally {
+                            item.disabled = false;
+                            item.style.opacity = '1';
+                            if (roleSwitcherMenu) roleSwitcherMenu.classList.add('hidden');
+                        }
+                    });
+                });
+            } else {
+                console.warn('No role switch items found!');
+            }
+
+            function showToast(message, type = 'info') {
+                const toastContainer = document.getElementById('toast-container');
+                if (!toastContainer) return;
+
+                const toast = document.createElement('div');
+                toast.className = `p-4 rounded-lg shadow-lg text-white ${
+            type === 'success' ? 'bg-green-500' :
+            type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+        }`;
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+
+                setTimeout(() => toast.remove(), 3000);
+            }
         });
     </script>
 </body>
