@@ -111,6 +111,7 @@ ob_start();
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header Section -->
         <div class="mb-8">
+            <!-- Update the header section -->
             <div class="flex justify-between items-center">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-yellow-600 to-yellow-400 slide-in-left">
@@ -118,6 +119,12 @@ ob_start();
                     </h1>
                     <p class="mt-2 text-gray-600 slide-in-right">Manage system users, roles, and permissions</p>
                 </div>
+                <button onclick="openAddUserModal()" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Add User
+                </button>
             </div>
         </div>
 
@@ -287,6 +294,17 @@ ob_start();
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex items-center space-x-2">
+                                        <button onclick="viewUser(<?php echo $user['user_id']; ?>)" class="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors" title="View Details">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            </svg>
+                                        </button>
+                                        <button onclick="resetPassword(<?php echo $user['user_id']; ?>)" class="text-purple-600 hover:text-purple-900 p-1 rounded transition-colors" title="Reset Password">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                            </svg>
+                                        </button>
                                         <button onclick="editUser(<?php echo $user['user_id']; ?>)" class="text-green-600 hover:text-green-900 p-1 rounded transition-colors">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -387,6 +405,168 @@ ob_start();
             </div>
             <div id="userDetailsContent" class="space-y-4">
                 <!-- Populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="relative mx-auto p-6 border w-full max-w-4xl shadow-lg rounded-xl bg-white max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-gray-900">Add New User</h3>
+                <button onclick="closeAddUserModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="addUserForm" class="space-y-6">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+
+                <!-- Basic Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Employee ID *</label>
+                        <input type="text" name="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+                        <input type="text" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                        <input type="email" name="email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                        <input type="tel" name="phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                </div>
+
+                <!-- Personal Information -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                        <select name="title" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <option value="">Select Title</option>
+                            <option value="Mr.">Mr.</option>
+                            <option value="Mrs.">Mrs.</option>
+                            <option value="Ms.">Ms.</option>
+                            <option value="Dr.">Dr.</option>
+                            <option value="Prof.">Prof.</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                        <input type="text" name="first_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Middle Name</label>
+                        <input type="text" name="middle_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+                        <input type="text" name="last_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                </div>
+
+                <!-- Role and Position -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                        <select name="role_id" id="roleSelect" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="handleRoleChange(this.value)">
+                            <option value="">Select Role</option>
+                            <?php foreach ($roles as $role): ?>
+                                <option value="<?php echo $role['role_id']; ?>"><?php echo htmlspecialchars($role['role_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div id="academicRankField" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Academic Rank</label>
+                        <select name="academic_rank" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <option value="">Select Rank</option>
+                            <option value="Instructor">Instructor</option>
+                            <option value="Assistant Professor">Assistant Professor</option>
+                            <option value="Associate Professor">Associate Professor</option>
+                            <option value="Professor">Professor</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- College and Department -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">College</label>
+                        <select name="college_id" id="collegeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="updateDepartments(this.value)">
+                            <option value="">Select College</option>
+                            <?php foreach ($colleges as $college): ?>
+                                <option value="<?php echo $college['college_id']; ?>"><?php echo htmlspecialchars($college['college_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                        <select name="department_id" id="departmentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <option value="">Select Department</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Program Chair Specific -->
+                <div id="programField" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Program</label>
+                    <select name="program_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        <option value="">Select Program</option>
+                        <?php foreach ($programs as $program): ?>
+                            <option value="<?php echo $program['program_id']; ?>"><?php echo htmlspecialchars($program['program_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Additional Options -->
+                <div class="flex items-center">
+                    <input type="checkbox" name="send_welcome_email" id="sendWelcomeEmail" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
+                    <label for="sendWelcomeEmail" class="ml-2 block text-sm text-gray-900">Send welcome email with login instructions</label>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeAddUserModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors">
+                        Add User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Temporary Password Modal -->
+    <div id="tempPasswordModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="relative mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Temporary Password</h3>
+                <p class="text-sm text-gray-600 mb-4">This password will only be shown once. Please copy it now.</p>
+
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <p class="text-sm font-medium text-gray-700 mb-1" id="tempUsername"></p>
+                    <p class="text-lg font-bold text-red-600" id="tempPassword"></p>
+                </div>
+
+                <p class="text-xs text-gray-500 mb-4">User must change this password on first login.</p>
+
+                <button onclick="closeTempPasswordModal()" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors w-full">
+                    I've Copied the Password
+                </button>
             </div>
         </div>
     </div>
@@ -524,30 +704,153 @@ ob_start();
             }
         }
 
-        function showUserDetails(row) {
-            currentUserId = row.getAttribute('data-user-id');
-            const cells = row.getElementsByTagName('td');
-            const user = {
-                username: cells[0].querySelector('.text-gray-500').textContent.replace('@', ''),
-                email: cells[1].textContent,
-                first_name: cells[0].querySelector('.text-gray-900').textContent.split(' ')[0],
-                last_name: cells[0].querySelector('.text-gray-900').textContent.split(' ')[1],
-                role_name: cells[2].textContent,
-                college_name: cells[3].textContent,
-                department_name: cells[4].textContent,
-                is_active: cells[5].textContent === 'Inactive'
-            };
+        // Add User Modal Functions
+        function openAddUserModal() {
+            document.getElementById('addUserModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAddUserModal() {
+            document.getElementById('addUserModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            document.getElementById('addUserForm').reset();
+            hideRoleSpecificFields();
+        }
+
+        function handleRoleChange(roleId) {
+            hideRoleSpecificFields();
+
+            switch (roleId) {
+                case '2': // Faculty
+                    document.getElementById('academicRankField').classList.remove('hidden');
+                    break;
+                case '3': // Program Chair
+                    document.getElementById('programField').classList.remove('hidden');
+                    break;
+                case '4': // Department Chair
+                    // Show department selection (already visible)
+                    break;
+                case '5': // Dean
+                    // Show college selection (already visible)
+                    break;
+            }
+        }
+
+        function hideRoleSpecificFields() {
+            document.getElementById('academicRankField').classList.add('hidden');
+            document.getElementById('programField').classList.add('hidden');
+        }
+
+        function updateDepartments(collegeId) {
+            const departmentSelect = document.getElementById('departmentSelect');
+            departmentSelect.innerHTML = '<option value="">Select Department</option>';
+
+            if (!collegeId) return;
+
+            // You might want to fetch departments via AJAX for dynamic loading
+            // For now, we'll rely on the page load data
+        }
+
+        // Add User Form Submission
+        document.getElementById('addUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            formData.append('action', 'add');
+
+            fetch('/admin/users?action=add', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        closeAddUserModal();
+                        showTempPassword(data.temporary_password, formData.get('username'));
+                        setTimeout(() => {
+                            location.reload();
+                        }, 3000);
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while adding the user');
+                });
+        });
+
+        // Temporary Password Display
+        function showTempPassword(password, username) {
+            document.getElementById('tempPassword').textContent = password;
+            document.getElementById('tempUsername').textContent = 'Username: ' + username;
+            document.getElementById('tempPasswordModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeTempPasswordModal() {
+            document.getElementById('tempPasswordModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Reset Password Function
+        function resetPassword(userId) {
+            if (confirm('Are you sure you want to reset this user\'s password? They will receive a new temporary password.')) {
+                fetch(`/admin/users?action=reset_password&user_id=${userId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showTempPassword(data.temporary_password, data.username);
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while resetting the password');
+                    });
+            }
+        }
+
+        // View User Details
+        function viewUser(userId) {
+            fetch(`/admin/users?action=view&user_id=${userId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showUserDetails(data.user);
+                    } else {
+                        alert('Error loading user details');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while loading user details');
+                });
+        }
+
+        function showUserDetails(user) {
             const content = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-gray-700">Username</label><p class="mt-1 text-gray-900">${user.username}</p></div>
-                    <div><label class="block text-sm font-medium text-gray-700">Email</label><p class="mt-1 text-gray-900">${user.email}</p></div>
-                    <div><label class="block text-sm font-medium text-gray-700">Full Name</label><p class="mt-1 text-gray-900">${user.first_name} ${user.last_name}</p></div>
-                    <div><label class="block text-sm font-medium text-gray-700">Role</label><p class="mt-1 text-gray-900">${user.role_name}</p></div>
-                    <div><label class="block text-sm font-medium text-gray-700">College</label><p class="mt-1 text-gray-900">${user.college_name}</p></div>
-                    <div><label class="block text-sm font-medium text-gray-700">Department</label><p class="mt-1 text-gray-900">${user.department_name}</p></div>
-                    <div><label class="block text-sm font-medium text-gray-700">Status</label><p class="mt-1 text-gray-900">${user.is_active ? 'Inactive' : 'Active'}</p></div>
-                </div>
-            `;
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700">Employee ID</label><p class="mt-1 text-gray-900">${user.employee_id || 'N/A'}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Username</label><p class="mt-1 text-gray-900">${user.username}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Email</label><p class="mt-1 text-gray-900">${user.email}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Phone</label><p class="mt-1 text-gray-900">${user.phone || 'N/A'}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Full Name</label><p class="mt-1 text-gray-900">${user.title || ''} ${user.first_name} ${user.middle_name || ''} ${user.last_name} ${user.suffix || ''}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Role</label><p class="mt-1 text-gray-900">${user.role_name}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">College</label><p class="mt-1 text-gray-900">${user.college_name || 'N/A'}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Department</label><p class="mt-1 text-gray-900">${user.department_name || 'N/A'}</p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Status</label><p class="mt-1 text-gray-900"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${user.is_active ? 'Active' : 'Inactive'}</span></p></div>
+            <div><label class="block text-sm font-medium text-gray-700">Created</label><p class="mt-1 text-gray-900">${new Date(user.created_at).toLocaleDateString()}</p></div>
+        </div>
+    `;
             document.getElementById('userDetailsContent').innerHTML = content;
             document.getElementById('viewUserModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';

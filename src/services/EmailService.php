@@ -8,9 +8,9 @@ require_once __DIR__ . '/../models/UserModel.php';
 
 class EmailService
 {
-    private $mailer;
-    private $userModel;
-    private $db;
+    public $mailer;
+    public $userModel;
+    public $db;
 
     public function __construct()
     {
@@ -389,7 +389,7 @@ class EmailService
                 </body>
                 </html>";
 
-                        $this->mailer->AltBody = "
+            $this->mailer->AltBody = "
                     📩 WELCOME TO ACSS SYSTEM - Account Registered!
 
                     Hello $name,
@@ -484,7 +484,7 @@ class EmailService
                 </body>
                 </html>";
 
-                        $this->mailer->AltBody = "
+            $this->mailer->AltBody = "
                     🔔 NOTIFICATION - ACSS System
 
                     A new action requires your attention:
@@ -506,6 +506,145 @@ class EmailService
             error_log("Error sending notification email to $toEmail: " . $this->mailer->ErrorInfo);
             return false;
         }
+    }
+
+    public function sendWelcomeEmail($email, $firstName, $username, $temporaryPassword)
+    {
+        try {
+            // Create PHPMailer instance (adjust based on your setup)
+            $mail = new PHPMailer(true);
+
+            // Server settings
+            $mail->isSMTP();
+            $mail->Host = 'your-smtp-host.com';
+            $mail->SMTPAuth = true;
+            $mail->Username = 'your-smtp-username';
+            $mail->Password = 'your-smtp-password';
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = 587;
+
+            // Recipients
+            $mail->setFrom('noreply@university.edu', 'University Scheduling System');
+            $mail->addAddress($email, $firstName);
+            $mail->addReplyTo('support@university.edu', 'Support Team');
+
+            // Content
+            $mail->isHTML(true);
+            $mail->Subject = 'Welcome to the University Scheduling System';
+
+            $mail->Body = $this->getWelcomeEmailTemplate($firstName, $username, $temporaryPassword);
+            $mail->AltBody = $this->getWelcomeEmailTextTemplate($firstName, $username, $temporaryPassword);
+
+            $mail->send();
+            error_log("Welcome email sent successfully to: {$email}");
+            return true;
+        } catch (Exception $e) {
+            error_log("Error sending welcome email to {$email}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getWelcomeEmailTemplate($firstName, $username, $temporaryPassword)
+    {
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #D4AF37, #A68A2E); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+                .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; }
+                .credentials { background: #fff; border: 2px solid #D4AF37; border-radius: 5px; padding: 15px; margin: 15px 0; }
+                .warning { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 10px; margin: 10px 0; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                .password { font-family: monospace; font-size: 18px; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px dashed #ccc; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h1>University Scheduling System</h1>
+                    <h2>Welcome to Your New Account!</h2>
+                </div>
+                <div class='content'>
+                    <p>Dear {$firstName},</p>
+                    
+                    <p>Your account has been successfully created in the University Scheduling System. Below are your login credentials:</p>
+                    
+                    <div class='credentials'>
+                        <h3>Login Information:</h3>
+                        <p><strong>Username:</strong> {$username}</p>
+                        <p><strong>Temporary Password:</strong></p>
+                        <div class='password'>{$temporaryPassword}</div>
+                        <p><strong>Login URL:</strong> <a href='" . (isset($_SERVER['HTTP_HOST']) ? "https://{$_SERVER['HTTP_HOST']}/login" : "#") . "'>System Login Page</a></p>
+                    </div>
+                    
+                    <div class='warning'>
+                        <strong>Important Security Notice:</strong>
+                        <ul>
+                            <li>This is a temporary password</li>
+                            <li>You must change your password on first login</li>
+                            <li>Do not share your credentials with anyone</li>
+                            <li>If you didn't request this account, please contact the system administrator immediately</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>First Login Steps:</strong></p>
+                    <ol>
+                        <li>Go to the login page</li>
+                        <li>Enter your username and the temporary password above</li>
+                        <li>You will be prompted to set a new permanent password</li>
+                        <li>Choose a strong password that you haven't used before</li>
+                    </ol>
+                    
+                    <p>If you encounter any issues during login, please contact the IT support team or your department administrator.</p>
+                    
+                    <p>Best regards,<br>
+                    University Scheduling System Administration</p>
+                </div>
+                <div class='footer'>
+                    <p>This is an automated message. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+    }
+
+    public function getWelcomeEmailTextTemplate($firstName, $username, $temporaryPassword)
+    {
+        return "
+        Welcome to the University Scheduling System
+
+        Dear {$firstName},
+
+        Your account has been successfully created in the University Scheduling System.
+
+        LOGIN INFORMATION:
+        Username: {$username}
+        Temporary Password: {$temporaryPassword}
+        Login URL: " . (isset($_SERVER['HTTP_HOST']) ? "https://{$_SERVER['HTTP_HOST']}/login" : "Your University System Login Page") . "
+
+        IMPORTANT SECURITY NOTICE:
+        - This is a temporary password
+        - You must change your password on first login
+        - Do not share your credentials with anyone
+        - If you didn't request this account, please contact the system administrator immediately
+
+        FIRST LOGIN STEPS:
+        1. Go to the login page
+        2. Enter your username and the temporary password above
+        3. You will be prompted to set a new permanent password
+        4. Choose a strong password that you haven't used before
+
+        If you encounter any issues during login, please contact the IT support team or your department administrator.
+
+        Best regards,
+        University Scheduling System Administration
+
+        This is an automated message. Please do not reply to this email.
+        ";
     }
 
     public function sendDeclineEmail($to, $name, $role)

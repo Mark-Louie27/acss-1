@@ -644,6 +644,12 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/admin/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Settings</span>
             </a>
+
+            <!-- Back up Link -->
+            <a href="/admin/database-backup" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/database-backup') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-database w-5 mr-3 <?= strpos($currentUri, '/admin/database-backup') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Database Backup</span>
+            </a>
         </nav>
 
         <!-- Sidebar Footer -->

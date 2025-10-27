@@ -81,6 +81,10 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::settings");
             $controller->settings();
             break;
+        case '/admin/database-backup':
+            error_log("Routing to AdminController::backupDatabase");
+            $controller->databaseBackup();
+            break;
         case '/admin/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';

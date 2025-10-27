@@ -2968,6 +2968,13 @@
       }
     }
   }
+  .hover\:text-blue-900 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-blue-900);
+      }
+    }
+  }
   .hover\:text-gray-200 {
     &:hover {
       @media (hover: hover) {
@@ -3042,6 +3049,13 @@
     &:hover {
       @media (hover: hover) {
         color: var(--color-orange-200);
+      }
+    }
+  }
+  .hover\:text-purple-900 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-purple-900);
       }
     }
   }

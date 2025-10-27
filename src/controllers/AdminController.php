@@ -2,11 +2,13 @@
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
+require_once __DIR__ . '/../models/UserModel.php';
 class AdminController
 {
     public $db;
     private $authService;
     private $emailService;
+    private $UserModel;
 
     public function __construct()  // Remove the $db parameter since we're not using it
     {
@@ -19,17 +21,8 @@ class AdminController
 
         $this->emailService = new EmailService();
         $this->authService = new AuthService($this->db);
+        $this->UserModel = new UserModel($this->db);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    }
-
-    private function restrictToAdmin()
-    {
-        error_log("restrictToAdmin: Checking session - user_id: " . ($_SESSION['user_id'] ?? 'none') . ", role_id: " . ($_SESSION['role_id'] ?? 'none'));
-        if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 1) {
-            error_log("restrictToAdmin: Redirecting to login due to unauthorized access");
-            header('Location: /login?error=Unauthorized access');
-            exit;
-        }
     }
 
     public function dashboard()
@@ -270,19 +263,26 @@ class AdminController
             // Fetch common data
             $usersStmt = $this->db->query("
             SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email, u.profile_picture,
-                   r.role_name, c.college_id, c.college_name, d.department_id, d.department_name, f.academic_rank
+                   r.role_name, c.college_id, c.college_name, d.department_id, d.department_name, f.academic_rank,
+                   cd.department_id as chair_department_id,
+                   deans.college_id as dean_college_id,
+                   di.department_id as instructor_department_id
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
             LEFT JOIN faculty f ON u.user_id = f.faculty_id
             LEFT JOIN colleges c ON u.college_id = c.college_id
             LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN chair_departments cd ON u.user_id = cd.user_id AND cd.is_primary = 1
+            LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
+            LEFT JOIN department_instructors di ON u.user_id = di.user_id AND di.is_current = 1
             ORDER BY u.first_name, u.last_name
         ");
             $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $roles = $this->db->query("SELECT role_id, role_name FROM roles ORDER BY role_name")->fetchAll(PDO::FETCH_ASSOC);
             $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
-            $departments = $this->db->query("SELECT department_id, department_name FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
+            $departments = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
+            $programs = $this->db->query("SELECT program_id, program_name, department_id FROM programs ORDER BY program_name")->fetchAll(PDO::FETCH_ASSOC);
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -294,12 +294,14 @@ class AdminController
                 $this->db->beginTransaction();
 
                 try {
-                    $data = [
-                        'user_id' => $_POST['user_id'] ?? null,
-                        'action' => $_POST['action'] ?? null
-                    ];
+                    $data = $_POST;
+                    $data['user_id'] = $userId;
 
-                    $result = $this->handleUserAction($data);
+                    if ($action === 'add') {
+                        $result = $this->addNewUser($data);
+                    } else {
+                        $result = $this->handleUserAction($data);
+                    }
 
                     $this->db->commit();
                     $_SESSION['flash'] = ['type' => $result['success'] ? 'success' : 'error', 'message' => $result['message'] ?? $result['error']];
@@ -315,51 +317,12 @@ class AdminController
                     echo json_encode(['success' => false, 'message' => 'Database error occurred']);
                     exit;
                 }
-            } elseif ($action === 'decline' && $userId) {
-                $checkStmt = $this->db->prepare("SELECT user_id, username, email, first_name, last_name, role_id FROM users WHERE user_id = :user_id");
-                $checkStmt->execute([':user_id' => $userId]);
-                $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($user) {
-                    // Option 1: Soft delete (mark as declined)
-                    $stmt = $this->db->prepare("UPDATE users SET is_active = -1, updated_at = NOW() WHERE user_id = :user_id");
-                    $stmt->execute([':user_id' => $userId]);
-                    error_log("User declined: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-
-                    // Option 2: Hard delete (uncomment if preferred)
-                    // $stmt = $this->db->prepare("DELETE FROM users WHERE user_id = :user_id");
-                    // $stmt->execute([':user_id' => $userId]);
-                    // error_log("User deleted: ID {$userId}, Username: {$user['username']} by admin ID: " . ($_SESSION['user_id'] ?? 'unknown'));
-
-                    $roleName = $roles[$user['role_id'] - 1]['role_name'] ?? 'Unknown Role';
-                    //$this->emailService->sendDeclineEmail($user['email'], $user['first_name'] . ' ' . $user['last_name'], $roleName); // Add this method
-                }
             }
 
-            $userDetails = null;
-            if (in_array($action, ['view', 'edit']) && $userId) {
-                $stmt = $this->db->prepare("
-                SELECT u.*, r.role_name, c.college_name, d.department_name
-                FROM users u
-                JOIN roles r ON u.role_id = r.role_id
-                LEFT JOIN colleges c ON u.college_id = c.college_id
-                LEFT JOIN departments d ON u.department_id = d.department_id
-                WHERE u.user_id = :user_id
-            ");
-                $stmt->execute([':user_id' => $userId]);
-                $userDetails = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                if (!$userDetails) {
-                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'User not found'];
-                    header('Location: /admin/users');
-                    exit;
-                }
-
-                if ($action === 'view') {
-                    header('Content-Type: application/json');
-                    echo json_encode(['success' => true, 'user' => $userDetails]);
-                    exit;
-                }
+            // Group departments by college for the form
+            $departmentsByCollege = [];
+            foreach ($departments as $dept) {
+                $departmentsByCollege[$dept['college_id']][] = $dept;
             }
 
             $controller = $this;
@@ -371,6 +334,180 @@ class AdminController
         }
     }
 
+    private function addNewUser($data)
+    {
+        try {
+            // Validate required fields
+            $required = ['employee_id', 'username', 'email', 'first_name', 'last_name', 'role_id'];
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    return ['success' => false, 'error' => "Field '$field' is required"];
+                }
+            }
+
+            // Check for existing user
+            $checkStmt = $this->db->prepare("
+            SELECT user_id FROM users WHERE username = :username OR email = :email OR employee_id = :employee_id
+        ");
+            $checkStmt->execute([
+                ':username' => $data['username'],
+                ':email' => $data['email'],
+                ':employee_id' => $data['employee_id']
+            ]);
+
+            if ($checkStmt->fetch()) {
+                return ['success' => false, 'error' => 'Username, email, or employee ID already exists'];
+            }
+
+            // Generate temporary password
+            $temporaryPassword = $this->generateTemporaryPassword();
+            $passwordHash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
+
+            // Insert user
+            $stmt = $this->db->prepare("
+            INSERT INTO users (
+                employee_id, username, password_hash, email, phone, title, first_name, middle_name, 
+                last_name, suffix, role_id, college_id, department_id, is_active, created_at, updated_at
+            ) VALUES (
+                :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
+                :last_name, :suffix, :role_id, :college_id, :department_id, 1, NOW(), NOW()
+            )
+        ");
+
+            $userData = [
+                ':employee_id' => $data['employee_id'],
+                ':username' => $data['username'],
+                ':password_hash' => $passwordHash,
+                ':email' => $data['email'],
+                ':phone' => $data['phone'] ?? null,
+                ':title' => $data['title'] ?? null,
+                ':first_name' => $data['first_name'],
+                ':middle_name' => $data['middle_name'] ?? null,
+                ':last_name' => $data['last_name'],
+                ':suffix' => $data['suffix'] ?? null,
+                ':role_id' => $data['role_id'],
+                ':college_id' => !empty($data['college_id']) ? $data['college_id'] : null,
+                ':department_id' => !empty($data['department_id']) ? $data['department_id'] : null
+            ];
+
+            $stmt->execute($userData);
+            $newUserId = $this->db->lastInsertId();
+
+            // Handle role-specific assignments
+            $this->handleRoleSpecificAssignments($newUserId, $data);
+
+            // Store temporary password for one-time display
+            $_SESSION['temp_passwords'][$newUserId] = [
+                'password' => $temporaryPassword,
+                'username' => $data['username'],
+                'timestamp' => time()
+            ];
+
+            // Send welcome email (optional)
+            if (isset($data['send_welcome_email']) && $data['send_welcome_email']) {
+                $this->emailService->getWelcomeEmailTemplate($data['email'], $data['first_name'], $data['username'], $temporaryPassword);
+            }
+
+            return [
+                'success' => true,
+                'message' => 'User added successfully',
+                'user_id' => $newUserId,
+                'temporary_password' => $temporaryPassword
+            ];
+        } catch (Exception $e) {
+            error_log("addNewUser error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to add user: ' . $e->getMessage()];
+        }
+    }
+
+    private function handleRoleSpecificAssignments($userId, $data)
+    {
+        $roleId = $data['role_id'];
+
+        switch ($roleId) {
+            case 3: //d.1
+                $this->UserModel->addDepartmentInstructor($data);
+                break;
+            case 4: //dean
+                $this->UserModel->addDean($data);
+                break;
+            case 5: //program chair
+                $this->UserModel->addProgramChair($data);
+                break;
+            case 6: //faculty
+                $this->UserModel->addFaculty($data);
+                break;
+        }
+    }
+
+    private function generateTemporaryPassword($length = 12)
+    {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+        $password = '';
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return $password;
+    }
+
+    public function showTemporaryPassword($userId)
+    {
+        if (isset($_SESSION['temp_passwords'][$userId])) {
+            $tempData = $_SESSION['temp_passwords'][$userId];
+
+            // Remove from session after displaying (one-time view)
+            unset($_SESSION['temp_passwords'][$userId]);
+
+            return [
+                'success' => true,
+                'password' => $tempData['password'],
+                'username' => $tempData['username'],
+                'timestamp' => $tempData['timestamp']
+            ];
+        }
+
+        return ['success' => false, 'error' => 'Temporary password not found or already viewed'];
+    }
+
+    public function resetUserPassword($userId)
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT username, email FROM users WHERE user_id = :user_id");
+            $stmt->execute([':user_id' => $userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user) {
+                return ['success' => false, 'error' => 'User not found'];
+            }
+
+            $temporaryPassword = $this->generateTemporaryPassword();
+            $passwordHash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
+
+            $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash WHERE user_id = :user_id");
+            $updateStmt->execute([
+                ':password_hash' => $passwordHash,
+                ':user_id' => $userId
+            ]);
+
+            // Store for one-time display
+            $_SESSION['temp_passwords'][$userId] = [
+                'password' => $temporaryPassword,
+                'username' => $user['username'],
+                'timestamp' => time()
+            ];
+
+            return [
+                'success' => true,
+                'message' => 'Password reset successfully',
+                'user_id' => $userId,
+                'temporary_password' => $temporaryPassword
+            ];
+        } catch (Exception $e) {
+            error_log("resetUserPassword error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to reset password'];
+        }
+    }
+
     private function handleUserAction($data)
     {
         $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
@@ -379,6 +516,11 @@ class AdminController
         if (!$userId) {
             error_log("handleUserAction: Invalid user_id=$userId");
             return ['success' => false, 'error' => 'Invalid user ID'];
+        }
+
+        // Handle password reset action
+        if ($action === 'reset_password') {
+            return $this->resetUserPassword($userId);
         }
 
         // Fetch user details including college_id and department_id
@@ -473,7 +615,6 @@ class AdminController
             echo "Server error";
         }
     }
-
 
     public function collegesDepartments()
     {
@@ -1347,5 +1488,343 @@ class AdminController
             header('Location: /admin/settings');
             exit;
         }
+    }
+
+    public function databaseBackup()
+    {
+        try {
+            $action = $_GET['action'] ?? 'view';
+            $csrfToken = $this->authService->generateCsrfToken();
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                    header('Location: /admin/database-backup');
+                    exit;
+                }
+
+                if ($action === 'create_backup') {
+                    $result = $this->createDatabaseBackup();
+                    $_SESSION['flash'] = ['type' => $result['success'] ? 'success' : 'error', 'message' => $result['message']];
+                    header('Location: /admin/database-backup');
+                    exit;
+                } elseif ($action === 'download_backup' && isset($_POST['backup_file'])) {
+                    $this->downloadBackupFile($_POST['backup_file']);
+                    exit;
+                } elseif ($action === 'delete_backup' && isset($_POST['backup_file'])) {
+                    $result = $this->deleteBackupFile($_POST['backup_file']);
+                    $_SESSION['flash'] = ['type' => $result['success'] ? 'success' : 'error', 'message' => $result['message']];
+                    header('Location: /admin/database-backup');
+                    exit;
+                }
+            }
+
+            // Get existing backups
+            $backupFiles = $this->getBackupFiles();
+
+            // Get database info
+            $databaseInfo = $this->getDatabaseInfo();
+
+            $data = [
+                'title' => 'Database Backup',
+                'backup_files' => $backupFiles,
+                'database_info' => $databaseInfo, // Fixed variable name
+                'csrf_token' => $csrfToken,
+                'controller' => $this // Add controller reference for formatBytes method
+            ];
+
+            // Debug: Check if data is being passed correctly
+            error_log("Backup data: " . print_r($data, true));
+
+            require_once __DIR__ . '/../views/admin/database-backup.php';
+        } catch (Exception $e) {
+            error_log("Database backup error: " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'An error occurred: ' . $e->getMessage()];
+            header('Location: /admin/dashboard');
+            exit;
+        }
+    }
+
+    private function createDatabaseBackup()
+    {
+        try {
+            // Create backup directory if it doesn't exist
+            $backupDir = __DIR__ . '/../../backups';
+            if (!is_dir($backupDir)) {
+                mkdir($backupDir, 0755, true);
+            }
+
+            // Get database configuration
+            $dbHost = $this->db->getAttribute(PDO::ATTR_CONNECTION_STATUS); // This might not give host, so you may need to store it in config
+            $dbName = $this->getDatabaseName();
+
+            // Generate backup filename with timestamp
+            $timestamp = date('Y-m-d_H-i-s');
+            $backupFilename = "backup_{$dbName}_{$timestamp}.sql";
+            $backupPath = $backupDir . '/' . $backupFilename;
+
+            // Get all tables
+            $tables = $this->getAllTables();
+
+            $backupContent = "";
+
+            // Set SQL headers
+            $backupContent .= "-- Database Backup\n";
+            $backupContent .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
+            $backupContent .= "-- Database: {$dbName}\n";
+            $backupContent .= "-- PHP Version: " . PHP_VERSION . "\n";
+            $backupContent .= "\nSET FOREIGN_KEY_CHECKS=0;\n\n";
+
+            // Backup each table
+            foreach ($tables as $table) {
+                $backupContent .= $this->backupTable($table);
+            }
+
+            $backupContent .= "SET FOREIGN_KEY_CHECKS=1;\n";
+
+            // Write backup file
+            if (file_put_contents($backupPath, $backupContent) !== false) {
+                // Compress the backup (optional)
+                $this->compressBackup($backupPath);
+
+                // Set file permissions
+                chmod($backupPath, 0644);
+
+                // Clean up old backups (keep last 30 days)
+                $this->cleanupOldBackups();
+
+                return [
+                    'success' => true,
+                    'message' => 'Database backup created successfully: ' . $backupFilename,
+                    'filename' => $backupFilename
+                ];
+            } else {
+                throw new Exception('Failed to write backup file');
+            }
+        } catch (Exception $e) {
+            error_log("Create backup error: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Failed to create backup: ' . $e->getMessage()];
+        }
+    }
+
+    private function getAllTables()
+    {
+        $stmt = $this->db->query("SHOW TABLES");
+        $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        return $tables;
+    }
+
+    private function getDatabaseName()
+    {
+        $stmt = $this->db->query("SELECT DATABASE()");
+        return $stmt->fetchColumn();
+    }
+
+    private function backupTable($tableName)
+    {
+        $output = "--\n";
+        $output .= "-- Table structure for table `{$tableName}`\n";
+        $output .= "--\n\n";
+
+        // Get table creation script
+        $stmt = $this->db->query("SHOW CREATE TABLE `{$tableName}`");
+        $createTable = $stmt->fetch(PDO::FETCH_ASSOC);
+        $output .= $createTable['Create Table'] . ";\n\n";
+
+        // Get table data
+        $output .= "--\n";
+        $output .= "-- Dumping data for table `{$tableName}`\n";
+        $output .= "--\n\n";
+
+        $stmt = $this->db->query("SELECT * FROM `{$tableName}`");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (count($rows) > 0) {
+            $output .= "INSERT INTO `{$tableName}` VALUES \n";
+
+            $insertValues = [];
+            foreach ($rows as $row) {
+                $values = array_map(function ($value) {
+                    if ($value === null) return 'NULL';
+                    // Escape special characters
+                    $value = str_replace("'", "''", $value);
+                    $value = str_replace("\\", "\\\\", $value);
+                    return "'" . $value . "'";
+                }, $row);
+
+                $insertValues[] = "(" . implode(", ", $values) . ")";
+            }
+
+            $output .= implode(",\n", $insertValues) . ";\n\n";
+        }
+
+        return $output;
+    }
+
+    private function compressBackup($backupPath)
+    {
+        if (extension_loaded('zip')) {
+            $zip = new ZipArchive();
+            $zipPath = $backupPath . '.zip';
+
+            if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
+                $zip->addFile($backupPath, basename($backupPath));
+                $zip->close();
+
+                // Remove the original SQL file if zip was created successfully
+                if (file_exists($zipPath)) {
+                    unlink($backupPath);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private function getBackupFiles()
+    {
+        $backupDir = __DIR__ . '/../../backups';
+        if (!is_dir($backupDir)) {
+            return [];
+        }
+
+        $files = scandir($backupDir);
+        $backupFiles = [];
+
+        foreach ($files as $file) {
+            if ($file !== '.' && $file !== '..' && (pathinfo($file, PATHINFO_EXTENSION) === 'sql' || pathinfo($file, PATHINFO_EXTENSION) === 'zip')) {
+                $filePath = $backupDir . '/' . $file;
+                $backupFiles[] = [
+                    'filename' => $file,
+                    'path' => $filePath,
+                    'size' => filesize($filePath),
+                    'modified' => filemtime($filePath),
+                    'download_url' => '/admin/database-backup?action=download&file=' . urlencode($file)
+                ];
+            }
+        }
+
+        // Sort by modification time (newest first)
+        usort($backupFiles, function ($a, $b) {
+            return $b['modified'] - $a['modified'];
+        });
+
+        return $backupFiles;
+    }
+
+    private function downloadBackupFile($filename)
+    {
+        $backupDir = __DIR__ . '/../../backups';
+        $filePath = $backupDir . '/' . basename($filename);
+
+        if (!file_exists($filePath)) {
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Backup file not found'];
+            header('Location: /admin/database-backup');
+            exit;
+        }
+
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($filePath) . '"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        exit;
+    }
+
+    private function deleteBackupFile($filename)
+    {
+        try {
+            $backupDir = __DIR__ . '/../../backups';
+            $filePath = $backupDir . '/' . basename($filename);
+
+            if (!file_exists($filePath)) {
+                return ['success' => false, 'message' => 'Backup file not found'];
+            }
+
+            if (unlink($filePath)) {
+                return ['success' => true, 'message' => 'Backup file deleted successfully'];
+            } else {
+                throw new Exception('Failed to delete file');
+            }
+        } catch (Exception $e) {
+            error_log("Delete backup error: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Failed to delete backup: ' . $e->getMessage()];
+        }
+    }
+
+    private function getDatabaseInfo()
+    {
+        try {
+            // Get database size
+            $dbName = $this->getDatabaseName();
+            $stmt = $this->db->query("
+            SELECT 
+                table_schema as 'Database',
+                ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as 'Size_MB',
+                COUNT(*) as 'Table_Count'
+            FROM information_schema.tables 
+            WHERE table_schema = '{$dbName}'
+            GROUP BY table_schema
+        ");
+            $dbSize = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Get table counts
+            $stmt = $this->db->query("SELECT COUNT(*) as total_tables FROM information_schema.tables WHERE table_schema = '{$dbName}'");
+            $tableCount = $stmt->fetchColumn();
+
+            // Get last backup info
+            $backupFiles = $this->getBackupFiles();
+            $lastBackup = !empty($backupFiles) ? $backupFiles[0] : null;
+
+            return [
+                'name' => $dbName,
+                'size_mb' => $dbSize['Size_MB'] ?? 0,
+                'table_count' => $tableCount,
+                'last_backup' => $lastBackup ? [
+                    'filename' => $lastBackup['filename'],
+                    'date' => date('Y-m-d H:i:s', $lastBackup['modified']),
+                    'size' => $this->formatBytes($lastBackup['size'])
+                ] : null
+            ];
+        } catch (Exception $e) {
+            error_log("Get database info error: " . $e->getMessage());
+            return [
+                'name' => 'Unknown',
+                'size_mb' => 0,
+                'table_count' => 0,
+                'last_backup' => null
+            ];
+        }
+    }
+
+    private function cleanupOldBackups($keepDays = 30)
+    {
+        try {
+            $backupDir = __DIR__ . '/../../backups';
+            $files = $this->getBackupFiles();
+            $cutoffTime = time() - ($keepDays * 24 * 60 * 60);
+
+            foreach ($files as $file) {
+                if ($file['modified'] < $cutoffTime) {
+                    unlink($file['path']);
+                    error_log("Deleted old backup: " . $file['filename']);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Cleanup old backups error: " . $e->getMessage());
+        }
+    }
+
+    private function formatBytes($bytes, $precision = 2)
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= pow(1024, $pow);
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 }

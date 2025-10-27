@@ -383,6 +383,11 @@ class UserModel
         }
     }
 
+    public function addFaculty($data)
+    {
+        return $this->createFaculty($data);
+    }
+
     /**
      * Create a program chair record
      * @param array $data
@@ -432,6 +437,11 @@ class UserModel
         }
     }
 
+    public function addProgramChair($data)
+    {
+        return $this->createProgramChair($data);
+    }
+
     /**
      * Create a dean record
      * @param array $data
@@ -458,6 +468,11 @@ class UserModel
         }
     }
 
+    public function addDean($data)
+    {
+        return $this->createDean($data);
+    }
+
     /**
      * Create a department instructor record
      * @param array $data
@@ -482,6 +497,11 @@ class UserModel
             error_log("Error creating department instructor: " . $e->getMessage());
             return false;
         }
+    }
+
+    public function addDepartmentInstructor($data)
+    {
+        return $this->createDepartmentInstructor($data);
     }
 
     /**
