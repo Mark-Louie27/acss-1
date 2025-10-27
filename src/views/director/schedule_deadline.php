@@ -853,22 +853,39 @@ ob_start();
                 try {
                     const response = await fetch(window.location.href, {
                         method: 'POST',
-                        body: formData
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new FormData(form)
                     });
 
-                    const result = await response.json();
+                    // Handle both JSON and redirect responses
+                    const contentType = response.headers.get('content-type');
 
-                    if (response.ok) {
-                        modal.alert('Deadline set successfully!', 'success');
-                        // Optionally reload the page or update UI
-                        setTimeout(() => location.reload(), 1500);
+                    if (contentType && contentType.includes('application/json')) {
+                        const result = await response.json();
+
+                        if (result.success) {
+                            modal.alert(result.message, 'success');
+                            setTimeout(() => {
+                                // Refresh to show updated deadlines
+                                window.location.reload();
+                            }, 1500);
+                        } else {
+                            modal.alert(result.error, 'error');
+                        }
                     } else {
-                        modal.alert(result.error || 'Failed to set deadline.', 'error');
+                        // Handle non-JSON response (regular form submission)
+                        // The PHP will redirect us, so just show success
+                        modal.alert('Deadline set successfully!', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/director/dashboard';
+                        }, 1500);
                     }
                 } catch (error) {
+                    console.error('Error:', error);
                     modal.alert('An error occurred. Please try again.', 'error');
                 } finally {
-                    // Reset loading state
                     hideLoadingState();
                 }
             });

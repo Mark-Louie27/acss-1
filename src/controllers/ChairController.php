@@ -5011,19 +5011,13 @@ class ChairController extends BaseController
             return ['locked' => false, 'message' => 'Department not set'];
         }
 
-        // Check session cache first
-        $cacheKey = "deadline_status_$userDepartmentId";
-        if (isset($_SESSION[$cacheKey]) && time() < $_SESSION[$cacheKey . '_expiry']) {
-            return $_SESSION[$cacheKey];
-        }
-
         $stmt = $this->db->prepare("
-            SELECT deadline 
-            FROM schedule_deadlines 
-            WHERE department_id = :department_id 
-            AND is_active = 1 
-            ORDER BY created_at DESC 
-            LIMIT 1
+        SELECT deadline 
+        FROM schedule_deadlines 
+        WHERE department_id = :department_id 
+        AND is_active = 1 
+        ORDER BY created_at DESC 
+        LIMIT 1
         ");
         $stmt->execute([':department_id' => $userDepartmentId]);
         $deadline = $stmt->fetchColumn();
@@ -5050,9 +5044,6 @@ class ChairController extends BaseController
             }
         }
 
-        // Cache for 5 minutes
-        $_SESSION[$cacheKey] = $status;
-        $_SESSION[$cacheKey . '_expiry'] = time() + 300;
         return $status;
     }
 
@@ -7296,7 +7287,7 @@ class ChairController extends BaseController
                     AND department_id = ?
                 ");
                     $toggleParams = [$courseId, $departmentId];
-                    error_log("Toggling status: Params = " . json_encode($toggleParams));
+                   
                     $toggleStmt->execute($toggleParams);
                     if ($toggleStmt->rowCount() > 0) {
                         $newStatus = !$currentStatus;
@@ -7323,7 +7314,7 @@ class ChairController extends BaseController
                     AND c.department_id = ?
                 ");
                     $editParams = [$courseId, $departmentId];
-                    error_log("Edit course query: Params = " . json_encode($editParams));
+                  
                     $editStmt->execute($editParams);
                     $editCourse = $editStmt->fetch(PDO::FETCH_ASSOC);
                     if (!$editCourse) {
@@ -7346,13 +7337,13 @@ class ChairController extends BaseController
                 }
 
                 $totalStmt = $this->db->prepare($totalQuery);
-                error_log("Total query: Query = $totalQuery, Params = " . json_encode($totalParams));
+               
                 $totalStmt->execute($totalParams);
                 $result = $totalStmt->fetch(PDO::FETCH_ASSOC);
                 $totalCourses = $result['total'] ?? 0;
                 $totalPages = max(1, ceil($totalCourses / $perPage));
 
-                error_log("Total courses counted: $totalCourses, Total pages: $totalPages");
+               
             } catch (PDOException $e) {
                 error_log("Error counting courses: " . $e->getMessage());
                 $error = "Failed to count courses: " . $e->getMessage();
