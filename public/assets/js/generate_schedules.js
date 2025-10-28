@@ -56,7 +56,6 @@ function initializeScheduleData() {
 
   console.log("Processed curriculum courses:", window.curriculumCourses);
 
-  // Ensure courses list is empty until curriculum is selected
   if (window.curriculumCourses.length === 0) {
     const coursesList = document.getElementById("courses-list");
     if (coursesList) {
@@ -272,12 +271,10 @@ function updateCourses() {
 function updateScheduleCompletionStatus(data) {
   let statusBanner = document.getElementById("schedule-completion-banner");
 
-  // Remove existing banner if present
   if (statusBanner) {
     statusBanner.remove();
   }
 
-  // Only show banner if there are unassigned courses
   if (data.unassignedCourses && data.unassignedCourses.length > 0) {
     const navTabs = document.querySelector("nav.flex.space-x-1");
     statusBanner = document.createElement("div");
@@ -322,13 +319,13 @@ function updateScheduleCompletionStatus(data) {
       </div>
     `;
 
-    // Insert after navigation tabs
     if (navTabs && navTabs.parentElement) {
       navTabs.parentElement.insertBefore(statusBanner, navTabs.nextSibling);
     }
   }
 }
 
+// FIXED: Main generate schedules function with proper async handling
 function generateSchedules() {
   const form = document.getElementById("generate-form");
   if (!form) {
@@ -341,7 +338,6 @@ function generateSchedules() {
 
   console.log("generateSchedules called with curriculum:", curriculumId);
 
-  // Clear any existing error messages
   clearValidationErrors();
 
   // Validation checks
@@ -373,10 +369,9 @@ function generateSchedules() {
     return;
   }
 
-  // Clear any previous validation highlighting
   clearValidationErrors();
 
-  // Show loading overlay FIRST
+  // Show loading overlay
   const loadingOverlay = document.getElementById("loading-overlay");
   if (loadingOverlay) {
     loadingOverlay.classList.remove("hidden");
@@ -424,114 +419,134 @@ function generateSchedules() {
       console.log(`⏱️ Fetch completed in ${fetchTime.toFixed(2)}ms`);
       console.log("📊 Generation response:", responseData);
 
-      // CRITICAL: Keep loading overlay visible during UI updates
-      console.log("🔄 Starting UI updates, loading overlay still visible...");
-
       if (responseData.success) {
-        // Step 1: Update global schedule data
-        console.log("📝 Step 1: Updating schedule data...");
+        // Keep loading visible during updates
+        console.log("🔄 Processing response data...");
+
+        // Step 1: Update schedule data
         window.scheduleData = responseData.schedules || [];
-        console.log(
-          `✅ Schedule data updated: ${window.scheduleData.length} schedules`
-        );
+        console.log(`✅ Updated ${window.scheduleData.length} schedules`);
 
-        // Step 2: Update the schedule display (this takes time!)
-        console.log("🎨 Step 2: Updating schedule display...");
-        const displayStartTime = performance.now();
-
-        // Use requestAnimationFrame to ensure DOM is ready
-        requestAnimationFrame(() => {
-          safeUpdateScheduleDisplay(window.scheduleData);
-
-          const displayTime = performance.now() - displayStartTime;
-          console.log(`✅ Display updated in ${displayTime.toFixed(2)}ms`);
-
-          // Step 3: Update completion status banner
-          console.log("🏁 Step 3: Updating completion status...");
-          updateScheduleCompletionStatus(responseData);
-
-          // Step 4: Show success results
-          console.log("📊 Step 4: Showing results...");
-          const generationResults =
-            document.getElementById("generation-results");
-          if (generationResults) {
-            generationResults.classList.remove("hidden");
-            document.getElementById("total-courses").textContent =
-              responseData.totalCourses || 0;
-            document.getElementById("total-sections").textContent =
-              responseData.totalSections || 0;
-            document.getElementById("success-rate").textContent =
-              responseData.successRate || "100%";
-          }
-
-          // Step 5: NOW hide the loading overlay after EVERYTHING is done
-          console.log("✨ Step 5: Hiding loading overlay...");
-          setTimeout(() => {
-            if (loadingOverlay) {
-              loadingOverlay.classList.add("hidden");
-              const totalTime = performance.now() - startTime;
-              console.log(
-                `✅ Loading overlay hidden after ${totalTime.toFixed(
-                  2
-                )}ms total`
-              );
-            }
-
-            // Step 6: Show notification AFTER loading is hidden
-            if (
-              responseData.unassignedCourses &&
-              responseData.unassignedCourses.length > 0
-            ) {
-              showCompletionToast(
-                "warning",
-                "Schedules generated with some conflicts!",
-                [
-                  `${responseData.unassignedCourses.length} course(s) could not be automatically assigned`,
-                  "Check for time conflicts or resource limitations",
-                  "You can manually adjust schedules in the Manual Edit tab",
-                ]
-              );
-            } else {
-              showCompletionToast(
-                "success",
-                "Schedules generated successfully!",
-                [
-                  `${responseData.schedules.length} courses scheduled`,
-                  `${responseData.totalSections} sections assigned`,
-                  "All courses successfully scheduled without conflicts",
-                ]
-              );
-            }
-          }, 300); // Small delay to ensure DOM updates are complete
-        });
+        // Step 2: Update UI asynchronously with proper sequencing
+        updateUIAfterGeneration(responseData, loadingOverlay, startTime);
       } else {
-        // Hide loading on error immediately
-        if (loadingOverlay) {
-          loadingOverlay.classList.add("hidden");
-        }
-        showValidationToast([
-          responseData.message || "Failed to generate schedules",
-        ]);
+        hideLoadingAndShowError(
+          loadingOverlay,
+          responseData.message || "Failed to generate schedules"
+        );
       }
     })
     .catch((error) => {
-      // Hide loading on error
-      if (loadingOverlay) {
-        loadingOverlay.classList.add("hidden");
-      }
       console.error("❌ Error:", error);
-      showValidationToast(["Error generating schedules: " + error.message]);
+      hideLoadingAndShowError(
+        loadingOverlay,
+        "Error generating schedules: " + error.message
+      );
     });
+}
+
+// NEW: Separate function to handle UI updates with proper async sequencing
+async function updateUIAfterGeneration(
+  responseData,
+  loadingOverlay,
+  startTime
+) {
+  try {
+    console.log("🎨 Starting UI updates...");
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    // Step 1: Update schedule display (this is the heavy operation)
+    console.log("📋 Updating schedule display...");
+    const displayStartTime = performance.now();
+
+    safeUpdateScheduleDisplay(window.scheduleData);
+
+    const displayTime = performance.now() - displayStartTime;
+    console.log(`✅ Display updated in ${displayTime.toFixed(2)}ms`);
+
+    // Step 2: Wait for another frame to ensure render is complete
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    // Step 3: Update completion status banner
+    console.log("🏁 Updating completion status...");
+    updateScheduleCompletionStatus(responseData);
+
+    // Step 4: Update generation results card
+    console.log("📊 Updating results card...");
+    const generationResults = document.getElementById("generation-results");
+    if (generationResults) {
+      generationResults.classList.remove("hidden");
+      document.getElementById("total-courses").textContent =
+        responseData.totalCourses || 0;
+      document.getElementById("total-sections").textContent =
+        responseData.totalSections || 0;
+      document.getElementById("success-rate").textContent =
+        responseData.successRate || "100%";
+    }
+
+    // Step 5: Wait a bit longer to ensure all DOM updates are painted
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Step 6: NOW hide the loading overlay
+    const totalTime = performance.now() - startTime;
+    console.log(
+      `✨ All updates complete in ${totalTime.toFixed(2)}ms, hiding overlay...`
+    );
+
+    if (loadingOverlay) {
+      loadingOverlay.classList.add("hidden");
+    }
+
+    // Step 7: Show notification AFTER everything is done
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    if (
+      responseData.unassignedCourses &&
+      responseData.unassignedCourses.length > 0
+    ) {
+      showCompletionToast(
+        "warning",
+        "Schedules generated with some conflicts!",
+        [
+          `${responseData.unassignedCourses.length} course(s) could not be automatically assigned`,
+          "Check for time conflicts or resource limitations",
+          "You can manually adjust schedules in the Manual Edit tab",
+        ]
+      );
+    } else {
+      showCompletionToast("success", "Schedules generated successfully!", [
+        `${responseData.schedules.length} courses scheduled`,
+        `${responseData.totalSections} sections assigned`,
+        "All courses successfully scheduled without conflicts",
+      ]);
+    }
+
+    console.log("🎉 Generation process complete!");
+  } catch (error) {
+    console.error("❌ Error during UI update:", error);
+    hideLoadingAndShowError(
+      loadingOverlay,
+      "Error updating display: " + error.message
+    );
+  }
+}
+
+// Helper function to hide loading and show error
+function hideLoadingAndShowError(loadingOverlay, message) {
+  if (loadingOverlay) {
+    loadingOverlay.classList.add("hidden");
+  }
+  showValidationToast([message]);
 }
 
 // Initialize event listeners
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM fully loaded, initializing generate_schedules.js");
 
-  // Initialize data
   initializeScheduleData();
 
-  // Event listener for curriculum dropdown
   const curriculumSelect = document.getElementById("curriculum_id");
   if (curriculumSelect) {
     curriculumSelect.addEventListener("change", updateCourses);
@@ -539,10 +554,15 @@ document.addEventListener("DOMContentLoaded", () => {
     console.error("Curriculum select element not found");
   }
 
-  // Event listener for generate button
   const generateButton = document.getElementById("generate-btn");
   if (generateButton) {
-    generateButton.addEventListener("click", generateSchedules);
+    // Remove any existing event listeners by cloning the button
+    const newButton = generateButton.cloneNode(true);
+    generateButton.parentNode.replaceChild(newButton, generateButton);
+
+    // Add our properly async event listener
+    newButton.addEventListener("click", generateSchedules);
+    console.log("✅ Generate button event listener attached");
   } else {
     console.error("Generate button not found");
   }
