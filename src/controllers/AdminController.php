@@ -25,6 +25,18 @@ class AdminController
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
+    private function getUserData()
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM users WHERE user_id = :user_id");
+            $stmt->execute([':user_id' => $_SESSION['user_id']]);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getUserData error: " . $e->getMessage());
+            return null;
+        }
+    }
+
     public function dashboard()
     {
         try {
@@ -110,6 +122,11 @@ class AdminController
     {
         try {
 
+            // Get current semester information
+            $currentSemester = $this->UserModel->getCurrentSemester();
+            $currentSemesterDisplay = $currentSemester ?
+                $currentSemester['semester_name'] . ' Semester, A.Y ' . $currentSemester['academic_year'] : 'Not Set';
+
             $activityStmt = $this->db->prepare("
             SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name,
                    d.department_name, col.college_name
@@ -125,7 +142,9 @@ class AdminController
             $data = [
 
                 'activities' => $activities,
-                'title' => 'Activity Monitor - All Departments'
+                'title' => 'Activity Monitor - All Departments',
+                'current_semester_display' => $currentSemesterDisplay,
+                'current_semester' => $currentSemester
             ];
 
             $controller = $this;
@@ -136,6 +155,64 @@ class AdminController
             header('Location: /admin/dashboard');
             exit;
         }
+    }
+
+    public function loadMore()
+    {
+        ob_clean(); // Clear any existing output buffer
+        ob_start(); // Start a new buffer for this response
+
+        error_log("loadMore called with offset: " . ($_POST['offset'] ?? 'null'));
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            error_log("Method not allowed, returning 405");
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed. Use POST.']);
+            ob_end_flush();
+            exit;
+        }
+
+        try {
+            $userData = $this->getUserData();
+            if (!$userData) {
+                error_log("loadMore: Failed to load user data for user_id: " . ($_SESSION['user_id'] ?? 'null'));
+                http_response_code(401);
+                echo json_encode(['error' => 'Unauthorized']);
+                ob_end_flush();
+                exit;
+            }
+
+            $offset = (int)($_POST['offset'] ?? 0);
+
+            $activityStmt = $this->db->prepare("
+            SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name,
+                   d.department_name, col.college_name
+            FROM activity_logs al
+            JOIN users u ON al.user_id = u.user_id
+            JOIN departments d ON al.department_id = d.department_id
+            JOIN colleges col ON d.college_id = col.college_id
+            ORDER BY al.created_at DESC
+            LIMIT 10 OFFSET :offset
+        ");
+            $activityStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $activityStmt->execute();
+            $activities = $activityStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            header('Content-Type: application/json');
+            error_log("Sending JSON response with " . count($activities) . " activities");
+            echo json_encode([
+                'success' => true,
+                'activities' => $activities,
+                'hasMore' => count($activities) === 10
+            ]);
+            ob_end_flush();
+        } catch (PDOException $e) {
+            error_log("loadMore: Database error - " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to load more activities']);
+            ob_end_flush();
+        }
+        exit; // Ensure script stops after response
     }
 
     public function mySchedule()

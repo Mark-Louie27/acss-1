@@ -673,6 +673,47 @@ class UserModel
         }
     }
 
+    public function getCurrentSemester()
+    {
+        try {
+            error_log("getCurrentSemester: Querying for current semester");
+            // First, try to find the semester marked as current
+            $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                WHERE is_current = 1
+            ");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                error_log("getCurrentSemester: Found current semester - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
+                return $semester;
+            }
+
+            error_log("getCurrentSemester: No semester with is_current = 1, checking date range");
+            // Fall back to date range
+            $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                WHERE CURRENT_DATE BETWEEN start_date AND end_date
+            ");
+            $stmt->execute();
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                error_log("getCurrentSemester: Found semester by date range - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
+            } else {
+                error_log("getCurrentSemester: No semester found for current date");
+            }
+
+            return $semester ?: null;
+        } catch (PDOException $e) {
+            error_log("getCurrentSemester: Error - " . $e->getMessage());
+            return null;
+        }
+    }
+
     /**
      * Get programs by department
      * @param int $departmentId

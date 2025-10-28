@@ -34,6 +34,10 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::activityLogs");
             $controller->activityLogs();
             break;
+        case '/admin/act_logs/load-more':
+            error_log("Routing to loadMore");
+            $controller->loadMore();
+            break;
         case '/admin/schedule':
             error_log("Routing to AdminController::schedule");
             $controller->mySchedule();

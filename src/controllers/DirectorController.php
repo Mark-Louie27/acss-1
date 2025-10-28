@@ -28,16 +28,6 @@ class DirectorController
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
-    private function getDirectorId($directorId)
-    {
-        $stmt = $this->db->prepare("SELECT  is_current
-                               FROM department_instructors di 
-                               JOIN users u ON di.user_id = u.user_id
-                               WHERE di.is_current = 1");
-        $stmt->execute([':user_id' => $directorId]);
-        return $stmt->fetchColumn();
-    }
-
     private function getUserData()
     {
         try {
@@ -50,7 +40,6 @@ class DirectorController
             $stmt->execute([':user_id' => $_SESSION['user_id']]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($user) {
-                // Fetch primary specialization for the director
                 $specStmt = $this->db->prepare("
                     SELECT s.specialization_id, c.course_name
                     FROM specializations s
@@ -94,7 +83,7 @@ class DirectorController
             }
 
             // Fetch current semester
-            $semester = $this->getCurrentSemester();
+            $semester = $this->userModel->getCurrentSemester();
 
             // Fetch pending schedule approvals
             $scheduleStmt = $this->db->prepare("
@@ -155,47 +144,6 @@ class DirectorController
             return $department ? $department['department_id'] : null;
         } catch (PDOException $e) {
             error_log("getDepartmentId: " . $e->getMessage());
-            return null;
-        }
-    }
-
-    private function getCurrentSemester()
-    {
-        try {
-            error_log("getCurrentSemester: Querying for current semester");
-            // First, try to find the semester marked as current
-            $stmt = $this->db->prepare("
-                SELECT semester_id, semester_name, academic_year 
-                FROM semesters 
-                WHERE is_current = 1
-            ");
-            $stmt->execute();
-            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($semester) {
-                error_log("getCurrentSemester: Found current semester - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
-                return $semester;
-            }
-
-            error_log("getCurrentSemester: No semester with is_current = 1, checking date range");
-            // Fall back to date range
-            $stmt = $this->db->prepare("
-                SELECT semester_id, semester_name, academic_year 
-                FROM semesters 
-                WHERE CURRENT_DATE BETWEEN start_date AND end_date
-            ");
-            $stmt->execute();
-            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($semester) {
-                error_log("getCurrentSemester: Found semester by date range - semester_id: {$semester['semester_id']}, semester_name: {$semester['semester_name']}, academic_year: {$semester['academic_year']}");
-            } else {
-                error_log("getCurrentSemester: No semester found for current date");
-            }
-
-            return $semester ?: null;
-        } catch (PDOException $e) {
-            error_log("getCurrentSemester: Error - " . $e->getMessage());
             return null;
         }
     }
@@ -431,7 +379,7 @@ class DirectorController
             $isPublic = $_POST['action'] === 'approve' ? 1 : 0;
 
             // Get current semester details
-            $currentSemester = $this->getCurrentSemester();
+            $currentSemester = $this->userModel->getCurrentSemester();
             $currentSemesterId = $currentSemester ? $currentSemester['semester_id'] : null;
 
             if ($currentSemesterId && !empty($scheduleIdsStr)) {
@@ -468,7 +416,7 @@ class DirectorController
         }
 
         // Get current semester details
-        $currentSemester = $this->getCurrentSemester();
+        $currentSemester = $this->userModel->getCurrentSemester();
         $currentSemesterId = $currentSemester ? $currentSemester['semester_id'] : null;
 
         if (!$currentSemesterId) {
@@ -562,7 +510,7 @@ class DirectorController
     public function getStats()
     {
         $stats = ['total_pending' => 0];
-        $currentSemester = $this->getCurrentSemester();
+        $currentSemester = $this->userModel->getCurrentSemester();
         if ($currentSemester) {
             try {
                 $stmt = $this->db->prepare("
@@ -1143,7 +1091,7 @@ class DirectorController
             }
 
             // Get current semester information
-            $currentSemester = $this->getCurrentSemester();
+            $currentSemester = $this->userModel->getCurrentSemester();
             $currentSemesterDisplay = $currentSemester ?
                 $currentSemester['semester_name'] . ' Semester, A.Y ' . $currentSemester['academic_year'] : 'Not Set';
 
