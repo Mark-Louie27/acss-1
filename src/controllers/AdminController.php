@@ -1748,25 +1748,23 @@ class AdminController
             }
 
             // Get existing backups
-            $backupFiles = $this->getBackupFiles();
+            $backup_files = $this->getBackupFiles();
 
             // Get database info
-            $databaseInfo = $this->getDatabaseInfo();
+            $database_info = $this->getDatabaseInfo();
 
-            $data = [
-                'title' => 'Database Backup',
-                'backup_files' => $backupFiles,
-                'database_info' => $databaseInfo, // Fixed variable name
-                'csrf_token' => $csrfToken,
-                'controller' => $this // Add controller reference for formatBytes method
-            ];
+            // Extract variables for the view
+            $csrf_token = $csrfToken;
+            $controller = $this;
 
             // Debug: Check if data is being passed correctly
-            error_log("Backup data: " . print_r($data, true));
+            error_log("Backup files count: " . count($backup_files));
+            error_log("Database info: " . print_r($database_info, true));
 
             require_once __DIR__ . '/../views/admin/database-backup.php';
         } catch (Exception $e) {
             error_log("Database backup error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'An error occurred: ' . $e->getMessage()];
             header('Location: /admin/dashboard');
             exit;

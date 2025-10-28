@@ -159,9 +159,10 @@ ob_start();
                                     </div>
                                     <div>
                                         <p class="font-medium text-gray-900"><?php echo htmlspecialchars($backup['filename'], ENT_QUOTES, 'UTF-8'); ?></p>
+                                        <!-- Replace this line around line 165 -->
                                         <p class="text-sm text-gray-500">
                                             <?php echo date('M j, Y g:i A', $backup['modified']); ?>
-                                            • <?php echo isset($controller) ? $controller->formatBytes($backup['size']) : $this->formatBytes($backup['size']); ?>
+                                            • <?php echo $controller->formatBytes($backup['size']); ?>
                                         </p>
                                     </div>
                                 </div>
