@@ -7388,10 +7388,16 @@ class ChairController extends BaseController
         require_once __DIR__ . '/../views/chair/courses.php';
     }
 
-    // New helper method to log activity
+    // Updated helper method to log activity with user names
     private function logActivity($userId, $departmentId, $actionType, $actionDescription, $entityType, $entityId, $metadataId = null)
     {
         try {
+            // First, get the user's complete name
+            $userName = $this->schedulingService->getUserCompleteName($userId);
+
+            // Replace user_id with user name in the action description
+            $formattedDescription = $this->schedulingService->formatActionDescription($actionDescription, $userId, $userName);
+
             $stmt = $this->db->prepare("
             INSERT INTO activity_logs 
             (user_id, department_id, action_type, action_description, entity_type, entity_id, metadata_id, created_at) 
@@ -7401,7 +7407,7 @@ class ChairController extends BaseController
                 ':user_id' => $userId,
                 ':department_id' => $departmentId,
                 ':action_type' => $actionType,
-                ':action_description' => $actionDescription,
+                ':action_description' => $formattedDescription,
                 ':entity_type' => $entityType,
                 ':entity_id' => $entityId,
                 ':metadata_id' => $metadataId
@@ -7521,7 +7527,7 @@ class ChairController extends BaseController
                 LEFT JOIN programs p ON pc.program_id = p.program_id
                 LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
             WHERE 
-                u.role_id IN (1, 2, 3, 4, 5, 6) -- Include Program Chairs (5) and Faculty (6)
+                u.role_id IN ( 2, 3, 4, 5, 6) -- Include Program Chairs (5) and Faculty (6)
                 AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
             ORDER BY u.last_name, u.first_name
             LIMIT 10";

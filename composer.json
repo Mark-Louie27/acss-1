@@ -11,6 +11,7 @@
         "setasign/fpdi-tcpdf": "^2.3",
         "phpoffice/phpspreadsheet": "^4.2",
         "phpmailer/phpmailer": "^6.10",
-        "mpdf/mpdf": "^8.2"
+        "mpdf/mpdf": "^8.2",
+        "dompdf/dompdf": "^3.1"
     }
 }

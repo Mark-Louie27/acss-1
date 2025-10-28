@@ -2,12 +2,14 @@
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
+require_once __DIR__ . '/../services/PdfService.php';
 require_once __DIR__ . '/../models/UserModel.php';
 class AdminController
 {
     public $db;
     private $authService;
     private $emailService;
+    private $pdfService;
     private $UserModel;
 
     public function __construct()  // Remove the $db parameter since we're not using it
@@ -22,6 +24,7 @@ class AdminController
         $this->emailService = new EmailService();
         $this->authService = new AuthService($this->db);
         $this->UserModel = new UserModel($this->db);
+        $this->pdfService = new PdfService();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
@@ -121,30 +124,23 @@ class AdminController
     public function activityLogs()
     {
         try {
-
             // Get current semester information
             $currentSemester = $this->UserModel->getCurrentSemester();
             $currentSemesterDisplay = $currentSemester ?
                 $currentSemester['semester_name'] . ' Semester, A.Y ' . $currentSemester['academic_year'] : 'Not Set';
 
-            $activityStmt = $this->db->prepare("
-            SELECT al.log_id, al.action_type, al.action_description, al.created_at, u.first_name, u.last_name,
-                   d.department_name, col.college_name
-            FROM activity_logs al
-            JOIN users u ON al.user_id = u.user_id
-            JOIN departments d ON al.department_id = d.department_id
-            JOIN colleges col ON d.college_id = col.college_id
-            ORDER BY al.created_at DESC
-        ");
-            $activityStmt->execute();
-            $activities = $activityStmt->fetchAll(PDO::FETCH_ASSOC);
+            // Get filters from request for the HTML view
+            $filters = $this->getFiltersFromRequest();
+
+            // Use the same data fetching method for consistency
+            $activities = $this->getActivitiesData(['limit' => 50] + $filters); // Limit for web view
 
             $data = [
-
                 'activities' => $activities,
                 'title' => 'Activity Monitor - All Departments',
                 'current_semester_display' => $currentSemesterDisplay,
-                'current_semester' => $currentSemester
+                'current_semester' => $currentSemester,
+                'filters' => $filters // Pass filters to view if needed
             ];
 
             $controller = $this;
@@ -213,6 +209,213 @@ class AdminController
             ob_end_flush();
         }
         exit; // Ensure script stops after response
+    }
+
+    /**
+     * Get activities data with optional filtering
+     */
+    private function getActivitiesData($filters = [])
+    {
+        try {
+            // Build the base query (same as your activityLogs method)
+            $sql = "
+            SELECT al.log_id, al.action_type, al.action_description, al.created_at, 
+                   u.first_name, u.last_name, d.department_name, col.college_name
+            FROM activity_logs al
+            JOIN users u ON al.user_id = u.user_id
+            JOIN departments d ON al.department_id = d.department_id
+            JOIN colleges col ON d.college_id = col.college_id
+        ";
+
+            $params = [];
+            $whereConditions = [];
+
+            // Apply filters if provided
+            if (!empty($filters)) {
+                // Date range filter
+                if (isset($filters['dateRange']) && $filters['dateRange'] !== 'all') {
+                    $dateCondition = $this->buildDateCondition($filters['dateRange'], $filters['startDate'] ?? null, $filters['endDate'] ?? null);
+                    if ($dateCondition) {
+                        $whereConditions[] = $dateCondition['condition'];
+                        $params = array_merge($params, $dateCondition['params']);
+                    }
+                }
+
+                // College filter
+                if (isset($filters['college']) && $filters['college'] !== 'all') {
+                    $whereConditions[] = "col.college_name = :college";
+                    $params[':college'] = $filters['college'];
+                }
+
+                // Department filter
+                if (isset($filters['department']) && $filters['department'] !== 'all') {
+                    $whereConditions[] = "d.department_name = :department";
+                    $params[':department'] = $filters['department'];
+                }
+
+                // Action type filter
+                if (isset($filters['actionType']) && $filters['actionType'] !== 'all') {
+                    $whereConditions[] = "al.action_type = :actionType";
+                    $params[':actionType'] = $filters['actionType'];
+                }
+
+                // Time filter
+                if (isset($filters['timeFilter']) && $filters['timeFilter'] !== 'all') {
+                    $timeCondition = $this->buildTimeCondition($filters['timeFilter']);
+                    if ($timeCondition) {
+                        $whereConditions[] = $timeCondition;
+                    }
+                }
+            }
+
+            // Add WHERE clause if we have conditions
+            if (!empty($whereConditions)) {
+                $sql .= " WHERE " . implode(" AND ", $whereConditions);
+            }
+
+            // Add ordering
+            $sql .= " ORDER BY al.created_at DESC";
+
+            // For PDF, we might want all records or a larger limit
+            $limit = isset($filters['limit']) ? (int)$filters['limit'] : 1000; // Larger limit for PDF
+            $sql .= " LIMIT :limit";
+            $params[':limit'] = $limit;
+
+            $stmt = $this->db->prepare($sql);
+
+            // Bind parameters
+            foreach ($params as $key => $value) {
+                $paramType = is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+                $stmt->bindValue($key, $value, $paramType);
+            }
+
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getActivitiesData error: " . $e->getMessage());
+            throw new Exception("Failed to fetch activities data");
+        }
+    }
+
+    /**
+     * Get filters from request (POST or GET)
+     */
+    private function getFiltersFromRequest()
+    {
+        $filters = [
+            'dateRange' => $_POST['dateRange'] ?? $_GET['dateRange'] ?? 'all',
+            'startDate' => $_POST['startDate'] ?? $_GET['startDate'] ?? null,
+            'endDate' => $_POST['endDate'] ?? $_GET['endDate'] ?? null,
+            'timeFilter' => $_POST['timeFilter'] ?? $_GET['timeFilter'] ?? 'all',
+            'college' => $_POST['college'] ?? $_GET['college'] ?? 'all',
+            'department' => $_POST['department'] ?? $_GET['department'] ?? 'all',
+            'actionType' => $_POST['actionType'] ?? $_GET['actionType'] ?? 'all',
+            'limit' => $_POST['limit'] ?? $_GET['limit'] ?? 1000
+        ];
+
+        return $filters;
+    }
+
+    /**
+     * Build date condition for SQL query
+     */
+    private function buildDateCondition($dateRange, $startDate = null, $endDate = null)
+    {
+        $conditions = [];
+        $params = [];
+
+        switch ($dateRange) {
+            case 'today':
+                $conditions[] = "DATE(al.created_at) = CURDATE()";
+                break;
+
+            case 'yesterday':
+                $conditions[] = "DATE(al.created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+                break;
+
+            case 'week':
+                $conditions[] = "al.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+                break;
+
+            case 'month':
+                $conditions[] = "al.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+                break;
+
+            case 'custom':
+                if ($startDate && $endDate) {
+                    $conditions[] = "DATE(al.created_at) BETWEEN :startDate AND :endDate";
+                    $params[':startDate'] = $startDate;
+                    $params[':endDate'] = $endDate;
+                }
+                break;
+
+            default:
+                // 'all' or unknown - no date filter
+                return null;
+        }
+
+        if (empty($conditions)) {
+            return null;
+        }
+
+        return [
+            'condition' => implode(" AND ", $conditions),
+            'params' => $params
+        ];
+    }
+
+    /**
+     * Build time condition for SQL query
+     */
+    private function buildTimeCondition($timeFilter)
+    {
+        switch ($timeFilter) {
+            case 'morning':
+                return "HOUR(al.created_at) BETWEEN 6 AND 11";
+            case 'afternoon':
+                return "HOUR(al.created_at) BETWEEN 12 AND 17";
+            case 'evening':
+                return "HOUR(al.created_at) BETWEEN 18 AND 23";
+            case 'night':
+                return "HOUR(al.created_at) BETWEEN 0 AND 5";
+            default:
+                return null; // 'all' - no time filter
+        }
+    }
+
+    // In AdminController.php
+    public function generateActivityPDF()
+    {
+        // Get activities data (use your existing method)
+        $activities = $this->getActivitiesData();
+        $filters = $this->getFiltersFromRequest();
+
+        // Generate PDF
+        $pdfData = $this->pdfService->generateActivityReport($activities, $filters, "Your University");
+
+        // Send as download
+        $filename = "activity_report_" . date('Y-m-d') . ".pdf";
+        $this->pdfService->sendAsDownload($pdfData, $filename);
+    }
+
+    public function viewActivityPDF()
+    {
+        $activities = $this->getActivitiesData();
+        $filters = $this->getFiltersFromRequest();
+
+        $pdfData = $this->pdfService->generateActivityReport($activities, $filters, "Your University");
+        $this->pdfService->outputToBrowser($pdfData);
+    }
+
+    public function downloadActivityPDF()
+    {
+        $activities = $this->getActivitiesData();
+        $filters = $this->getFiltersFromRequest();
+
+        $pdfData = $this->pdfService->generateActivityReport($activities, $filters, "Your University");
+
+        $filename = "activity_report_" . date('Y-m-d_H-i') . ".pdf";
+        $this->pdfService->sendAsDownload($pdfData, $filename);
     }
 
     public function mySchedule()
@@ -906,58 +1109,6 @@ class AdminController
             $_SESSION['error'] = "Failed to update $type";
             header('Location: /admin/colleges_departments'); // CHANGED
             exit;
-        }
-    }
-
-    public function faculty()
-    {
-        try {
-            $stmt = $this->db->query("
-                 SELECT 
-                            f.faculty_id,
-                            CONCAT(u.user_id, ' ', u.first_name, ' ', u.last_name) AS name
-                        FROM faculty f
-                        JOIN users u ON f.user_id = u.user_id
-                        WHERE u.department_id = :department_id
-                        ORDER BY u.last_name, u.first_name
-            ");
-            $faculty = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $users = $this->db->query("SELECT user_id, first_name, last_name FROM users WHERE role_id = 3")->fetchAll(PDO::FETCH_ASSOC); // Assume role_id 3 = Faculty
-            $colleges = $this->db->query("SELECT college_id, college_name FROM colleges")->fetchAll(PDO::FETCH_ASSOC);
-
-            $controller = $this;
-            require_once __DIR__ . '/../views/admin/faculty.php';
-        } catch (PDOException $e) {
-            error_log("Faculty error: " . $e->getMessage());
-            http_response_code(500);
-            echo "Server error";
-        }
-    }
-
-    public function createFaculty()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            try {
-                $user_id = $_POST['user_id'] ?? null;
-                $college_id = $_POST['college_id'] ?? null;
-
-                $stmt = $this->db->prepare("
-                    INSERT INTO faculty (user_id, college_id)
-                    VALUES (:user_id, :college_id)
-                ");
-                $stmt->execute([
-                    ':user_id' => $user_id,
-                    ':college_id' => $college_id
-                ]);
-
-                header('Location: /admin/faculty');
-                exit;
-            } catch (PDOException $e) {
-                error_log("Create faculty error: " . $e->getMessage());
-                http_response_code(500);
-                echo "Failed to create faculty";
-            }
         }
     }
 

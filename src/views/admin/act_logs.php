@@ -176,12 +176,12 @@ ob_start();
                         Print Report
                     </button>
 
-                    <!-- Export Button 
-                    <button onclick="exportToPDF()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gold-primary">
+                    <!-- Export Button -->
+                    <button onclick="generatePDF()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gold-primary">
                         <i class="fas fa-file-pdf mr-2"></i>
                         Export PDF
                     </button>
-                    -->
+
 
                     <!-- Filter Toggle -->
                     <button onclick="toggleFilters()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gold-primary">
@@ -812,158 +812,158 @@ ob_start();
 
             // Write the print content
             printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>University Activity Report</title>
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    margin: 0.5in;
-                    font-size: 12pt;
-                    line-height: 1.4;
-                    color: #000;
-                }
-                .letter-header {
-                    text-align: center;
-                    border-bottom: 2px solid #000;
-                    padding-bottom: 20px;
-                    margin-bottom: 20px;
-                }
-                .university-logo {
-                    max-width: 1.5in;
-                    height: auto;
-                    margin-bottom: 10px;
-                }
-                .report-title {
-                    font-size: 18pt;
-                    font-weight: bold;
-                    margin: 10px 0;
-                    color: #000;
-                }
-                .report-subtitle {
-                    font-size: 14pt;
-                    margin-bottom: 15px;
-                    color: #333;
-                }
-                .report-meta {
-                    font-size: 10pt;
-                    color: #666;
-                    margin-bottom: 10px;
-                }
-                .summary-stats {
-                    margin-bottom: 20px;
-                }
-                .stats-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 15px;
-                }
-                .stats-table td {
-                    border: 1px solid #ddd;
-                    padding: 10px;
-                    text-align: center;
-                    vertical-align: top;
-                }
-                .stats-table strong {
-                    display: block;
-                    margin-bottom: 5px;
-                }
-                .activity-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                    font-size: 10pt;
-                }
-                .activity-table th,
-                .activity-table td {
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }
-                .activity-table th {
-                    background-color: #f5f5f5;
-                    font-weight: bold;
-                }
-                .report-footer {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px solid #ddd;
-                    text-align: center;
-                    font-size: 9pt;
-                    color: #666;
-                }
-                @page {
-                    margin: 0.5in;
-                    size: letter;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="letter-header">
-                <!-- Replace with your actual university logo path -->
-                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="University Logo" class="university-logo" onerror="this.style.display='none'">
-                <div class="report-title">UNIVERSITY ACTIVITY REPORT</div>
-                <div class="report-subtitle">Activity Monitoring System</div>
-                <div class="report-meta">
-                    Generated on: ${new Date().toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    })}<br>
-                    Semester: <?php echo htmlspecialchars($data['current_semester_display']); ?><br>
-                    ${filterDescription}
-                </div>
-            </div>
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>University Activity Report</title>
+                    <style>
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            margin: 0.5in;
+                            font-size: 12pt;
+                            line-height: 1.4;
+                            color: #000;
+                        }
+                        .letter-header {
+                            text-align: center;
+                            border-bottom: 2px solid #000;
+                            padding-bottom: 20px;
+                            margin-bottom: 20px;
+                        }
+                        .university-logo {
+                            max-width: 1.5in;
+                            height: auto;
+                            margin-bottom: 10px;
+                        }
+                        .report-title {
+                            font-size: 18pt;
+                            font-weight: bold;
+                            margin: 10px 0;
+                            color: #000;
+                        }
+                        .report-subtitle {
+                            font-size: 14pt;
+                            margin-bottom: 15px;
+                            color: #333;
+                        }
+                        .report-meta {
+                            font-size: 10pt;
+                            color: #666;
+                            margin-bottom: 10px;
+                        }
+                        .summary-stats {
+                            margin-bottom: 20px;
+                        }
+                        .stats-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-bottom: 15px;
+                        }
+                        .stats-table td {
+                            border: 1px solid #ddd;
+                            padding: 10px;
+                            text-align: center;
+                            vertical-align: top;
+                        }
+                        .stats-table strong {
+                            display: block;
+                            margin-bottom: 5px;
+                        }
+                        .activity-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin: 20px 0;
+                            font-size: 10pt;
+                        }
+                        .activity-table th,
+                        .activity-table td {
+                            border: 1px solid #ddd;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        .activity-table th {
+                            background-color: #f5f5f5;
+                            font-weight: bold;
+                        }
+                        .report-footer {
+                            margin-top: 30px;
+                            padding-top: 20px;
+                            border-top: 1px solid #ddd;
+                            text-align: center;
+                            font-size: 9pt;
+                            color: #666;
+                        }
+                        @page {
+                            margin: 0.5in;
+                            size: letter;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="letter-header">
+                        <!-- Replace with your actual university logo path -->
+                        <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="University Logo" class="university-logo" onerror="this.style.display='none'">
+                        <div class="report-title">UNIVERSITY ACTIVITY REPORT</div>
+                        <div class="report-subtitle">Activity Monitoring System</div>
+                        <div class="report-meta">
+                            Generated on: ${new Date().toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}<br>
+                            Semester: <?php echo htmlspecialchars($data['current_semester_display']); ?><br>
+                            ${filterDescription}
+                        </div>
+                    </div>
 
-            <div class="summary-stats">
-                <table class="stats-table">
-                    <tr>
-                        <td style="width: 25%">
-                            <strong>Total Activities</strong>
-                            ${document.getElementById('filteredCount').textContent}
-                        </td>
-                        <td style="width: 25%">
-                            <strong>Active Users</strong>
-                            ${document.getElementById('activeUsers').textContent}
-                        </td>
-                        <td style="width: 25%">
-                            <strong>Date Range</strong>
-                            ${document.getElementById('dateFilter').options[document.getElementById('dateFilter').selectedIndex].text}
-                        </td>
-                        <td style="width: 25%">
-                            <strong>Report Period</strong>
-                            ${new Date().toLocaleDateString()}
-                        </td>
-                    </tr>
-                </table>
-            </div>
+                    <div class="summary-stats">
+                        <table class="stats-table">
+                            <tr>
+                                <td style="width: 25%">
+                                    <strong>Total Activities</strong>
+                                    ${document.getElementById('filteredCount').textContent}
+                                </td>
+                                <td style="width: 25%">
+                                    <strong>Active Users</strong>
+                                    ${document.getElementById('activeUsers').textContent}
+                                </td>
+                                <td style="width: 25%">
+                                    <strong>Date Range</strong>
+                                    ${document.getElementById('dateFilter').options[document.getElementById('dateFilter').selectedIndex].text}
+                                </td>
+                                <td style="width: 25%">
+                                    <strong>Report Period</strong>
+                                    ${new Date().toLocaleDateString()}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
 
-            <table class="activity-table">
-                <thead>
-                    <tr>
-                        <th>Date & Time</th>
-                        <th>User</th>
-                        <th>Department</th>
-                        <th>College</th>
-                        <th>Action Type</th>
-                        <th>Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${getPrintableActivities()}
-                </tbody>
-            </table>
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>User</th>
+                                <th>Department</th>
+                                <th>College</th>
+                                <th>Action Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${getPrintableActivities()}
+                        </tbody>
+                    </table>
 
-            <div class="report-footer">
-                <p>Confidential Activity Report - <?php echo htmlspecialchars($data['current_semester_display']); ?></p>
-                <p>Page 1 of 1 | Generated by University Activity Monitoring System</p>
-            </div>
-        </body>
-        </html>
-    `);
+                    <div class="report-footer">
+                        <p>Confidential Activity Report - <?php echo htmlspecialchars($data['current_semester_display']); ?></p>
+                        <p>Page 1 of 1 | Generated by University Activity Monitoring System</p>
+                    </div>
+                </body>
+                </html>
+            `);
 
             printWindow.document.close();
             printWindow.focus();
@@ -995,15 +995,105 @@ ob_start();
                 <td>${activity.action_type.charAt(0).toUpperCase() + activity.action_type.slice(1)}</td>
                 <td>${activity.action_description}</td>
             </tr>
-        `;
+            `;
             });
 
             return tableRows;
         }
 
-        function exportToPDF() {
-            // This would typically use a library like jsPDF or make an API call
-            showNotification('PDF export functionality would be implemented here', 'info');
+        function generatePDF(action = 'download') {
+            // Get current filter values
+            const filters = {
+                dateRange: document.getElementById('dateFilter')?.value || 'all',
+                startDate: document.getElementById('startDate')?.value || '',
+                endDate: document.getElementById('endDate')?.value || '',
+                timeFilter: document.getElementById('timeFilter')?.value || 'all',
+                college: document.getElementById('collegeFilter')?.value || 'all',
+                department: document.getElementById('departmentFilter')?.value || 'all',
+                actionType: document.getElementById('actionTypeFilter')?.value || 'all'
+            };
+
+            // Show loading
+            showLoading('Generating PDF report...');
+
+            // Determine the endpoint based on action
+            let endpoint = '';
+            switch (action) {
+                case 'view':
+                    endpoint = '/admin/act_logs/view-pdf';
+                    break;
+                case 'download':
+                default:
+                    endpoint = '/admin/act_logs/download-pdf';
+                    break;
+            }
+
+            // Create and submit form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = endpoint;
+            form.style.display = 'none';
+
+            // Add filter values as hidden inputs
+            Object.keys(filters).forEach(key => {
+                if (filters[key]) { // Only add if value exists
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = filters[key];
+                    form.appendChild(input);
+                }
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+
+            // Hide loading after a short delay (since we're navigating away)
+            setTimeout(() => {
+                hideLoading();
+            }, 3000); // Longer timeout for PDF generation
+        }
+
+        function showLoading(message = 'Loading...') {
+            // Remove existing loading if any
+            hideLoading();
+
+            // Create loading overlay
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'loadingOverlay';
+            loadingOverlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                color: white;
+                font-family: Arial, sans-serif;
+            `;
+
+            loadingOverlay.innerHTML = `
+                <div style="text-align: center;">
+                    <div class="fas fa-spinner fa-spin" style="font-size: 40px; margin-bottom: 10px;"></div>
+                    <div style="font-size: 16px;">${message}</div>
+                </div>
+            `;
+
+            document.body.appendChild(loadingOverlay);
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) {
+                document.body.removeChild(loadingOverlay);
+            }
+            document.body.style.overflow = '';
         }
 
         function refreshActivities() {

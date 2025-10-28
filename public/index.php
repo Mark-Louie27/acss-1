@@ -38,6 +38,18 @@ function handleAdminRoutes($path)
             error_log("Routing to loadMore");
             $controller->loadMore();
             break;
+        case '/admin/act_logs/generate-pdf':
+            error_log("Routing to AdminController::generateActivityPDF");
+            $controller->generateActivityPDF();
+            break;
+        case '/admin/act_logs/view-pdf':
+            error_log("Routing to AdminController::viewActivityPDF");
+            $controller->viewActivityPDF();
+            break;
+        case '/admin/act_logs/download-pdf':
+            error_log("Routing to AdminController::downloadActivityPDF");
+            $controller->downloadActivityPDF();
+            break;
         case '/admin/schedule':
             error_log("Routing to AdminController::schedule");
             $controller->mySchedule();
@@ -573,7 +585,9 @@ if ($path === 'switch-role' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     echo json_encode([
         'success' => true,
         'message' => "Switched to $actualRole role",
-        'redirect' => $redirectUrl
+        'redirect' => $redirectUrl,
+        'redirect' => $redirectUrl,
+        'pdf_access' => true // Indicate PDF functionality is available
     ]);
     exit;
 }

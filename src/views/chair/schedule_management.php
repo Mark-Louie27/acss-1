@@ -1203,7 +1203,6 @@ if ($userDepartmentId) {
                         roomName: row.getAttribute('data-room-name')
                     });
                 });
-                console.log('=== END DATA ATTRIBUTES CHECK ===');
             }
 
             // Clear filters for manual tab

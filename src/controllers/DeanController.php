@@ -1488,11 +1488,17 @@ class DeanController extends BaseController
         }
     }
 
-    // Assumed logActivity method (add to class if not present)
+    // Updated helper method to log activity with user names
     private function logActivity($userId, $departmentId, $actionType, $actionDescription, $entityType, $entityId, $metadataId = null)
     {
         $this->requireRole('dean');
         try {
+            // First, get the user's complete name
+            $userName = $this->schedulingService->getUserCompleteName($userId);
+
+            // Replace user_id with user name in the action description
+            $formattedDescription = $this->schedulingService->formatActionDescription($actionDescription, $userId, $userName);
+
             $stmt = $this->db->prepare("
             INSERT INTO activity_logs 
             (user_id, department_id, action_type, action_description, entity_type, entity_id, metadata_id, created_at) 
@@ -1502,7 +1508,7 @@ class DeanController extends BaseController
                 ':user_id' => $userId,
                 ':department_id' => $departmentId,
                 ':action_type' => $actionType,
-                ':action_description' => $actionDescription,
+                ':action_description' => $formattedDescription,
                 ':entity_type' => $entityType,
                 ':entity_id' => $entityId,
                 ':metadata_id' => $metadataId

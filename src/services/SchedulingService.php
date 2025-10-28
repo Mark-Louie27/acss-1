@@ -3346,6 +3346,87 @@ class SchedulingService
         if (is_double($value)) return 'd';
         return 's';
     }
+
+    /**
+     * Get user's complete name with title, first name, middle name, last name, and suffix
+     */
+    public function getUserCompleteName($userId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT title, first_name, middle_name, last_name, suffix 
+            FROM users 
+            WHERE user_id = :user_id
+        ");
+            $stmt->execute([':user_id' => $userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user) {
+                return $this->formatUserNameFromData($user);
+            }
+            return "User #" . $userId;
+        } catch (PDOException $e) {
+            error_log("getUserCompleteName: Failed to get user name - " . $e->getMessage());
+            return "User #" . $userId;
+        }
+    }
+
+    /**
+     * Format user name from user data array
+     */
+    private function formatUserNameFromData($userData)
+    {
+        $nameParts = [];
+
+        // Add title if exists
+        if (!empty($userData['title'])) {
+            $nameParts[] = $userData['title'];
+        }
+
+        // Add first name
+        if (!empty($userData['first_name'])) {
+            $nameParts[] = $userData['first_name'];
+        }
+
+        // Add middle name (just initial if exists)
+        if (!empty($userData['middle_name'])) {
+            $nameParts[] = substr($userData['middle_name'], 0, 1) . '.';
+        }
+
+        // Add last name
+        if (!empty($userData['last_name'])) {
+            $nameParts[] = $userData['last_name'];
+        }
+
+        // Add suffix if exists
+        if (!empty($userData['suffix'])) {
+            $nameParts[] = $userData['suffix'];
+        }
+
+        return implode(' ', $nameParts);
+    }
+
+    /**
+     * Format action description by replacing user_id with user name
+     */
+    public function formatActionDescription($description, $userId, $userName)
+    {
+        // Replace user_id=X with user: [User Name]
+        $description = preg_replace(
+            '/user_id=(\d+)/',
+            'user: ' . $userName,
+            $description
+        );
+
+        // Also handle other common patterns
+        $description = str_replace(
+            ['user_id=' . $userId, 'user ' . $userId],
+            ['user: ' . $userName, 'user ' . $userName],
+            $description
+        );
+
+        return $description;
+    }
     
 }
 
