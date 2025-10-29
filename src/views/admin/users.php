@@ -108,7 +108,7 @@ ob_start();
 </style>
 
 <div class="min-h-screen bg-gray-100 py-6">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header Section -->
         <div class="mb-8">
             <!-- Update the header section -->
@@ -230,110 +230,124 @@ ob_start();
 
         <!-- Users Table -->
         <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h2 class="text-lg font-semibold text-gray-900" id="table-title">Users Directory</h2>
+                <div class="text-sm text-gray-500">
+                    <span id="visibleCount"><?php echo count($users); ?></span> of <?php echo count($users); ?> users
+                </div>
             </div>
+
+            <!-- Horizontal scroll container -->
             <div class="overflow-x-auto">
-                <table class="w-full" id="usersTable">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">User</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">Role</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">College</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">Department</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider resize-x cursor-col-resize">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200" id="usersTableBody">
-                        <?php foreach ($users as $user): ?>
-                            <tr class="user-row <?php echo !$user['is_active'] ? 'pending-user' : ($user['is_active'] ? 'active-user' : 'inactive-user'); ?> hover:bg-gray-50 transition-colors duration-150 cursor-pointer" data-user-id="<?php echo $user['user_id']; ?>" style="display: <?php echo !isset($_GET['tab']) || $_GET['tab'] === 'all' ? '' : 'none'; ?>">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex items-center">
-                                        <div class="flex-shrink-0 h-10 w-10">
-                                            <?php if (!empty($user['profile_picture'])): ?>
-                                                <img src="<?php echo htmlspecialchars($user['profile_picture'], ENT_QUOTES, 'UTF-8'); ?>" alt="Profile picture" class="h-10 w-10 rounded-full">
-                                            <?php else: ?>
-                                                <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                                                    <span class="text-sm font-medium text-yellow-600">
-                                                        <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
-                                                    </span>
+                <div class="min-w-full inline-block align-middle">
+                    <table class="min-w-full divide-y divide-gray-200" id="usersTable">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[200px]">User</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[180px]">Email</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Role</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[150px]">College</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[150px]">Department</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="usersTableBody">
+                            <?php foreach ($users as $user): ?>
+                                <tr class="user-row <?php echo !$user['is_active'] ? 'pending-user' : ($user['is_active'] ? 'active-user' : 'inactive-user'); ?> hover:bg-gray-50 transition-colors duration-150" data-user-id="<?php echo $user['user_id']; ?>" style="display: <?php echo !isset($_GET['tab']) || $_GET['tab'] === 'all' ? '' : 'none'; ?>">
+                                    <td class="px-4 py-4 whitespace-nowrap">
+                                        <div class="flex items-center min-w-0">
+                                            <div class="flex-shrink-0 h-10 w-10">
+                                                <?php if (!empty($user['profile_picture'])): ?>
+                                                    <img src="<?php echo htmlspecialchars($user['profile_picture'], ENT_QUOTES, 'UTF-8'); ?>" alt="Profile picture" class="h-10 w-10 rounded-full object-cover">
+                                                <?php else: ?>
+                                                    <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                                        <span class="text-sm font-medium text-yellow-600">
+                                                            <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
+                                                        </span>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="ml-3 min-w-0 flex-1">
+                                                <div class="text-sm font-medium text-gray-900 truncate" title="<?php echo htmlspecialchars($user['title'] . ' ' . $user['first_name'] . ' ' . $user['middle_name'] . ' ' . $user['last_name'] . ' ' . $user['suffix'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                    <?php echo htmlspecialchars($user['title'] . ' ' . $user['first_name'] . ' ' . $user['middle_name'] . ' ' . $user['last_name'] . ' ' . $user['suffix'], ENT_QUOTES, 'UTF-8'); ?>
                                                 </div>
+                                                <div class="text-sm text-gray-500 truncate">
+                                                    @<?php echo htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8'); ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <div class="truncate max-w-[160px]" title="<?php echo htmlspecialchars($user['email'] ?? 'Not provided', ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars($user['email'] ?? 'Not provided', ENT_QUOTES, 'UTF-8'); ?>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            <?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?>
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <div class="truncate max-w-[140px]" title="<?php echo htmlspecialchars($user['college_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars($user['college_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <div class="truncate max-w-[140px]" title="<?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap">
+                                        <?php $isActive = isset($user['is_active']) && $user['is_active']; ?>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
+                                            <?php echo $isActive ? 'Active' : 'Inactive'; ?>
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                        <div class="flex items-center space-x-1">
+                                            <button onclick="viewUser(<?php echo $user['user_id']; ?>)" class="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors" title="View Details">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                                </svg>
+                                            </button>
+                                            <button onclick="resetPassword(<?php echo $user['user_id']; ?>)" class="text-purple-600 hover:text-purple-900 p-1 rounded transition-colors" title="Reset Password">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                                </svg>
+                                            </button>
+                                            <?php if (!$isActive): ?>
+                                                <button onclick="approveUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-yellow-600 hover:text-yellow-900 p-1 rounded transition-colors" title="Approve User">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                    </svg>
+                                                </button>
+                                                <button onclick="declineUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-red-600 hover:text-red-900 p-1 rounded transition-colors" title="Decline User">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                    </svg>
+                                                </button>
+                                            <?php elseif ($isActive): ?>
+                                                <button onclick="disableUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-red-600 hover:text-red-900 p-1 rounded transition-colors" title="Disable User">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"></path>
+                                                    </svg>
+                                                </button>
                                             <?php endif; ?>
                                         </div>
-                                        <div class="ml-4">
-                                            <div class="text-sm font-medium text-gray-900">
-                                                <?php echo htmlspecialchars($user['title'] . ' ' . $user['first_name'] . ' ' . $user['middle_name'] . ' ' . $user['last_name'] . ' ' . $user['suffix'], ENT_QUOTES, 'UTF-8'); ?>
-                                            </div>
-                                            <div class="text-sm text-gray-500">
-                                                @<?php echo htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8'); ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo htmlspecialchars($user['email'] ?? 'Not provided', ENT_QUOTES, 'UTF-8'); ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                        <?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo htmlspecialchars($user['college_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <?php $isActive = isset($user['is_active']) && $user['is_active']; ?>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
-                                        <?php echo $isActive ? 'Active' : 'Inactive'; ?>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <div class="flex items-center space-x-2">
-                                        <button onclick="viewUser(<?php echo $user['user_id']; ?>)" class="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors" title="View Details">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                                            </svg>
-                                        </button>
-                                        <button onclick="resetPassword(<?php echo $user['user_id']; ?>)" class="text-purple-600 hover:text-purple-900 p-1 rounded transition-colors" title="Reset Password">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                                            </svg>
-                                        </button>
-                                        <button onclick="editUser(<?php echo $user['user_id']; ?>)" class="text-green-600 hover:text-green-900 p-1 rounded transition-colors">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                            </svg>
-                                        </button>
-                                        <?php if (!$isActive): ?>
-                                            <button onclick="approveUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-yellow-600 hover:text-yellow-900 p-1 rounded transition-colors">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                </svg>
-                                            </button>
-                                            <button onclick="declineUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-red-600 hover:text-red-900 p-1 rounded transition-colors">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                </svg>
-                                            </button>
-                                        <?php elseif ($isActive): ?>
-                                            <button onclick="disableUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-red-600 hover:text-red-900 p-1 rounded transition-colors">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"></path>
-                                                </svg>
-                                            </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Scroll indicator -->
+            <div class="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center text-sm text-gray-500">
+                <span>Scroll horizontally to see more columns →</span>
+                <span id="visibleCountBottom"><?php echo count($users); ?> users</span>
             </div>
         </div>
     </div>
@@ -411,7 +425,7 @@ ob_start();
 
     <!-- Add User Modal -->
     <div id="addUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="relative mx-auto p-6 border w-full max-w-4xl shadow-lg rounded-xl bg-white max-h-[90vh] overflow-y-auto">
+        <div class="relative mx-auto p-6 border w-full max-w-6xl shadow-lg rounded-xl bg-white max-h-[95vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-semibold text-gray-900">Add New User</h3>
                 <button onclick="closeAddUserModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
@@ -424,107 +438,205 @@ ob_start();
             <form id="addUserForm" class="space-y-6">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
-                <!-- Basic Information -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Employee ID *</label>
-                        <input type="text" name="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                <!-- Basic Information Section -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="text-lg font-medium text-gray-900 mb-4">Basic Information</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Employee ID *</label>
+                            <input type="text" name="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+                            <input type="text" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
-                        <input type="text" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                            <input type="email" name="email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                            <input type="tel" name="phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                    </div>
+
+                    <!-- Personal Information -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                            <select name="title" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Title</option>
+                                <!-- Dynamically populated -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                            <input type="text" name="first_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Middle Name</label>
+                            <input type="text" name="middle_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+                            <input type="text" name="last_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                        <input type="email" name="email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                <!-- Role and Academic Information Section -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="text-lg font-medium text-gray-900 mb-4">Role & Academic Information</h4>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                            <select name="role_id" id="roleSelect" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Role</option>
+                                <?php foreach ($roles as $role): ?>
+                                    <option value="<?php echo $role['role_id']; ?>"><?php echo htmlspecialchars($role['role_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Academic Rank</label>
+                            <select name="academic_rank" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Rank</option>
+                                <!-- Dynamically populated -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                            <select name="employment_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Type</option>
+                                <option value="Regular">Regular</option>
+                                <option value="Contractual">Contractual</option>
+                                <option value="Part-time">Part-time</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                        <input type="tel" name="phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Classification</label>
+                            <select name="classification" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Classification</option>
+                                <option value="TL">TL</option>
+                                <option value="VSL">VSL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Max Hours</label>
+                            <input type="number" name="max_hours" step="0.01" value="18.00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Designation</label>
+                            <input type="text" name="designation" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" placeholder="e.g., Department Head, Coordinator">
+                        </div>
                     </div>
                 </div>
 
-                <!-- Personal Information -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                        <select name="title" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                            <option value="">Select Title</option>
-                            <option value="Mr.">Mr.</option>
-                            <option value="Mrs.">Mrs.</option>
-                            <option value="Ms.">Ms.</option>
-                            <option value="Dr.">Dr.</option>
-                            <option value="Prof.">Prof.</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
-                        <input type="text" name="first_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Middle Name</label>
-                        <input type="text" name="middle_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
-                        <input type="text" name="last_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                <!-- Educational Background Section -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="text-lg font-medium text-gray-900 mb-4">Educational Background</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Bachelor's Degree</label>
+                            <input type="text" name="bachelor_degree" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Master's Degree</label>
+                            <input type="text" name="master_degree" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Doctorate Degree</label>
+                            <input type="text" name="doctorate_degree" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Post-Doctorate Degree</label>
+                            <input type="text" name="post_doctorate_degree" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
                     </div>
                 </div>
 
-                <!-- Role and Position -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-                        <select name="role_id" id="roleSelect" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="handleRoleChange(this.value)">
-                            <option value="">Select Role</option>
-                            <?php foreach ($roles as $role): ?>
-                                <option value="<?php echo $role['role_id']; ?>"><?php echo htmlspecialchars($role['role_name'], ENT_QUOTES, 'UTF-8'); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                <!-- College and Department Section -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="text-lg font-medium text-gray-900 mb-4">College & Department</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">College</label>
+                            <select name="college_id" id="collegeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select College</option>
+                                <?php foreach ($colleges as $college): ?>
+                                    <option value="<?php echo $college['college_id']; ?>"><?php echo htmlspecialchars($college['college_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                            <select name="department_id" id="departmentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Department</option>
+                            </select>
+                        </div>
                     </div>
-                    <div id="academicRankField" class="hidden">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Academic Rank</label>
-                        <select name="academic_rank" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                            <option value="">Select Rank</option>
-                            <option value="Instructor">Instructor</option>
-                            <option value="Assistant Professor">Assistant Professor</option>
-                            <option value="Associate Professor">Associate Professor</option>
-                            <option value="Professor">Professor</option>
-                        </select>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Primary Program</label>
+                            <select name="primary_program_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Primary Program</option>
+                                <?php foreach ($programs as $program): ?>
+                                    <option value="<?php echo $program['program_id']; ?>"><?php echo htmlspecialchars($program['program_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Secondary Program</label>
+                            <select name="secondary_program_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                                <option value="">Select Secondary Program</option>
+                                <?php foreach ($programs as $program): ?>
+                                    <option value="<?php echo $program['program_id']; ?>"><?php echo htmlspecialchars($program['program_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <!-- College and Department -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">College</label>
-                        <select name="college_id" id="collegeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" onchange="updateDepartments(this.value)">
-                            <option value="">Select College</option>
-                            <?php foreach ($colleges as $college): ?>
-                                <option value="<?php echo $college['college_id']; ?>"><?php echo htmlspecialchars($college['college_name'], ENT_QUOTES, 'UTF-8'); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                <!-- Teaching Load Information (Optional) -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h4 class="text-lg font-medium text-gray-900 mb-4">Teaching Load Information (Optional)</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Equivalent Teaching Load</label>
+                            <input type="number" name="equiv_teaching_load" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Lecture Hours</label>
+                            <input type="number" name="total_lecture_hours" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Laboratory Hours</label>
+                            <input type="number" name="total_laboratory_hours" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                        <select name="department_id" id="departmentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                            <option value="">Select Department</option>
-                        </select>
-                    </div>
-                </div>
 
-                <!-- Program Chair Specific -->
-                <div id="programField" class="hidden">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Program</label>
-                    <select name="program_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        <option value="">Select Program</option>
-                        <?php foreach ($programs as $program): ?>
-                            <option value="<?php echo $program['program_id']; ?>"><?php echo htmlspecialchars($program['program_name'], ENT_QUOTES, 'UTF-8'); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">No. of Preparations</label>
+                            <input type="number" name="no_of_preparation" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Advisory Class</label>
+                            <input type="text" name="advisory_class" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Working Load</label>
+                            <input type="number" name="total_working_load" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Additional Options -->
@@ -533,7 +645,7 @@ ob_start();
                     <label for="sendWelcomeEmail" class="ml-2 block text-sm text-gray-900">Send welcome email with login instructions</label>
                 </div>
 
-                <div class="flex justify-end space-x-3 pt-4">
+                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <button type="button" onclick="closeAddUserModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
@@ -574,6 +686,14 @@ ob_start();
     <!-- JavaScript -->
     <script>
         let currentUserId = null;
+
+        let dynamicData = {
+            titles: <?php echo json_encode($titles ?? []); ?>,
+            academicRanks: <?php echo json_encode($academicRanks ?? []); ?>,
+            employmentTypes: <?php echo json_encode($employmentTypes ?? []); ?>,
+            classifications: <?php echo json_encode($classifications ?? []); ?>,
+            departments: <?php echo json_encode($departments ?? []); ?>
+        };
 
         function disableUser(userId, userName) {
             currentUserId = userId;
@@ -717,6 +837,122 @@ ob_start();
             hideRoleSpecificFields();
         }
 
+        // Initialize all dynamic select fields with error handling
+        function initializeDynamicSelects() {
+            try {
+                // Initialize titles
+                const titleSelect = document.querySelector('select[name="title"]');
+                if (titleSelect && Array.isArray(dynamicData.titles)) {
+                    titleSelect.innerHTML = '<option value="">Select Title</option>';
+                    dynamicData.titles.forEach(title => {
+                        const option = document.createElement('option');
+                        option.value = title;
+                        option.textContent = title;
+                        titleSelect.appendChild(option);
+                    });
+                }
+
+                // Initialize academic ranks
+                const academicRankSelect = document.querySelector('select[name="academic_rank"]');
+                if (academicRankSelect && Array.isArray(dynamicData.academicRanks)) {
+                    academicRankSelect.innerHTML = '<option value="">Select Rank</option>';
+                    dynamicData.academicRanks.forEach(rank => {
+                        const option = document.createElement('option');
+                        option.value = rank;
+                        option.textContent = rank;
+                        academicRankSelect.appendChild(option);
+                    });
+                }
+
+                // Initialize employment types
+                const employmentTypeSelect = document.querySelector('select[name="employment_type"]');
+                if (employmentTypeSelect && Array.isArray(dynamicData.employmentTypes)) {
+                    employmentTypeSelect.innerHTML = '<option value="">Select Type</option>';
+                    dynamicData.employmentTypes.forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = type;
+                        employmentTypeSelect.appendChild(option);
+                    });
+                }
+
+                // Initialize classifications
+                const classificationSelect = document.querySelector('select[name="classification"]');
+                if (classificationSelect && Array.isArray(dynamicData.classifications)) {
+                    classificationSelect.innerHTML = '<option value="">Select Classification</option>';
+                    dynamicData.classifications.forEach(classification => {
+                        const option = document.createElement('option');
+                        option.value = classification;
+                        option.textContent = classification;
+                        classificationSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error initializing dynamic selects:', error);
+            }
+        }
+
+        // Initialize college-department data structure with error handling
+        function initializeCollegeDepartments() {
+            try {
+                window.collegeDepartments = {};
+
+                if (Array.isArray(dynamicData.departments)) {
+                    dynamicData.departments.forEach(dept => {
+                        const collegeId = dept.college_id;
+                        if (!window.collegeDepartments[collegeId]) {
+                            window.collegeDepartments[collegeId] = [];
+                        }
+                        window.collegeDepartments[collegeId].push({
+                            id: dept.department_id,
+                            name: dept.department_name
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error initializing college departments:', error);
+            }
+        }
+
+        // Update departments based on selected college
+        function updateDepartments(collegeId) {
+            const departmentSelect = document.getElementById('departmentSelect');
+            const departmentHelpText = document.getElementById('departmentHelpText');
+            const roleSelect = document.getElementById('roleSelect');
+            const selectedRole = roleSelect ? roleSelect.value : '';
+
+            // Clear existing options
+            departmentSelect.innerHTML = '<option value="">Select Department</option>';
+
+            if (!collegeId) {
+                departmentHelpText.textContent = 'Select a college first to see available departments';
+                return;
+            }
+
+            // Get departments for the selected college
+            const departments = window.collegeDepartments[collegeId] || [];
+
+            // Add department options
+            departments.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.id;
+                option.textContent = dept.name;
+                departmentSelect.appendChild(option);
+            });
+
+            // Update help text
+            if (departments.length > 0) {
+                departmentHelpText.textContent = `${departments.length} department(s) available`;
+
+                // For Dean role, show special message
+                if (selectedRole === '5') {
+                    departmentHelpText.textContent += ' (Optional for Dean role)';
+                }
+            } else {
+                departmentHelpText.textContent = 'No departments available for this college';
+            }
+        }
+
         function handleRoleChange(roleId) {
             hideRoleSpecificFields();
 
@@ -730,8 +966,10 @@ ob_start();
                 case '4': // Department Chair
                     // Show department selection (already visible)
                     break;
-                case '5': // Dean
-                    // Show college selection (already visible)
+                case '4': // Dean
+                    if (departmentHelpText) {
+                        departmentHelpText.textContent = 'Department is optional for Dean role';
+                    }
                     break;
             }
         }
@@ -739,6 +977,12 @@ ob_start();
         function hideRoleSpecificFields() {
             document.getElementById('academicRankField').classList.add('hidden');
             document.getElementById('programField').classList.add('hidden');
+        }
+
+        // College change handler
+        function onCollegeChange(selectElement) {
+            const collegeId = selectElement.value;
+            updateDepartments(collegeId);
         }
 
         function updateDepartments(collegeId) {
@@ -819,38 +1063,197 @@ ob_start();
             }
         }
 
-        // View User Details
+        const usersData = <?php echo json_encode($users); ?>;
+
+        console.log('Users data loaded:', usersData.length, 'users');
+
+        // View User Details - Fixed version
         function viewUser(userId) {
-            fetch(`/admin/users?action=view&user_id=${userId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showUserDetails(data.user);
-                    } else {
-                        alert('Error loading user details');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while loading user details');
-                });
+            console.log('Attempting to view user with ID:', userId, 'Type:', typeof userId);
+
+            // Convert userId to number for comparison (since it comes from data attribute)
+            const userIdNum = parseInt(userId);
+
+            // Find user with explicit type conversion
+            const user = usersData.find(u => parseInt(u.user_id) === userIdNum);
+
+            console.log('Found user:', user);
+
+            if (user) {
+                showUserDetails(user);
+            } else {
+                console.error('User not found in data. Available user IDs:', usersData.map(u => u.user_id));
+                alert('User not found');
+            }
         }
 
         function showUserDetails(user) {
+            console.log('Displaying user details for:', user);
+
+            // Helper function to safely display values
+            const safe = (val, fallback = 'N/A') => {
+                // Check for null, undefined, empty string, or whitespace-only string
+                if (val === null || val === undefined || val === '' || (typeof val === 'string' && val.trim() === '')) {
+                    return fallback;
+                }
+                return val;
+            };
+
+            // Build full name with proper null checking
+            let fullName = [
+                safe(user.title, ''),
+                safe(user.first_name, ''),
+                safe(user.middle_name, ''),
+                safe(user.last_name, ''),
+                safe(user.suffix, '')
+            ].filter(part => part !== '').join(' ').trim();
+
+            // Fallback if name is completely empty
+            if (!fullName || fullName === '') {
+                fullName = 'No Name Provided';
+            }
+
+            console.log('Built full name:', fullName);
+
+            // Build academic info section (only for faculty/instructors)
+            const academicInfo = (user.academic_rank || user.employment_type || user.classification) ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Academic Rank</label>
+                        <p class="mt-1 text-gray-900">${safe(user.academic_rank)}</p>
+                    </div>
+                    ${user.employment_type ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Employment Type</label>
+                        <p class="mt-1 text-gray-900">${safe(user.employment_type)}</p>
+                    </div>` : ''}
+                    ${user.classification ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Classification</label>
+                        <p class="mt-1 text-gray-900">${safe(user.classification)}</p>
+                    </div>` : ''}
+                ` : '';
+
+            // Build education info section
+            const hasEducation = user.bachelor_degree || user.master_degree || user.doctorate_degree || user.post_doctorate_degree;
+            const educationInfo = hasEducation ? `
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Education</label>
+                        <div class="mt-1 space-y-2">
+                            ${user.bachelor_degree ? `<p class="text-gray-900"><span class="font-medium">Bachelor:</span> ${safe(user.bachelor_degree)}</p>` : ''}
+                            ${user.master_degree ? `<p class="text-gray-900"><span class="font-medium">Master's:</span> ${safe(user.master_degree)}</p>` : ''}
+                            ${user.doctorate_degree ? `<p class="text-gray-900"><span class="font-medium">Doctorate:</span> ${safe(user.doctorate_degree)}</p>` : ''}
+                            ${user.post_doctorate_degree ? `<p class="text-gray-900"><span class="font-medium">Post-Doctorate:</span> ${safe(user.post_doctorate_degree)}</p>` : ''}
+                        </div>
+                    </div>
+                ` : '';
+
+            // Get initials for avatar
+            const firstInitial = user.first_name ? user.first_name.charAt(0).toUpperCase() : 'U';
+            const lastInitial = user.last_name ? user.last_name.charAt(0).toUpperCase() : 'U';
+            const initials = firstInitial + lastInitial;
+
+            // Format date
+            let formattedDate = 'N/A';
+            if (user.created_at) {
+                try {
+                    const date = new Date(user.created_at);
+                    formattedDate = date.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                } catch (e) {
+                    console.error('Error formatting date:', e);
+                    formattedDate = user.created_at;
+                }
+            }
+
+            // Build the complete modal content
             const content = `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label class="block text-sm font-medium text-gray-700">Employee ID</label><p class="mt-1 text-gray-900">${user.employee_id || 'N/A'}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Username</label><p class="mt-1 text-gray-900">${user.username}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Email</label><p class="mt-1 text-gray-900">${user.email}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Phone</label><p class="mt-1 text-gray-900">${user.phone || 'N/A'}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Full Name</label><p class="mt-1 text-gray-900">${user.title || ''} ${user.first_name} ${user.middle_name || ''} ${user.last_name} ${user.suffix || ''}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Role</label><p class="mt-1 text-gray-900">${user.role_name}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">College</label><p class="mt-1 text-gray-900">${user.college_name || 'N/A'}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Department</label><p class="mt-1 text-gray-900">${user.department_name || 'N/A'}</p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Status</label><p class="mt-1 text-gray-900"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${user.is_active ? 'Active' : 'Inactive'}</span></p></div>
-            <div><label class="block text-sm font-medium text-gray-700">Created</label><p class="mt-1 text-gray-900">${new Date(user.created_at).toLocaleDateString()}</p></div>
-        </div>
-    `;
+                <div class="flex items-center space-x-4 mb-6 pb-4 border-b border-gray-200">
+                    <div class="flex-shrink-0">
+                        ${user.profile_picture && user.profile_picture.trim() !== '' ? 
+                            `<img src="${safe(user.profile_picture)}" alt="Profile" class="h-16 w-16 rounded-full object-cover border-2 border-yellow-400">` :
+                            `<div class="h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center border-2 border-yellow-400">
+                                <span class="text-xl font-bold text-yellow-600">${initials}</span>
+                            </div>`
+                        }
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-900">${fullName}</h4>
+                        <p class="text-sm text-gray-600">${safe(user.role_name)} ${user.employee_id ? '• ' + safe(user.employee_id) : ''}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Employee ID</label>
+                        <p class="mt-1 text-gray-900">${safe(user.employee_id)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Username</label>
+                        <p class="mt-1 text-gray-900">${safe(user.username)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Email</label>
+                        <p class="mt-1 text-gray-900">${safe(user.email)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Phone</label>
+                        <p class="mt-1 text-gray-900">${safe(user.phone)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Role</label>
+                        <p class="mt-1 text-gray-900">${safe(user.role_name)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Status</label>
+                        <p class="mt-1">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${user.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+
+                ${(user.college_name || user.department_name) ? `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-200">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">College</label>
+                        <p class="mt-1 text-gray-900">${safe(user.college_name)}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Department</label>
+                        <p class="mt-1 text-gray-900">${safe(user.department_name)}</p>
+                    </div>
+                </div>` : ''}
+
+                ${academicInfo ? `
+                <div class="pb-6 border-b border-gray-200 mb-6">
+                    <h5 class="text-sm font-semibold text-gray-900 mb-3">Academic Information</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">${academicInfo}</div>
+                </div>` : ''}
+
+                ${educationInfo ? `
+                <div class="pb-6 border-b border-gray-200 mb-6">
+                    <h5 class="text-sm font-semibold text-gray-900 mb-3">Educational Background</h5>
+                    ${educationInfo}
+                </div>` : ''}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${user.designation ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Designation</label>
+                        <p class="mt-1 text-gray-900">${safe(user.designation)}</p>
+                    </div>` : ''}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Account Created</label>
+                        <p class="mt-1 text-gray-900">${formattedDate}</p>
+                    </div>
+                </div>
+            `;
+
+            // Update modal content and show
             document.getElementById('userDetailsContent').innerHTML = content;
             document.getElementById('viewUserModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
@@ -859,24 +1262,22 @@ ob_start();
         function closeViewUserModal() {
             document.getElementById('viewUserModal').classList.add('hidden');
             document.body.style.overflow = 'auto';
-            currentUserId = null;
         }
-
-        // ... (other functions like approveUser, filterTable, etc.)
-
-        // Event listeners
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
-            const rows = document.querySelectorAll('.user-row');
-            rows.forEach(row => {
-                row.addEventListener('click', () => showUserDetails(row));
-            });
+            console.log('Page loaded. Users available:', usersData.length);
 
+            // Initialize default tab
             const defaultTab = '<?php echo isset($_GET['tab']) ? htmlspecialchars($_GET['tab'], ENT_QUOTES, 'UTF-8') : 'all'; ?>';
             if (['all', 'active', 'inactive', 'pending'].includes(defaultTab)) {
                 switchTab(defaultTab);
             } else {
                 switchTab('all');
             }
+
+            // Initialize all dynamic selects
+            initializeDynamicSelects();
+            initializeCollegeDepartments();
         });
 
         function approveUser(userId, userName) {
@@ -1009,16 +1410,6 @@ ob_start();
                 document.addEventListener('mousemove', resize);
                 document.addEventListener('mouseup', stopResize);
             });
-        });
-
-        // Initialize default tab
-        document.addEventListener('DOMContentLoaded', () => {
-            const defaultTab = '<?php echo isset($_GET['tab']) ? htmlspecialchars($_GET['tab'], ENT_QUOTES, 'UTF-8') : 'all'; ?>';
-            if (['all', 'active', 'inactive', 'pending'].includes(defaultTab)) {
-                switchTab(defaultTab);
-            } else {
-                switchTab('all');
-            }
         });
     </script>
 </div>

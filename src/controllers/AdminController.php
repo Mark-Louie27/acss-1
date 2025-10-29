@@ -542,11 +542,12 @@ class AdminController
 
             // Fetch common data
             $usersStmt = $this->db->query("
-            SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email, u.profile_picture,
-                   r.role_name, c.college_id, c.college_name, d.department_id, d.department_name, f.academic_rank,
-                   cd.department_id as chair_department_id,
-                   deans.college_id as dean_college_id,
-                   di.department_id as instructor_department_id
+            SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email, u.profile_picture, u.phone,                    -- ADD THIS
+                u.created_at, r.role_name, c.college_id, c.college_name, d.department_id, d.department_name, f.academic_rank, f.employment_type, f.classification, bachelor_degree,
+                f.master_degree, f.doctorate_degree, f.post_doctorate_degree, f.designation, 
+                cd.department_id as chair_department_id,
+                deans.college_id as dean_college_id,
+                di.department_id as instructor_department_id
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
             LEFT JOIN faculty f ON u.user_id = f.faculty_id
@@ -556,14 +557,51 @@ class AdminController
             LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
             LEFT JOIN department_instructors di ON u.user_id = di.user_id AND di.is_current = 1
             ORDER BY u.first_name, u.last_name
-        ");
+            ");
             $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $roles = $this->db->query("SELECT role_id, role_name FROM roles ORDER BY role_name")->fetchAll(PDO::FETCH_ASSOC);
             $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
             $departments = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
             $programs = $this->db->query("SELECT program_id, program_name, department_id FROM programs ORDER BY program_name")->fetchAll(PDO::FETCH_ASSOC);
+            // Get data from lookup tables
+            // Get dynamic data from database
+            $academicRanks = $this->db->query("
+            SELECT DISTINCT academic_rank 
+            FROM faculty 
+            WHERE academic_rank IS NOT NULL AND academic_rank != '' 
+            ORDER BY 
+                CASE 
+                    WHEN academic_rank LIKE 'Instructor%' THEN 1
+                    WHEN academic_rank LIKE 'Assistant Professor%' THEN 2
+                    WHEN academic_rank LIKE 'Associate Professor%' THEN 3
+                    WHEN academic_rank LIKE 'Professor%' THEN 4
+                    ELSE 5
+                END,
+                academic_rank
+        ")->fetchAll(PDO::FETCH_COLUMN);
 
+            $titles = $this->db->query("
+            SELECT DISTINCT title 
+            FROM users 
+            WHERE title IS NOT NULL AND title != '' 
+            ORDER BY title
+        ")->fetchAll(PDO::FETCH_COLUMN);
+
+            $employmentTypes = $this->db->query("
+            SELECT DISTINCT employment_type 
+            FROM faculty 
+            WHERE employment_type IS NOT NULL AND employment_type != '' 
+            ORDER BY employment_type
+        ")->fetchAll(PDO::FETCH_COLUMN);
+
+            $classifications = $this->db->query("
+            SELECT DISTINCT classification 
+            FROM faculty 
+            WHERE classification IS NOT NULL AND classification != '' 
+            ORDER BY classification
+        ")->fetchAll(PDO::FETCH_COLUMN);
+        
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
                     $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
@@ -643,6 +681,9 @@ class AdminController
             $temporaryPassword = $this->generateTemporaryPassword();
             $passwordHash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
 
+            // Start transaction
+            $this->db->beginTransaction();
+
             // Insert user
             $stmt = $this->db->prepare("
             INSERT INTO users (
@@ -673,8 +714,58 @@ class AdminController
             $stmt->execute($userData);
             $newUserId = $this->db->lastInsertId();
 
+            // Insert into faculty table for ALL user roles
+            $facultyStmt = $this->db->prepare("
+            INSERT INTO faculty (
+                user_id, employee_id, academic_rank, employment_type, classification, max_hours,
+                bachelor_degree, master_degree, doctorate_degree, post_doctorate_degree,
+                designation, equiv_teaching_load, total_lecture_hours, total_laboratory_hours,
+                total_laboratory_hours_x075, no_of_preparation, advisory_class,
+                equiv_units_no_of_prep, actual_teaching_loads, total_working_load, excess_hours,
+                primary_program_id, secondary_program_id, created_at, updated_at
+            ) VALUES (
+                :user_id, :employee_id, :academic_rank, :employment_type, :classification, :max_hours,
+                :bachelor_degree, :master_degree, :doctorate_degree, :post_doctorate_degree,
+                :designation, :equiv_teaching_load, :total_lecture_hours, :total_laboratory_hours,
+                :total_laboratory_hours_x075, :no_of_preparation, :advisory_class,
+                :equiv_units_no_of_prep, :actual_teaching_loads, :total_working_load, :excess_hours,
+                :primary_program_id, :secondary_program_id, NOW(), NOW()
+            )
+        ");
+
+            $facultyData = [
+                ':user_id' => $newUserId,
+                ':employee_id' => $data['employee_id'],
+                ':academic_rank' => $data['academic_rank'] ?? null,
+                ':employment_type' => $data['employment_type'] ?? null,
+                ':classification' => $data['classification'] ?? null,
+                ':max_hours' => $data['max_hours'] ?? 18.00,
+                ':bachelor_degree' => $data['bachelor_degree'] ?? null,
+                ':master_degree' => $data['master_degree'] ?? null,
+                ':doctorate_degree' => $data['doctorate_degree'] ?? null,
+                ':post_doctorate_degree' => $data['post_doctorate_degree'] ?? null,
+                ':designation' => $data['designation'] ?? null,
+                ':equiv_teaching_load' => $data['equiv_teaching_load'] ?? null,
+                ':total_lecture_hours' => $data['total_lecture_hours'] ?? null,
+                ':total_laboratory_hours' => $data['total_laboratory_hours'] ?? null,
+                ':total_laboratory_hours_x075' => $data['total_laboratory_hours_x075'] ?? null,
+                ':no_of_preparation' => $data['no_of_preparation'] ?? null,
+                ':advisory_class' => $data['advisory_class'] ?? null,
+                ':equiv_units_no_of_prep' => $data['equiv_units_no_of_prep'] ?? null,
+                ':actual_teaching_loads' => $data['actual_teaching_loads'] ?? null,
+                ':total_working_load' => $data['total_working_load'] ?? null,
+                ':excess_hours' => $data['excess_hours'] ?? null,
+                ':primary_program_id' => $data['primary_program_id'] ?? null,
+                ':secondary_program_id' => $data['secondary_program_id'] ?? null
+            ];
+
+            $facultyStmt->execute($facultyData);
+
             // Handle role-specific assignments
             $this->handleRoleSpecificAssignments($newUserId, $data);
+
+            // Commit transaction
+            $this->db->commit();
 
             // Store temporary password for one-time display
             $_SESSION['temp_passwords'][$newUserId] = [
@@ -695,6 +786,8 @@ class AdminController
                 'temporary_password' => $temporaryPassword
             ];
         } catch (Exception $e) {
+            // Rollback transaction on error
+            $this->db->rollBack();
             error_log("addNewUser error: " . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to add user: ' . $e->getMessage()];
         }
