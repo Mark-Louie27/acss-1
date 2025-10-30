@@ -70,16 +70,6 @@ class DeanController extends BaseController
         }
     }
 
-    private function restrictToDean()
-    {
-        error_log("restrictToDean: Checking session - user_id: " . ($_SESSION['user_id'] ?? 'none') . ", role_id: " . ($_SESSION['role_id'] ?? 'none'));
-        if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 4) {
-            error_log("restrictToDean: Redirecting to login due to unauthorized access");
-            header('Location: /login?error=Unauthorized access');
-            exit;
-        }
-    }
-
     private function logAuthActivity($userId, $action, $ipAddress, $userAgent, $identifier = null)
     {
         try {
@@ -233,9 +223,83 @@ class DeanController extends BaseController
         // NEW: Fetch recent schedule changes
         $recentScheduleChanges = $this->getRecentScheduleChanges($college['college_id']);
 
+        // NEW: Fetch schedule distribution by day
+        $scheduleDistribution = $this->getScheduleDistribution($college['college_id']);
+
+        // NEW: Fetch classroom availability
+        $classroomAvailability = $this->getClassroomAvailability($college['college_id']);
+
         // Pass all data to the view
         $currentSemester = $currentSemesterDisplay;
         require_once __DIR__ . '/../views/dean/dashboard.php';
+    }
+
+    /**
+     * Get classroom availability statistics
+     */
+    private function getClassroomAvailability($collegeId)
+    {
+        $query = "
+        SELECT 
+            c.room_name,
+            c.capacity,
+            c.room_type,
+            COUNT(s.schedule_id) as scheduled_hours,
+            CASE 
+                WHEN COUNT(s.schedule_id) = 0 THEN 'Available'
+                WHEN COUNT(s.schedule_id) < 4 THEN 'Moderate'
+                ELSE 'Heavy'
+            END as usage_level
+        FROM classrooms c
+        JOIN departments d ON c.department_id = d.department_id
+        LEFT JOIN schedules s ON c.room_id = s.room_id 
+            AND s.semester_id IN (SELECT semester_id FROM semesters WHERE is_current = 1)
+        WHERE d.college_id = :college_id
+        GROUP BY c.room_id, c.room_name, c.capacity, c.room_type
+        ORDER BY scheduled_hours DESC, c.room_name
+        ";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Debug: Log the result
+        error_log("Classroom Availability Query Result: " . print_r($result, true));
+
+        return $result;
+    }
+
+    private function getScheduleDistribution($collegeId)
+    {
+        $query = "
+        SELECT 
+            s.day_of_week,
+            COUNT(*) as schedule_count
+        FROM schedules s
+        JOIN faculty f ON s.faculty_id = f.faculty_id
+        JOIN departments d ON s.department_id = d.department_id
+        JOIN users u ON f.user_id = u.user_id
+        JOIN semesters sem ON s.semester_id = sem.semester_id
+        WHERE d.college_id = :college_id 
+        AND sem.is_current = 1
+        AND s.day_of_week IS NOT NULL
+        AND s.day_of_week != ''
+        GROUP BY s.day_of_week
+        ORDER BY 
+            CASE s.day_of_week 
+                WHEN 'Monday' THEN 1
+                WHEN 'Tuesday' THEN 2
+                WHEN 'Wednesday' THEN 3
+                WHEN 'Thursday' THEN 4
+                WHEN 'Friday' THEN 5
+                WHEN 'Saturday' THEN 6
+                WHEN 'Sunday' THEN 7
+            END
+    ";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
