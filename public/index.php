@@ -196,6 +196,23 @@ function handleDeanRoutes($path)
         case '/dean/manage_schedules':
             $controller->manageSchedule();
             break;
+        case '/dean/approve-teaching-load':
+            $controller->approveTeachingLoad();
+            break;
+        case '/dean/reject-teaching-load':
+            $controller->rejectTeachingLoad();
+            break;
+        case '/dean/api/faculty-approval-status':
+            $controller->getFacultyApprovalStatus($_GET['facultyId'] ?? null);
+            exit; // Add exit here to prevent further execution
+            break;
+        case '/dean/api/faculty-schedule':
+            $controller->getFacultySchedule($_GET['facultyId'] ?? null);
+            exit; // Add exit here to prevent further execution
+            break;
+        case '/dean/faculty-teaching-load':
+            $controller->facultyTeachingLoad();
+            break;
         case '/dean/manage_department':
             $controller->manageDepartments();
             break;

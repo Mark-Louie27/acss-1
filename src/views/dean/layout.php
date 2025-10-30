@@ -753,14 +753,20 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
                 <span>My Schedule</span>
             </a>
 
+            <!--Faculty Teaching Load Schedule Link -->
+            <a href="/dean/faculty-teaching-load" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/dean/faculty-teaching-load') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty-teaching-load') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Faculty Teaching Load</span>
+            </a>
+
             <!-- Manage Dropdown -->
             <div class="nav-dropdown">
-                <button class="nav-dropdown-toggle flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                    <i class="fas fa-cogs w-5 mr-3 <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <button class="nav-dropdown-toggle flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || (strpos($currentUri, '/dean/faculty') !== false && strpos($currentUri, '/dean/faculty-teaching-load') === false)) ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                    <i class="fas fa-cogs w-5 mr-3 <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || (strpos($currentUri, '/dean/faculty') !== false && strpos($currentUri, '/dean/faculty-teaching-load') === false)) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                     <span>Manage</span>
-                    <i class="fas fa-chevron-down chevron ml-auto text-xs transition-transform <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'rotate-180' : '' ?>"></i>
+                    <i class="fas fa-chevron-down chevron ml-auto text-xs transition-transform <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || (strpos($currentUri, '/dean/faculty') !== false && strpos($currentUri, '/dean/faculty-teaching-load') === false)) ? 'rotate-180' : '' ?>"></i>
                 </button>
-                <div class="nav-dropdown-menu <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || strpos($currentUri, '/dean/faculty') !== false) ? 'show' : '' ?>">
+                <div class="nav-dropdown-menu <?= (strpos($currentUri, '/dean/manage_department') !== false || strpos($currentUri, '/dean/manage_schedules') !== false || strpos($currentUri, '/dean/classroom') !== false || (strpos($currentUri, '/dean/faculty') !== false && strpos($currentUri, '/dean/faculty-teaching-load') === false)) ? 'show' : '' ?>">
                     <a href="/dean/manage_department" class="nav-dropdown-item <?= strpos($currentUri, '/dean/manage_department') !== false ? 'active-nav' : '' ?>">
                         <i class="fas fa-university w-5 mr-3 <?= strpos($currentUri, '/dean/manage_department') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                         <span>Manage College Departments</span>
@@ -929,9 +935,9 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
             if (e.key === 'Escape') {
                 dropdownMenu.classList.remove('show');
                 profileChevron.style.transform = ('rotate(0deg)');
-            profileButton.setAttribute('aria-expanded', 'false');
-            closeSidebar();
-        }
+                profileButton.setAttribute('aria-expanded', 'false');
+                closeSidebar();
+            }
         });
 
         // Touch support for mobile devices
