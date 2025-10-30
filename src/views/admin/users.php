@@ -248,6 +248,7 @@ ob_start();
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Role</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[150px]">College</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[150px]">Department</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Password</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">Status</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Actions</th>
                             </tr>
@@ -297,6 +298,14 @@ ob_start();
                                         <div class="truncate max-w-[140px]" title="<?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>">
                                             <?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
                                         </div>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+                                        ••••••••
+                                        <button onclick="showPassword(<?php echo $user['user_id']; ?>)"
+                                            class="ml-2 text-blue-600 hover:text-blue-900 text-xs"
+                                            title="View Password">
+                                            View
+                                        </button>
                                     </td>
                                     <td class="px-4 py-4 whitespace-nowrap">
                                         <?php $isActive = isset($user['is_active']) && $user['is_active']; ?>
@@ -777,6 +786,32 @@ ob_start();
             alert('Password copied to clipboard!');
         }
 
+        // Password viewing functionality
+        function showPassword(userId) {
+            if (confirm('This will reset the user\'s password and show the new temporary password. Continue?')) {
+                fetch(`/admin/users?action=reset_password&user_id=${userId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showTempPassword(data.temporary_password, data.username);
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while resetting the password');
+                    });
+            }
+        }
+
         // ========================
         // Initialize Title, Rank, etc.
         // ========================
@@ -934,33 +969,66 @@ ob_start();
         // ========================
         // Form Submission
         // ========================
-        document.getElementById('addUserForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        // Form submission handler - UPDATED with better error handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const addUserForm = document.getElementById('addUserForm');
 
-            const password = document.getElementById('generatedPassword').value;
-            if (!password) {
-                alert('Please generate a password first.');
-                return;
+            if (addUserForm) {
+                addUserForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    console.log('Form submitted');
+
+                    const formData = new FormData(this);
+                    const submitButton = this.querySelector('button[type="submit"]');
+                    const originalText = submitButton.textContent;
+
+                    // Show loading state
+                    submitButton.textContent = 'Adding User...';
+                    submitButton.disabled = true;
+
+                    fetch('/admin/users?action=add', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => {
+                            console.log('Response status:', response.status);
+
+                            // Check if response is JSON
+                            const contentType = response.headers.get('content-type');
+                            if (!contentType || !contentType.includes('application/json')) {
+                                throw new Error('Server returned non-JSON response');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Response data:', data);
+
+                            if (data.success) {
+                                closeAddUserModal();
+                                showTempPassword(data.temporary_password, formData.get('username'));
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 3000);
+                            } else {
+                                showErrorModal('Error Adding User', data.error || data.message || 'Unknown error occurred');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Fetch error:', error);
+                            showErrorModal('Network Error', 'An error occurred while adding the user. Please try again.');
+                        })
+                        .finally(() => {
+                            // Restore button state
+                            submitButton.textContent = originalText;
+                            submitButton.disabled = false;
+                        });
+                });
+
+                console.log('✅ Form submit handler attached');
+            } else {
+                console.error('❌ Add user form not found');
             }
-
-            const formData = new FormData(this);
-            formData.append('temporary_password', password);
-
-            fetch('/admin/users?action=add', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        closeAddUserModal();
-                        alert('User created successfully! Welcome email sent to: ' + formData.get('email'));
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        alert('Error: ' + (data.error || data.message));
-                    }
-                })
-                .catch(() => alert('Network error. Please try again.'));
         });
 
         // ========================
@@ -1037,34 +1105,106 @@ ob_start();
                 .catch(() => alert('Error'));
         }
 
-        function approveUser(id, name) {
-            if (confirm(`Approve ${name}?`)) {
-                fetch(`/admin/users?action=approve&user_id=${id}`, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
-                        }
-                    })
-                    .then(r => r.json())
-                    .then(d => {
-                        if (d.success) location.reload();
-                    });
-            }
+        // Replace approveUser function
+        function approveUser(userId, userName) {
+            showConfirmationModal(
+                'Approve User',
+                `Are you sure you want to approve ${userName}?`,
+                () => {
+                    fetch(`/admin/users?action=approve&user_id=${userId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                            }
+                        })
+                        .then(response => {
+                            const contentType = response.headers.get('content-type');
+                            if (!contentType || !contentType.includes('application/json')) {
+                                throw new Error('Server returned non-JSON response');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                showErrorModal('Approval Failed', data.message || 'Unknown error occurred');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showErrorModal('Network Error', 'An error occurred while approving the user');
+                        });
+                }
+            );
         }
 
-        function resetPassword(id) {
-            if (confirm('Reset password? User will get a new temporary password.')) {
-                fetch(`/admin/users?action=reset_password&user_id=${id}`, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
-                        }
-                    })
-                    .then(r => r.json())
-                    .then(d => {
-                        if (d.success) showTempPassword(d.temporary_password, d.username);
-                    });
-            }
+        // Replace resetPassword function
+        function resetPassword(userId) {
+            showConfirmationModal(
+                'Reset Password',
+                'Are you sure you want to reset this user\'s password? They will receive a new temporary password.',
+                () => {
+                    fetch(`/admin/users?action=reset_password&user_id=${userId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                            }
+                        })
+                        .then(response => {
+                            const contentType = response.headers.get('content-type');
+                            if (!contentType || !contentType.includes('application/json')) {
+                                throw new Error('Server returned non-JSON response');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                showTempPassword(data.temporary_password, data.username);
+                            } else {
+                                showErrorModal('Password Reset Failed', data.error || 'Unknown error occurred');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showErrorModal('Network Error', 'An error occurred while resetting the password');
+                        });
+                }
+            );
+        }
+
+        // Add Confirmation Modal Function
+        function showConfirmationModal(title, message, onConfirm) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+        <div class="bg-white rounded-lg max-w-md w-full mx-4">
+            <div class="flex items-center gap-3 p-6 border-b border-gray-200">
+                <div class="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-600">${message}</p>
+            </div>
+            <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
+                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                    Cancel
+                </button>
+                <button onclick="this.closest('.fixed').remove(); ${onConfirm.toString().replace(/\n/g, ' ')}" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    `;
+            document.body.appendChild(modal);
         }
 
         // ========================
@@ -1301,6 +1441,33 @@ ob_start();
                     (college === '' || row.querySelector('td:nth-child(4)')?.textContent.toLowerCase().includes(college));
                 row.style.display = visible ? '' : 'none';
             });
+        }
+
+        // Error modal function
+        function showErrorModal(title, message) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+        <div class="bg-white rounded-lg max-w-md w-full mx-4">
+            <div class="flex items-center gap-3 p-6 border-b border-gray-200">
+                <div class="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+            </div>
+            <div class="p-6">
+                <p class="text-gray-600">${message}</p>
+            </div>
+            <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
+                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+            document.body.appendChild(modal);
         }
 
         // Attach filters

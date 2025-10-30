@@ -550,7 +550,7 @@ class AdminController
                 di.department_id as instructor_department_id
             FROM users u
             JOIN roles r ON u.role_id = r.role_id
-            LEFT JOIN faculty f ON u.user_id = f.faculty_id
+            LEFT JOIN faculty f ON u.user_id = f.user_id
             LEFT JOIN colleges c ON u.college_id = c.college_id
             LEFT JOIN departments d ON u.department_id = d.department_id
             LEFT JOIN chair_departments cd ON u.user_id = cd.user_id AND cd.is_primary = 1
