@@ -2,6 +2,9 @@
 ob_start();
 ?>
 
+<!-- Add this in the head section of your layout.php -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
     .chart-container {
         background: white;
@@ -242,14 +245,8 @@ ob_start();
                 <h3 class="text-lg font-semibold text-gray-900">User Distribution</h3>
                 <span class="text-sm text-gray-500">By Role</span>
             </div>
-            <div class="h-64 flex items-center justify-center">
-                <!-- Placeholder for user distribution chart -->
-                <div class="text-center text-gray-500">
-                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    <p class="text-sm">User distribution chart will be displayed here</p>
-                </div>
+            <div class="h-64">
+                <canvas id="userDistributionChart"></canvas>
             </div>
         </div>
 
@@ -259,15 +256,8 @@ ob_start();
                 <h3 class="text-lg font-semibold text-gray-900">Schedule Status</h3>
                 <span class="text-sm text-gray-500">Current Semester</span>
             </div>
-            <div class="h-64 flex items-center justify-center">
-                <!-- Placeholder for schedule status chart -->
-                <div class="text-center text-gray-500">
-                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-                    </svg>
-                    <p class="text-sm">Schedule status chart will be displayed here</p>
-                </div>
+            <div class="h-64">
+                <canvas id="scheduleStatusChart"></canvas>
             </div>
         </div>
     </div>
@@ -498,6 +488,138 @@ ob_start();
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // User Distribution Chart (Doughnut)
+        const userDistributionCtx = document.getElementById('userDistributionChart').getContext('2d');
+
+        // Prepare user distribution data from PHP
+        const roleData = <?php echo json_encode($roleDistribution); ?>;
+        const roleLabels = roleData.map(item => item.role_name);
+        const roleCounts = roleData.map(item => parseInt(item.count));
+
+        const userDistributionChart = new Chart(userDistributionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: roleLabels,
+                datasets: [{
+                    data: roleCounts,
+                    backgroundColor: [
+                        '#f59e0b', '#d97706', '#fbbf24', '#f97316',
+                        '#ea580c', '#dc2626', '#b91c1c'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 15,
+                            font: {
+                                size: 11
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = Math.round((value / total) * 100);
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+
+        // Schedule Status Chart (Bar)
+        const scheduleStatusCtx = document.getElementById('scheduleStatusChart').getContext('2d');
+
+        // Prepare schedule status data (you'll need to modify this based on your actual data structure)
+        const scheduleData = <?php echo json_encode($scheduleDistribution ?? []); ?>;
+
+        // Default data if no schedule distribution is available
+        const scheduleLabels = scheduleData.length > 0 ?
+            scheduleData.map(item => item.status) : ['Pending', 'Approved', 'Completed', 'Cancelled'];
+
+        const scheduleCounts = scheduleData.length > 0 ?
+            scheduleData.map(item => parseInt(item.count)) : [5, 12, 8, 2];
+
+        const scheduleStatusChart = new Chart(scheduleStatusCtx, {
+            type: 'bar',
+            data: {
+                labels: scheduleLabels,
+                datasets: [{
+                    label: 'Schedules',
+                    data: scheduleCounts,
+                    backgroundColor: [
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(34, 197, 94, 0.8)',
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(239, 68, 68, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgb(245, 158, 11)',
+                        'rgb(34, 197, 94)',
+                        'rgb(59, 130, 246)',
+                        'rgb(239, 68, 68)'
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            stepSize: 1
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // College Department Distribution (Optional - if you want more charts)
+        const collegeDeptData = <?php echo json_encode($departmentsByCollege ?? []); ?>;
+        if (collegeDeptData && Object.keys(collegeDeptData).length > 0) {
+            // You can add more charts here if needed
+        }
+
+        // Handle window resize for charts
+        window.addEventListener('resize', function() {
+            userDistributionChart.resize();
+            scheduleStatusChart.resize();
+        });
+    });
+</script>
 
 <?php
 $content = ob_get_clean();

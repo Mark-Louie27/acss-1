@@ -601,7 +601,7 @@ $stats = $stats ?? ['total_pending' => 0];
                     </p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
-                        <span>Director Instructor</span>
+                        <span>Director Instruction</span>
                     </div>
                 </div>
             </div>
