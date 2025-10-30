@@ -487,6 +487,30 @@ ob_start();
                     </div>
                 </div>
 
+                <!-- ==================== PASSWORD GENERATOR (AUTO-SEND EMAIL) ==================== -->
+                <div class="bg-gradient-to-r from-indigo-50 to-blue-50 p-4 rounded-xl border border-indigo-200 mb-6">
+                    <h4 class="text-sm font-semibold text-indigo-900 mb-3 flex items-center">
+                        Temporary Password (auto-generated)
+                    </h4>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="generatedPassword" readonly
+                            class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white font-mono text-sm
+                      focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Click Generate to create">
+                        <button type="button" onclick="generatePassword()"
+                            class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition-colors flex items-center gap-2">
+                            Generate
+                        </button>
+                        <button type="button" onclick="copyPassword()"
+                            class="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium text-sm transition-colors flex items-center gap-2">
+                            Copy
+                        </button>
+                    </div>
+                    <p class="text-xs text-indigo-700 mt-2 font-medium">
+                        Welcome email with login details will be sent automatically.
+                    </p>
+                </div>
+
                 <!-- Role and Academic Information Section -->
                 <div class="bg-gray-50 p-4 rounded-lg">
                     <h4 class="text-lg font-medium text-gray-900 mb-4">Role & Academic Information</h4>
@@ -566,18 +590,25 @@ ob_start();
                 <div class="bg-gray-50 p-4 rounded-lg">
                     <h4 class="text-lg font-medium text-gray-900 mb-4">College & Department</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- College Select -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">College</label>
-                            <select name="college_id" id="collegeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <select name="college_id" id="collegeSelect" onchange="updateDepartments(this.value)"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
                                 <option value="">Select College</option>
                                 <?php foreach ($colleges as $college): ?>
-                                    <option value="<?php echo $college['college_id']; ?>"><?php echo htmlspecialchars($college['college_name'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <option value="<?php echo $college['college_id']; ?>">
+                                        <?php echo htmlspecialchars($college['college_name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
+                        <!-- Department Select -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                            <select name="department_id" id="departmentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                            <select name="department_id" id="departmentSelect"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
                                 <option value="">Select Department</option>
                             </select>
                         </div>
@@ -639,12 +670,6 @@ ob_start();
                     </div>
                 </div>
 
-                <!-- Additional Options -->
-                <div class="flex items-center">
-                    <input type="checkbox" name="send_welcome_email" id="sendWelcomeEmail" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
-                    <label for="sendWelcomeEmail" class="ml-2 block text-sm text-gray-900">Send welcome email with login instructions</label>
-                </div>
-
                 <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <button type="button" onclick="closeAddUserModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
@@ -687,24 +712,306 @@ ob_start();
     <script>
         let currentUserId = null;
 
+        // Dynamic data from PHP
         let dynamicData = {
             titles: <?php echo json_encode($titles ?? []); ?>,
             academicRanks: <?php echo json_encode($academicRanks ?? []); ?>,
             employmentTypes: <?php echo json_encode($employmentTypes ?? []); ?>,
             classifications: <?php echo json_encode($classifications ?? []); ?>,
-            departments: <?php echo json_encode($departments ?? []); ?>
+            departments: <?php echo json_encode($departments ?? []); ?>,
+            programs: <?php echo json_encode($programs ?? []); ?>
         };
 
-        function disableUser(userId, userName) {
-            currentUserId = userId;
-            document.getElementById('disableUserName').textContent = userName;
+        console.log('Dynamic data loaded:', dynamicData);
+
+        // Global map: college_id → [departments]
+        window.collegeDepartments = {};
+        window.programDepartments = {};
+
+        // ========================
+        // MODAL: Open Add User
+        // ========================
+        function openAddUserModal() {
+            const modal = document.getElementById('addUserModal');
+            if (!modal) {
+                console.error('Add user modal not found!');
+                return;
+            }
+
+            // Re-initialize everything when modal opens
+            initializeDynamicSelects();
+            initializeCollegeDepartments();
+            initializeProgramDepartments();
+
+            generatePassword();
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // ========================
+        // MODAL: Close Add User
+        // ========================
+        function closeAddUserModal() {
+            const modal = document.getElementById('addUserModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+                document.getElementById('addUserForm')?.reset();
+            }
+        }
+
+        function generatePassword() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+            let pass = "";
+            for (let i = 0; i < 14; i++) {
+                pass += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('generatedPassword').value = pass;
+        }
+
+        function copyPassword() {
+            const el = document.getElementById('generatedPassword');
+            el.select();
+            document.execCommand('copy');
+            alert('Password copied to clipboard!');
+        }
+
+        // ========================
+        // Initialize Title, Rank, etc.
+        // ========================
+        function initializeDynamicSelects() {
+            // Title
+            const titleSelect = document.querySelector('select[name="title"]');
+            if (titleSelect && Array.isArray(dynamicData.titles)) {
+                titleSelect.innerHTML = '<option value="">Select Title</option>';
+                dynamicData.titles.forEach(t => {
+                    const opt = new Option(t, t);
+                    titleSelect.add(opt);
+                });
+            }
+
+            // Academic Rank
+            const rankSelect = document.querySelector('select[name="academic_rank"]');
+            if (rankSelect && Array.isArray(dynamicData.academicRanks)) {
+                rankSelect.innerHTML = '<option value="">Select Rank</option>';
+                dynamicData.academicRanks.forEach(r => {
+                    const opt = new Option(r, r);
+                    rankSelect.add(opt);
+                });
+            }
+
+            // Employment Type
+            const empSelect = document.querySelector('select[name="employment_type"]');
+            if (empSelect && Array.isArray(dynamicData.employmentTypes)) {
+                empSelect.innerHTML = '<option value="">Select Type</option>';
+                dynamicData.employmentTypes.forEach(t => {
+                    const opt = new Option(t, t);
+                    empSelect.add(opt);
+                });
+            }
+
+            // Classification
+            const classSelect = document.querySelector('select[name="classification"]');
+            if (classSelect && Array.isArray(dynamicData.classifications)) {
+                classSelect.innerHTML = '<option value="">Select Classification</option>';
+                dynamicData.classifications.forEach(c => {
+                    const opt = new Option(c, c);
+                    classSelect.add(opt);
+                });
+            }
+        }
+
+        // ========================
+        // College → Department Mapping
+        // ========================
+        function initializeCollegeDepartments() {
+            window.collegeDepartments = {};
+
+            if (!Array.isArray(dynamicData.departments)) {
+                console.error('Departments data missing or invalid');
+                return;
+            }
+
+            dynamicData.departments.forEach(dept => {
+                const cid = dept.college_id;
+                if (!window.collegeDepartments[cid]) {
+                    window.collegeDepartments[cid] = [];
+                }
+                window.collegeDepartments[cid].push({
+                    id: dept.department_id,
+                    name: dept.department_name
+                });
+            });
+
+            console.log('College → Department map built:', window.collegeDepartments);
+
+            // Attach change listener
+            const collegeSelect = document.getElementById('collegeSelect');
+            if (collegeSelect) {
+                // Remove old listeners
+                collegeSelect.onchange = null;
+                collegeSelect.addEventListener('change', function() {
+                    updateDepartments(this.value);
+                });
+            }
+        }
+
+        // ========================
+        // Update Department Dropdown
+        // ========================
+        function updateDepartments(collegeId) {
+            const deptSelect = document.getElementById('departmentSelect');
+            if (!deptSelect) return;
+
+            deptSelect.innerHTML = '<option value="">Select Department</option>';
+
+            if (!collegeId) return;
+
+            const depts = window.collegeDepartments[collegeId] || [];
+            depts.forEach(d => {
+                const opt = new Option(d.name, d.id);
+                deptSelect.add(opt);
+            });
+
+            console.log(`Updated departments for college ${collegeId}:`, depts);
+        }
+
+        // ========================
+        // Program → Department Mapping
+        // ========================
+        function initializeProgramDepartments() {
+            window.programDepartments = {};
+
+            if (!Array.isArray(dynamicData.programs)) return;
+
+            dynamicData.programs.forEach(p => {
+                const did = p.department_id;
+                if (!window.programDepartments[did]) {
+                    window.programDepartments[did] = [];
+                }
+                window.programDepartments[did].push({
+                    id: p.program_id,
+                    name: p.program_name
+                });
+            });
+
+            // Attach listener to department select
+            const deptSelect = document.getElementById('departmentSelect');
+            if (deptSelect) {
+                deptSelect.onchange = null;
+                deptSelect.addEventListener('change', function() {
+                    updatePrograms(this.value);
+                });
+            }
+        }
+
+        // ========================
+        // Update Program Dropdowns
+        // ========================
+        function updatePrograms(departmentId) {
+            const selects = [
+                document.querySelector('select[name="primary_program_id"]'),
+                document.querySelector('select[name="secondary_program_id"]')
+            ];
+
+            selects.forEach(select => {
+                if (!select) return;
+                const current = select.value;
+                select.innerHTML = '<option value="">Select Program</option>';
+
+                if (!departmentId) return;
+
+                const progs = window.programDepartments[departmentId] || [];
+                progs.forEach(p => {
+                    const opt = new Option(p.name, p.id);
+                    if (p.id == current) opt.selected = true;
+                    select.add(opt);
+                });
+            });
+        }
+
+        // ========================
+        // Form Submission
+        // ========================
+        document.getElementById('addUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const password = document.getElementById('generatedPassword').value;
+            if (!password) {
+                alert('Please generate a password first.');
+                return;
+            }
+
+            const formData = new FormData(this);
+            formData.append('temporary_password', password);
+
+            fetch('/admin/users?action=add', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        closeAddUserModal();
+                        alert('User created successfully! Welcome email sent to: ' + formData.get('email'));
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        alert('Error: ' + (data.error || data.message));
+                    }
+                })
+                .catch(() => alert('Network error. Please try again.'));
+        });
+
+        // ========================
+        // Temporary Password Modal
+        // ========================
+        function showTempPassword(password, username) {
+            document.getElementById('tempUsername').textContent = 'Username: ' + username;
+            document.getElementById('tempPassword').textContent = password;
+            document.getElementById('tempPasswordModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeTempPasswordModal() {
+            document.getElementById('tempPasswordModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // ========================
+        // User Actions (Disable, Decline, etc.)
+        // ========================
+        function disableUser(id, name) {
+            currentUserId = id;
+            document.getElementById('disableUserName').textContent = name;
             document.getElementById('disableUserModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
 
-        function declineUser(userId, userName) {
-            currentUserId = userId;
-            document.getElementById('declineUserName').textContent = userName;
+        function closeDisableUserModal() {
+            document.getElementById('disableUserModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            currentUserId = null;
+        }
+
+        function confirmDisableUser() {
+            if (!currentUserId) return;
+            fetch(`/admin/users?action=disable&user_id=${currentUserId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
+                    }
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) location.reload();
+                })
+                .catch(() => alert('Error'));
+        }
+
+        function declineUser(id, name) {
+            currentUserId = id;
+            document.getElementById('declineUserName').textContent = name;
             document.getElementById('declineUserModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
@@ -716,544 +1023,242 @@ ob_start();
         }
 
         function confirmDeclineUser() {
-            if (currentUserId) {
-                fetch(`/admin/users?action=decline&user_id=${currentUserId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            closeDeclineUserModal();
-                            location.reload();
-                        } else {
-                            alert('Failed to decline user: ' + (data.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while declining the user');
-                    });
-            }
-        }
-
-        // Update approveUser to include confirmation
-        function approveUser(userId, userName) {
-            if (confirm(`Are you sure you want to approve ${userName}?`)) {
-                fetch(`/admin/users?action=approve&user_id=${userId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert('Failed to approve user: ' + (data.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while approving the user');
-                    });
-            }
-        }
-
-        function enableUser(userId, userName) {
-            if (confirm(`Are you sure you want to enable ${userName}?`)) {
-                fetch(`/admin/users?action=enable&user_id=${userId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert('Failed to enable user: ' + (data.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while enabling the user');
-                    });
-            }
-        }
-
-        function closeDisableUserModal() {
-            document.getElementById('disableUserModal').classList.add('hidden');
-            document.body.style.overflow = 'auto';
-            currentUserId = null;
-        }
-
-        function confirmDisableUser() {
-            if (currentUserId) {
-                fetch(`/admin/users?action=disable&user_id=${currentUserId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            closeDisableUserModal();
-                            location.reload();
-                        } else {
-                            alert('Failed to disable user: ' + (data.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while disabling the user');
-                    });
-            }
-        }
-
-        // Add User Modal Functions
-        function openAddUserModal() {
-            document.getElementById('addUserModal').classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeAddUserModal() {
-            document.getElementById('addUserModal').classList.add('hidden');
-            document.body.style.overflow = 'auto';
-            document.getElementById('addUserForm').reset();
-            hideRoleSpecificFields();
-        }
-
-        // Initialize all dynamic select fields with error handling
-        function initializeDynamicSelects() {
-            try {
-                // Initialize titles
-                const titleSelect = document.querySelector('select[name="title"]');
-                if (titleSelect && Array.isArray(dynamicData.titles)) {
-                    titleSelect.innerHTML = '<option value="">Select Title</option>';
-                    dynamicData.titles.forEach(title => {
-                        const option = document.createElement('option');
-                        option.value = title;
-                        option.textContent = title;
-                        titleSelect.appendChild(option);
-                    });
-                }
-
-                // Initialize academic ranks
-                const academicRankSelect = document.querySelector('select[name="academic_rank"]');
-                if (academicRankSelect && Array.isArray(dynamicData.academicRanks)) {
-                    academicRankSelect.innerHTML = '<option value="">Select Rank</option>';
-                    dynamicData.academicRanks.forEach(rank => {
-                        const option = document.createElement('option');
-                        option.value = rank;
-                        option.textContent = rank;
-                        academicRankSelect.appendChild(option);
-                    });
-                }
-
-                // Initialize employment types
-                const employmentTypeSelect = document.querySelector('select[name="employment_type"]');
-                if (employmentTypeSelect && Array.isArray(dynamicData.employmentTypes)) {
-                    employmentTypeSelect.innerHTML = '<option value="">Select Type</option>';
-                    dynamicData.employmentTypes.forEach(type => {
-                        const option = document.createElement('option');
-                        option.value = type;
-                        option.textContent = type;
-                        employmentTypeSelect.appendChild(option);
-                    });
-                }
-
-                // Initialize classifications
-                const classificationSelect = document.querySelector('select[name="classification"]');
-                if (classificationSelect && Array.isArray(dynamicData.classifications)) {
-                    classificationSelect.innerHTML = '<option value="">Select Classification</option>';
-                    dynamicData.classifications.forEach(classification => {
-                        const option = document.createElement('option');
-                        option.value = classification;
-                        option.textContent = classification;
-                        classificationSelect.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Error initializing dynamic selects:', error);
-            }
-        }
-
-        // Initialize college-department data structure with error handling
-        function initializeCollegeDepartments() {
-            try {
-                window.collegeDepartments = {};
-
-                if (Array.isArray(dynamicData.departments)) {
-                    dynamicData.departments.forEach(dept => {
-                        const collegeId = dept.college_id;
-                        if (!window.collegeDepartments[collegeId]) {
-                            window.collegeDepartments[collegeId] = [];
-                        }
-                        window.collegeDepartments[collegeId].push({
-                            id: dept.department_id,
-                            name: dept.department_name
-                        });
-                    });
-                }
-            } catch (error) {
-                console.error('Error initializing college departments:', error);
-            }
-        }
-
-        // Update departments based on selected college
-        function updateDepartments(collegeId) {
-            const departmentSelect = document.getElementById('departmentSelect');
-            const departmentHelpText = document.getElementById('departmentHelpText');
-            const roleSelect = document.getElementById('roleSelect');
-            const selectedRole = roleSelect ? roleSelect.value : '';
-
-            // Clear existing options
-            departmentSelect.innerHTML = '<option value="">Select Department</option>';
-
-            if (!collegeId) {
-                departmentHelpText.textContent = 'Select a college first to see available departments';
-                return;
-            }
-
-            // Get departments for the selected college
-            const departments = window.collegeDepartments[collegeId] || [];
-
-            // Add department options
-            departments.forEach(dept => {
-                const option = document.createElement('option');
-                option.value = dept.id;
-                option.textContent = dept.name;
-                departmentSelect.appendChild(option);
-            });
-
-            // Update help text
-            if (departments.length > 0) {
-                departmentHelpText.textContent = `${departments.length} department(s) available`;
-
-                // For Dean role, show special message
-                if (selectedRole === '5') {
-                    departmentHelpText.textContent += ' (Optional for Dean role)';
-                }
-            } else {
-                departmentHelpText.textContent = 'No departments available for this college';
-            }
-        }
-
-        function handleRoleChange(roleId) {
-            hideRoleSpecificFields();
-
-            switch (roleId) {
-                case '2': // Faculty
-                    document.getElementById('academicRankField').classList.remove('hidden');
-                    break;
-                case '3': // Program Chair
-                    document.getElementById('programField').classList.remove('hidden');
-                    break;
-                case '4': // Department Chair
-                    // Show department selection (already visible)
-                    break;
-                case '4': // Dean
-                    if (departmentHelpText) {
-                        departmentHelpText.textContent = 'Department is optional for Dean role';
-                    }
-                    break;
-            }
-        }
-
-        function hideRoleSpecificFields() {
-            document.getElementById('academicRankField').classList.add('hidden');
-            document.getElementById('programField').classList.add('hidden');
-        }
-
-        // College change handler
-        function onCollegeChange(selectElement) {
-            const collegeId = selectElement.value;
-            updateDepartments(collegeId);
-        }
-
-        function updateDepartments(collegeId) {
-            const departmentSelect = document.getElementById('departmentSelect');
-            departmentSelect.innerHTML = '<option value="">Select Department</option>';
-
-            if (!collegeId) return;
-
-            // You might want to fetch departments via AJAX for dynamic loading
-            // For now, we'll rely on the page load data
-        }
-
-        // Add User Form Submission
-        document.getElementById('addUserForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(this);
-            formData.append('action', 'add');
-
-            fetch('/admin/users?action=add', {
+            if (!currentUserId) return;
+            fetch(`/admin/users?action=decline&user_id=${currentUserId}`, {
                     method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        closeAddUserModal();
-                        showTempPassword(data.temporary_password, formData.get('username'));
-                        setTimeout(() => {
-                            location.reload();
-                        }, 3000);
-                    } else {
-                        alert('Error: ' + data.error);
+                    headers: {
+                        'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
                     }
                 })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while adding the user');
-                });
-        });
-
-        // Temporary Password Display
-        function showTempPassword(password, username) {
-            document.getElementById('tempPassword').textContent = password;
-            document.getElementById('tempUsername').textContent = 'Username: ' + username;
-            document.getElementById('tempPasswordModal').classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success) location.reload();
+                })
+                .catch(() => alert('Error'));
         }
 
-        function closeTempPasswordModal() {
-            document.getElementById('tempPasswordModal').classList.add('hidden');
-            document.body.style.overflow = 'auto';
-        }
-
-        // Reset Password Function
-        function resetPassword(userId) {
-            if (confirm('Are you sure you want to reset this user\'s password? They will receive a new temporary password.')) {
-                fetch(`/admin/users?action=reset_password&user_id=${userId}`, {
+        function approveUser(id, name) {
+            if (confirm(`Approve ${name}?`)) {
+                fetch(`/admin/users?action=approve&user_id=${id}`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
                         }
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showTempPassword(data.temporary_password, data.username);
-                        } else {
-                            alert('Error: ' + data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while resetting the password');
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success) location.reload();
                     });
             }
         }
 
+        function resetPassword(id) {
+            if (confirm('Reset password? User will get a new temporary password.')) {
+                fetch(`/admin/users?action=reset_password&user_id=${id}`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
+                        }
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success) showTempPassword(d.temporary_password, d.username);
+                    });
+            }
+        }
+
+        // ========================
+        // View User Modal
+        // ========================
         const usersData = <?php echo json_encode($users); ?>;
 
-        console.log('Users data loaded:', usersData.length, 'users');
+        function viewUser(id) {
+            const user = usersData.find(u => parseInt(u.user_id) === parseInt(id));
+            if (!user) return alert('User not found');
 
-        // View User Details - Fixed version
-        function viewUser(userId) {
-            console.log('Attempting to view user with ID:', userId, 'Type:', typeof userId);
+            const safe = (v, f = 'N/A') => (v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === '')) ? f : v;
 
-            // Convert userId to number for comparison (since it comes from data attribute)
-            const userIdNum = parseInt(userId);
+            // Full name
+            const fullName = [safe(user.title), safe(user.first_name), safe(user.middle_name), safe(user.last_name), safe(user.suffix)]
+                .filter(Boolean).join(' ') || 'No Name';
 
-            // Find user with explicit type conversion
-            const user = usersData.find(u => parseInt(u.user_id) === userIdNum);
-
-            console.log('Found user:', user);
-
-            if (user) {
-                showUserDetails(user);
-            } else {
-                console.error('User not found in data. Available user IDs:', usersData.map(u => u.user_id));
-                alert('User not found');
-            }
-        }
-
-        function showUserDetails(user) {
-            console.log('Displaying user details for:', user);
-
-            // Helper function to safely display values
-            const safe = (val, fallback = 'N/A') => {
-                // Check for null, undefined, empty string, or whitespace-only string
-                if (val === null || val === undefined || val === '' || (typeof val === 'string' && val.trim() === '')) {
-                    return fallback;
-                }
-                return val;
-            };
-
-            // Build full name with proper null checking
-            let fullName = [
-                safe(user.title, ''),
-                safe(user.first_name, ''),
-                safe(user.middle_name, ''),
-                safe(user.last_name, ''),
-                safe(user.suffix, '')
-            ].filter(part => part !== '').join(' ').trim();
-
-            // Fallback if name is completely empty
-            if (!fullName || fullName === '') {
-                fullName = 'No Name Provided';
-            }
-
-            console.log('Built full name:', fullName);
-
-            // Build academic info section (only for faculty/instructors)
-            const academicInfo = (user.academic_rank || user.employment_type || user.classification) ? `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Academic Rank</label>
-                        <p class="mt-1 text-gray-900">${safe(user.academic_rank)}</p>
-                    </div>
-                    ${user.employment_type ? `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Employment Type</label>
-                        <p class="mt-1 text-gray-900">${safe(user.employment_type)}</p>
-                    </div>` : ''}
-                    ${user.classification ? `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Classification</label>
-                        <p class="mt-1 text-gray-900">${safe(user.classification)}</p>
-                    </div>` : ''}
-                ` : '';
-
-            // Build education info section
-            const hasEducation = user.bachelor_degree || user.master_degree || user.doctorate_degree || user.post_doctorate_degree;
-            const educationInfo = hasEducation ? `
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Education</label>
-                        <div class="mt-1 space-y-2">
-                            ${user.bachelor_degree ? `<p class="text-gray-900"><span class="font-medium">Bachelor:</span> ${safe(user.bachelor_degree)}</p>` : ''}
-                            ${user.master_degree ? `<p class="text-gray-900"><span class="font-medium">Master's:</span> ${safe(user.master_degree)}</p>` : ''}
-                            ${user.doctorate_degree ? `<p class="text-gray-900"><span class="font-medium">Doctorate:</span> ${safe(user.doctorate_degree)}</p>` : ''}
-                            ${user.post_doctorate_degree ? `<p class="text-gray-900"><span class="font-medium">Post-Doctorate:</span> ${safe(user.post_doctorate_degree)}</p>` : ''}
-                        </div>
-                    </div>
-                ` : '';
-
-            // Get initials for avatar
-            const firstInitial = user.first_name ? user.first_name.charAt(0).toUpperCase() : 'U';
-            const lastInitial = user.last_name ? user.last_name.charAt(0).toUpperCase() : 'U';
-            const initials = firstInitial + lastInitial;
+            const initials = ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || 'UU';
 
             // Format date
-            let formattedDate = 'N/A';
-            if (user.created_at) {
+            const formatDate = (dateStr) => {
+                if (!dateStr) return 'N/A';
                 try {
-                    const date = new Date(user.created_at);
-                    formattedDate = date.toLocaleDateString('en-US', {
+                    return new Date(dateStr).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric'
                     });
-                } catch (e) {
-                    console.error('Error formatting date:', e);
-                    formattedDate = user.created_at;
+                } catch {
+                    return dateStr;
                 }
+            };
+
+            // Build sections conditionally
+            let sections = [];
+
+            // === Basic Info ===
+            sections.push(`
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 pb-6 border-b">
+            <div><label class="font-medium text-gray-700">Employee ID</label><p class="mt-1">${safe(user.employee_id)}</p></div>
+            <div><label class="font-medium text-gray-700">Username</label><p class="mt-1">${safe(user.username)}</p></div>
+            <div><label class="font-medium text-gray-700">Email</label><p class="mt-1">${safe(user.email)}</p></div>
+            <div><label class="font-medium text-gray-700">Phone</label><p class="mt-1">${safe(user.phone)}</p></div>
+            <div><label class="font-medium text-gray-700">Role</label><p class="mt-1">${safe(user.role_name)}</p></div>
+            <div><label class="font-medium text-gray-700">Status</label>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                    ${user.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </div>
+        </div>
+    `);
+
+            // === College & Department ===
+            if (user.college_name || user.department_name) {
+                sections.push(`
+            <div class="mb-6 pb-6 border-b">
+                <h5 class="text-sm font-semibold text-gray-900 mb-3">Assignment</h5>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label class="font-medium text-gray-700">College</label><p class="mt-1">${safe(user.college_name)}</p></div>
+                    <div><label class="font-medium text-gray-700">Department</label><p class="mt-1">${safe(user.department_name)}</p></div>
+                </div>
+            </div>
+        `);
             }
 
-            // Build the complete modal content
-            const content = `
-                <div class="flex items-center space-x-4 mb-6 pb-4 border-b border-gray-200">
-                    <div class="flex-shrink-0">
-                        ${user.profile_picture && user.profile_picture.trim() !== '' ? 
-                            `<img src="${safe(user.profile_picture)}" alt="Profile" class="h-16 w-16 rounded-full object-cover border-2 border-yellow-400">` :
-                            `<div class="h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center border-2 border-yellow-400">
-                                <span class="text-xl font-bold text-yellow-600">${initials}</span>
-                            </div>`
-                        }
-                    </div>
-                    <div>
-                        <h4 class="text-lg font-semibold text-gray-900">${fullName}</h4>
-                        <p class="text-sm text-gray-600">${safe(user.role_name)} ${user.employee_id ? '• ' + safe(user.employee_id) : ''}</p>
-                    </div>
-                </div>
+            // === Academic Info (Faculty only) ===
+            if (user.academic_rank || user.employment_type || user.classification || user.designation) {
+                let academicHTML = '';
+                if (user.academic_rank) academicHTML += `<div><label class="font-medium text-gray-700">Academic Rank</label><p class="mt-1">${safe(user.academic_rank)}</p></div>`;
+                if (user.employment_type) academicHTML += `<div><label class="font-medium text-gray-700">Employment Type</label><p class="mt-1">${safe(user.employment_type)}</p></div>`;
+                if (user.classification) academicHTML += `<div><label class="font-medium text-gray-700">Classification</label><p class="mt-1">${safe(user.classification)}</p></div>`;
+                if (user.designation) academicHTML += `<div><label class="font-medium text-gray-700">Designation</label><p class="mt-1">${safe(user.designation)}</p></div>`;
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Employee ID</label>
-                        <p class="mt-1 text-gray-900">${safe(user.employee_id)}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Username</label>
-                        <p class="mt-1 text-gray-900">${safe(user.username)}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Email</label>
-                        <p class="mt-1 text-gray-900">${safe(user.email)}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Phone</label>
-                        <p class="mt-1 text-gray-900">${safe(user.phone)}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Role</label>
-                        <p class="mt-1 text-gray-900">${safe(user.role_name)}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Status</label>
-                        <p class="mt-1">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                                ${user.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                        </p>
-                    </div>
-                </div>
+                sections.push(`
+            <div class="mb-6 pb-6 border-b">
+                <h5 class="text-sm font-semibold text-gray-900 mb-3">Academic Information</h5>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">${academicHTML}</div>
+            </div>
+        `);
+            }
 
-                ${(user.college_name || user.department_name) ? `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-200">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">College</label>
-                        <p class="mt-1 text-gray-900">${safe(user.college_name)}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Department</label>
-                        <p class="mt-1 text-gray-900">${safe(user.department_name)}</p>
-                    </div>
-                </div>` : ''}
+            // === Educational Background ===
+            const edu = [user.bachelor_degree, user.master_degree, user.doctorate_degree, user.post_doctorate_degree].filter(Boolean);
+            if (edu.length > 0) {
+                let eduHTML = '';
+                if (user.bachelor_degree) eduHTML += `<p><span class="font-medium">Bachelor:</span> ${safe(user.bachelor_degree)}</p>`;
+                if (user.master_degree) eduHTML += `<p><span class="font-medium">Master's:</span> ${safe(user.master_degree)}</p>`;
+                if (user.doctorate_degree) eduHTML += `<p><span class="font-medium">Doctorate:</span> ${safe(user.doctorate_degree)}</p>`;
+                if (user.post_doctorate_degree) eduHTML += `<p><span class="font-medium">Post-Doctorate:</span> ${safe(user.post_doctorate_degree)}</p>`;
 
-                ${academicInfo ? `
-                <div class="pb-6 border-b border-gray-200 mb-6">
-                    <h5 class="text-sm font-semibold text-gray-900 mb-3">Academic Information</h5>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">${academicInfo}</div>
-                </div>` : ''}
+                sections.push(`
+            <div class="mb-6 pb-6 border-b">
+                <h5 class="text-sm font-semibold text-gray-900 mb-3">Educational Background</h5>
+                <div class="space-y-1">${eduHTML}</div>
+            </div>
+        `);
+            }
 
-                ${educationInfo ? `
-                <div class="pb-6 border-b border-gray-200 mb-6">
-                    <h5 class="text-sm font-semibold text-gray-900 mb-3">Educational Background</h5>
-                    ${educationInfo}
-                </div>` : ''}
-
+            // === Programs ===
+            if (user.primary_program_name || user.secondary_program_name) {
+                sections.push(`
+            <div class="mb-6 pb-6 border-b">
+                <h5 class="text-sm font-semibold text-gray-900 mb-3">Programs</h5>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${user.designation ? `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Designation</label>
-                        <p class="mt-1 text-gray-900">${safe(user.designation)}</p>
-                    </div>` : ''}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Account Created</label>
-                        <p class="mt-1 text-gray-900">${formattedDate}</p>
-                    </div>
+                    <div><label class="font-medium text-gray-700">Primary</label><p class="mt-1">${safe(user.primary_program_name, 'None')}</p></div>
+                    <div><label class="font-medium text-gray-700">Secondary</label><p class="mt-1">${safe(user.secondary_program_name, 'None')}</p></div>
                 </div>
-            `;
+            </div>
+        `);
+            }
 
-            // Update modal content and show
+            // === Teaching Load (Optional) ===
+            const loadFields = [{
+                    label: 'Max Hours',
+                    value: user.max_hours
+                },
+                {
+                    label: 'Equivalent Teaching Load',
+                    value: user.equiv_teaching_load
+                },
+                {
+                    label: 'Lecture Hours',
+                    value: user.total_lecture_hours
+                },
+                {
+                    label: 'Lab Hours',
+                    value: user.total_laboratory_hours
+                },
+                {
+                    label: 'Lab Hours ×0.75',
+                    value: user.total_laboratory_hours_x075
+                },
+                {
+                    label: 'No. of Preparations',
+                    value: user.no_of_preparation
+                },
+                {
+                    label: 'Advisory Class',
+                    value: user.advisory_class
+                },
+                {
+                    label: 'Actual Teaching Load',
+                    value: user.actual_teaching_loads
+                },
+                {
+                    label: 'Total Working Load',
+                    value: user.total_working_load
+                },
+                {
+                    label: 'Excess Hours',
+                    value: user.excess_hours
+                }
+            ];
+
+            const loadHTML = loadFields
+                .filter(f => f.value != null && f.value !== '')
+                .map(f => `<div><label class="font-medium text-gray-700">${f.label}</label><p class="mt-1">${safe(f.value)}</p></div>`)
+                .join('');
+
+            if (loadHTML) {
+                sections.push(`
+            <div class="mb-6 pb-6 border-b">
+                <h5 class="text-sm font-semibold text-gray-900 mb-3">Teaching Load</h5>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">${loadHTML}</div>
+            </div>
+        `);
+            }
+
+            // === Account Info ===
+            sections.push(`
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label class="font-medium text-gray-700">Account Created</label><p class="mt-1">${formatDate(user.created_at)}</p></div>
+            <div><label class="font-medium text-gray-700">Last Updated</label><p class="mt-1">${formatDate(user.updated_at)}</p></div>
+        </div>
+    `);
+
+            // === Final Modal Content ===
+            const content = `
+        <div class="flex items-center space-x-4 mb-6 pb-4 border-b">
+            ${user.profile_picture ? 
+                `<img src="${safe(user.profile_picture)}" alt="Profile" class="h-16 w-16 rounded-full object-cover border-2 border-yellow-400">` :
+                `<div class="h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center border-2 border-yellow-400">
+                    <span class="text-xl font-bold text-yellow-600">${initials}</span>
+                </div>`
+            }
+            <div>
+                <h4 class="text-lg font-semibold text-gray-900">${fullName}</h4>
+                <p class="text-sm text-gray-600">${safe(user.role_name)} • ${safe(user.employee_id)}</p>
+            </div>
+        </div>
+
+        ${sections.join('')}
+    `;
+
             document.getElementById('userDetailsContent').innerHTML = content;
             document.getElementById('viewUserModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
@@ -1263,153 +1268,59 @@ ob_start();
             document.getElementById('viewUserModal').classList.add('hidden');
             document.body.style.overflow = 'auto';
         }
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page loaded. Users available:', usersData.length);
 
-            // Initialize default tab
-            const defaultTab = '<?php echo isset($_GET['tab']) ? htmlspecialchars($_GET['tab'], ENT_QUOTES, 'UTF-8') : 'all'; ?>';
-            if (['all', 'active', 'inactive', 'pending'].includes(defaultTab)) {
-                switchTab(defaultTab);
-            } else {
-                switchTab('all');
-            }
-
-            // Initialize all dynamic selects
-            initializeDynamicSelects();
-            initializeCollegeDepartments();
-        });
-
-        function approveUser(userId, userName) {
-            if (confirm(`Are you sure you want to approve ${userName}?`)) {
-                fetch(`/admin/users?action=approve&user_id=${userId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert('Failed to approve user: ' + (data.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while approving the user');
-                    });
-            }
-        }
-
-        // Search and filter functionality
-        document.getElementById('searchUsers').addEventListener('input', function() {
-            filterTable();
-        });
-
-        document.getElementById('roleFilter').addEventListener('change', function() {
-            filterTable();
-        });
-
-        document.getElementById('collegeFilter').addEventListener('change', function() {
-            filterTable();
-        });
-
+        // ========================
+        // Tab & Filter
+        // ========================
         function switchTab(tab) {
-            const tabs = document.querySelectorAll('.tab');
-            const rows = document.querySelectorAll('.user-row');
-            tabs.forEach(t => t.classList.remove('tab-active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
             document.getElementById(`tab-${tab}`).classList.add('tab-active');
             document.getElementById('table-title').textContent = `${tab.charAt(0).toUpperCase() + tab.slice(1)} Users`;
-            rows.forEach(row => {
+
+            document.querySelectorAll('.user-row').forEach(row => {
                 row.style.display = 'none';
                 if (tab === 'all') row.style.display = '';
                 else if (tab === 'active' && row.classList.contains('active-user')) row.style.display = '';
                 else if (tab === 'inactive' && row.classList.contains('inactive-user')) row.style.display = '';
                 else if (tab === 'pending' && row.classList.contains('pending-user')) row.style.display = '';
             });
+
             window.history.pushState({}, '', `?tab=${tab}`);
             filterTable();
         }
 
         function filterTable() {
-            const searchTerm = document.getElementById('searchUsers').value.toLowerCase();
-            const roleFilter = document.getElementById('roleFilter').value.toLowerCase();
-            const collegeFilter = document.getElementById('collegeFilter').value.toLowerCase();
-            const activeTab = document.querySelector('.tab-active')?.id.replace('tab-', '') || 'all';
+            const search = document.getElementById('searchUsers').value.toLowerCase();
+            const role = document.getElementById('roleFilter').value.toLowerCase();
+            const college = document.getElementById('collegeFilter').value.toLowerCase();
 
-            const rows = document.querySelectorAll('.user-row');
-            rows.forEach(row => {
-                const cells = row.getElementsByTagName('td');
-                if (cells.length > 0) {
-                    const userName = cells[0].textContent.toLowerCase();
-                    const userEmail = cells[1].textContent.toLowerCase();
-                    const userRole = cells[2].textContent.toLowerCase();
-                    const userCollege = cells[3].textContent.toLowerCase();
-                    const isVisible = (activeTab === 'all' ||
-                        (activeTab === 'active' && row.classList.contains('active-user')) ||
-                        (activeTab === 'inactive' && row.classList.contains('inactive-user')) ||
-                        (activeTab === 'pending' && row.classList.contains('pending-user')));
-
-                    const matchesSearch = userName.includes(searchTerm) || userEmail.includes(searchTerm);
-                    const matchesRole = roleFilter === '' || userRole.includes(roleFilter);
-                    const matchesCollege = collegeFilter === '' || userCollege.includes(collegeFilter);
-
-                    row.style.display = isVisible && matchesSearch && matchesRole && matchesCollege ? '' : 'none';
-                }
+            document.querySelectorAll('.user-row').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const visible = text.includes(search) &&
+                    (role === '' || row.querySelector('td:nth-child(3)')?.textContent.toLowerCase().includes(role)) &&
+                    (college === '' || row.querySelector('td:nth-child(4)')?.textContent.toLowerCase().includes(college));
+                row.style.display = visible ? '' : 'none';
             });
         }
 
-        // Close modals when clicking outside
-        window.addEventListener('click', function(event) {
-            const addModal = document.getElementById('addUserModal');
-            const disableModal = document.getElementById('disableUserModal');
-            const viewModal = document.getElementById('viewUserModal');
-            const editModal = document.getElementById('editUserModal');
+        // Attach filters
+        document.getElementById('searchUsers')?.addEventListener('input', filterTable);
+        document.getElementById('roleFilter')?.addEventListener('change', filterTable);
+        document.getElementById('collegeFilter')?.addEventListener('change', filterTable);
 
-            if (event.target === addModal) closeAddUserModal();
-            if (event.target === disableModal) closeDisableUserModal();
-            if (event.target === viewModal) closeViewUserModal();
-            if (event.target === editModal) closeEditUserModal();
-        });
-
-        // Close modals with Escape key
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                closeAddUserModal();
-                closeDisableUserModal();
-                closeViewUserModal();
-                closeEditUserModal();
+        // Close modals on click outside or ESC
+        window.addEventListener('click', e => {
+            if (e.target.id.includes('Modal') && e.target.classList.contains('fixed')) {
+                e.target.classList.add('hidden');
+                document.body.style.overflow = 'auto';
             }
         });
 
-        // Column resizing
-        const thElements = document.querySelectorAll('th[role="columnheader"]');
-        thElements.forEach(th => {
-            let startX, startWidth;
-
-            th.addEventListener('mousedown', (e) => {
-                startX = e.pageX;
-                startWidth = th.offsetWidth;
-                th.style.userSelect = 'none';
-
-                function resize(e) {
-                    const diff = e.pageX - startX;
-                    th.style.width = (startWidth + diff) + 'px';
-                }
-
-                function stopResize() {
-                    document.removeEventListener('mousemove', resize);
-                    document.removeEventListener('mouseup', stopResize);
-                    th.style.userSelect = '';
-                }
-
-                document.addEventListener('mousemove', resize);
-                document.addEventListener('mouseup', stopResize);
-            });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.fixed.inset-0').forEach(m => m.classList.add('hidden'));
+                document.body.style.overflow = 'auto';
+            }
         });
     </script>
 </div>

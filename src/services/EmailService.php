@@ -544,72 +544,211 @@ class EmailService
         }
     }
 
-    public function getWelcomeEmailTemplate($firstName, $username, $temporaryPassword)
+    public function getWelcomeEmailTemplate($firstName, $employeeId, $temporaryPassword)
     {
+        $loginUrl = (isset($_SERVER['HTTPS']) ? 'https://' : 'http://') .
+            $_SERVER['HTTP_HOST'] . '/login';
+
         return "
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #D4AF37, #A68A2E); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-                .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; }
-                .credentials { background: #fff; border: 2px solid #D4AF37; border-radius: 5px; padding: 15px; margin: 15px 0; }
-                .warning { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 10px; margin: 10px 0; }
-                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
-                .password { font-family: monospace; font-size: 18px; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px dashed #ccc; }
-            </style>
-        </head>
-        <body>
-            <div class='container'>
-                <div class='header'>
-                    <h1>University Scheduling System</h1>
-                    <h2>Welcome to Your New Account!</h2>
-                </div>
-                <div class='content'>
-                    <p>Dear {$firstName},</p>
-                    
-                    <p>Your account has been successfully created in the University Scheduling System. Below are your login credentials:</p>
-                    
-                    <div class='credentials'>
-                        <h3>Login Information:</h3>
-                        <p><strong>Username:</strong> {$username}</p>
-                        <p><strong>Temporary Password:</strong></p>
-                        <div class='password'>{$temporaryPassword}</div>
-                        <p><strong>Login URL:</strong> <a href='" . (isset($_SERVER['HTTP_HOST']) ? "https://{$_SERVER['HTTP_HOST']}/login" : "#") . "'>System Login Page</a></p>
-                    </div>
-                    
-                    <div class='warning'>
-                        <strong>Important Security Notice:</strong>
-                        <ul>
-                            <li>This is a temporary password</li>
-                            <li>You must change your password on first login</li>
-                            <li>Do not share your credentials with anyone</li>
-                            <li>If you didn't request this account, please contact the system administrator immediately</li>
-                        </ul>
-                    </div>
-                    
-                    <p><strong>First Login Steps:</strong></p>
-                    <ol>
-                        <li>Go to the login page</li>
-                        <li>Enter your username and the temporary password above</li>
-                        <li>You will be prompted to set a new permanent password</li>
-                        <li>Choose a strong password that you haven't used before</li>
-                    </ol>
-                    
-                    <p>If you encounter any issues during login, please contact the IT support team or your department administrator.</p>
-                    
-                    <p>Best regards,<br>
-                    University Scheduling System Administration</p>
-                </div>
-                <div class='footer'>
-                    <p>This is an automated message. Please do not reply to this email.</p>
-                </div>
+    <!DOCTYPE html>
+    <html lang='en'>
+    <head>
+        <meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <title>Welcome to University Scheduling System</title>
+        <style>
+            body { 
+                font-family: 'Segoe UI', Arial, sans-serif; 
+                line-height: 1.7; 
+                color: #2d3748; 
+                background: #f7fafc; 
+                margin: 0; 
+                padding: 0; 
+            }
+            .container { 
+                max-width: 620px; 
+                margin: 20px auto; 
+                background: #ffffff; 
+                border-radius: 12px; 
+                overflow: hidden; 
+                box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+            }
+            .header { 
+                background: linear-gradient(135deg, #D4AF37, #A68A2E); 
+                color: white; 
+                padding: 30px 20px; 
+                text-align: center; 
+            }
+            .header h1 { 
+                margin: 0; 
+                font-size: 26px; 
+                font-weight: 700; 
+            }
+            .header h2 { 
+                margin: 8px 0 0; 
+                font-size: 18px; 
+                font-weight: 400; 
+            }
+            .content { 
+                padding: 30px; 
+                background: #ffffff; 
+            }
+            .greeting { 
+                font-size: 16px; 
+                margin-bottom: 20px; 
+            }
+            .credentials { 
+                background: #fffbeb; 
+                border: 2px solid #fbbf24; 
+                border-radius: 10px; 
+                padding: 20px; 
+                margin: 20px 0; 
+                font-family: 'Courier New', monospace; 
+            }
+            .credentials h3 { 
+                margin: 0 0 15px; 
+                color: #92400e; 
+                font-size: 18px; 
+            }
+            .cred-item { 
+                margin: 12px 0; 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+            }
+            .cred-item strong { 
+                color: #1a202c; 
+                min-width: 140px; 
+            }
+            .password-box { 
+                background: #1a202c; 
+                color: #48bb78; 
+                padding: 12px 16px; 
+                border-radius: 6px; 
+                font-weight: bold; 
+                letter-spacing: 1px; 
+                font-size: 18px; 
+                text-align: center; 
+                margin: 10px 0; 
+                word-break: break-all; 
+            }
+            .login-btn { 
+                display: inline-block; 
+                background: #D4AF37; 
+                color: white; 
+                padding: 12px 24px; 
+                border-radius: 6px; 
+                text-decoration: none; 
+                font-weight: 600; 
+                margin: 15px 0; 
+            }
+            .warning { 
+                background: #fef5e7; 
+                border: 1px solid #fbbf24; 
+                border-radius: 8px; 
+                padding: 15px; 
+                margin: 20px 0; 
+                font-size: 14px; 
+            }
+            .warning strong { 
+                color: #d97706; 
+            }
+            .steps { 
+                background: #f0fff4; 
+                border-left: 4px solid #48bb78; 
+                padding: 15px 20px; 
+                margin: 20px 0; 
+                border-radius: 0 8px 8px 0; 
+            }
+            .steps ol { 
+                margin: 0; 
+                padding-left: 20px; 
+            }
+            .steps li { 
+                margin: 8px 0; 
+                color: #22543d; 
+            }
+            .footer { 
+                text-align: center; 
+                padding: 20px; 
+                background: #f8fafc; 
+                color: #718096; 
+                font-size: 12px; 
+                border-top: 1px solid #e2e8f0; 
+            }
+            @media (max-width: 600px) {
+                .cred-item { flex-direction: column; align-items: flex-start; }
+                .cred-item strong { margin-bottom: 5px; }
+            }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <!-- Header -->
+            <div class='header'>
+                <h1>University Scheduling System</h1>
+                <h2>Welcome, {$firstName}!</h2>
             </div>
-        </body>
-        </html>
-        ";
+
+            <!-- Content -->
+            <div class='content'>
+                <p class='greeting'>Dear <strong>{$firstName}</strong>,</p>
+
+                <p>Your account has been successfully created. Please use the credentials below to log in for the first time.</p>
+
+                <!-- Credentials -->
+                <div class='credentials'>
+                    <h3>Login Credentials</h3>
+                    <div class='cred-item'>
+                        <strong>Username:</strong>
+                        <span><code>{$employeeId}</code></span>
+                    </div>
+                    <div class='cred-item'>
+                        <strong>Temporary Password:</strong>
+                        <div class='password-box'>{$temporaryPassword}</div>
+                    </div>
+                    <div class='cred-item'>
+                        <strong>Login URL:</strong>
+                        <a href='{$loginUrl}' class='login-btn'>Login Now</a>
+                    </div>
+                </div>
+
+                <!-- Security Warning -->
+                <div class='warning'>
+                    <strong>Security Alert:</strong>
+                    <ul style='margin:10px 0; padding-left:20px;'>
+                        <li>This is a <strong>temporary password</strong></li>
+                        <li>You <strong>must change it</strong> immediately after logging in</li>
+                        <li>Never share your password with anyone</li>
+                    </ul>
+                </div>
+
+                <!-- First Login Steps -->
+                <div class='steps'>
+                    <strong>First Login Instructions:</strong>
+                    <ol>
+                        <li>Click the <strong>Login Now</strong> button above</li>
+                        <li>Enter your <strong>Employee ID</strong> and this <strong>temporary password</strong></li>
+                        <li>You will be <strong>automatically redirected</strong> to set a new password</li>
+                        <li>Choose a strong, unique password</li>
+                    </ol>
+                </div>
+
+                <p>If you experience any issues, contact your department administrator or IT support.</p>
+
+                <p>Best regards,<br>
+                <strong>University Scheduling System Admin</strong></p>
+            </div>
+
+            <!-- Footer -->
+            <div class='footer'>
+                <p>&copy; " . date('Y') . " University Scheduling System. All rights reserved.</p>
+                <p>This is an automated message — please do not reply.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
     }
 
     public function getWelcomeEmailTextTemplate($firstName, $username, $temporaryPassword)

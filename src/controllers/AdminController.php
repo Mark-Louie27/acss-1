@@ -564,43 +564,30 @@ class AdminController
             $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
             $departments = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
             $programs = $this->db->query("SELECT program_id, program_name, department_id FROM programs ORDER BY program_name")->fetchAll(PDO::FETCH_ASSOC);
-            // Get data from lookup tables
-            // Get dynamic data from database
-            $academicRanks = $this->db->query("
-            SELECT DISTINCT academic_rank 
-            FROM faculty 
-            WHERE academic_rank IS NOT NULL AND academic_rank != '' 
-            ORDER BY 
-                CASE 
-                    WHEN academic_rank LIKE 'Instructor%' THEN 1
-                    WHEN academic_rank LIKE 'Assistant Professor%' THEN 2
-                    WHEN academic_rank LIKE 'Associate Professor%' THEN 3
-                    WHEN academic_rank LIKE 'Professor%' THEN 4
-                    ELSE 5
-                END,
-                academic_rank
-        ")->fetchAll(PDO::FETCH_COLUMN);
-
-            $titles = $this->db->query("
-            SELECT DISTINCT title 
-            FROM users 
-            WHERE title IS NOT NULL AND title != '' 
-            ORDER BY title
-        ")->fetchAll(PDO::FETCH_COLUMN);
-
-            $employmentTypes = $this->db->query("
-            SELECT DISTINCT employment_type 
-            FROM faculty 
-            WHERE employment_type IS NOT NULL AND employment_type != '' 
-            ORDER BY employment_type
-        ")->fetchAll(PDO::FETCH_COLUMN);
-
-            $classifications = $this->db->query("
-            SELECT DISTINCT classification 
-            FROM faculty 
-            WHERE classification IS NOT NULL AND classification != '' 
-            ORDER BY classification
-        ")->fetchAll(PDO::FETCH_COLUMN);
+            // FIX: Populate the enum data properly
+            $titles = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.', 'Engr.', 'Atty.'];
+            $academicRanks = [
+                'Instructor I',
+                'Instructor II',
+                'Instructor III',
+                'Assistant Professor I',
+                'Assistant Professor II',
+                'Assistant Professor III',
+                'Assistant Professor IV',
+                'Associate Professor I',
+                'Associate Professor II',
+                'Associate Professor III',
+                'Associate Professor IV',
+                'Associate Professor V',
+                'Professor I',
+                'Professor II',
+                'Professor III',
+                'Professor IV',
+                'Professor V',
+                'Professor VI'
+            ];
+            $employmentTypes = ['Regular', 'Contractual', 'Part-time', 'Full-time'];
+            $classifications = ['TL', 'VSL'];
         
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -643,7 +630,26 @@ class AdminController
                 $departmentsByCollege[$dept['college_id']][] = $dept;
             }
 
+            // In your manageUsers() function, before requiring the view:
             $controller = $this;
+
+            // Pass all data to the view
+            $viewData = [
+                'users' => $users,
+                'roles' => $roles,
+                'colleges' => $colleges,
+                'departments' => $departments,
+                'programs' => $programs,
+                'titles' => $titles,
+                'academicRanks' => $academicRanks,
+                'employmentTypes' => $employmentTypes,
+                'classifications' => $classifications,
+                'departmentsByCollege' => $departmentsByCollege,
+                'csrfToken' => $csrfToken
+            ];
+
+            extract($viewData);
+    
             require_once __DIR__ . '/../views/admin/users.php';
         } catch (PDOException $e) {
             error_log("Manage users error: " . $e->getMessage());
@@ -678,8 +684,8 @@ class AdminController
             }
 
             // Generate temporary password
-            $temporaryPassword = $this->generateTemporaryPassword();
-            $passwordHash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
+            // Hash the generated password
+            $passwordHash = password_hash($data['temporary_password'], PASSWORD_DEFAULT);
 
             // Start transaction
             $this->db->beginTransaction();
@@ -767,23 +773,20 @@ class AdminController
             // Commit transaction
             $this->db->commit();
 
-            // Store temporary password for one-time display
-            $_SESSION['temp_passwords'][$newUserId] = [
-                'password' => $temporaryPassword,
-                'username' => $data['username'],
-                'timestamp' => time()
-            ];
-
             // Send welcome email (optional)
             if (isset($data['send_welcome_email']) && $data['send_welcome_email']) {
-                $this->emailService->getWelcomeEmailTemplate($data['email'], $data['first_name'], $data['username'], $temporaryPassword);
+                $this->emailService->getWelcomeEmailTemplate(
+                    $data['email'],
+                    $data['first_name'],
+                    $data['employee_id'],
+                    $data['temporary_password']
+                );
             }
 
             return [
                 'success' => true,
                 'message' => 'User added successfully',
                 'user_id' => $newUserId,
-                'temporary_password' => $temporaryPassword
             ];
         } catch (Exception $e) {
             // Rollback transaction on error
