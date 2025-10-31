@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../controllers/AdminController.php';
+require_once __DIR__ . '/../../config/Database.php';
 
 // Fetch profile picture from session or database
 $profilePicture = $_SESSION['profile_picture'] ?? null;
@@ -16,6 +17,28 @@ if (!$profilePicture) {
     }
 }
 
+// Fetch system settings
+$systemSettings = [];
+try {
+    $db = (new Database())->connect();
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM system_settings");
+    $stmt->execute();
+    $systemSettings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+} catch (PDOException $e) {
+    error_log("layout: Error fetching system settings - " . $e->getMessage());
+    // Set default values if settings table doesn't exist or error occurs
+    $systemSettings = [
+        'system_name' => 'ACSS',
+        'system_logo' => '/assets/logo/main_logo/PRMSUlogo.png',
+        'primary_color' => '#e5ad0f'
+    ];
+}
+
+// Set default values if not in database
+$systemName = $systemSettings['system_name'] ?? 'ACSS';
+$systemLogo = $systemSettings['system_logo'] ?? '/assets/logo/main_logo/PRMSUlogo.png';
+$primaryColor = $systemSettings['primary_color'] ?? '#e5ad0f';
+
 // Determine current page for active navigation highlighting
 $currentUri = $_SERVER['REQUEST_URI'];
 ?>
@@ -26,12 +49,18 @@ $currentUri = $_SERVER['REQUEST_URI'];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title><?php echo htmlspecialchars($systemName); ?> - Admin Dashboard</title>
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+        :root {
+            --primary-color: <?php echo $primaryColor; ?>;
+            --primary-hover: #b98a0c;
+            /* Fixed darker yellow */
+        }
 
         body {
             font-family: 'Roboto', sans-serif;
@@ -91,6 +120,27 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
         .slide-in-right {
             animation: slideInRight 0.4s ease forwards;
+        }
+
+        /* Primary Color Applications */
+        .primary-color {
+            color: var(--primary-color);
+        }
+
+        .primary-bg {
+            background-color: var(--primary-color);
+        }
+
+        .primary-border {
+            border-color: var(--primary-color);
+        }
+
+        .primary-hover:hover {
+            color: var(--primary-color);
+        }
+
+        .primary-bg-hover:hover {
+            background-color: var(--primary-color);
         }
 
         /* Responsive Header */
@@ -153,7 +203,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
         .mobile-toggle:hover {
             background-color: #f3f4f6;
-            color: #e5ad0f;
+            color: var(--primary-color);
         }
 
         /* User profile section - responsive */
@@ -183,15 +233,15 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         .profile-button:hover {
-            color: #e5ad0f;
-            background-color: #fef3c7;
+            color: var(--primary-color);
+            background-color: rgba(229, 173, 15, 0.1);
         }
 
         .profile-avatar {
             height: 32px;
             width: 32px;
             border-radius: 50%;
-            border: 2px solid #e5ad0f;
+            border: 2px solid var(--primary-color);
             object-fit: cover;
             flex-shrink: 0;
         }
@@ -200,8 +250,8 @@ $currentUri = $_SERVER['REQUEST_URI'];
             height: 32px;
             width: 32px;
             border-radius: 50%;
-            border: 2px solid #e5ad0f;
-            background-color: #e5ad0f;
+            border: 2px solid var(--primary-color);
+            background-color: var(--primary-color);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -259,7 +309,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
 
         .dropdown-item:hover {
             background-color: #374151;
-            color: #fbbf24;
+            color: var(--primary-color);
         }
 
         .dropdown-item i {
@@ -328,11 +378,11 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         .nav-item:hover {
-            color: #e5ad0f;
+            color: var(--primary-color);
         }
 
         .active-nav {
-            border-left: 4px solid #e5ad0f;
+            border-left: 4px solid var(--primary-color);
             background-color: rgba(229, 173, 15, 0.1);
             font-weight: 500;
         }
@@ -499,12 +549,35 @@ $currentUri = $_SERVER['REQUEST_URI'];
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #e5ad0f;
+            background: var(--primary-color);
             border-radius: 10px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #b98a0c;
+            background: var(--primary-hover);
+        }
+
+        /* Dynamic color adjustments */
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .text-primary {
+            color: var(--primary-color);
+        }
+
+        .bg-primary {
+            background-color: var(--primary-color);
+        }
+
+        .border-primary {
+            border-color: var(--primary-color);
         }
     </style>
 </head>
@@ -525,8 +598,8 @@ $currentUri = $_SERVER['REQUEST_URI'];
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <a href="/admin/dashboard" class="flex items-center gap-3">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="university-logo">
-                    <span class="logo-text">ACSS</span>
+                    <img src="<?php echo htmlspecialchars($systemLogo); ?>" alt="<?php echo htmlspecialchars($systemName); ?> Logo" class="university-logo">
+                    <span class="logo-text"><?php echo htmlspecialchars($systemName); ?></span>
                 </a>
             </div>
 
@@ -568,7 +641,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <!-- Sidebar Header -->
         <div class="py-6 px-6 flex flex-col items-center justify-center border-b border-gray-700 bg-gray-900">
             <div class="flex items-center justify-center mb-3">
-                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
+                <img src="<?php echo htmlspecialchars($systemLogo); ?>" alt="<?php echo htmlspecialchars($systemName); ?> Logo" class="h-12">
             </div>
             <h2 class="text-xl font-bold text-yellow-400 text-center">PRMSU Scheduling System - ACSS</h2>
             <p class="text-xs text-gray-400 mt-1 text-center">Admin Management System</p>
@@ -589,7 +662,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
                     <p class="font-medium text-white truncate"><?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
                     <div class="flex items-center text-xs text-yellow-400">
                         <i class="fas fa-circle text-green-500 mr-1 text-xs"></i>
-                        <span>VPAA</span>
+                        <span>Admin</span>
                     </div>
                 </div>
             </div>
@@ -607,13 +680,6 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <i class="fas fa-desktop-alt w-5 mr-3 <?= strpos($currentUri, '/admin/act_logs') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Activity Log</span>
             </a>
-
-            <!-- Schedule Link 
-            <a href="/admin/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/schedule') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/admin/schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>My Schedule</span>
-            </a>
-            -->
 
             <!-- Users Link -->
             <a href="/admin/users" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/users') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
@@ -639,16 +705,16 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>Profile</span>
             </a>
 
-            <!-- Settings Link -->
-            <a href="/admin/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/settings') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
-                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/admin/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Settings</span>
-            </a>
-
             <!-- Back up Link -->
             <a href="/admin/database-backup" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/database-backup') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-database w-5 mr-3 <?= strpos($currentUri, '/admin/database-backup') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Database Backup</span>
+            </a>
+
+            <!-- Settings Link -->
+            <a href="/admin/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/settings') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/admin/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Settings</span>
             </a>
         </nav>
 
@@ -656,7 +722,7 @@ $currentUri = $_SERVER['REQUEST_URI'];
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700">
             <div class="flex items-center justify-between text-xs text-gray-400">
                 <div>
-                    <p>VPAA System</p>
+                    <p>Admin System</p>
                     <p>Version 2.1.0</p>
                 </div>
                 <a href="/admin/system/status" class="text-yellow-400 hover:text-yellow-300 transition-all duration-300">
@@ -826,6 +892,12 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 });
             });
         });
+
+        // Function to update dynamic colors (if primary color changes)
+        function updatePrimaryColor(newColor) {
+            document.documentElement.style.setProperty('--primary-color', newColor);
+            // You can also update other dynamic color properties here
+        }
     </script>
 </body>
 

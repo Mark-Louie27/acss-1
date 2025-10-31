@@ -1697,23 +1697,29 @@ class AdminController
     public function settings()
     {
         try {
-            $stmt = $this->db->prepare("
-                SELECT u.user_id, u.username, u.email, u.phone, u.first_name, u.middle_name, u.last_name, u.suffix, 
-                       u.profile_picture
-                FROM users u
-                WHERE u.user_id = :user_id
-            ");
-            $stmt->execute([':user_id' => $_SESSION['user_id']]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Get system settings from database
+            $settingsStmt = $this->db->prepare("
+            SELECT setting_key, setting_value 
+            FROM system_settings 
+            WHERE setting_key IN ('system_name', 'system_logo', 'background_image', 'primary_color')
+        ");
+            $settingsStmt->execute();
+            $settings = $settingsStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+            // Get current user for password change
+            $userStmt = $this->db->prepare("
+            SELECT user_id, username, email, first_name, last_name
+            FROM users 
+            WHERE user_id = :user_id
+        ");
+            $userStmt->execute([':user_id' => $_SESSION['user_id']]);
+            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
                 $_SESSION['error'] = "User not found";
                 header('Location: /admin/dashboard');
                 exit;
             }
-
-            $colleges = $this->db->query("SELECT college_id, college_name FROM colleges")->fetchAll(PDO::FETCH_ASSOC);
-            $departments = $this->db->query("SELECT department_id, department_name FROM departments")->fetchAll(PDO::FETCH_ASSOC);
 
             $controller = $this;
             require_once __DIR__ . '/../views/admin/settings.php';
@@ -1723,6 +1729,94 @@ class AdminController
             header('Location: /admin/dashboard');
             exit;
         }
+    }
+
+    /**
+     * Update system settings (Simplified version)
+     */
+    public function updateSystemSettings()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo "Method Not Allowed";
+            exit;
+        }
+
+        try {
+            $systemName = trim($_POST['system_name'] ?? '');
+            $primaryColor = trim($_POST['primary_color'] ?? '#e5ad0f');
+
+            // Validate inputs
+            if (empty($systemName)) {
+                $_SESSION['error'] = "System name is required";
+                header('Location: /admin/settings');
+                exit;
+            }
+
+            // Handle logo upload
+            if (isset($_FILES['system_logo']) && $_FILES['system_logo']['error'] === UPLOAD_ERR_OK) {
+                $logoFile = $_FILES['system_logo'];
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml'];
+
+                if (in_array($logoFile['type'], $allowedTypes)) {
+                    $uploadDir = __DIR__ . '/../../public/uploads/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+
+                    $logoName = 'logo_' . time() . '_' . uniqid() . '.' . pathinfo($logoFile['name'], PATHINFO_EXTENSION);
+                    // Store path WITH leading slash
+                    $logoPath = '/uploads/' . $logoName;
+
+                    if (move_uploaded_file($logoFile['tmp_name'], $uploadDir . $logoName)) {
+                        $this->updateSystemSetting('system_logo', $logoPath);
+                    }
+                }
+            }
+
+            // Handle background image upload
+            if (isset($_FILES['background_image']) && $_FILES['background_image']['error'] === UPLOAD_ERR_OK) {
+                $bgFile = $_FILES['background_image'];
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+
+                if (in_array($bgFile['type'], $allowedTypes)) {
+                    $uploadDir = __DIR__ . '/../../public/uploads/';
+                    $bgName = 'bg_' . time() . '_' . uniqid() . '.' . pathinfo($bgFile['name'], PATHINFO_EXTENSION);
+                    // Store path WITH leading slash
+                    $backgroundPath = '/uploads/' . $bgName;
+
+                    if (move_uploaded_file($bgFile['tmp_name'], $uploadDir . $bgName)) {
+                        $this->updateSystemSetting('background_image', $backgroundPath);
+                    }
+                }
+            }
+
+            // Update text settings
+            $this->updateSystemSetting('system_name', $systemName);
+            $this->updateSystemSetting('primary_color', $primaryColor);
+
+            $_SESSION['success'] = "System settings updated successfully";
+            header('Location: /admin/settings');
+            exit;
+        } catch (PDOException $e) {
+            error_log("Update system settings error: " . $e->getMessage());
+            $_SESSION['error'] = "Failed to update system settings";
+            header('Location: /admin/settings');
+            exit;
+        }
+    }
+
+    /**
+     * Helper method to update a single system setting
+     */
+    private function updateSystemSetting($key, $value)
+    {
+        $stmt = $this->db->prepare("
+        INSERT INTO system_settings (setting_key, setting_value) 
+        VALUES (:key, :value)
+        ON DUPLICATE KEY UPDATE setting_value = :value
+    ");
+        return $stmt->execute([':key' => $key, ':value' => $value]);
     }
 
 

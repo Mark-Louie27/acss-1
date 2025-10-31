@@ -101,6 +101,9 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::settings");
             $controller->settings();
             break;
+        case '/admin/update-system-settings':
+            $controller->updateSystemSettings();
+            break;
         case '/admin/database-backup':
             error_log("Routing to AdminController::backupDatabase");
             $controller->databaseBackup();

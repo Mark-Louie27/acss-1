@@ -363,9 +363,6 @@
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
-  .top-1 {
-    top: calc(var(--spacing) * 1);
-  }
   .top-1\/2 {
     top: calc(1/2 * 100%);
   }
@@ -419,9 +416,6 @@
   }
   .left-0 {
     left: calc(var(--spacing) * 0);
-  }
-  .left-1 {
-    left: calc(var(--spacing) * 1);
   }
   .left-1\/2 {
     left: calc(1/2 * 100%);
@@ -494,9 +488,6 @@
   }
   .-mt-16 {
     margin-top: calc(var(--spacing) * -16);
-  }
-  .mt-0 {
-    margin-top: calc(var(--spacing) * 0);
   }
   .mt-0\.5 {
     margin-top: calc(var(--spacing) * 0.5);
@@ -747,11 +738,8 @@
   .min-h-\[40vh\] {
     min-height: 40vh;
   }
-  .min-h-\[44px\] {
-    min-height: 44px;
-  }
-  .min-h-\[50px\] {
-    min-height: 50px;
+  .min-h-\[120px\] {
+    min-height: 120px;
   }
   .min-h-full {
     min-height: 100%;
@@ -867,9 +855,6 @@
   .max-w-7xl {
     max-width: var(--container-7xl);
   }
-  .max-w-\[100px\] {
-    max-width: 100px;
-  }
   .max-w-\[140px\] {
     max-width: 140px;
   }
@@ -905,9 +890,6 @@
   }
   .min-w-\[44px\] {
     min-width: 44px;
-  }
-  .min-w-\[50px\] {
-    min-width: 50px;
   }
   .min-w-\[100px\] {
     min-width: 100px;
@@ -976,10 +958,6 @@
   }
   .translate-x-full {
     --tw-translate-x: 100%;
-    translate: var(--tw-translate-x) var(--tw-translate-y);
-  }
-  .-translate-y-1 {
-    --tw-translate-y: calc(var(--spacing) * -1);
     translate: var(--tw-translate-x) var(--tw-translate-y);
   }
   .-translate-y-1\/2 {
@@ -1480,9 +1458,6 @@
   .bg-blue-600 {
     background-color: var(--color-blue-600);
   }
-  .bg-blue-900 {
-    background-color: var(--color-blue-900);
-  }
   .bg-blue-900\/50 {
     background-color: color-mix(in srgb, oklch(37.9% 0.146 265.522) 50%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -1590,9 +1565,6 @@
   }
   .bg-red-600 {
     background-color: var(--color-red-600);
-  }
-  .bg-red-900 {
-    background-color: var(--color-red-900);
   }
   .bg-red-900\/50 {
     background-color: color-mix(in srgb, oklch(39.6% 0.141 25.723) 50%, transparent);
@@ -1890,9 +1862,6 @@
   .px-8 {
     padding-inline: calc(var(--spacing) * 8);
   }
-  .py-0 {
-    padding-block: calc(var(--spacing) * 0);
-  }
   .py-0\.5 {
     padding-block: calc(var(--spacing) * 0.5);
   }
@@ -1916,6 +1885,9 @@
   }
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
+  }
+  .py-5 {
+    padding-block: calc(var(--spacing) * 5);
   }
   .py-6 {
     padding-block: calc(var(--spacing) * 6);
@@ -2579,6 +2551,11 @@
       margin-right: calc(var(--spacing) * 4);
     }
   }
+  .file\:rounded-lg {
+    &::file-selector-button {
+      border-radius: var(--radius-lg);
+    }
+  }
   .file\:rounded-md {
     &::file-selector-button {
       border-radius: var(--radius-md);
@@ -2600,6 +2577,11 @@
       background-color: var(--color-indigo-50);
     }
   }
+  .file\:bg-yellow-50 {
+    &::file-selector-button {
+      background-color: var(--color-yellow-50);
+    }
+  }
   .file\:px-4 {
     &::file-selector-button {
       padding-inline: calc(var(--spacing) * 4);
@@ -2610,10 +2592,21 @@
       padding-block: calc(var(--spacing) * 2);
     }
   }
+  .file\:py-3 {
+    &::file-selector-button {
+      padding-block: calc(var(--spacing) * 3);
+    }
+  }
   .file\:text-sm {
     &::file-selector-button {
       font-size: var(--text-sm);
       line-height: var(--tw-leading, var(--text-sm--line-height));
+    }
+  }
+  .file\:font-medium {
+    &::file-selector-button {
+      --tw-font-weight: var(--font-weight-medium);
+      font-weight: var(--font-weight-medium);
     }
   }
   .file\:font-semibold {
@@ -2630,6 +2623,11 @@
   .file\:text-indigo-700 {
     &::file-selector-button {
       color: var(--color-indigo-700);
+    }
+  }
+  .file\:text-yellow-700 {
+    &::file-selector-button {
+      color: var(--color-yellow-700);
     }
   }
   .after\:absolute {
@@ -2805,13 +2803,6 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-amber-600);
-      }
-    }
-  }
-  .hover\:bg-blue-50 {
-    &:hover {
-      @media (hover: hover) {
-        background-color: var(--color-blue-50);
       }
     }
   }
@@ -3359,6 +3350,15 @@
       @media (hover: hover) {
         &::file-selector-button {
           background-color: var(--color-indigo-100);
+        }
+      }
+    }
+  }
+  .hover\:file\:bg-yellow-100 {
+    &:hover {
+      @media (hover: hover) {
+        &::file-selector-button {
+          background-color: var(--color-yellow-100);
         }
       }
     }
