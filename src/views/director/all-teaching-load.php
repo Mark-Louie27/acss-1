@@ -107,57 +107,7 @@ ob_start();
     <!-- College Summary Cards -->
     <div class="container mx-auto px-4 py-6">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <!-- Total Faculty -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm font-medium">Total Faculty</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo $collegeTotals['total_faculty'] ?? 0; ?></h3>
-                    </div>
-                    <div class="bg-yellow-100 rounded-full p-3">
-                        <i class="fas fa-users text-yellow-500 text-2xl"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Total Teaching Load -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm font-medium">Total Teaching Load</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo number_format($collegeTotals['total_teaching_load'] ?? 0, 1); ?> hrs</h3>
-                    </div>
-                    <div class="bg-green-100 rounded-full p-3">
-                        <i class="fas fa-book-open text-green-500 text-2xl"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Total Working Load -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm font-medium">Total Working Load</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo number_format($collegeTotals['total_working_load'] ?? 0, 1); ?> hrs</h3>
-                    </div>
-                    <div class="bg-blue-100 rounded-full p-3">
-                        <i class="fas fa-briefcase text-blue-500 text-2xl"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Excess Hours -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-orange-500">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm font-medium">Total Excess Hours</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo number_format($collegeTotals['total_excess_hours'] ?? 0, 1); ?> hrs</h3>
-                    </div>
-                    <div class="bg-orange-100 rounded-full p-3">
-                        <i class="fas fa-exclamation-triangle text-orange-500 text-2xl"></i>
-                    </div>
-                </div>
-            </div>
+          
         </div>
 
         <!-- Department Summary -->
@@ -398,7 +348,7 @@ ob_start();
                                         <div class="flex flex-col space-y-1">
                                             <div class="flex justify-center space-x-1">
                                                 <button onclick="viewFacultySchedule(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-purple-600 hover:text-purple-900" title="View Schedule">
+                                                    class="text-yellow-600 hover:text-yellow-900" title="View Schedule">
                                                     <i class="fas fa-calendar-alt"></i>
                                                 </button>
                                             </div>

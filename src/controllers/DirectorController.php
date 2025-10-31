@@ -685,7 +685,7 @@ class DirectorController
                 f.faculty_id,
                 f.academic_rank,
                 f.employment_type,
-                f.equiv_teaching_load,
+                COALESCE(f.equiv_teaching_load, 0) as equiv_teaching_load,
                 f.bachelor_degree,
                 f.master_degree,
                 f.doctorate_degree,
@@ -702,11 +702,27 @@ class DirectorController
                 c.college_id,
                 COUNT(DISTINCT s.schedule_id) as total_schedules,
                 COUNT(DISTINCT s.course_id) as total_courses,
-                SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours,
-                SUM(CASE WHEN s.component_type = 'lecture' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lecture_hours,
-                SUM(CASE WHEN s.component_type = 'laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lab_hours,
-                COUNT(DISTINCT CASE WHEN s.component_type = 'lecture' THEN s.course_id END) as lecture_preparations,
-                COUNT(DISTINCT CASE WHEN s.component_type = 'laboratory' THEN s.course_id END) as lab_preparations
+                COALESCE(SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60), 0) as total_hours,
+                -- Treat NULL component_type as 'lecture'
+                COALESCE(SUM(CASE 
+                    WHEN COALESCE(s.component_type, 'lecture') = 'lecture' 
+                    THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 
+                    ELSE 0 
+                END), 0) as lecture_hours,
+                COALESCE(SUM(CASE 
+                    WHEN s.component_type = 'laboratory' 
+                    THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 
+                    ELSE 0 
+                END), 0) as lab_hours,
+                -- Count preparations, treating NULL as lecture
+                COUNT(DISTINCT CASE 
+                    WHEN COALESCE(s.component_type, 'lecture') = 'lecture' 
+                    THEN s.course_id 
+                END) as lecture_preparations,
+                COUNT(DISTINCT CASE 
+                    WHEN s.component_type = 'laboratory' 
+                    THEN s.course_id 
+                END) as lab_preparations
             FROM faculty f
             JOIN users u ON f.user_id = u.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
@@ -743,14 +759,17 @@ class DirectorController
             ];
 
             foreach ($facultyData as $faculty) {
-                $lectureHours = (float)$faculty['lecture_hours'];
-                $labHours = (float)$faculty['lab_hours'];
+                $lectureHours = floatval($faculty['lecture_hours'] ?? 0);
+                $labHours = floatval($faculty['lab_hours'] ?? 0);
                 $labHoursX075 = $labHours * 0.75;
                 $actualTeachingLoad = $lectureHours + $labHoursX075;
-                $equivTeachingLoad = (float)$faculty['equiv_teaching_load'] ?? 0;
+                $equivTeachingLoad = floatval($faculty['equiv_teaching_load'] ?? 0);
                 $totalWorkingLoad = $actualTeachingLoad + $equivTeachingLoad;
                 $excessHours = max(0, $totalWorkingLoad - 24);
-                $totalPreparations = (int)$faculty['lecture_preparations'] + (int)$faculty['lab_preparations'];
+
+                $lecturePreparations = intval($faculty['lecture_preparations'] ?? 0);
+                $labPreparations = intval($faculty['lab_preparations'] ?? 0);
+                $totalPreparations = $lecturePreparations + $labPreparations;
 
                 $facultyTeachingLoads[] = [
                     'faculty_id' => $faculty['faculty_id'],
@@ -768,19 +787,19 @@ class DirectorController
                     'designation' => $faculty['designation'] ?? 'Not specified',
                     'classification' => $faculty['classification'] ?? 'Not specified',
                     'advisory_class' => $faculty['advisory_class'] ?? 'Not assigned',
-                    'total_schedules' => (int)$faculty['total_schedules'],
-                    'total_courses' => (int)$faculty['total_courses'],
-                    'total_hours' => (float)$faculty['total_hours'],
+                    'total_schedules' => intval($faculty['total_schedules'] ?? 0),
+                    'total_courses' => intval($faculty['total_courses'] ?? 0),
+                    'total_hours' => floatval($faculty['total_hours'] ?? 0),
                     'lecture_hours' => $lectureHours,
                     'lab_hours' => $labHours,
-                    'lab_hours_x075' => $labHoursX075,
+                    'lab_hours_x075' => round($labHoursX075, 2),
                     'total_preparations' => $totalPreparations,
-                    'lecture_preparations' => (int)$faculty['lecture_preparations'],
-                    'lab_preparations' => (int)$faculty['lab_preparations'],
-                    'actual_teaching_load' => $actualTeachingLoad,
+                    'lecture_preparations' => $lecturePreparations,
+                    'lab_preparations' => $labPreparations,
+                    'actual_teaching_load' => round($actualTeachingLoad, 2),
                     'equiv_teaching_load' => $equivTeachingLoad,
-                    'total_working_load' => $totalWorkingLoad,
-                    'excess_hours' => $excessHours,
+                    'total_working_load' => round($totalWorkingLoad, 2),
+                    'excess_hours' => round($excessHours, 2),
                     'load_status' => $this->schedulingService->getLoadStatus($totalWorkingLoad, $excessHours)
                 ];
 
@@ -793,6 +812,113 @@ class DirectorController
                 $systemTotals['total_excess_hours'] += $excessHours;
             }
 
+            // Round system totals
+            $systemTotals['total_lecture_hours'] = round($systemTotals['total_lecture_hours'], 2);
+            $systemTotals['total_lab_hours'] = round($systemTotals['total_lab_hours'], 2);
+            $systemTotals['total_teaching_load'] = round($systemTotals['total_teaching_load'], 2);
+            $systemTotals['total_working_load'] = round($systemTotals['total_working_load'], 2);
+            $systemTotals['total_excess_hours'] = round($systemTotals['total_excess_hours'], 2);
+
+            // ✅ Get detailed schedules for each faculty with day grouping
+            $detailedSchedules = [];
+            if (!empty($facultyTeachingLoads)) {
+                $facultyIds = array_column($facultyTeachingLoads, 'faculty_id');
+                $placeholders = str_repeat('?,', count($facultyIds) - 1) . '?';
+
+                $schedulesStmt = $this->db->prepare("
+                SELECT 
+                    s.faculty_id,
+                    c.course_code,
+                    c.course_name,
+                    c.units,
+                    COALESCE(r.room_name, 'Online') as room_name,
+                    s.day_of_week,
+                    s.start_time,
+                    s.end_time,
+                    COALESCE(s.component_type, 'lecture') as component_type,
+                    s.schedule_type,
+                    s.status,
+                    COALESCE(sec.section_name, 'N/A') AS section_name,
+                    COALESCE(sec.current_students, 0) as current_students,
+                    sec.year_level,
+                    COALESCE(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60, 0) AS duration_hours
+                FROM schedules s
+                LEFT JOIN courses c ON s.course_id = c.course_id
+                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                LEFT JOIN classrooms r ON s.room_id = r.room_id
+                WHERE s.faculty_id IN ($placeholders) 
+                    AND s.semester_id = ?
+                    AND s.status != 'Rejected'
+                ORDER BY s.faculty_id, c.course_code, s.component_type, s.start_time
+            ");
+                $schedulesStmt->execute(array_merge($facultyIds, [$semesterId]));
+                $rawSchedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // ✅ Group schedules by faculty, course, component, time, and section
+                $groupedSchedules = [];
+                foreach ($rawSchedules as $schedule) {
+                    $facultyId = $schedule['faculty_id'];
+                    $groupKey = $schedule['course_code'] . '|' .
+                        $schedule['component_type'] . '|' .
+                        $schedule['start_time'] . '|' .
+                        $schedule['end_time'] . '|' .
+                        $schedule['section_name'];
+
+                    if (!isset($groupedSchedules[$facultyId])) {
+                        $groupedSchedules[$facultyId] = [];
+                    }
+
+                    if (!isset($groupedSchedules[$facultyId][$groupKey])) {
+                        $groupedSchedules[$facultyId][$groupKey] = $schedule;
+                        $groupedSchedules[$facultyId][$groupKey]['days'] = [];
+                    }
+
+                    $groupedSchedules[$facultyId][$groupKey]['days'][] = $schedule['day_of_week'];
+                }
+
+                // ✅ Process grouped schedules and format days
+                foreach ($groupedSchedules as $facultyId => $scheduleGroups) {
+                    $detailedSchedules[$facultyId] = [];
+
+                    foreach ($scheduleGroups as $schedule) {
+                        // Format days using schedulingService
+                        $formattedDays = $this->schedulingService->formatScheduleDays(
+                            implode(', ', $schedule['days'])
+                        );
+
+                        $courseKey = $schedule['course_code'] . '-' . $schedule['component_type'];
+
+                        if (!isset($detailedSchedules[$facultyId][$courseKey])) {
+                            $detailedSchedules[$facultyId][$courseKey] = [
+                                'course_code' => $schedule['course_code'],
+                                'course_name' => $schedule['course_name'],
+                                'units' => $schedule['units'] ?? 0,
+                                'component_type' => $schedule['component_type'],
+                                'sections' => [],
+                                'total_hours' => 0
+                            ];
+                        }
+
+                        $durationHours = floatval($schedule['duration_hours'] ?? 0);
+                        // Multiply by number of days for total weekly hours
+                        $weeklyHours = $durationHours * count($schedule['days']);
+
+                        $detailedSchedules[$facultyId][$courseKey]['total_hours'] += $weeklyHours;
+                        $detailedSchedules[$facultyId][$courseKey]['sections'][] = [
+                            'section_name' => $schedule['section_name'],
+                            'day_of_week' => $formattedDays, // ✅ Use formatted days
+                            'start_time' => $schedule['start_time'],
+                            'end_time' => $schedule['end_time'],
+                            'room_name' => $schedule['room_name'],
+                            'duration_hours' => round($durationHours, 2),
+                            'weekly_hours' => round($weeklyHours, 2),
+                            'current_students' => intval($schedule['current_students'] ?? 0),
+                            'year_level' => $schedule['year_level'] ?? 'N/A'
+                        ];
+                    }
+                }
+            }
+
             error_log("collegeTeachingLoad: Processed teaching loads for " . count($facultyTeachingLoads) . " faculty members");
 
             // Pass all data to view
@@ -801,6 +927,125 @@ class DirectorController
             error_log("collegeTeachingLoad: Full error: " . $e->getMessage());
             http_response_code(500);
             echo "Error loading college teaching loads: " . htmlspecialchars($e->getMessage());
+            exit;
+        }
+    }
+
+    /**
+     * API endpoint to get faculty schedule details for director
+     */
+    public function getFacultySchedule($facultyId)
+    {
+        // Set JSON header at the very beginning
+        header('Content-Type: application/json');
+
+        try {
+            // Get faculty info
+            $facultyStmt = $this->db->prepare("
+            SELECT f.faculty_id, 
+                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name,
+                   d.department_name,
+                   c.college_name,
+                   f.employment_type,
+                   f.academic_rank
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$faculty) {
+                echo json_encode(['success' => false, 'message' => 'Faculty not found']);
+                exit;
+            }
+
+            // Get current semester
+            $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
+            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$semester) {
+                echo json_encode(['success' => false, 'message' => 'No current semester']);
+                exit;
+            }
+
+            // ✅ Get faculty schedules with grouping by days
+            $schedulesStmt = $this->db->prepare("
+            SELECT 
+                c.course_code,
+                c.course_name,
+                COALESCE(sec.section_name, 'N/A') AS section_name,
+                COALESCE(r.room_name, 'Online') as room_name,
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                COALESCE(s.component_type, 'lecture') as component_type,
+                s.status,
+                COALESCE(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60, 0) AS duration_hours
+            FROM schedules s
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = ? 
+                AND s.semester_id = ?
+                AND s.status != 'Rejected'
+            ORDER BY 
+                c.course_code,
+                s.component_type,
+                CASE s.day_of_week 
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END,
+                s.start_time
+        ");
+            $schedulesStmt->execute([$facultyId, $semester['semester_id']]);
+            $rawSchedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // ✅ Group schedules by course, component, time, room, and section
+            $groupedSchedules = [];
+            foreach ($rawSchedules as $schedule) {
+                $groupKey = $schedule['course_code'] . '|' .
+                    $schedule['component_type'] . '|' .
+                    $schedule['start_time'] . '|' .
+                    $schedule['end_time'] . '|' .
+                    $schedule['room_name'] . '|' .
+                    $schedule['section_name'];
+
+                if (!isset($groupedSchedules[$groupKey])) {
+                    $groupedSchedules[$groupKey] = $schedule;
+                    $groupedSchedules[$groupKey]['days'] = [];
+                }
+
+                $groupedSchedules[$groupKey]['days'][] = $schedule['day_of_week'];
+            }
+
+            // ✅ Format days for each grouped schedule
+            $schedules = [];
+            foreach ($groupedSchedules as $schedule) {
+                $schedule['day_of_week'] = $this->schedulingService->formatScheduleDays(
+                    implode(', ', $schedule['days'])
+                );
+                unset($schedule['days']);
+                $schedules[] = $schedule;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'faculty' => $faculty,
+                'schedules' => $schedules
+            ]);
+            exit;
+        } catch (Exception $e) {
+            error_log("getDirectorFacultySchedule error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error loading schedule']);
             exit;
         }
     }
@@ -1002,101 +1247,6 @@ class DirectorController
         } catch (Exception $e) {
             error_log("getFacultyApprovalStatusDirector error: " . $e->getMessage());
             echo json_encode(['success' => false, 'message' => 'Error fetching approval status']);
-        }
-        exit;
-    }
-
-    /**
-     * API endpoint to get faculty schedule details for directors (NO RESTRICTIONS)
-     */
-    public function getFacultySchedule($facultyId)
-    {
-        header('Content-Type: application/json');
-
-        try {
-            // Validate faculty ID
-            if (!is_numeric($facultyId) || $facultyId <= 0) {
-                throw new Exception('Invalid faculty ID');
-            }
-
-            // Get faculty info - NO COLLEGE VERIFICATION
-            $facultyStmt = $this->db->prepare("
-            SELECT f.faculty_id, 
-                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', COALESCE(u.suffix, '')) AS faculty_name,
-                   d.department_name,
-                   c.college_name,
-                   f.employment_type,
-                   f.academic_rank
-            FROM faculty f
-            JOIN users u ON f.user_id = u.user_id
-            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-            JOIN departments d ON fd.department_id = d.department_id
-            JOIN colleges c ON d.college_id = c.college_id
-            WHERE f.faculty_id = ?
-        ");
-            $facultyStmt->execute([$facultyId]);
-            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$faculty) {
-                throw new Exception('Faculty not found');
-            }
-
-            // Get current semester
-            $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
-            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$semester) {
-                throw new Exception('No current semester defined');
-            }
-
-            // Get faculty schedules
-            $schedulesStmt = $this->db->prepare("
-            SELECT 
-                c.course_code,
-                c.course_name,
-                COALESCE(sec.section_name, 'N/A') AS section_name,
-                r.room_name,
-                s.day_of_week,
-                s.start_time,
-                s.end_time,
-                s.component_type,
-                s.status,
-                TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
-            FROM schedules s
-            LEFT JOIN courses c ON s.course_id = c.course_id
-            LEFT JOIN sections sec ON s.section_id = sec.section_id
-            LEFT JOIN classrooms r ON s.room_id = r.room_id
-            WHERE s.faculty_id = ? 
-                AND s.semester_id = ?
-                AND s.status != 'Rejected'
-            ORDER BY 
-                CASE s.day_of_week 
-                    WHEN 'Monday' THEN 1
-                    WHEN 'Tuesday' THEN 2
-                    WHEN 'Wednesday' THEN 3
-                    WHEN 'Thursday' THEN 4
-                    WHEN 'Friday' THEN 5
-                    WHEN 'Saturday' THEN 6
-                    WHEN 'Sunday' THEN 7
-                END,
-                s.start_time
-        ");
-            $schedulesStmt->execute([$facultyId, $semester['semester_id']]);
-            $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Always return valid JSON
-            echo json_encode([
-                'success' => true,
-                'faculty' => $faculty,
-                'schedules' => $schedules
-            ]);
-        } catch (Exception $e) {
-            error_log("getFacultySchedule error: " . $e->getMessage());
-            // Always return valid JSON even for errors
-            echo json_encode([
-                'success' => false,
-                'message' => 'Error loading schedule: ' . $e->getMessage()
-            ]);
         }
         exit;
     }

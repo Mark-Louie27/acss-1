@@ -78,6 +78,95 @@ ob_start();
             display: none !important;
         }
     }
+
+    /* Sticky Actions Column */
+    .sticky-actions {
+        position: sticky;
+        right: 0;
+        background-color: white;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+        min-width: 120px;
+    }
+
+    .sticky-actions .action-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 4px;
+    }
+
+    .sticky-actions button {
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+
+    .sticky-actions .btn-view {
+        background-color: #fef3c7;
+        color: #d97706;
+    }
+
+    .sticky-actions .btn-view:hover {
+        background-color: #fde68a;
+        transform: scale(1.05);
+    }
+
+    .sticky-actions .btn-details {
+        background-color: #dbeafe;
+        color: #2563eb;
+    }
+
+    .sticky-actions .btn-details:hover {
+        background-color: #bfdbfe;
+        transform: scale(1.05);
+    }
+
+    .sticky-actions .btn-approve {
+        background-color: #d1fae5;
+        color: #059669;
+    }
+
+    .sticky-actions .btn-approve:hover {
+        background-color: #a7f3d0;
+        transform: scale(1.05);
+    }
+
+    .sticky-actions .btn-reject {
+        background-color: #fee2e2;
+        color: #dc2626;
+    }
+
+    .sticky-actions .btn-reject:hover {
+        background-color: #fecaca;
+        transform: scale(1.05);
+    }
+
+    .sticky-actions .btn-disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    /* Mobile: Stack actions in 2 columns */
+    @media (max-width: 768px) {
+        .sticky-actions .action-group {
+            flex-direction: row;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .sticky-actions button {
+            width: 32px;
+            height: 32px;
+            font-size: 12px;
+        }
+    }
 </style>
 
 <div class="min-h-screen bg-gray-50">
@@ -329,7 +418,7 @@ ob_start();
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Equiv Load</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total Load</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" style="position:sticky; right:0; background:#fff; z-index:30;">Actions</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sticky-actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -396,31 +485,28 @@ ob_start();
                                             <?php echo $status; ?>
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <div class="flex flex-col space-y-1">
-                                            <div class="flex justify-center space-x-1">
-                                                <button onclick="viewFacultySchedule(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-yellow-600 hover:text-yellow-900" title="View Schedule">
-                                                    <i class="fas fa-calendar-alt"></i>
-                                                </button>
-                                                <button onclick="viewFacultyDetails(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-blue-600 hover:text-blue-900" title="View Details">
-                                                    <i class="fas fa-info-circle"></i>
-                                                </button>
-                                            </div>
-                                            <div class="flex justify-center space-x-1 mt-1" id="approval-buttons-<?php echo $faculty['faculty_id']; ?>">
+                                    <td class="sticky-actions">
+                                        <div class="action-group">
+                                            <!-- View Schedule -->
+                                            <button onclick="viewFacultySchedule(<?php echo $faculty['faculty_id']; ?>)"
+                                                class="btn-view" title="View Schedule">
+                                                <i class="fas fa-calendar-alt"></i>
+                                            </button>
+
+                                            <!-- Approve / Reject (dynamic) -->
+                                            <div id="approval-buttons-<?php echo $faculty['faculty_id']; ?>">
                                                 <button onclick="approveTeachingLoad(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-green-600 hover:text-green-900 text-xs p-1 rounded hover:bg-green-50 transition-colors"
-                                                    title="Approve Teaching Load">
+                                                    class="btn-approve" title="Approve Load">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                                 <button onclick="showRejectModal(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-red-600 hover:text-red-900 text-xs p-1 rounded hover:bg-red-50 transition-colors"
-                                                    title="Reject Teaching Load">
+                                                    class="btn-reject" title="Reject Load">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </div>
-                                            <div class="text-xs mt-1 px-1" id="approval-status-<?php echo $faculty['faculty_id']; ?>">
+
+                                            <!-- Status -->
+                                            <div class="text-xs text-center mt-1" id="approval-status-<?php echo $faculty['faculty_id']; ?>">
                                                 <span class="text-gray-500 animate-pulse">Loading...</span>
                                             </div>
                                         </div>
