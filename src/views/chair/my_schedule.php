@@ -561,7 +561,7 @@ ob_start();
             return;
         }
 
-       
+
         printWindow.document.write(`
         <style>
             @page { 

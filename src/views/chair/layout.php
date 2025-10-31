@@ -803,8 +803,8 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
             </a>
 
             <!-- Faculty -->
-            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/faculty') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/chair/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Faculty</span>
             </a>
 
