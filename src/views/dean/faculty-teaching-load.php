@@ -33,6 +33,29 @@ ob_start();
         }
     }
 
+    /* Filter animations */
+    .filter-transition {
+        transition: all 0.3s ease-in-out;
+    }
+
+    .filter-highlight {
+        animation: highlight 2s ease-in-out;
+    }
+
+    @keyframes highlight {
+        0% {
+            background-color: transparent;
+        }
+
+        50% {
+            background-color: #fef3c7;
+        }
+
+        100% {
+            background-color: transparent;
+        }
+    }
+
     @media print {
         .bg-gradient-to-r {
             background: #f59e0b !important;
@@ -47,6 +70,11 @@ ob_start();
         }
 
         #scheduleModal {
+            display: none !important;
+        }
+
+        /* Hide filters in print */
+        .flex.flex-col.sm\\:flex-row.gap-4 {
             display: none !important;
         }
     }
@@ -238,6 +266,51 @@ ob_start();
                         <button onclick="window.print()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                             <i class="fas fa-print mr-2"></i>Print
                         </button>
+                    </div>
+                </div>
+
+                <!-- Department Filter -->
+                <div class="mt-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div class="flex items-center space-x-2">
+                        <label for="departmentFilter" class="text-sm font-medium text-gray-700 whitespace-nowrap">
+                            <i class="fas fa-filter mr-1"></i>Filter by Department:
+                        </label>
+                        <select id="departmentFilter" onchange="filterByDepartment()"
+                            class="block w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm">
+                            <option value="all" <?php echo ($selectedDepartment ?? 'all') === 'all' ? 'selected' : ''; ?>>All Departments</option>
+                            <?php foreach ($departments ?? [] as $dept): ?>
+                                <option value="<?php echo $dept['department_id']; ?>"
+                                    <?php echo ($selectedDepartment ?? 'all') == $dept['department_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($dept['department_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Active Filters Display -->
+                    <div id="activeFilters" class="flex flex-wrap gap-2">
+                        <?php if (($selectedDepartment ?? 'all') !== 'all'): ?>
+                            <?php
+                            $selectedDeptName = 'All Departments';
+                            foreach ($departments ?? [] as $dept) {
+                                if ($dept['department_id'] == $selectedDepartment) {
+                                    $selectedDeptName = $dept['department_name'];
+                                    break;
+                                }
+                            }
+                            ?>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Department: <?php echo htmlspecialchars($selectedDeptName); ?>
+                                <button onclick="clearDepartmentFilter()" class="ml-1 text-yellow-600 hover:text-yellow-800">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Results Count -->
+                    <div class="text-sm text-gray-600 ml-auto">
+                        Showing <?php echo count($facultyTeachingLoads); ?> of <?php echo $collegeTotals['total_faculty'] ?? 0; ?> faculty members
                     </div>
                 </div>
             </div>
@@ -933,15 +1006,86 @@ ob_start();
         return <?php echo $semesterId ?? 'null'; ?>;
     }
 
+    // Department filter functions
+    function filterByDepartment() {
+        const departmentFilter = document.getElementById('departmentFilter');
+        const selectedDepartment = departmentFilter.value;
+
+        // Get current URL and parameters
+        const url = new URL(window.location.href);
+
+        if (selectedDepartment === 'all') {
+            url.searchParams.delete('department');
+        } else {
+            url.searchParams.set('department', selectedDepartment);
+        }
+
+        // Reload the page with the new filter
+        window.location.href = url.toString();
+    }
+
+    function clearDepartmentFilter() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('department');
+        window.location.href = url.toString();
+    }
+
+    // Enhanced export function that respects filters
     function exportToExcel() {
-        // Simple table export functionality
         const table = document.getElementById('teachingLoadTable');
+        const departmentFilter = document.getElementById('departmentFilter');
+        const selectedDepartment = departmentFilter.value;
+
+        let fileName = 'faculty_teaching_load_' + new Date().toISOString().split('T')[0];
+
+        // Add department name to filename if filtered
+        if (selectedDepartment !== 'all') {
+            const selectedOption = departmentFilter.options[departmentFilter.selectedIndex];
+            const deptName = selectedOption.text.replace(/[^a-zA-Z0-9]/g, '_');
+            fileName += '_' + deptName;
+        }
+
         const html = table.outerHTML;
         const url = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent(html);
         const link = document.createElement('a');
-        link.download = 'faculty_teaching_load_' + new Date().toISOString().split('T')[0] + '.xls';
+        link.download = fileName + '.xls';
         link.href = url;
         link.click();
+    }
+
+    // Add search functionality
+    function setupSearch() {
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search faculty...';
+        searchInput.className = 'block w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm';
+        searchInput.onkeyup = function() {
+            filterTable(this.value);
+        };
+
+        // Add search input to the filter section
+        const filterSection = document.querySelector('.flex.flex-col.sm\\:flex-row.gap-4');
+        if (filterSection) {
+            filterSection.insertBefore(searchInput, filterSection.firstChild);
+        }
+    }
+
+    function filterTable(searchTerm) {
+        const table = document.getElementById('teachingLoadTable');
+        const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+        const term = searchTerm.toLowerCase();
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const facultyName = row.cells[0].textContent.toLowerCase();
+            const department = row.cells[1].textContent.toLowerCase();
+
+            if (facultyName.includes(term) || department.includes(term)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        }
     }
 
     // Close modal when clicking outside
@@ -955,6 +1099,9 @@ ob_start();
     document.addEventListener('DOMContentLoaded', function() {
         console.log('Faculty Teaching Load page loaded');
 
+        // Setup search functionality
+        setupSearch();
+
         // Load approval status for each faculty member
         <?php if (!empty($facultyTeachingLoads)): ?>
             <?php foreach ($facultyTeachingLoads as $index => $faculty): ?>
@@ -963,6 +1110,18 @@ ob_start();
                 }, <?php echo $index * 200 ?>); // Stagger requests to avoid overwhelming the server
             <?php endforeach; ?>
         <?php endif; ?>
+
+        // Add keyboard shortcut for search (Ctrl/Cmd + F)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                const searchInput = document.querySelector('input[placeholder="Search faculty..."]');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            }
+        });
     });
 </script>
 

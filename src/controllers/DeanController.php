@@ -1062,49 +1062,72 @@ class DeanController extends BaseController
             $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
             error_log("facultyTeachingLoad: Current semester ID: $semesterId, Name: $semesterName");
 
+            // Get selected department from filter
+            $selectedDepartment = $_GET['department'] ?? 'all';
+            $departmentFilter = '';
+            $departmentParams = [];
+
+            if ($selectedDepartment !== 'all') {
+                $departmentFilter = "AND d.department_id = ?";
+                $departmentParams = [$selectedDepartment];
+            }
+
+            // Get all departments for the filter dropdown
+            $departmentsStmt = $this->db->prepare("
+            SELECT department_id, department_name 
+            FROM departments 
+            WHERE college_id = ? 
+            ORDER BY department_name
+        ");
+            $departmentsStmt->execute([$collegeId]);
+            $departments = $departmentsStmt->fetchAll(PDO::FETCH_ASSOC);
+
             // Get all faculty in the college with their schedules
             $facultyStmt = $this->db->prepare("
-                SELECT 
-                    f.faculty_id,
-                    f.academic_rank,
-                    f.employment_type,
-                    f.equiv_teaching_load,
-                    f.bachelor_degree,
-                    f.master_degree,
-                    f.doctorate_degree,
-                    f.post_doctorate_degree,
-                    f.designation,
-                    f.classification,
-                    f.advisory_class,
-                    CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
-                        COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
-                        COALESCE(u.suffix, '')) AS faculty_name,
-                    d.department_name,
-                    d.department_id,
-                    COUNT(DISTINCT s.schedule_id) as total_schedules,
-                    COUNT(DISTINCT s.course_id) as total_courses,
-                    SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours,
-                    SUM(CASE WHEN s.component_type = 'lecture' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lecture_hours,
-                    SUM(CASE WHEN s.component_type = 'laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lab_hours,
-                    COUNT(DISTINCT CASE WHEN s.component_type = 'lecture' THEN s.course_id END) as lecture_preparations,
-                    COUNT(DISTINCT CASE WHEN s.component_type = 'laboratory' THEN s.course_id END) as lab_preparations
-                FROM faculty f
-                JOIN users u ON f.user_id = u.user_id
-                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-                JOIN departments d ON fd.department_id = d.department_id
-                LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
-                    AND s.semester_id = ?
-                    AND s.status != 'Rejected'
-                WHERE d.college_id = ?
-                GROUP BY f.faculty_id, u.first_name, u.middle_name, u.last_name, u.title, u.suffix,
-                        f.academic_rank, f.employment_type, f.equiv_teaching_load, d.department_name,
-                        f.bachelor_degree, f.master_degree, f.doctorate_degree, f.post_doctorate_degree,
-                        f.designation, f.classification, f.advisory_class, d.department_id
-                ORDER BY d.department_name, faculty_name
-            ");
-            $facultyStmt->execute([$semesterId, $collegeId]);
+            SELECT 
+                f.faculty_id,
+                f.academic_rank,
+                f.employment_type,
+                f.equiv_teaching_load,
+                f.bachelor_degree,
+                f.master_degree,
+                f.doctorate_degree,
+                f.post_doctorate_degree,
+                f.designation,
+                f.classification,
+                f.advisory_class,
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                    COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                    COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                d.department_id,
+                COUNT(DISTINCT s.schedule_id) as total_schedules,
+                COUNT(DISTINCT s.course_id) as total_courses,
+                SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours,
+                SUM(CASE WHEN s.component_type = 'lecture' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lecture_hours,
+                SUM(CASE WHEN s.component_type = 'laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lab_hours,
+                COUNT(DISTINCT CASE WHEN s.component_type = 'lecture' THEN s.course_id END) as lecture_preparations,
+                COUNT(DISTINCT CASE WHEN s.component_type = 'laboratory' THEN s.course_id END) as lab_preparations
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+                AND s.semester_id = ?
+                AND s.status != 'Rejected'
+            WHERE d.college_id = ?
+            $departmentFilter
+            GROUP BY f.faculty_id, u.first_name, u.middle_name, u.last_name, u.title, u.suffix,
+                    f.academic_rank, f.employment_type, f.equiv_teaching_load, d.department_name,
+                    f.bachelor_degree, f.master_degree, f.doctorate_degree, f.post_doctorate_degree,
+                    f.designation, f.classification, f.advisory_class, d.department_id
+            ORDER BY d.department_name, faculty_name
+        ");
+
+            $params = array_merge([$semesterId, $collegeId], $departmentParams);
+            $facultyStmt->execute($params);
             $facultyData = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
             error_log("facultyTeachingLoad: Found " . count($facultyData) . " faculty members in college");
 
             // Calculate teaching loads for each faculty
@@ -1167,78 +1190,7 @@ class DeanController extends BaseController
                 $collegeTotals['total_excess_hours'] += $excessHours;
             }
 
-            // Get detailed schedules for each faculty (optional - for drill-down)
-            $detailedSchedules = [];
-            if (!empty($facultyTeachingLoads)) {
-                $facultyIds = array_column($facultyTeachingLoads, 'faculty_id');
-                $placeholders = str_repeat('?,', count($facultyIds) - 1) . '?';
-
-                $schedulesStmt = $this->db->prepare("
-                    SELECT 
-                        s.faculty_id,
-                        c.course_code,
-                        c.course_name,
-                        c.units,
-                        r.room_name,
-                        s.day_of_week,
-                        s.start_time,
-                        s.end_time,
-                        s.component_type,
-                        s.schedule_type,
-                        s.status,
-                        COALESCE(sec.section_name, 'N/A') AS section_name,
-                        sec.current_students,
-                        sec.year_level,
-                        TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
-                    FROM schedules s
-                    LEFT JOIN courses c ON s.course_id = c.course_id
-                    LEFT JOIN sections sec ON s.section_id = sec.section_id
-                    LEFT JOIN classrooms r ON s.room_id = r.room_id
-                    WHERE s.faculty_id IN ($placeholders) 
-                        AND s.semester_id = ?
-                        AND s.status != 'Rejected'
-                    ORDER BY s.faculty_id, c.course_code, s.start_time
-                ");
-                $schedulesStmt->execute(array_merge($facultyIds, [$semesterId]));
-                $rawSchedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
-
-                // Group schedules by faculty and course
-                foreach ($rawSchedules as $schedule) {
-                    $facultyId = $schedule['faculty_id'];
-                    $courseKey = $schedule['course_code'];
-
-                    if (!isset($detailedSchedules[$facultyId])) {
-                        $detailedSchedules[$facultyId] = [];
-                    }
-
-                    if (!isset($detailedSchedules[$facultyId][$courseKey])) {
-                        $detailedSchedules[$facultyId][$courseKey] = [
-                            'course_code' => $schedule['course_code'],
-                            'course_name' => $schedule['course_name'],
-                            'units' => $schedule['units'],
-                            'component_type' => $schedule['component_type'],
-                            'sections' => [],
-                            'total_hours' => 0
-                        ];
-                    }
-
-                    $detailedSchedules[$facultyId][$courseKey]['total_hours'] += $schedule['duration_hours'];
-                    $detailedSchedules[$facultyId][$courseKey]['sections'][] = [
-                        'section_name' => $schedule['section_name'],
-                        'day_of_week' => $schedule['day_of_week'],
-                        'start_time' => $schedule['start_time'],
-                        'end_time' => $schedule['end_time'],
-                        'room_name' => $schedule['room_name'],
-                        'duration_hours' => $schedule['duration_hours'],
-                        'current_students' => $schedule['current_students'],
-                        'year_level' => $schedule['year_level']
-                    ];
-                }
-            }
-
-            error_log("facultyTeachingLoad: Processed teaching loads for " . count($facultyTeachingLoads) . " faculty members");
-
-            // Pass all data to view
+            // Pass all data to view including departments for filter
             require_once __DIR__ . '/../views/dean/faculty-teaching-load.php';
         } catch (Exception $e) {
             error_log("facultyTeachingLoad: Full error: " . $e->getMessage());
