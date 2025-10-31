@@ -282,6 +282,13 @@ function handleChairRoutes($path)
             error_log("Routing to ChairController::my_schedule");
             $controller->mySchedule();
             exit;
+        case '/chair/api/faculty-schedule':
+            $controller->getFacultyScheduleForChair($_GET['facultyId'] ?? null);
+            exit; // Add exit here to prevent further execution
+            break;
+        case '/chair/faculty-teaching-load':
+            $controller->departmentTeachingLoad();
+            break;
         case '/chair/schedule_management':
             error_log("Routing to ChairController::createSchedule");
             $controller->manageSchedule();

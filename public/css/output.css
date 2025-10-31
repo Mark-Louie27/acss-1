@@ -647,6 +647,9 @@
   .table-row-group {
     display: table-row-group;
   }
+  .h-1 {
+    height: calc(var(--spacing) * 1);
+  }
   .h-1\.5 {
     height: calc(var(--spacing) * 1.5);
   }
@@ -1445,11 +1448,17 @@
   .bg-blue-200 {
     background-color: var(--color-blue-200);
   }
+  .bg-blue-400 {
+    background-color: var(--color-blue-400);
+  }
   .bg-blue-500 {
     background-color: var(--color-blue-500);
   }
   .bg-blue-600 {
     background-color: var(--color-blue-600);
+  }
+  .bg-blue-700 {
+    background-color: var(--color-blue-700);
   }
   .bg-blue-900\/50 {
     background-color: color-mix(in srgb, oklch(37.9% 0.146 265.522) 50%, transparent);
@@ -2081,6 +2090,9 @@
   }
   .text-amber-800 {
     color: var(--color-amber-800);
+  }
+  .text-blue-100 {
+    color: var(--color-blue-100);
   }
   .text-blue-300 {
     color: var(--color-blue-300);

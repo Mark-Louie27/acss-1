@@ -786,6 +786,10 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                         <i class="fas fa-list w-5 mr-2"></i> My Schedule
                     </a>
 
+                    <a href="/chair/faculty-teaching-load" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/faculty-teaching-load') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+                        <i class="fas fa-user-clock w-5 mr-2"></i> Faculty Teaching Load
+                    </a>
+
                     <a href="/chair/schedule_history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule_history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
                         <i class="fas fa-history w-5 mr-2"></i>View All Created Schedule
                     </a>
