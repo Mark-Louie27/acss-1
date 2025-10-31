@@ -140,6 +140,27 @@ function handleDirectorRoutes($path)
             error_log("Routing to DirectorController::mySchedule");
             $controller->mySchedule();
             break;
+        case '/director/approve-teaching-load':
+            $controller->approveTeachingLoadDirector();
+            break;
+        case '/director/reject-teaching-load':
+            $controller->rejectTeachingLoadDirector();
+            break;
+        case '/director/api/all-approval-status':
+            $controller->getFacultyApprovalStatusDirector($_GET['facultyId'] ?? null);
+            exit; // Add exit here to prevent further execution
+            break;
+        case '/director/api/all-schedule':  // ADD THIS ROUTE
+            $controller->getFacultySchedule($_GET['facultyId'] ?? null);
+            exit;
+            break;
+        case '/director/api/all-schedule':
+            $controller->collegeTeachingLoad($_GET['facultyId'] ?? null);
+            exit; // Add exit here to prevent further execution
+            break;
+        case '/director/all-teaching-load':
+            $controller->collegeTeachingLoad();
+            break;
         case '/director/monitor':
             error_log("Routing to DirectorController::monitoring");
             $controller->monitor();

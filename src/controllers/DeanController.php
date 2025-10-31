@@ -1197,7 +1197,7 @@ class DeanController extends BaseController
                     'equiv_teaching_load' => $equivTeachingLoad,
                     'total_working_load' => round($totalWorkingLoad, 2),
                     'excess_hours' => round($excessHours, 2),
-                    'load_status' => $this->getLoadStatus($totalWorkingLoad, $excessHours)
+                    'load_status' => $this->schedulingService->getLoadStatus($totalWorkingLoad, $excessHours)
                 ];
 
                 // Update college totals
@@ -1327,23 +1327,6 @@ class DeanController extends BaseController
             exit;
         }
     }
-
-    /**
-     * Helper function to determine load status
-     */
-    private function getLoadStatus($totalWorkingLoad, $excessHours)
-    {
-        if ($totalWorkingLoad == 0) {
-            return 'No Load';
-        } elseif ($excessHours > 0) {
-            return 'Overload';
-        } elseif ($totalWorkingLoad < 18) {
-            return 'Underload';
-        } else {
-            return 'Normal Load';
-        }
-    }
-
     /**
      * API endpoint to get faculty schedule details
      */

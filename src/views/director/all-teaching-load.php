@@ -86,7 +86,7 @@ ob_start();
         <div class="container mx-auto px-4 py-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                 <div>
-                    <h1 class="text-2xl md:text-3xl font-bold">Faculty Teaching Load</h1>
+                    <h1 class="text-2xl md:text-3xl font-bold">College Teaching Load</h1>
                     <p class="text-yellow-100 mt-2"><?php echo htmlspecialchars($collegeName ?? 'College'); ?></p>
                     <p class="text-yellow-100 text-sm"><?php echo htmlspecialchars($semesterName ?? 'Current Semester'); ?></p>
                 </div>
@@ -97,7 +97,7 @@ ob_start();
                     </span>
                     <span class="bg-yellow-700 text-yellow-100 px-3 py-1 rounded-full text-sm font-medium">
                         <i class="fas fa-chalkboard-teacher mr-1"></i>
-                        Teaching Load Overview
+                        College Overview
                     </span>
                 </div>
             </div>
@@ -108,14 +108,14 @@ ob_start();
     <div class="container mx-auto px-4 py-6">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <!-- Total Faculty -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-gray-500 text-sm font-medium">Total Faculty</p>
                         <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo $collegeTotals['total_faculty'] ?? 0; ?></h3>
                     </div>
-                    <div class="bg-blue-100 rounded-full p-3">
-                        <i class="fas fa-users text-blue-500 text-2xl"></i>
+                    <div class="bg-yellow-100 rounded-full p-3">
+                        <i class="fas fa-users text-yellow-500 text-2xl"></i>
                     </div>
                 </div>
             </div>
@@ -134,14 +134,14 @@ ob_start();
             </div>
 
             <!-- Total Working Load -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-gray-500 text-sm font-medium">Total Working Load</p>
                         <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo number_format($collegeTotals['total_working_load'] ?? 0, 1); ?> hrs</h3>
                     </div>
-                    <div class="bg-purple-100 rounded-full p-3">
-                        <i class="fas fa-briefcase text-purple-500 text-2xl"></i>
+                    <div class="bg-blue-100 rounded-full p-3">
+                        <i class="fas fa-briefcase text-blue-500 text-2xl"></i>
                     </div>
                 </div>
             </div>
@@ -160,97 +160,64 @@ ob_start();
             </div>
         </div>
 
-        <!-- Load Distribution Summary -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Load Status Distribution -->
-            <div class="bg-white rounded-lg shadow-md p-6 lg:col-span-1">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Load Distribution</h3>
-                <div class="space-y-3">
-                    <?php
-                    $loadStats = [
-                        'Normal Load' => 0,
-                        'Underload' => 0,
-                        'Overload' => 0,
-                        'No Load' => 0
-                    ];
-
-                    foreach ($facultyTeachingLoads ?? [] as $faculty) {
-                        $loadStats[$faculty['load_status']]++;
-                    }
-
-                    $loadColors = [
-                        'Normal Load' => 'bg-green-500',
-                        'Underload' => 'bg-yellow-500',
-                        'Overload' => 'bg-red-500',
-                        'No Load' => 'bg-gray-500'
-                    ];
-
-                    foreach ($loadStats as $status => $count):
-                        if ($count > 0):
-                    ?>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm font-medium text-gray-700"><?php echo $status; ?></span>
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-sm font-bold text-gray-900"><?php echo $count; ?></span>
-                                    <div class="w-3 h-3 rounded-full <?php echo $loadColors[$status]; ?>"></div>
-                                </div>
-                            </div>
-                    <?php
-                        endif;
-                    endforeach;
-                    ?>
-                </div>
-            </div>
-
-            <!-- Department Summary -->
-            <div class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Department Summary</h3>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Faculty</th>
-                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Avg Load</th>
-                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Overload</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            <?php
-                            $deptStats = [];
-                            foreach ($facultyTeachingLoads ?? [] as $faculty) {
-                                $dept = $faculty['department_name'];
-                                if (!isset($deptStats[$dept])) {
-                                    $deptStats[$dept] = [
-                                        'faculty_count' => 0,
-                                        'total_load' => 0,
-                                        'overload_count' => 0
-                                    ];
-                                }
-                                $deptStats[$dept]['faculty_count']++;
-                                $deptStats[$dept]['total_load'] += $faculty['total_working_load'];
-                                if ($faculty['load_status'] === 'Overload') {
-                                    $deptStats[$dept]['overload_count']++;
-                                }
+        <!-- Department Summary -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Department Summary</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Faculty</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Avg Load</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Overload</th>
+                            <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Underload</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php
+                        $deptStats = [];
+                        foreach ($facultyTeachingLoads ?? [] as $faculty) {
+                            $dept = $faculty['department_name'];
+                            if (!isset($deptStats[$dept])) {
+                                $deptStats[$dept] = [
+                                    'faculty_count' => 0,
+                                    'total_load' => 0,
+                                    'overload_count' => 0,
+                                    'underload_count' => 0
+                                ];
                             }
+                            $deptStats[$dept]['faculty_count']++;
+                            $deptStats[$dept]['total_load'] += $faculty['total_working_load'];
+                            if ($faculty['load_status'] === 'Overload') {
+                                $deptStats[$dept]['overload_count']++;
+                            }
+                            if ($faculty['load_status'] === 'Underload') {
+                                $deptStats[$dept]['underload_count']++;
+                            }
+                        }
 
-                            foreach ($deptStats as $deptName => $stats):
-                                $avgLoad = $stats['faculty_count'] > 0 ? $stats['total_load'] / $stats['faculty_count'] : 0;
-                            ?>
-                                <tr>
-                                    <td class="px-4 py-3 text-sm font-medium text-gray-900"><?php echo htmlspecialchars($deptName); ?></td>
-                                    <td class="px-4 py-3 text-sm text-gray-500 text-center"><?php echo $stats['faculty_count']; ?></td>
-                                    <td class="px-4 py-3 text-sm text-gray-500 text-center"><?php echo number_format($avgLoad, 1); ?> hrs</td>
-                                    <td class="px-4 py-3 text-sm text-center">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $stats['overload_count'] > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'; ?>">
-                                            <?php echo $stats['overload_count']; ?>
-                                        </span>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                        foreach ($deptStats as $deptName => $stats):
+                            $avgLoad = $stats['faculty_count'] > 0 ? $stats['total_load'] / $stats['faculty_count'] : 0;
+                        ?>
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900"><?php echo htmlspecialchars($deptName); ?></td>
+                                <td class="px-4 py-3 text-sm text-gray-500 text-center"><?php echo $stats['faculty_count']; ?></td>
+                                <td class="px-4 py-3 text-sm text-gray-500 text-center"><?php echo number_format($avgLoad, 1); ?> hrs</td>
+                                <td class="px-4 py-3 text-sm text-center">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $stats['overload_count'] > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'; ?>">
+                                        <?php echo $stats['overload_count']; ?>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-center">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $stats['underload_count'] > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'; ?>">
+                                        <?php echo $stats['underload_count']; ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -269,14 +236,32 @@ ob_start();
                     </div>
                 </div>
 
-                <!-- Department Filter -->
+                <!-- Filters Section -->
                 <div class="mt-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <!-- College Filter -->
+                    <div class="flex items-center space-x-2">
+                        <label for="collegeFilter" class="text-sm font-medium text-gray-700 whitespace-nowrap">
+                            <i class="fas fa-university mr-1"></i>College:
+                        </label>
+                        <select id="collegeFilter" onchange="filterByCollege()"
+                            class="block w-full sm:w-48 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm">
+                            <option value="all" <?php echo ($selectedCollege ?? 'all') === 'all' ? 'selected' : ''; ?>>All Colleges</option>
+                            <?php foreach ($colleges ?? [] as $col): ?>
+                                <option value="<?php echo $col['college_id']; ?>"
+                                    <?php echo ($selectedCollege ?? 'all') == $col['college_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($col['college_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Department Filter -->
                     <div class="flex items-center space-x-2">
                         <label for="departmentFilter" class="text-sm font-medium text-gray-700 whitespace-nowrap">
-                            <i class="fas fa-filter mr-1"></i>Filter by Department:
+                            <i class="fas fa-filter mr-1"></i>Department:
                         </label>
                         <select id="departmentFilter" onchange="filterByDepartment()"
-                            class="block w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm">
+                            class="block w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm">
                             <option value="all" <?php echo ($selectedDepartment ?? 'all') === 'all' ? 'selected' : ''; ?>>All Departments</option>
                             <?php foreach ($departments ?? [] as $dept): ?>
                                 <option value="<?php echo $dept['department_id']; ?>"
@@ -289,6 +274,24 @@ ob_start();
 
                     <!-- Active Filters Display -->
                     <div id="activeFilters" class="flex flex-wrap gap-2">
+                        <?php if (($selectedCollege ?? 'all') !== 'all'): ?>
+                            <?php
+                            $selectedCollegeName = 'All Colleges';
+                            foreach ($colleges ?? [] as $col) {
+                                if ($col['college_id'] == $selectedCollege) {
+                                    $selectedCollegeName = $col['college_name'];
+                                    break;
+                                }
+                            }
+                            ?>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                College: <?php echo htmlspecialchars($selectedCollegeName); ?>
+                                <button onclick="clearCollegeFilter()" class="ml-1 text-purple-600 hover:text-purple-800">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </span>
+                        <?php endif; ?>
+
                         <?php if (($selectedDepartment ?? 'all') !== 'all'): ?>
                             <?php
                             $selectedDeptName = 'All Departments';
@@ -299,9 +302,9 @@ ob_start();
                                 }
                             }
                             ?>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                 Department: <?php echo htmlspecialchars($selectedDeptName); ?>
-                                <button onclick="clearDepartmentFilter()" class="ml-1 text-yellow-600 hover:text-yellow-800">
+                                <button onclick="clearDepartmentFilter()" class="ml-1 text-purple-600 hover:text-purple-800">
                                     <i class="fas fa-times"></i>
                                 </button>
                             </span>
@@ -310,25 +313,23 @@ ob_start();
 
                     <!-- Results Count -->
                     <div class="text-sm text-gray-600 ml-auto">
-                        Showing <?php echo count($facultyTeachingLoads); ?> of <?php echo $collegeTotals['total_faculty'] ?? 0; ?> faculty members
+                        Showing <?php echo count($facultyTeachingLoads); ?> faculty members
                     </div>
                 </div>
             </div>
 
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 table-auto" id="teachingLoadTable">
+                <table class="min-w-full divide-y divide-gray-200" id="teachingLoadTable">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Faculty Member</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Rank/Type</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Courses</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Lecture Hrs</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Lab Hrs</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College/Department</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Rank/Type</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Courses</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Teaching Load</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Equiv Load</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total Load</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Load Status</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
                             <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" style="position:sticky; right:0; background:#fff; z-index:30;">Actions</th>
                         </tr>
                     </thead>
@@ -338,8 +339,8 @@ ob_start();
                                 <tr class="hover:bg-gray-50 transition-colors">
                                     <td class="px-4 py-3 whitespace-nowrap">
                                         <div class="flex items-center">
-                                            <div class="flex-shrink-0 h-10 w-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                                                <i class="fas fa-user text-yellow-600"></i>
+                                            <div class="flex-shrink-0 h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                                <i class="fas fa-user text-purple-600"></i>
                                             </div>
                                             <div class="ml-4">
                                                 <div class="text-sm font-medium text-gray-900">
@@ -352,35 +353,27 @@ ob_start();
                                         </div>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900"><?php echo htmlspecialchars($faculty['department_name']); ?></div>
+                                        <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($faculty['college_name']); ?></div>
+                                        <div class="text-sm text-gray-500"><?php echo htmlspecialchars($faculty['department_name']); ?></div>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-center hidden md:table-cell">
+                                    <td class="px-4 py-3 whitespace-nowrap text-center">
                                         <div class="text-sm text-gray-900"><?php echo htmlspecialchars($faculty['academic_rank']); ?></div>
                                         <div class="text-xs text-gray-500"><?php echo htmlspecialchars($faculty['employment_type']); ?></div>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-center hidden lg:table-cell">
+                                    <td class="px-4 py-3 whitespace-nowrap text-center">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                             <?php echo $faculty['total_preparations']; ?> courses
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-900 hidden lg:table-cell">
-                                        <?php echo number_format($faculty['lecture_hours'], 1); ?>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-900 hidden lg:table-cell">
-                                        <?php echo number_format($faculty['lab_hours'], 1); ?>
-                                    </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-medium text-gray-900">
                                         <?php echo number_format($faculty['actual_teaching_load'], 1); ?>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
-                                        <?php echo number_format($faculty['equiv_teaching_load'], 1); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    <td class="px-4 py-3 whitespace-nowrap text-center">
                                         <span class="text-sm font-semibold <?php echo $faculty['total_working_load'] > 24 ? 'text-red-600' : 'text-green-600'; ?>">
                                             <?php echo number_format($faculty['total_working_load'], 1); ?>
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    <td class="px-4 py-3 whitespace-nowrap text-center">
                                         <?php
                                         $statusConfig = [
                                             'Normal Load' => ['color' => 'green', 'icon' => 'check-circle'],
@@ -396,16 +389,17 @@ ob_start();
                                             <?php echo $status; ?>
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                    <td class="px-4 py-3 whitespace-nowrap text-center">
+                                        <div class="text-xs mt-1 px-1" id="approval-status-<?php echo $faculty['faculty_id']; ?>">
+                                            <span class="text-gray-500 animate-pulse">Loading...</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                                         <div class="flex flex-col space-y-1">
                                             <div class="flex justify-center space-x-1">
                                                 <button onclick="viewFacultySchedule(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-yellow-600 hover:text-yellow-900" title="View Schedule">
+                                                    class="text-purple-600 hover:text-purple-900" title="View Schedule">
                                                     <i class="fas fa-calendar-alt"></i>
-                                                </button>
-                                                <button onclick="viewFacultyDetails(<?php echo $faculty['faculty_id']; ?>)"
-                                                    class="text-blue-600 hover:text-blue-900" title="View Details">
-                                                    <i class="fas fa-info-circle"></i>
                                                 </button>
                                             </div>
                                             <div class="flex justify-center space-x-1 mt-1" id="approval-buttons-<?php echo $faculty['faculty_id']; ?>">
@@ -420,16 +414,13 @@ ob_start();
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </div>
-                                            <div class="text-xs mt-1 px-1" id="approval-status-<?php echo $faculty['faculty_id']; ?>">
-                                                <span class="text-gray-500 animate-pulse">Loading...</span>
-                                            </div>
                                         </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="11" class="px-6 py-8 text-center text-gray-500">
+                                <td colspan="9" class="px-6 py-8 text-center text-gray-500">
                                     <i class="fas fa-users text-4xl mb-3 text-gray-300"></i>
                                     <p class="text-lg">No faculty teaching load data available</p>
                                     <p class="text-sm mt-1">No schedules found for the current semester.</p>
@@ -556,41 +547,75 @@ ob_start();
         document.getElementById('modalContent').innerHTML = `
         <div class="flex justify-center items-center py-8">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500"></div>
+            <span class="ml-3 text-gray-600">Loading schedule...</span>
         </div>
     `;
         document.getElementById('scheduleModal').classList.remove('hidden');
 
         // Fetch faculty schedule data
-        fetch(`/dean/api/faculty-schedule?facultyId=${facultyId}`)
+        fetch(`/director/api/all-schedule?facultyId=${facultyId}`)
             .then(response => {
-                // Log the response first
+                // First check if response is OK
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Get the response as text first
                 return response.text();
             })
             .then(text => {
-                console.log('Raw response:', text); // Check what's actually returned
+                console.log('Raw response:', text);
+
+                // Check if response is empty
+                if (!text.trim()) {
+                    throw new Error('Empty response from server');
+                }
+
                 try {
                     const data = JSON.parse(text);
+
                     if (data.success) {
                         displayFacultySchedule(data.faculty, data.schedules);
                     } else {
                         document.getElementById('modalContent').innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <i class="fas fa-exclamation-triangle text-4xl mb-3 text-gray-300"></i>
-                        <p class="text-lg">Error loading schedule</p>
-                        <p class="text-sm mt-1">${data.message || 'Unable to load faculty schedule'}</p>
-                    </div>
-                `;
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-exclamation-triangle text-4xl mb-3 text-gray-300"></i>
+                            <p class="text-lg">Error loading schedule</p>
+                            <p class="text-sm mt-1">${data.message || 'Unable to load faculty schedule'}</p>
+                            <button onclick="closeModal()" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm">
+                                Close
+                            </button>
+                        </div>
+                    `;
                     }
                 } catch (error) {
                     console.error('JSON Parse Error:', error);
                     console.error('Response text:', text);
-                    document.getElementById('modalContent').innerHTML = `
-                <div class="text-center py-8 text-gray-500">
-                    <i class="fas fa-exclamation-triangle text-4xl mb-3 text-gray-300"></i>
-                    <p class="text-lg">Error loading schedule</p>
-                    <p class="text-sm mt-1">Invalid response format</p>
-                </div>
-            `;
+
+                    // Check if it's HTML instead of JSON
+                    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                        document.getElementById('modalContent').innerHTML = `
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-exclamation-triangle text-4xl mb-3 text-gray-300"></i>
+                            <p class="text-lg">Server Error</p>
+                            <p class="text-sm mt-1">The server returned an HTML page instead of data. Please check the API endpoint.</p>
+                            <button onclick="closeModal()" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm">
+                                Close
+                            </button>
+                        </div>
+                    `;
+                    } else {
+                        document.getElementById('modalContent').innerHTML = `
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-exclamation-triangle text-4xl mb-3 text-gray-300"></i>
+                            <p class="text-lg">Invalid Response Format</p>
+                            <p class="text-sm mt-1">The server returned data in an unexpected format.</p>
+                            <button onclick="closeModal()" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm">
+                                Close
+                            </button>
+                        </div>
+                    `;
+                    }
                 }
             })
             .catch(error => {
@@ -598,8 +623,12 @@ ob_start();
                 document.getElementById('modalContent').innerHTML = `
                 <div class="text-center py-8 text-gray-500">
                     <i class="fas fa-exclamation-triangle text-4xl mb-3 text-gray-300"></i>
-                    <p class="text-lg">Error loading schedule</p>
-                    <p class="text-sm mt-1">Please try again later</p>
+                    <p class="text-lg">Network Error</p>
+                    <p class="text-sm mt-1">Unable to connect to the server. Please try again later.</p>
+                    <p class="text-xs mt-2 text-gray-400">Error: ${error.message}</p>
+                    <button onclick="closeModal()" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm">
+                        Close
+                    </button>
                 </div>
             `;
             });
@@ -674,9 +703,9 @@ ob_start();
                     statusClass = 'bg-blue-100 text-blue-800';
                     statusBadge = '<i class="fas fa-check mr-1"></i>DI Approved';
                     break;
-                case 'Dean_Approved':
+                case 'director_Approved':
                     statusClass = 'bg-indigo-100 text-indigo-800';
-                    statusBadge = '<i class="fas fa-check mr-1"></i>Dean Approved';
+                    statusBadge = '<i class="fas fa-check mr-1"></i>director Approved';
                     break;
                 case 'Pending':
                     statusClass = 'bg-yellow-100 text-yellow-800';
@@ -790,7 +819,7 @@ ob_start();
 
     function viewFacultyDetails(facultyId) {
         // Implement view faculty details functionality
-        window.open(`/dean/faculty/${facultyId}`, '_blank');
+        window.open(`/director/faculty/${facultyId}`, '_blank');
     }
 
     function closeModal() {
@@ -799,7 +828,7 @@ ob_start();
 
     // Approval functions
     function approveTeachingLoad(facultyId) {
-        if (!confirm('Are you sure you want to approve this teaching load? This will mark all schedules as Dean Approved.')) {
+        if (!confirm('Are you sure you want to approve this teaching load? This will mark all schedules as director Approved.')) {
             return;
         }
 
@@ -808,12 +837,12 @@ ob_start();
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         button.disabled = true;
 
-        fetch('/dean/approve-teaching-load', {
+        fetch('/director/approve-teaching-load', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: `faculty_id=${facultyId}&semester_id=${getCurrentSemesterId()}&notes=Teaching load approved by dean`
+                body: `faculty_id=${facultyId}&semester_id=${getCurrentSemesterId()}&notes=Teaching load approved by director`
             })
             .then(response => response.json())
             .then(data => {
@@ -862,7 +891,7 @@ ob_start();
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         button.disabled = true;
 
-        fetch('/dean/reject-teaching-load', {
+        fetch('/director/reject-teaching-load', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -890,7 +919,7 @@ ob_start();
     }
 
     function loadApprovalStatus(facultyId) {
-        fetch(`/dean/api/faculty-approval-status?facultyId=${facultyId}`)
+        fetch(`/director/api/all-approval-status?facultyId=${facultyId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -921,8 +950,8 @@ ob_start();
                 statusColor = 'green';
                 buttonState = 'disabled';
                 break;
-            case 'Dean_Approved':
-                statusHTML = '<span class="text-indigo-600 font-medium"><i class="fas fa-check mr-1"></i>Dean Approved</span>';
+            case 'director_Approved':
+                statusHTML = '<span class="text-indigo-600 font-medium"><i class="fas fa-check mr-1"></i>director Approved</span>';
                 statusColor = 'indigo';
                 buttonState = 'disabled';
                 break;
@@ -1001,17 +1030,146 @@ ob_start();
         }, 1000);
     }
 
+    function updateApprovalStatusUI(facultyId, overallStatus, statusDetails) {
+        const statusElement = document.getElementById(`approval-status-${facultyId}`);
+        const buttonsElement = document.getElementById(`approval-buttons-${facultyId}`);
+
+        let statusHTML = '';
+        let buttonState = 'enabled';
+        let statusColor = 'gray';
+        let statusIcon = 'clock';
+
+        switch (overallStatus) {
+            case 'Approved':
+                statusHTML = '<span class="text-green-600 font-medium"><i class="fas fa-check-circle mr-1"></i>Fully Approved</span>';
+                statusColor = 'green';
+                statusIcon = 'check-circle';
+                buttonState = 'disabled';
+                break;
+            case 'Di_Approved':
+                statusHTML = '<span class="text-blue-600 font-medium"><i class="fas fa-check-double mr-1"></i>DI Approved</span>';
+                statusColor = 'blue';
+                statusIcon = 'check-double';
+                buttonState = 'disabled';
+                break;
+            case 'Dean_Approved':
+                statusHTML = '<span class="text-indigo-600 font-medium"><i class="fas fa-check mr-1"></i>Dean Approved</span>';
+                statusColor = 'indigo';
+                statusIcon = 'check';
+                buttonState = 'enabled'; // Director can still approve after dean
+                break;
+            case 'Rejected':
+                statusHTML = '<span class="text-red-600 font-medium"><i class="fas fa-times-circle mr-1"></i>Rejected</span>';
+                statusColor = 'red';
+                statusIcon = 'times-circle';
+                buttonState = 'disabled';
+                break;
+            case 'Partially_Approved':
+                statusHTML = '<span class="text-yellow-600 font-medium"><i class="fas fa-exclamation-circle mr-1"></i>Partially Approved</span>';
+                statusColor = 'yellow';
+                statusIcon = 'exclamation-circle';
+                buttonState = 'enabled';
+                break;
+            default: // Pending
+                statusHTML = '<span class="text-gray-600 font-medium"><i class="fas fa-clock mr-1"></i>Pending</span>';
+                statusColor = 'gray';
+                statusIcon = 'clock';
+                buttonState = 'enabled';
+        }
+
+        // Add status breakdown tooltip with dean approval info
+        if (statusDetails && statusDetails.length > 0) {
+            let tooltipContent = 'Approval Breakdown:<br>';
+            let hasDeanApproved = false;
+            let deanApprovedCount = 0;
+
+            statusDetails.forEach(detail => {
+                tooltipContent += `${detail.status}: ${detail.schedule_count}<br>`;
+                if (detail.status === 'Dean_Approved') {
+                    hasDeanApproved = true;
+                    deanApprovedCount = detail.schedule_count;
+                }
+            });
+
+            // Add dean approval info to the main status
+            if (hasDeanApproved) {
+                statusHTML = `
+                <div class="relative group">
+                    <div class="flex items-center">
+                        ${statusHTML}
+                        <span class="ml-1 text-xs text-indigo-500" title="Dean Approved Schedules">
+                            <i class="fas fa-user-tie"></i> ${deanApprovedCount}
+                        </span>
+                    </div>
+                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                        ${tooltipContent}
+                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                </div>
+            `;
+            } else {
+                statusHTML = `
+                <div class="relative group">
+                    ${statusHTML}
+                    <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                        ${tooltipContent}
+                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                </div>
+            `;
+            }
+        }
+
+        statusElement.innerHTML = statusHTML;
+
+        // Update button states
+        if (buttonState === 'disabled') {
+            buttonsElement.querySelectorAll('button').forEach(button => {
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+                button.classList.remove('hover:bg-green-50', 'hover:bg-red-50');
+            });
+        } else {
+            buttonsElement.querySelectorAll('button').forEach(button => {
+                button.disabled = false;
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (button.innerHTML.includes('fa-check')) {
+                    button.classList.add('hover:bg-green-50');
+                } else {
+                    button.classList.add('hover:bg-red-50');
+                }
+            });
+        }
+    }
+
     function getCurrentSemesterId() {
         // This should be set from PHP, you might need to pass it as a data attribute
         return <?php echo $semesterId ?? 'null'; ?>;
     }
 
-    // Department filter functions
+    // Filter functions
+    function filterByCollege() {
+        const collegeFilter = document.getElementById('collegeFilter');
+        const selectedCollege = collegeFilter.value;
+
+        const url = new URL(window.location.href);
+
+        if (selectedCollege === 'all') {
+            url.searchParams.delete('college');
+        } else {
+            url.searchParams.set('college', selectedCollege);
+        }
+
+        // Reset department filter when college changes
+        url.searchParams.delete('department');
+
+        window.location.href = url.toString();
+    }
+
     function filterByDepartment() {
         const departmentFilter = document.getElementById('departmentFilter');
         const selectedDepartment = departmentFilter.value;
 
-        // Get current URL and parameters
         const url = new URL(window.location.href);
 
         if (selectedDepartment === 'all') {
@@ -1020,7 +1178,12 @@ ob_start();
             url.searchParams.set('department', selectedDepartment);
         }
 
-        // Reload the page with the new filter
+        window.location.href = url.toString();
+    }
+
+    function clearCollegeFilter() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('college');
         window.location.href = url.toString();
     }
 

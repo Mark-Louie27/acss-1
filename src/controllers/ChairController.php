@@ -5305,7 +5305,7 @@ class ChairController extends BaseController
                     'equiv_teaching_load' => $equivTeachingLoad,
                     'total_working_load' => round($totalWorkingLoad, 2),
                     'excess_hours' => round($excessHours, 2),
-                    'load_status' => $this->getLoadStatus($totalWorkingLoad, $excessHours)
+                    'load_status' => $this->schedulingService->getLoadStatus($totalWorkingLoad, $excessHours)
                 ];
 
                 // Update department totals
@@ -5572,20 +5572,6 @@ class ChairController extends BaseController
             exit;
         }
     }
-
-    private function getLoadStatus($totalWorkingLoad, $excessHours)
-    {
-        if ($totalWorkingLoad == 0) {
-            return 'No Load';
-        } elseif ($excessHours > 0) {
-            return 'Overload';
-        } elseif ($totalWorkingLoad < 18) {
-            return 'Underload';
-        } else {
-            return 'Normal Load';
-        }
-    }
-
 
     public function viewScheduleHistory()
     {

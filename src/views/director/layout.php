@@ -627,6 +627,12 @@ $stats = $stats ?? ['total_pending' => 0];
                 <span>Set Schedule Deadline</span>
             </a>
 
+            <!-- My set Schedule Link -->
+            <a href="/director/all-teaching-load" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo $currentUri === '/director/all-teaching-load' ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">
+                <i class="fas fa-user-clock w-5 mr-3 <?php echo $currentUri === '/director/all-teaching-load' ? 'text-yellow-400' : 'text-gray-400'; ?>"></i>
+                <span>All Users Teaching Load</span>
+            </a>
+
             <!-- Manage Schedules Link -->
             <a href="/director/pending-approvals" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/director/pending-approvals') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-clipboard-check w-5 mr-3 <?= strpos($currentUri, '/director/pending-approvals') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>

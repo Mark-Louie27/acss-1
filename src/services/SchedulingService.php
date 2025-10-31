@@ -3427,6 +3427,22 @@ class SchedulingService
 
         return $description;
     }
+
+    /**
+     * Helper function to determine load status
+     */
+    public function getLoadStatus($totalWorkingLoad, $excessHours)
+    {
+        if ($totalWorkingLoad == 0) {
+            return 'No Load';
+        } elseif ($excessHours > 0) {
+            return 'Overload';
+        } elseif ($totalWorkingLoad < 18) {
+            return 'Underload';
+        } else {
+            return 'Normal Load';
+        }
+    }
     
 }
 

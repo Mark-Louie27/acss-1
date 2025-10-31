@@ -629,6 +629,478 @@ class DirectorController
         require_once __DIR__ . '/../views/director/pending-approvals.php';
     }
 
+    /**
+     * Director's view of ALL faculty teaching loads across ALL colleges and departments
+     */
+    public function collegeTeachingLoad()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            error_log("collegeTeachingLoad: Starting method for director user_id: $userId");
+
+            // Get current semester
+            $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
+            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$semester) {
+                error_log("collegeTeachingLoad: No current semester found");
+                $error = "No current semester defined. Please contact the administrator to set the current semester.";
+                require_once __DIR__ . '/../views/director/all-teaching-load.php';
+                return;
+            }
+
+            $semesterId = $semester['semester_id'];
+            $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
+            error_log("collegeTeachingLoad: Current semester ID: $semesterId, Name: $semesterName");
+
+            // Get selected department and college from filter
+            $selectedDepartment = $_GET['department'] ?? 'all';
+            $selectedCollege = $_GET['college'] ?? 'all';
+
+            $departmentFilter = '';
+            $collegeFilter = '';
+            $filterParams = [];
+
+            if ($selectedDepartment !== 'all') {
+                $departmentFilter = "AND d.department_id = ?";
+                $filterParams[] = $selectedDepartment;
+            }
+
+            if ($selectedCollege !== 'all') {
+                $collegeFilter = "AND c.college_id = ?";
+                $filterParams[] = $selectedCollege;
+            }
+
+            // Get all colleges for the filter dropdown
+            $collegesStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
+            $colleges = $collegesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get all departments for the filter dropdown
+            $departmentsStmt = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
+            $departments = $departmentsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get ALL faculty across ALL colleges with their schedules
+            $facultyStmt = $this->db->prepare("
+            SELECT 
+                f.faculty_id,
+                f.academic_rank,
+                f.employment_type,
+                f.equiv_teaching_load,
+                f.bachelor_degree,
+                f.master_degree,
+                f.doctorate_degree,
+                f.post_doctorate_degree,
+                f.designation,
+                f.classification,
+                f.advisory_class,
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                    COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                    COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                d.department_id,
+                c.college_name,
+                c.college_id,
+                COUNT(DISTINCT s.schedule_id) as total_schedules,
+                COUNT(DISTINCT s.course_id) as total_courses,
+                SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours,
+                SUM(CASE WHEN s.component_type = 'lecture' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lecture_hours,
+                SUM(CASE WHEN s.component_type = 'laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 ELSE 0 END) as lab_hours,
+                COUNT(DISTINCT CASE WHEN s.component_type = 'lecture' THEN s.course_id END) as lecture_preparations,
+                COUNT(DISTINCT CASE WHEN s.component_type = 'laboratory' THEN s.course_id END) as lab_preparations
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
+            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+                AND s.semester_id = ?
+                AND s.status != 'Rejected'
+            WHERE 1=1
+            $departmentFilter
+            $collegeFilter
+            GROUP BY f.faculty_id, u.first_name, u.middle_name, u.last_name, u.title, u.suffix,
+                    f.academic_rank, f.employment_type, f.equiv_teaching_load, d.department_name,
+                    f.bachelor_degree, f.master_degree, f.doctorate_degree, f.post_doctorate_degree,
+                    f.designation, f.classification, f.advisory_class, d.department_id, c.college_name, c.college_id
+            ORDER BY c.college_name, d.department_name, faculty_name
+        ");
+
+            $params = array_merge([$semesterId], $filterParams);
+            $facultyStmt->execute($params);
+            $facultyData = $facultyStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            error_log("collegeTeachingLoad: Found " . count($facultyData) . " faculty members across all colleges");
+
+            // Calculate teaching loads for each faculty
+            $facultyTeachingLoads = [];
+            $systemTotals = [
+                'total_faculty' => 0,
+                'total_lecture_hours' => 0,
+                'total_lab_hours' => 0,
+                'total_teaching_load' => 0,
+                'total_working_load' => 0,
+                'total_excess_hours' => 0
+            ];
+
+            foreach ($facultyData as $faculty) {
+                $lectureHours = (float)$faculty['lecture_hours'];
+                $labHours = (float)$faculty['lab_hours'];
+                $labHoursX075 = $labHours * 0.75;
+                $actualTeachingLoad = $lectureHours + $labHoursX075;
+                $equivTeachingLoad = (float)$faculty['equiv_teaching_load'] ?? 0;
+                $totalWorkingLoad = $actualTeachingLoad + $equivTeachingLoad;
+                $excessHours = max(0, $totalWorkingLoad - 24);
+                $totalPreparations = (int)$faculty['lecture_preparations'] + (int)$faculty['lab_preparations'];
+
+                $facultyTeachingLoads[] = [
+                    'faculty_id' => $faculty['faculty_id'],
+                    'faculty_name' => trim($faculty['faculty_name']),
+                    'department_name' => $faculty['department_name'],
+                    'department_id' => $faculty['department_id'],
+                    'college_name' => $faculty['college_name'],
+                    'college_id' => $faculty['college_id'],
+                    'academic_rank' => $faculty['academic_rank'] ?? 'Not Specified',
+                    'employment_type' => $faculty['employment_type'] ?? 'Regular',
+                    'bachelor_degree' => $faculty['bachelor_degree'] ?? 'Not specified',
+                    'master_degree' => $faculty['master_degree'] ?? 'Not specified',
+                    'doctorate_degree' => $faculty['doctorate_degree'] ?? 'Not specified',
+                    'post_doctorate_degree' => $faculty['post_doctorate_degree'] ?? 'Not applicable',
+                    'designation' => $faculty['designation'] ?? 'Not specified',
+                    'classification' => $faculty['classification'] ?? 'Not specified',
+                    'advisory_class' => $faculty['advisory_class'] ?? 'Not assigned',
+                    'total_schedules' => (int)$faculty['total_schedules'],
+                    'total_courses' => (int)$faculty['total_courses'],
+                    'total_hours' => (float)$faculty['total_hours'],
+                    'lecture_hours' => $lectureHours,
+                    'lab_hours' => $labHours,
+                    'lab_hours_x075' => $labHoursX075,
+                    'total_preparations' => $totalPreparations,
+                    'lecture_preparations' => (int)$faculty['lecture_preparations'],
+                    'lab_preparations' => (int)$faculty['lab_preparations'],
+                    'actual_teaching_load' => $actualTeachingLoad,
+                    'equiv_teaching_load' => $equivTeachingLoad,
+                    'total_working_load' => $totalWorkingLoad,
+                    'excess_hours' => $excessHours,
+                    'load_status' => $this->schedulingService->getLoadStatus($totalWorkingLoad, $excessHours)
+                ];
+
+                // Update system totals
+                $systemTotals['total_faculty']++;
+                $systemTotals['total_lecture_hours'] += $lectureHours;
+                $systemTotals['total_lab_hours'] += $labHours;
+                $systemTotals['total_teaching_load'] += $actualTeachingLoad;
+                $systemTotals['total_working_load'] += $totalWorkingLoad;
+                $systemTotals['total_excess_hours'] += $excessHours;
+            }
+
+            error_log("collegeTeachingLoad: Processed teaching loads for " . count($facultyTeachingLoads) . " faculty members");
+
+            // Pass all data to view
+            require_once __DIR__ . '/../views/director/all-teaching-load.php';
+        } catch (Exception $e) {
+            error_log("collegeTeachingLoad: Full error: " . $e->getMessage());
+            http_response_code(500);
+            echo "Error loading college teaching loads: " . htmlspecialchars($e->getMessage());
+            exit;
+        }
+    }
+
+    /**
+     * Approve faculty teaching load (Director level - NO RESTRICTIONS)
+     */
+    public function approveTeachingLoadDirector()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $_POST['faculty_id'] ?? null;
+            $semesterId = $_POST['semester_id'] ?? null;
+            $notes = $_POST['notes'] ?? '';
+
+            if (!$facultyId || !$semesterId) {
+                echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+                exit;
+            }
+
+            // NO COLLEGE VERIFICATION - Director can approve ANY faculty
+
+            // Update all schedules for this faculty in the current semester to Di_Approved
+            $updateStmt = $this->db->prepare("
+            UPDATE schedules 
+            SET status = 'Di_Approved', 
+                approved_by_di = ?,
+                approval_date_di = NOW(),
+                updated_at = NOW()
+            WHERE faculty_id = ? 
+            AND semester_id = ?
+            AND status IN ('Pending', 'Dean_Approved') -- Only update pending or dean approved schedules
+        ");
+
+            $updateStmt->execute([$userId, $facultyId, $semesterId]);
+            $affectedRows = $updateStmt->rowCount();
+
+            echo json_encode([
+                'success' => true,
+                'message' => "Teaching load approved successfully. {$affectedRows} schedules updated.",
+                'affected_rows' => $affectedRows
+            ]);
+        } catch (Exception $e) {
+            error_log("approveTeachingLoadDirector error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error approving teaching load']);
+        }
+        exit;
+    }
+
+    /**
+     * Reject faculty teaching load (Director level - NO RESTRICTIONS)
+     */
+    public function rejectTeachingLoadDirector()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $_POST['faculty_id'] ?? null;
+            $semesterId = $_POST['semester_id'] ?? null;
+            $rejectionReason = $_POST['rejection_reason'] ?? '';
+
+            if (!$facultyId || !$semesterId) {
+                echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+                exit;
+            }
+
+            if (empty($rejectionReason)) {
+                echo json_encode(['success' => false, 'message' => 'Rejection reason is required']);
+                exit;
+            }
+
+            // NO COLLEGE VERIFICATION - Director can reject ANY faculty
+
+            // Update all schedules for this faculty in the current semester to Rejected
+            $updateStmt = $this->db->prepare("
+            UPDATE schedules 
+            SET status = 'Rejected', 
+                updated_at = NOW()
+            WHERE faculty_id = ? 
+            AND semester_id = ?
+            AND status != 'Rejected' -- Don't update already rejected schedules
+        ");
+
+            $updateStmt->execute([$facultyId, $semesterId]);
+            $affectedRows = $updateStmt->rowCount();
+
+            echo json_encode([
+                'success' => true,
+                'message' => "Teaching load rejected successfully. {$affectedRows} schedules updated.",
+                'affected_rows' => $affectedRows
+            ]);
+        } catch (Exception $e) {
+            error_log("rejectTeachingLoadDirector error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error rejecting teaching load']);
+        }
+        exit;
+    }
+
+    /**
+     * Get faculty approval status for director (NO RESTRICTIONS)
+     */
+    public function getFacultyApprovalStatusDirector($facultyId)
+    {
+        header('Content-Type: application/json');
+
+        try {
+            // Get current semester
+            $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
+            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$semester) {
+                echo json_encode(['success' => false, 'message' => 'No current semester']);
+                exit;
+            }
+
+            // Get approval status breakdown for faculty schedules
+            $statusStmt = $this->db->prepare("
+            SELECT 
+                status,
+                COUNT(*) as schedule_count
+            FROM schedules 
+            WHERE faculty_id = ? AND semester_id = ?
+            GROUP BY status
+            ORDER BY 
+                CASE status
+                    WHEN 'Rejected' THEN 1
+                    WHEN 'Pending' THEN 2
+                    WHEN 'Dean_Approved' THEN 3
+                    WHEN 'Di_Approved' THEN 4
+                    WHEN 'Approved' THEN 5
+                    ELSE 6
+                END
+        ");
+            $statusStmt->execute([$facultyId, $semester['semester_id']]);
+            $statusData = $statusStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get total schedule count
+            $totalStmt = $this->db->prepare("
+            SELECT COUNT(*) as total_schedules 
+            FROM schedules 
+            WHERE faculty_id = ? AND semester_id = ?
+        ");
+            $totalStmt->execute([$facultyId, $semester['semester_id']]);
+            $total = $totalStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Determine overall status
+            $overallStatus = 'Pending';
+            $hasRejected = false;
+            $hasPending = false;
+            $hasApproved = false;
+            $hasDeanApproved = false;
+            $hasDiApproved = false;
+
+            foreach ($statusData as $status) {
+                switch ($status['status']) {
+                    case 'Rejected':
+                        $hasRejected = true;
+                        break;
+                    case 'Pending':
+                        $hasPending = true;
+                        break;
+                    case 'Dean_Approved':
+                        $hasDeanApproved = true;
+                        break;
+                    case 'Di_Approved':
+                        $hasDiApproved = true;
+                        break;
+                    case 'Approved':
+                        $hasApproved = true;
+                        break;
+                }
+            }
+
+            // Determine overall status
+            if ($hasRejected) {
+                $overallStatus = 'Rejected';
+            } elseif ($hasApproved) {
+                $overallStatus = 'Approved';
+            } elseif ($hasDiApproved && !$hasPending) {
+                $overallStatus = 'Di_Approved';
+            } elseif ($hasDeanApproved && !$hasPending) {
+                $overallStatus = 'Dean_Approved';
+            } elseif (($hasDeanApproved || $hasDiApproved) && $hasPending) {
+                $overallStatus = 'Partially_Approved';
+            } else {
+                $overallStatus = 'Pending';
+            }
+
+            echo json_encode([
+                'success' => true,
+                'overall_status' => $overallStatus,
+                'status_details' => $statusData,
+                'total_schedules' => $total['total_schedules'],
+                'semester_id' => $semester['semester_id']
+            ]);
+        } catch (Exception $e) {
+            error_log("getFacultyApprovalStatusDirector error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error fetching approval status']);
+        }
+        exit;
+    }
+
+    /**
+     * API endpoint to get faculty schedule details for directors (NO RESTRICTIONS)
+     */
+    public function getFacultySchedule($facultyId)
+    {
+        header('Content-Type: application/json');
+
+        try {
+            // Validate faculty ID
+            if (!is_numeric($facultyId) || $facultyId <= 0) {
+                throw new Exception('Invalid faculty ID');
+            }
+
+            // Get faculty info - NO COLLEGE VERIFICATION
+            $facultyStmt = $this->db->prepare("
+            SELECT f.faculty_id, 
+                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', COALESCE(u.suffix, '')) AS faculty_name,
+                   d.department_name,
+                   c.college_name,
+                   f.employment_type,
+                   f.academic_rank
+            FROM faculty f
+            JOIN users u ON f.user_id = u.user_id
+            JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+            JOIN departments d ON fd.department_id = d.department_id
+            JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$faculty) {
+                throw new Exception('Faculty not found');
+            }
+
+            // Get current semester
+            $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
+            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$semester) {
+                throw new Exception('No current semester defined');
+            }
+
+            // Get faculty schedules
+            $schedulesStmt = $this->db->prepare("
+            SELECT 
+                c.course_code,
+                c.course_name,
+                COALESCE(sec.section_name, 'N/A') AS section_name,
+                r.room_name,
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                s.component_type,
+                s.status,
+                TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours
+            FROM schedules s
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = ? 
+                AND s.semester_id = ?
+                AND s.status != 'Rejected'
+            ORDER BY 
+                CASE s.day_of_week 
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END,
+                s.start_time
+        ");
+            $schedulesStmt->execute([$facultyId, $semester['semester_id']]);
+            $schedules = $schedulesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Always return valid JSON
+            echo json_encode([
+                'success' => true,
+                'faculty' => $faculty,
+                'schedules' => $schedules
+            ]);
+        } catch (Exception $e) {
+            error_log("getFacultySchedule error: " . $e->getMessage());
+            // Always return valid JSON even for errors
+            echo json_encode([
+                'success' => false,
+                'message' => 'Error loading schedule: ' . $e->getMessage()
+            ]);
+        }
+        exit;
+    }
+
     public function getStats()
     {
         $stats = ['total_pending' => 0];
