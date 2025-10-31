@@ -1,0 +1,3 @@
+PHP Fatal error:  Cannot declare class Database, because the name is already in use in C:\Users\LENOVO\Desktop\acss-1\src\config\Database.php on line 3
+
+Fatal error: Cannot declare class Database, because the name is already in use in C:\Users\LENOVO\Desktop\acss-1\src\config\Database.php on line 3

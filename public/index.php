@@ -1,5 +1,8 @@
 <?php
 require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/Services/BackupSchedulerService.php';
+// Include middleware
+require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 
 // Load environment
 Dotenv\Dotenv::createImmutable(__DIR__ . '/../')->load();
@@ -12,8 +15,9 @@ session_start([
     'use_strict_mode' => true
 ]);
 
-// Include middleware
-require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
+$backupScheduler = new \App\Services\BackupSchedulerService();
+$backupScheduler->checkAndRunBackup();
+
 
 // Define route handler functions
 function handleAdminRoutes($path)

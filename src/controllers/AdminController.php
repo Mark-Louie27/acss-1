@@ -4,6 +4,9 @@ require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
 require_once __DIR__ . '/../services/PdfService.php';
 require_once __DIR__ . '/../models/UserModel.php';
+
+use App\Services\BackupSchedulerService;
+
 class AdminController
 {
     public $db;
@@ -11,6 +14,7 @@ class AdminController
     private $emailService;
     private $pdfService;
     private $UserModel;
+    private $backupScheduler;
 
     public function __construct()  // Remove the $db parameter since we're not using it
     {
@@ -25,6 +29,7 @@ class AdminController
         $this->authService = new AuthService($this->db);
         $this->UserModel = new UserModel($this->db);
         $this->pdfService = new PdfService();
+        $this->backupScheduler = new BackupSchedulerService();
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
@@ -1808,6 +1813,12 @@ class AdminController
                     $_SESSION['flash'] = ['type' => $result['success'] ? 'success' : 'error', 'message' => $result['message']];
                     header('Location: /admin/database-backup');
                     exit;
+                } elseif ($action === 'trigger_manual_backup') {
+                    $this->triggerManualBackup();
+                    exit;
+                } elseif ($action === 'update_schedule') {
+                    $this->updateScheduledHour();
+                    exit;
                 }
             }
 
@@ -1817,13 +1828,13 @@ class AdminController
             // Get database info
             $database_info = $this->getDatabaseInfo();
 
+            // Get scheduler status
+            $scheduler_status = $this->backupScheduler->getSchedulerStatus();
+            $scheduler_stats = $this->backupScheduler->getStatistics();
+
             // Extract variables for the view
             $csrf_token = $csrfToken;
             $controller = $this;
-
-            // Debug: Check if data is being passed correctly
-            error_log("Backup files count: " . count($backup_files));
-            error_log("Database info: " . print_r($database_info, true));
 
             require_once __DIR__ . '/../views/admin/database-backup.php';
         } catch (Exception $e) {
@@ -1908,6 +1919,59 @@ class AdminController
     {
         $stmt = $this->db->query("SELECT DATABASE()");
         return $stmt->fetchColumn();
+    }
+
+    // Add these new methods to handle scheduler actions
+    public function triggerManualBackup()
+    {
+        try {
+            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                header('Location: /admin/database-backup');
+                exit;
+            }
+
+            $result = $this->backupScheduler->triggerManualBackup();
+            $_SESSION['flash'] = [
+                'type' => $result['success'] ? 'success' : 'error',
+                'message' => $result['message']
+            ];
+
+            header('Location: /admin/database-backup');
+            exit;
+        } catch (Exception $e) {
+            error_log("Manual backup trigger error: " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to trigger backup'];
+            header('Location: /admin/database-backup');
+            exit;
+        }
+    }
+
+    public function updateScheduledHour()
+    {
+        try {
+            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
+                header('Location: /admin/database-backup');
+                exit;
+            }
+
+            $hour = (int)($_POST['scheduled_hour'] ?? 2);
+
+            if ($this->backupScheduler->setScheduledHour($hour)) {
+                $_SESSION['flash'] = ['type' => 'success', 'message' => 'Backup schedule updated successfully'];
+            } else {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid hour. Please enter 0-23'];
+            }
+
+            header('Location: /admin/database-backup');
+            exit;
+        } catch (Exception $e) {
+            error_log("Update schedule error: " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to update schedule'];
+            header('Location: /admin/database-backup');
+            exit;
+        }
     }
 
     private function backupTable($tableName)

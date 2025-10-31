@@ -3,6 +3,29 @@ ob_start();
 ?>
 
 <style>
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .slide-in-left {
+        animation: slideInLeft 0.5s ease-in-out;
+    }
+
+    @keyframes slideInLeft {
+        from {
+            transform: translateX(-20px);
+            opacity: 0;
+        }
+    }
+
     .backup-card {
         transition: all 0.3s ease;
     }
@@ -49,6 +72,90 @@ ob_start();
                 </form>
             </div>
         </div>
+
+        <!-- Automated Backup Scheduler Status -->
+        <?php if (isset($scheduler_status)): ?>
+            <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-md border border-purple-200 p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Automated Backup Scheduler
+                        <?php if ($scheduler_status['is_running']): ?>
+                            <span class="ml-3 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full animate-pulse">Running</span>
+                        <?php else: ?>
+                            <span class="ml-3 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">Active</span>
+                        <?php endif; ?>
+                    </h3>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div class="bg-white rounded-lg p-4 border border-gray-200">
+                        <p class="text-sm text-gray-600 mb-1">Last Backup</p>
+                        <p class="font-semibold text-gray-900"><?php echo htmlspecialchars($scheduler_status['last_backup']); ?></p>
+                        <?php if ($scheduler_status['hours_since_last_backup']): ?>
+                            <p class="text-xs text-gray-500 mt-1"><?php echo round($scheduler_status['hours_since_last_backup'], 1); ?> hours ago</p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="bg-white rounded-lg p-4 border border-gray-200">
+                        <p class="text-sm text-gray-600 mb-1">Next Backup</p>
+                        <p class="font-semibold text-gray-900"><?php echo htmlspecialchars($scheduler_status['next_backup']); ?></p>
+                        <p class="text-xs text-gray-500 mt-1">Scheduled daily</p>
+                    </div>
+
+                    <div class="bg-white rounded-lg p-4 border border-gray-200">
+                        <p class="text-sm text-gray-600 mb-1">Total Automated</p>
+                        <p class="font-semibold text-gray-900"><?php echo $scheduler_status['total_backups']; ?> backups</p>
+                        <?php if (isset($scheduler_stats)): ?>
+                            <p class="text-xs text-gray-500 mt-1"><?php echo $scheduler_stats['total_size']; ?> total</p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="bg-white rounded-lg p-4 border border-gray-200">
+                        <p class="text-sm text-gray-600 mb-1">Schedule Time</p>
+                        <p class="font-semibold text-gray-900"><?php echo str_pad($scheduler_status['scheduled_hour'], 2, '0', STR_PAD_LEFT); ?>:00</p>
+                        <button onclick="document.getElementById('scheduleModal').classList.remove('hidden')" class="text-xs text-blue-600 hover:text-blue-800 mt-1">Change</button>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <form method="POST" action="/admin/database-backup?action=trigger_manual_backup" class="inline">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm flex items-center" <?php echo $scheduler_status['is_running'] ? 'disabled' : ''; ?>>
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Trigger Backup Now
+                        </button>
+                    </form>
+
+                    <button onclick="location.reload()" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                        Refresh Status
+                    </button>
+                </div>
+            </div>
+
+            <!-- Schedule Time Modal -->
+            <div id="scheduleModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+                    <h3 class="text-lg font-semibold mb-4">Change Backup Schedule</h3>
+                    <form method="POST" action="/admin/database-backup?action=update_schedule">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Backup Time (Hour 0-23)</label>
+                            <input type="number" name="scheduled_hour" min="0" max="23" value="<?php echo $scheduler_status['scheduled_hour']; ?>" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            <p class="text-xs text-gray-500 mt-1">Enter hour in 24-hour format (e.g., 2 for 2:00 AM, 14 for 2:00 PM)</p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="submit" class="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">Update Schedule</button>
+                            <button type="button" onclick="document.getElementById('scheduleModal').classList.add('hidden')" class="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Flash Messages -->
         <?php if (isset($_SESSION['flash'])): ?>
