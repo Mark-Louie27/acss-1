@@ -1613,20 +1613,24 @@ function updateSectionDetails(selectedOption) {
 }
 
 function openAddModal() {
-  console.log("Opening add modal for current semester:", window.currentSemester);
-  
+  console.log("=== OPEN ADD MODAL DEBUG ===");
+  console.log("Current semester:", window.currentSemester);
+  console.log("Department ID:", window.departmentId);
+  console.log("College ID:", window.jsData?.collegeId);
+  console.log("Faculty data available:", window.faculty);
+  console.log("Faculty count:", window.faculty?.length || 0);
+
   buildCurrentSemesterCourseMappings();
 
   const form = document.getElementById("schedule-form");
   if (form) form.reset();
 
-  // Reset conflict styles specifically for course fields
   resetConflictField("course-code");
   resetConflictField("course-name");
 
-   document.getElementById("start-time").value = "";
-   document.getElementById("end-time").innerHTML =
-     '<option value="">Select End Time</option>';
+  document.getElementById("start-time").value = "";
+  document.getElementById("end-time").innerHTML =
+    '<option value="">Select End Time</option>';
   document.getElementById("modal-title").textContent = "Add Schedule";
   document.getElementById("schedule-id").value = "";
   document.getElementById("modal-day").value = "Monday";
@@ -1634,7 +1638,6 @@ function openAddModal() {
   document.getElementById("modal-end-time").value = "08:30";
   document.getElementById("course-code").value = "";
   document.getElementById("course-name").value = "";
-  document.getElementById("faculty-name").value = "";
   document.getElementById("room-name").value = "Online";
   document.getElementById("section-name").value = "";
 
@@ -1643,6 +1646,54 @@ function openAddModal() {
   document.getElementById("end-time").value = "08:30";
   document.getElementById("schedule-type").value = "f2f";
 
+  // ✅ POPULATE FACULTY DROPDOWN
+  const facultySelect = document.getElementById("faculty-name");
+  if (facultySelect) {
+    facultySelect.innerHTML = '<option value="">Select Faculty</option>';
+
+    if (
+      window.faculty &&
+      Array.isArray(window.faculty) &&
+      window.faculty.length > 0
+    ) {
+      console.log(
+        "✅ Populating faculty dropdown with",
+        window.faculty.length,
+        "members"
+      );
+
+      window.faculty.forEach((fac) => {
+        const option = document.createElement("option");
+        option.value = fac.name;
+        option.textContent = fac.name;
+        option.setAttribute("data-faculty-id", fac.faculty_id);
+        option.setAttribute("data-department-id", fac.department_id);
+        facultySelect.appendChild(option);
+
+        console.log(
+          `Added faculty: ${fac.name} (ID: ${fac.faculty_id}, Dept: ${fac.department_id})`
+        );
+      });
+
+      console.log("✅ Faculty dropdown populated successfully");
+    } else {
+      console.error("❌ No faculty data available!");
+      console.log("window.faculty =", window.faculty);
+
+      facultySelect.innerHTML =
+        '<option value="">No faculty available</option>';
+
+      // Show warning to user
+      displayConflictWarning(
+        "faculty-name",
+        "⚠️ No faculty members found for this department. Please assign faculty to department first.",
+        "error"
+      );
+    }
+  } else {
+    console.error("❌ Faculty select element not found!");
+  }
+
   resetSectionFilter();
 
   const sectionDetails = document.getElementById("section-details");
@@ -1650,6 +1701,8 @@ function openAddModal() {
 
   currentEditingId = null;
   showModal();
+
+  console.log("=== END OPEN ADD MODAL DEBUG ===");
 }
 
 function openAddModalForSlot(day, startTime, endTime) {
@@ -1666,7 +1719,10 @@ function openAddModalForSlot(day, startTime, endTime) {
 }
 
 function editSchedule(scheduleId) {
+  console.log("=== EDIT SCHEDULE DEBUG ===");
   console.log("Editing schedule:", scheduleId);
+  console.log("Faculty data available:", window.faculty?.length || 0);
+
   const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
   if (!schedule) {
     console.error("Schedule not found:", scheduleId);
@@ -1674,7 +1730,6 @@ function editSchedule(scheduleId) {
     return;
   }
 
-  // Reset conflict styles when editing
   resetConflictField("course-code");
   resetConflictField("course-name");
 
@@ -1686,20 +1741,46 @@ function editSchedule(scheduleId) {
   }
 
   buildCurrentSemesterCourseMappings();
+
   document.getElementById("modal-title").textContent = "Edit Schedule";
   document.getElementById("schedule-id").value = schedule.schedule_id;
   document.getElementById("course-code").value = schedule.course_code || "";
   document.getElementById("course-name").value = schedule.course_name || "";
-  document.getElementById("faculty-name").value = schedule.faculty_name || "";
   document.getElementById("room-name").value = schedule.room_name || "";
   document.getElementById("section-name").value = schedule.section_name || "";
+
+  // ✅ POPULATE FACULTY DROPDOWN FOR EDIT
+  const facultySelect = document.getElementById("faculty-name");
+  if (facultySelect) {
+    facultySelect.innerHTML = '<option value="">Select Faculty</option>';
+
+    if (window.faculty && window.faculty.length > 0) {
+      window.faculty.forEach((fac) => {
+        const option = document.createElement("option");
+        option.value = fac.name;
+        option.textContent = fac.name;
+        option.setAttribute("data-faculty-id", fac.faculty_id);
+        facultySelect.appendChild(option);
+      });
+
+      // Set the current faculty value
+      facultySelect.value = schedule.faculty_name || "";
+      console.log("✅ Set faculty to:", schedule.faculty_name);
+    } else {
+      console.error("❌ No faculty available for editing");
+    }
+  }
 
   const day = schedule.day_of_week || "Monday";
   document.getElementById("modal-day").value = day;
   document.getElementById("day-select").value = day;
 
-  const startTime = schedule.start_time ? schedule.start_time.substring(0, 5) : "07:30";
-  const endTime = schedule.end_time ? schedule.end_time.substring(0, 5) : "08:30";
+  const startTime = schedule.start_time
+    ? schedule.start_time.substring(0, 5)
+    : "07:30";
+  const endTime = schedule.end_time
+    ? schedule.end_time.substring(0, 5)
+    : "08:30";
   document.getElementById("modal-start-time").value = startTime;
   document.getElementById("modal-end-time").value = endTime;
   document.getElementById("start-time").value = startTime;
@@ -1707,6 +1788,8 @@ function editSchedule(scheduleId) {
 
   currentEditingId = scheduleId;
   showModal();
+
+  console.log("=== END EDIT SCHEDULE DEBUG ===");
 }
 
 function showModal() {
@@ -1950,6 +2033,25 @@ document.addEventListener("DOMContentLoaded", function () {
   console.log("Current semester:", window.currentSemester);
   console.log("Schedule data count:", window.scheduleData?.length || 0);
 
+  // ✅ CHECK IF FACULTY DATA IS PRESENT
+  if (!window.faculty || window.faculty.length === 0) {
+    console.error("❌ CRITICAL: No faculty data loaded!");
+    console.log("jsData:", window.jsData);
+    console.log("jsData.faculty:", window.jsData?.faculty);
+
+    // Try to get faculty from jsData
+    if (window.jsData && window.jsData.faculty) {
+      window.faculty = window.jsData.faculty;
+      console.log("✅ Recovered faculty from jsData:", window.faculty.length);
+    }
+  } else {
+    console.log(
+      "✅ Faculty data loaded successfully:",
+      window.faculty.length,
+      "members"
+    );
+  }
+
   buildCurrentSemesterCourseMappings();
   initializeDragAndDrop();
 
@@ -1992,7 +2094,7 @@ document.addEventListener("DOMContentLoaded", function () {
       validateFieldRealTime("faculty_name", e.target.value, {
         day_of_week: document.getElementById("day-select")?.value || "",
         start_time: document.getElementById("start-time")?.value + ":00" || "",
-        end_time: document.getElementById("end-time")?.value + ":00" || ""
+        end_time: document.getElementById("end-time")?.value + ":00" || "",
       });
     });
   }
@@ -2003,7 +2105,7 @@ document.addEventListener("DOMContentLoaded", function () {
       validateFieldRealTime("room_name", e.target.value, {
         day_of_week: document.getElementById("day-select")?.value || "",
         start_time: document.getElementById("start-time")?.value + ":00" || "",
-        end_time: document.getElementById("end-time")?.value + ":00" || ""
+        end_time: document.getElementById("end-time")?.value + ":00" || "",
       });
     });
   }
@@ -2024,7 +2126,7 @@ document.addEventListener("DOMContentLoaded", function () {
         faculty_name: document.getElementById("faculty-name")?.value || "",
         room_name: document.getElementById("room-name")?.value || "",
         start_time: document.getElementById("start-time")?.value + ":00" || "",
-        end_time: document.getElementById("end-time")?.value + ":00" || ""
+        end_time: document.getElementById("end-time")?.value + ":00" || "",
       });
     });
   }
@@ -2036,7 +2138,7 @@ document.addEventListener("DOMContentLoaded", function () {
       validateFieldRealTime("start_time", e.target.value + ":00", {
         day_of_week: document.getElementById("day-select")?.value || "",
         faculty_name: document.getElementById("faculty-name")?.value || "",
-        room_name: document.getElementById("room-name")?.value || ""
+        room_name: document.getElementById("room-name")?.value || "",
       });
     });
   }
@@ -2049,7 +2151,7 @@ document.addEventListener("DOMContentLoaded", function () {
         day_of_week: document.getElementById("day-select")?.value || "",
         start_time: document.getElementById("start-time")?.value + ":00" || "",
         faculty_name: document.getElementById("faculty-name")?.value || "",
-        room_name: document.getElementById("room-name")?.value || ""
+        room_name: document.getElementById("room-name")?.value || "",
       });
     });
   }
@@ -2085,7 +2187,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }, 100);
 
   console.log("Manual schedules initialized successfully");
-  console.log("Available courses for current semester:", Object.keys(currentSemesterCourses).length);
+  console.log(
+    "Available courses for current semester:",
+    Object.keys(currentSemesterCourses).length
+  );
 });
 
 
