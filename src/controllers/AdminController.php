@@ -570,8 +570,12 @@ class AdminController
             LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
             LEFT JOIN department_instructors di ON u.user_id = di.user_id AND di.is_current = 1
             ORDER BY u.first_name, u.last_name
-        ");
+            ");
             $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get pending admissions
+            $admissions = $this->getPendingAdmissions();
+            $pendingAdmissionsCount = $this->countPendingAdmissions();
 
             $roles = $this->db->query("SELECT role_id, role_name FROM roles ORDER BY role_name")->fetchAll(PDO::FETCH_ASSOC);
             $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
@@ -611,6 +615,8 @@ class AdminController
             // Pass all data to the view
             $viewData = [
                 'users' => $users,
+                'admissions' => $admissions,
+                'pendingAdmissionsCount' => $pendingAdmissionsCount,
                 'roles' => $roles,
                 'colleges' => $colleges,
                 'departments' => $departments,
@@ -1001,6 +1007,13 @@ class AdminController
                 exit;
             }
 
+            // Handle admission actions
+            if (strpos($action, 'admission') !== false) {
+                $result = $this->handleAdmissionAction($_POST);
+                echo json_encode($result);
+                exit;
+            }
+
             $this->db->beginTransaction();
 
             $data = $_POST;
@@ -1054,7 +1067,7 @@ class AdminController
         SELECT college_id, department_id, email, first_name, last_name, role_id
         FROM users
         WHERE user_id = :user_id
-    ");
+        ");
         $stmt->execute([':user_id' => $userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1099,6 +1112,292 @@ class AdminController
             $this->db->rollBack();
             error_log("handleUserAction: Error - " . $e->getMessage());
             return ['success' => false, 'error' => 'An error occurred while processing the action: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get pending admissions for the view
+     */
+    private function getPendingAdmissions()
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT a.*, r.role_name, c.college_name, d.department_name
+            FROM admissions a
+            LEFT JOIN roles r ON a.role_id = r.role_id
+            LEFT JOIN colleges c ON a.college_id = c.college_id
+            LEFT JOIN departments d ON a.department_id = d.department_id
+            WHERE a.status = 'pending'
+            ORDER BY a.submitted_at DESC
+        ");
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error fetching pending admissions: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Count pending admissions
+     */
+    private function countPendingAdmissions()
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM admissions WHERE status = 'pending'");
+            $stmt->execute();
+            return $stmt->fetchColumn();
+        } catch (PDOException $e) {
+            error_log("Error counting pending admissions: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Handle admission approval/rejection in the API request handler
+     */
+    private function handleAdmissionAction($data)
+    {
+        $action = $data['action'] ?? '';
+        $admissionId = isset($data['admission_id']) ? filter_var($data['admission_id'], FILTER_VALIDATE_INT) : null;
+
+        if (!$admissionId) {
+            return ['success' => false, 'error' => 'Invalid admission ID'];
+        }
+
+        try {
+            $this->db->beginTransaction();
+
+            if ($action === 'approve_admission') {
+                $result = $this->approveAdmission($admissionId);
+            } elseif ($action === 'reject_admission') {
+                $rejectionReason = $data['rejection_reason'] ?? '';
+                $result = $this->rejectAdmission($admissionId, $rejectionReason);
+            } else {
+                return ['success' => false, 'error' => "Invalid admission action: $action"];
+            }
+
+            $this->db->commit();
+            return $result;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Admission action error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'An error occurred: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Approve an admission and create user account
+     */
+    private function approveAdmission($admissionId)
+    {
+        try {
+            // Get admission data
+            $stmt = $this->db->prepare("
+            SELECT a.*, r.role_name, c.college_name, d.department_name
+            FROM admissions a
+            LEFT JOIN roles r ON a.role_id = r.role_id
+            LEFT JOIN colleges c ON a.college_id = c.college_id
+            LEFT JOIN departments d ON a.department_id = d.department_id
+            WHERE a.admission_id = :admission_id AND a.status = 'pending'
+        ");
+            $stmt->execute([':admission_id' => $admissionId]);
+            $admission = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$admission) {
+                return ['success' => false, 'error' => 'Admission not found or already processed'];
+            }
+
+            // Check for duplicates in users table
+            $checkStmt = $this->db->prepare("
+            SELECT user_id FROM users 
+            WHERE username = :username OR email = :email OR employee_id = :employee_id
+        ");
+            $checkStmt->execute([
+                ':username' => $admission['username'],
+                ':email' => $admission['email'],
+                ':employee_id' => $admission['employee_id']
+            ]);
+
+            if ($checkStmt->fetch()) {
+                return ['success' => false, 'error' => 'User with same username, email, or employee ID already exists'];
+            }
+
+            // Insert into users table
+            $userStmt = $this->db->prepare("
+            INSERT INTO users (
+                employee_id, username, password_hash, email, phone, title, first_name, middle_name,
+                last_name, suffix, role_id, department_id, college_id, is_active, created_at, updated_at
+            ) VALUES (
+                :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
+                :last_name, :suffix, :role_id, :department_id, :college_id, 1, NOW(), NOW()
+            )
+        ");
+
+            $userData = [
+                ':employee_id' => $admission['employee_id'],
+                ':username' => $admission['username'],
+                ':password_hash' => $admission['password_hash'],
+                ':email' => $admission['email'],
+                ':phone' => $admission['phone'],
+                ':title' => $admission['title'],
+                ':first_name' => $admission['first_name'],
+                ':middle_name' => $admission['middle_name'],
+                ':last_name' => $admission['last_name'],
+                ':suffix' => $admission['suffix'],
+                ':role_id' => $admission['role_id'],
+                ':department_id' => $admission['department_id'],
+                ':college_id' => $admission['college_id']
+            ];
+
+            $userStmt->execute($userData);
+            $newUserId = $this->db->lastInsertId();
+
+            // Insert into faculty table
+            $facultyStmt = $this->db->prepare("
+            INSERT INTO faculty (
+                user_id, employee_id, academic_rank, employment_type, classification, max_hours,
+                bachelor_degree, master_degree, doctorate_degree, post_doctorate_degree,
+                designation, created_at, updated_at
+            ) VALUES (
+                :user_id, :employee_id, :academic_rank, :employment_type, :classification, :max_hours,
+                :bachelor_degree, :master_degree, :doctorate_degree, :post_doctorate_degree,
+                :designation, NOW(), NOW()
+            )
+        ");
+
+            $facultyData = [
+                ':user_id' => $newUserId,
+                ':employee_id' => $admission['employee_id'],
+                ':academic_rank' => $admission['academic_rank'],
+                ':employment_type' => $admission['employment_type'],
+                ':classification' => $admission['classification'],
+                ':max_hours' => 18.00,
+                ':bachelor_degree' => $admission['bachelor_degree'] ?? null,
+                ':master_degree' => $admission['master_degree'] ?? null,
+                ':doctorate_degree' => $admission['doctorate_degree'] ?? null,
+                ':post_doctorate_degree' => $admission['post_doctorate_degree'] ?? null,
+                ':designation' => $admission['designation'] ?? null
+            ];
+
+            $facultyStmt->execute($facultyData);
+
+            // Get admission roles and assign to user
+            $roleStmt = $this->db->prepare("
+            SELECT role_id FROM admission_roles WHERE admission_id = :admission_id
+        ");
+            $roleStmt->execute([':admission_id' => $admissionId]);
+            $admissionRoles = $roleStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!empty($admissionRoles)) {
+                $userRoleStmt = $this->db->prepare("INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)");
+                foreach ($admissionRoles as $roleId) {
+                    $userRoleStmt->execute([':user_id' => $newUserId, ':role_id' => $roleId]);
+                }
+            }
+
+            // Handle Program Chair multiple departments
+            if (in_array(5, $admissionRoles)) {
+                $deptStmt = $this->db->prepare("
+                SELECT department_id, is_primary FROM admission_departments 
+                WHERE admission_id = :admission_id
+            ");
+                $deptStmt->execute([':admission_id' => $admissionId]);
+                $admissionDepartments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                if (!empty($admissionDepartments)) {
+                    $chairDeptStmt = $this->db->prepare("
+                    INSERT INTO chair_departments (user_id, department_id, is_primary, assigned_date)
+                    VALUES (:user_id, :department_id, :is_primary, NOW())
+                ");
+
+                    foreach ($admissionDepartments as $dept) {
+                        $chairDeptStmt->execute([
+                            ':user_id' => $newUserId,
+                            ':department_id' => $dept['department_id'],
+                            ':is_primary' => $dept['is_primary']
+                        ]);
+                    }
+                }
+            }
+
+            // Update admission status
+            $updateStmt = $this->db->prepare("
+            UPDATE admissions 
+            SET status = 'approved', reviewed_at = NOW(), reviewed_by = :reviewed_by 
+            WHERE admission_id = :admission_id
+        ");
+            $updateStmt->execute([
+                ':reviewed_by' => $_SESSION['user_id'],
+                ':admission_id' => $admissionId
+            ]);
+
+            // Send approval email
+            $emailService = new EmailService();
+            $emailService->sendApprovalEmail(
+                $admission['email'],
+                $admission['first_name'] . ' ' . $admission['last_name'],
+                $admission['role_name']
+            );
+
+            return [
+                'success' => true,
+                'message' => 'Admission approved successfully. User account created.',
+                'user_id' => $newUserId
+            ];
+        } catch (Exception $e) {
+            error_log("Approve admission error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to approve admission: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Reject an admission
+     */
+    private function rejectAdmission($admissionId, $rejectionReason)
+    {
+        try {
+            // Get admission data for email
+            $stmt = $this->db->prepare("
+            SELECT a.*, r.role_name FROM admissions a
+            LEFT JOIN roles r ON a.role_id = r.role_id
+            WHERE a.admission_id = :admission_id AND a.status = 'pending'
+        ");
+            $stmt->execute([':admission_id' => $admissionId]);
+            $admission = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$admission) {
+                return ['success' => false, 'error' => 'Admission not found or already processed'];
+            }
+
+            // Update admission status
+            $updateStmt = $this->db->prepare("
+            UPDATE admissions 
+            SET status = 'rejected', rejection_reason = :rejection_reason, 
+                reviewed_at = NOW(), reviewed_by = :reviewed_by 
+            WHERE admission_id = :admission_id
+        ");
+            $updateStmt->execute([
+                ':rejection_reason' => $rejectionReason,
+                ':reviewed_by' => $_SESSION['user_id'],
+                ':admission_id' => $admissionId
+            ]);
+
+            // Send rejection email
+            $emailService = new EmailService();
+            $emailService->sendRejectionEmail(
+                $admission['email'],
+                $admission['first_name'] . ' ' . $admission['last_name'],
+                $rejectionReason
+            );
+
+            return [
+                'success' => true,
+                'message' => 'Admission rejected successfully.'
+            ];
+        } catch (Exception $e) {
+            error_log("Reject admission error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to reject admission: ' . $e->getMessage()];
         }
     }
 

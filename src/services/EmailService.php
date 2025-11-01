@@ -812,4 +812,125 @@ class EmailService
             // Don't re-throw, just log the error
         }
     }
+
+    /**
+     * Send a general email
+     */
+    public function sendEmail($toEmail, $subject, $message)
+    {
+        try {
+            $this->mailer->setFrom('mlbausa84@gmail.com', 'ACSS System');
+            $this->mailer->addAddress($toEmail);
+            $this->mailer->isHTML(true);
+            $this->mailer->Subject = $subject;
+
+            $this->mailer->Body = "
+            <!DOCTYPE html>
+            <html lang='en'>
+            <head>
+                <meta charset='UTF-8'>
+                <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                <title>$subject</title>
+            </head>
+            <body style='margin: 0; padding: 0; font-family: Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f8fafc;'>
+                <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;'>
+                    <div style='background: #e5ad0f; padding: 20px; text-align: center;'>
+                        <h1 style='color: #ffffff; margin: 0;'>ACSS System</h1>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <div style='margin-bottom: 20px;'>
+                            <h2 style='color: #2d3748; margin: 0 0 10px 0;'>$subject</h2>
+                        </div>
+                        <div style='background-color: #f7fafc; padding: 20px; border-radius: 6px;'>
+                            <p style='margin: 0; color: #4a5568;'>$message</p>
+                        </div>
+                    </div>
+                    <div style='background-color: #2d3748; padding: 20px; text-align: center;'>
+                        <p style='color: #a0aec0; margin: 0; font-size: 12px;'>
+                            © " . date('Y') . " ACSS System. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>";
+
+            $this->mailer->AltBody = $message;
+
+            $this->mailer->send();
+            error_log("Email sent successfully to: $toEmail");
+            return true;
+        } catch (Exception $e) {
+            error_log("Error sending email to $toEmail: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send rejection email for admission
+     */
+    public function sendRejectionEmail($toEmail, $name, $rejectionReason)
+    {
+        try {
+            $this->mailer->setFrom('mlbausa84@gmail.com', 'ACSS System');
+            $this->mailer->addAddress($toEmail, $name);
+            $this->mailer->isHTML(true);
+            $this->mailer->Subject = 'Admission Request - Status Update';
+
+            $this->mailer->Body = "
+            <!DOCTYPE html>
+            <html lang='en'>
+            <head>
+                <meta charset='UTF-8'>
+                <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+                <title>Admission Status Update</title>
+            </head>
+            <body style='margin: 0; padding: 0; font-family: Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f8fafc;'>
+                <div style='max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;'>
+                    <div style='background: #e53e3e; padding: 20px; text-align: center;'>
+                        <h1 style='color: #ffffff; margin: 0;'>Admission Status Update</h1>
+                    </div>
+                    <div style='padding: 30px;'>
+                        <div style='margin-bottom: 20px;'>
+                            <h2 style='color: #2d3748; margin: 0 0 10px 0;'>Dear $name,</h2>
+                            <p style='color: #718096; margin: 0;'>We regret to inform you that your admission request has been reviewed and unfortunately cannot be approved at this time.</p>
+                        </div>
+                        <div style='background-color: #fed7d7; border-left: 4px solid #e53e3e; padding: 15px; margin: 20px 0; border-radius: 4px;'>
+                            <p style='margin: 0; color: #744210;'><strong>Reason:</strong> $rejectionReason</p>
+                        </div>
+                        <p style='color: #718096; margin: 20px 0;'>
+                            If you have any questions or would like to discuss this further, please contact the administration office.
+                        </p>
+                    </div>
+                    <div style='background-color: #2d3748; padding: 20px; text-align: center;'>
+                        <p style='color: #a0aec0; margin: 0; font-size: 12px;'>
+                            © " . date('Y') . " ACSS System. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>";
+
+            $this->mailer->AltBody = "
+            Admission Status Update
+            
+            Dear $name,
+            
+            We regret to inform you that your admission request has been reviewed and unfortunately cannot be approved at this time.
+            
+            Reason: $rejectionReason
+            
+            If you have any questions or would like to discuss this further, please contact the administration office.
+            
+            Best regards,
+            ACSS System Administration
+        ";
+
+            $this->mailer->send();
+            error_log("Rejection email sent successfully to: $toEmail");
+            return true;
+        } catch (Exception $e) {
+            error_log("Error sending rejection email to $toEmail: " . $e->getMessage());
+            return false;
+        }
+    }
 }

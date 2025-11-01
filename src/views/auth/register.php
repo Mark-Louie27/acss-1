@@ -686,6 +686,38 @@ try {
                             </div>
                         </div>
 
+                        <!-- Terms and Conditions Section -->
+                        <div class="input-group">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div class="flex items-start space-x-3">
+                                    <div class="flex-shrink-0">
+                                        <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1">
+                                        <h4 class="text-lg font-semibold text-blue-800 mb-2">Terms and Conditions</h4>
+                                        <p class="text-blue-700 mb-3">
+                                            Before creating your account, you must read and agree to our Terms and Conditions
+                                            which outline your responsibilities and rights when using the PRMSU ACSS System.
+                                        </p>
+                                        <button type="button" onclick="openTermsModal()"
+                                            class="inline-flex items-center px-4 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                            <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            Read Terms and Conditions
+                                        </button>
+                                        <div id="terms-error" class="mt-2 text-sm text-red-600 hidden">
+                                            You must accept the Terms and Conditions to create an account.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-navigation">
                             <button type="button" class="bg-gray-300 text-gray-700 py-3 px-6 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out text-base font-medium" onclick="prevStep()">
                                 ← Previous
@@ -1034,6 +1066,20 @@ try {
                 return false;
             }
 
+            // Check if terms are accepted
+            if (!document.getElementById('terms_accepted')) {
+                e.preventDefault();
+                document.getElementById('terms-error').classList.remove('hidden');
+                // Scroll to terms section
+                document.querySelector('[onclick="openTermsModal()"]').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                return false;
+            } else {
+                document.getElementById('terms-error').classList.add('hidden');
+            }
+
             const programChairChecked = $('.role-checkbox[value="5"]:checked').length > 0;
 
             if (programChairChecked) {
@@ -1078,5 +1124,6 @@ try {
         });
     </script>
 </body>
+<?php include __DIR__ . '/terms_modal.php'; ?>
 
 </html>

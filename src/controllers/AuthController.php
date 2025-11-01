@@ -148,7 +148,9 @@ class AuthController
                 'employment_type' => trim($_POST['employment_type'] ?? ''),
                 'classification' => trim($_POST['classification'] ?? ''),
                 'program_id' => !empty($_POST['program_id']) ? intval($_POST['program_id']) : null,
-                'role_id' => !empty($_POST['roles']) ? (int)reset($_POST['roles']) : null
+                'role_id' => !empty($_POST['roles']) ? (int)reset($_POST['roles']) : null,
+                'terms_accepted' => $_POST['terms_accepted'] ?? false,
+                'terms_accepted_at' => $_POST['terms_accepted_at'] ?? null
             ];
 
             error_log("Data to be registered: " . json_encode($data));
@@ -156,6 +158,10 @@ class AuthController
             $errors = [];
 
             // Basic validation
+            // Add this to the validation section in register method
+            if (empty($_POST['terms_accepted']) || $_POST['terms_accepted'] !== '1') {
+                $errors[] = "You must accept the Terms and Conditions to register.";
+            }
             if (empty($data['employee_id'])) $errors[] = "Employee ID is required.";
             if (empty($data['username'])) $errors[] = "Username is required.";
             if (empty($data['password']) || strlen($data['password']) < 6) {
@@ -170,6 +176,10 @@ class AuthController
             if (empty($data['college_id'])) $errors[] = "College is required.";
             if (empty($data['department_ids'])) $errors[] = "At least one department is required.";
             if (empty($data['role_id'])) $errors[] = "A valid role is required.";
+            // NEW: Terms validation
+            if (empty($_POST['terms_accepted']) || $_POST['terms_accepted'] !== '1') {
+                $errors[] = "You must accept the Terms and Conditions to register.";
+            }
 
             // Check if Program Chair is selected
             $isProgramChair = in_array(5, $data['roles']);
@@ -200,13 +210,11 @@ class AuthController
 
             if (empty($errors)) {
                 try {
-                    if ($this->authService->register($data)) {
+                    if ($this->authService->submitAdmission($data)) {
                         $deptCount = count($data['department_ids']);
                         $deptText = $deptCount > 1 ? "$deptCount departments" : "1 department";
 
-                        $success = $isProgramChair || in_array(6, $data['roles'])
-                            ? "Registration submitted successfully for $deptText. Awaiting Dean approval."
-                            : "Registration successful. You can now log in.";
+                        $success = "Registration submitted successfully for $deptText. Your account is pending admin approval. You will receive an email once approved.";
 
                         header('Location: /login?success=' . urlencode($success));
                         exit;

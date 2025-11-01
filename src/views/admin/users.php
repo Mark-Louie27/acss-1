@@ -105,19 +105,33 @@ ob_start();
     .tab-active:hover {
         background-color: #b8972e;
     }
+
+    .admission-pending {
+        background-color: #fef3c7;
+        border-left: 4px solid #f59e0b;
+    }
+
+    .admission-approved {
+        background-color: #d1fae5;
+        border-left: 4px solid #10b981;
+    }
+
+    .admission-rejected {
+        background-color: #fee2e2;
+        border-left: 4px solid #ef4444;
+    }
 </style>
 
 <div class="min-h-screen bg-gray-100 py-6">
     <div class="mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header Section -->
         <div class="mb-8">
-            <!-- Update the header section -->
             <div class="flex justify-between items-center">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900 bg-clip-text text-transparent bg-gradient-to-r from-yellow-600 to-yellow-400 slide-in-left">
                         User Management
                     </h1>
-                    <p class="mt-2 text-gray-600 slide-in-right">Manage system users, roles, and permissions</p>
+                    <p class="mt-2 text-gray-600 slide-in-right">Manage system users, roles, permissions, and admissions</p>
                 </div>
                 <button onclick="openAddUserModal()" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors flex items-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,7 +143,7 @@ ob_start();
         </div>
 
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <div class="card bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
                 <div class="flex items-center">
                     <div class="p-3 bg-yellow-100 rounded-lg">
@@ -182,6 +196,22 @@ ob_start();
                     </div>
                 </div>
             </div>
+            <!-- New Admission Stats Card -->
+            <div class="card bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
+                <div class="flex items-center">
+                    <div class="p-3 bg-orange-100 rounded-lg">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Pending Admissions</p>
+                        <p class="text-2xl font-bold text-gray-900" id="pending-admissions-count">
+                            <?php echo $pendingAdmissionsCount ?? 0; ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Search and Filter Section -->
@@ -224,7 +254,12 @@ ob_start();
                 <button id="tab-all" class="tab px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 <?php echo !isset($_GET['tab']) || $_GET['tab'] === 'all' ? 'tab-active' : 'text-gray-500 hover:text-gray-700'; ?>" onclick="switchTab('all')">All Users</button>
                 <button id="tab-active" class="tab px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 <?php echo isset($_GET['tab']) && $_GET['tab'] === 'active' ? 'tab-active' : 'text-gray-500 hover:text-gray-700'; ?>" onclick="switchTab('active')">Active Users</button>
                 <button id="tab-inactive" class="tab px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 <?php echo isset($_GET['tab']) && $_GET['tab'] === 'inactive' ? 'tab-active' : 'text-gray-500 hover:text-gray-700'; ?>" onclick="switchTab('inactive')">Inactive Users</button>
-                <button id="tab-pending" class="tab px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 <?php echo isset($_GET['tab']) && $_GET['tab'] === 'pending' ? 'tab-active' : 'text-gray-500 hover:text-gray-700'; ?>" onclick="switchTab('pending')">Pending Users <span id="pending-count" class="ml-1 bg-red-500 text-white text-xs rounded-full px-2 py-0.5"><?php echo count(array_filter($users, fn($u) => !$u['is_active'] && /* Add pending condition */ true)); ?></span></button>
+                <button id="tab-admissions" class="tab px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 <?php echo isset($_GET['tab']) && $_GET['tab'] === 'admissions' ? 'tab-active' : 'text-gray-500 hover:text-gray-700'; ?>" onclick="switchTab('admissions')">
+                    Pending Admissions
+                    <span id="admissions-count" class="ml-1 bg-orange-500 text-white text-xs rounded-full px-2 py-0.5">
+                        <?php echo $pendingAdmissionsCount ?? 0; ?>
+                    </span>
+                </button>
             </nav>
         </div>
 
@@ -254,6 +289,7 @@ ob_start();
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200" id="usersTableBody">
+                            <!-- Regular Users -->
                             <?php foreach ($users as $user): ?>
                                 <tr class="user-row <?php echo !$user['is_active'] ? 'pending-user' : ($user['is_active'] ? 'active-user' : 'inactive-user'); ?> hover:bg-gray-50 transition-colors duration-150" data-user-id="<?php echo $user['user_id']; ?>" style="display: <?php echo !isset($_GET['tab']) || $_GET['tab'] === 'all' ? '' : 'none'; ?>">
                                     <td class="px-4 py-4 whitespace-nowrap">
@@ -348,6 +384,85 @@ ob_start();
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
+
+                            <!-- Pending Admissions -->
+                            <?php if (isset($admissions) && is_array($admissions)): ?>
+                                <?php foreach ($admissions as $admission): ?>
+                                    <tr class="admission-row admission-pending hover:bg-yellow-50 transition-colors duration-150" data-admission-id="<?php echo $admission['admission_id']; ?>" style="display: none;">
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <div class="flex items-center min-w-0">
+                                                <div class="flex-shrink-0 h-10 w-10">
+                                                    <div class="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                                                        <span class="text-sm font-medium text-orange-600">
+                                                            <?php echo strtoupper(substr($admission['first_name'], 0, 1) . substr($admission['last_name'], 0, 1)); ?>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div class="ml-3 min-w-0 flex-1">
+                                                    <div class="text-sm font-medium text-gray-900 truncate" title="<?php echo htmlspecialchars($admission['first_name'] . ' ' . $admission['middle_name'] . ' ' . $admission['last_name'] . ' ' . $admission['suffix'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                        <?php echo htmlspecialchars($admission['first_name'] . ' ' . $admission['middle_name'] . ' ' . $admission['last_name'] . ' ' . $admission['suffix'], ENT_QUOTES, 'UTF-8'); ?>
+                                                    </div>
+                                                    <div class="text-sm text-gray-500 truncate">
+                                                        @<?php echo htmlspecialchars($admission['username'], ENT_QUOTES, 'UTF-8'); ?>
+                                                    </div>
+                                                    <div class="text-xs text-orange-600 font-medium">
+                                                        Pending Admission
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <div class="truncate max-w-[160px]" title="<?php echo htmlspecialchars($admission['email'] ?? 'Not provided', ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?php echo htmlspecialchars($admission['email'] ?? 'Not provided', ENT_QUOTES, 'UTF-8'); ?>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                <?php echo htmlspecialchars($admission['role_name'] ?? 'Pending', ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <div class="truncate max-w-[140px]" title="<?php echo htmlspecialchars($admission['college_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?php echo htmlspecialchars($admission['college_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <div class="truncate max-w-[140px]" title="<?php echo htmlspecialchars($admission['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?php echo htmlspecialchars($admission['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+                                            ••••••••
+                                            <span class="text-xs text-gray-400">(Hidden)</span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                Pending Review
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                            <div class="flex items-center space-x-1">
+                                                <button onclick="viewAdmission(<?php echo $admission['admission_id']; ?>)" class="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors" title="View Details">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                                    </svg>
+                                                </button>
+                                                <button onclick="approveAdmission(<?php echo $admission['admission_id']; ?>, '<?php echo htmlspecialchars($admission['first_name'] . ' ' . $admission['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-green-600 hover:text-green-900 p-1 rounded transition-colors" title="Approve Admission">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                    </svg>
+                                                </button>
+                                                <button onclick="rejectAdmission(<?php echo $admission['admission_id']; ?>, '<?php echo htmlspecialchars($admission['first_name'] . ' ' . $admission['last_name'], ENT_QUOTES, 'UTF-8'); ?>')" class="text-red-600 hover:text-red-900 p-1 rounded transition-colors" title="Reject Admission">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -744,10 +859,67 @@ ob_start();
         </div>
     </div>
 
+    <!-- Admission Review Modal -->
+    <div id="admissionReviewModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="relative mx-auto p-6 border w-full max-w-4xl shadow-lg rounded-xl bg-white max-h-[95vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-gray-900">Review Admission Request</h3>
+                <button onclick="closeAdmissionReviewModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="admissionDetailsContent" class="space-y-6">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 mt-6">
+                <button onclick="closeAdmissionReviewModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button onclick="confirmRejectAdmission()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                    Reject Admission
+                </button>
+                <button onclick="confirmApproveAdmission()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    Approve Admission
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rejection Reason Modal -->
+    <div id="rejectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="relative mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Reject Admission</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500 mb-4">
+                        Please provide a reason for rejecting this admission request:
+                    </p>
+                    <textarea id="rejectionReason" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Enter rejection reason..."></textarea>
+                </div>
+                <div class="flex justify-center space-x-3 px-4 py-3">
+                    <button onclick="closeRejectionModal()" class="px-4 py-2 bg-white text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="submitRejection()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors">
+                        Submit Rejection
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script>
         // JavaScript
         let currentUserId = null;
+        let currentAdmissionId = null;
 
         // Dynamic data from PHP
         let dynamicData = {
@@ -764,6 +936,10 @@ ob_start();
         // Global maps
         window.collegeDepartments = {};
         window.programDepartments = {};
+
+        // Admission data
+        const admissionsData = <?php echo json_encode($admissions ?? []); ?>;
+        const usersData = <?php echo json_encode($users); ?>;
 
         // ========================
         // MODAL: Open Add User
@@ -1417,8 +1593,6 @@ ob_start();
         // ========================
         // View User Modal
         // ========================
-        const usersData = <?php echo json_encode($users); ?>;
-
         function viewUser(id) {
             const user = usersData.find(u => parseInt(u.user_id) === parseInt(id));
             if (!user) return alert('User not found');
@@ -1735,24 +1909,267 @@ ob_start();
             document.body.appendChild(modal);
         }
 
+        // ==================== NEW ADMISSION FUNCTIONS ====================
+
+        // Admission Management Functions
+        function viewAdmission(admissionId) {
+            const admission = admissionsData.find(a => parseInt(a.admission_id) === parseInt(admissionId));
+            if (!admission) return alert('Admission not found');
+
+            const safe = (v, f = 'N/A') => (v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === '')) ? f : v;
+
+            const fullName = [safe(admission.title), safe(admission.first_name), safe(admission.middle_name), safe(admission.last_name), safe(admission.suffix)]
+                .filter(Boolean).join(' ') || 'No Name';
+
+            const content = `
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex-shrink-0 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                            <span class="text-lg font-bold text-orange-600">
+                                ${(admission.first_name?.[0] || '') + (admission.last_name?.[0] || '').toUpperCase() || 'AA'}
+                            </span>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">${fullName}</h4>
+                            <p class="text-sm text-orange-600 font-medium">Pending Admission Review</p>
+                            <p class="text-xs text-gray-500">Submitted: ${new Date(admission.submitted_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <h5 class="text-sm font-semibold text-gray-900 border-b pb-2">Personal Information</h5>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Employee ID</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.employee_id)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Username</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.username)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Email</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.email)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Phone</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.phone)}</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h5 class="text-sm font-semibold text-gray-900 border-b pb-2">Academic Information</h5>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Role</label>
+                            <p class="mt-1">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    ${safe(admission.role_name)}
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">College</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.college_name)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Department</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.department_name)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Academic Rank</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.academic_rank)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-4">
+                    <h5 class="text-sm font-semibold text-gray-900 border-b pb-2">Additional Information</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Employment Type</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.employment_type)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Classification</label>
+                            <p class="mt-1 text-sm text-gray-900">${safe(admission.classification)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Submitted Date</label>
+                            <p class="mt-1 text-sm text-gray-900">${new Date(admission.submitted_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('admissionDetailsContent').innerHTML = content;
+            currentAdmissionId = admissionId;
+            document.getElementById('admissionReviewModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAdmissionReviewModal() {
+            document.getElementById('admissionReviewModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            currentAdmissionId = null;
+        }
+
+        function approveAdmission(admissionId, userName) {
+            currentAdmissionId = admissionId;
+            showConfirmationModal(
+                'Approve Admission',
+                `Are you sure you want to approve ${userName}'s admission request? This will create their user account.`,
+                confirmApproveAdmission
+            );
+        }
+
+        function confirmApproveAdmission() {
+            if (!currentAdmissionId) return;
+
+            const formData = new FormData();
+            formData.append('action', 'approve_admission');
+            formData.append('admission_id', currentAdmissionId);
+            formData.append('csrf_token', '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>');
+
+            const modal = showLoadingModal('Approving admission...');
+
+            fetch('/admin/users', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    modal.remove();
+                    if (data.success) {
+                        closeAdmissionReviewModal();
+                        showSuccessModal('Admission Approved', data.message || 'Admission approved successfully');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        showErrorModal('Approval Failed', data.error || 'Unknown error occurred');
+                    }
+                })
+                .catch(error => {
+                    modal.remove();
+                    console.error('Approve admission error:', error);
+                    showErrorModal('Network Error', 'An error occurred while approving the admission.');
+                });
+        }
+
+        function rejectAdmission(admissionId, userName) {
+            currentAdmissionId = admissionId;
+            document.getElementById('rejectionModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeRejectionModal() {
+            document.getElementById('rejectionModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            currentAdmissionId = null;
+        }
+
+        function submitRejection() {
+            const reason = document.getElementById('rejectionReason').value.trim();
+            if (!reason) {
+                alert('Please provide a rejection reason');
+                return;
+            }
+
+            if (!currentAdmissionId) return;
+
+            const formData = new FormData();
+            formData.append('action', 'reject_admission');
+            formData.append('admission_id', currentAdmissionId);
+            formData.append('rejection_reason', reason);
+            formData.append('csrf_token', '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>');
+
+            const modal = showLoadingModal('Rejecting admission...');
+
+            fetch('/admin/users', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    modal.remove();
+                    if (data.success) {
+                        closeRejectionModal();
+                        showSuccessModal('Admission Rejected', data.message || 'Admission rejected successfully');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        showErrorModal('Rejection Failed', data.error || 'Unknown error occurred');
+                    }
+                })
+                .catch(error => {
+                    modal.remove();
+                    console.error('Reject admission error:', error);
+                    showErrorModal('Network Error', 'An error occurred while rejecting the admission.');
+                });
+        }
+
+        // Success Modal Helper
+        function showSuccessModal(title, message) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg max-w-md w-full mx-4">
+                    <div class="flex items-center gap-3 p-6 border-b border-gray-200">
+                        <div class="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-gray-600">${message}</p>
+                    </div>
+                    <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
         // ========================
         // Tab Switching
         // ========================
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
             document.getElementById(`tab-${tab}`).classList.add('tab-active');
-            document.getElementById('table-title').textContent = `${tab.charAt(0).toUpperCase() + tab.slice(1)} Users`;
 
+            let title = `${tab.charAt(0).toUpperCase() + tab.slice(1)} Users`;
+            if (tab === 'admissions') title = 'Pending Admissions';
+            document.getElementById('table-title').textContent = title;
+
+            // Show/hide rows based on tab
             document.querySelectorAll('.user-row').forEach(row => {
                 row.style.display = 'none';
                 if (tab === 'all') row.style.display = '';
                 else if (tab === 'active' && row.classList.contains('active-user')) row.style.display = '';
                 else if (tab === 'inactive' && row.classList.contains('inactive-user')) row.style.display = '';
-                else if (tab === 'pending' && row.classList.contains('pending-user')) row.style.display = '';
             });
 
+            // Show/hide admission rows
+            document.querySelectorAll('.admission-row').forEach(row => {
+                row.style.display = tab === 'admissions' ? '' : 'none';
+            });
+
+            // Update visible count
+            let visibleCount = 0;
+            if (tab === 'admissions') {
+                visibleCount = document.querySelectorAll('.admission-row').length;
+            } else {
+                visibleCount = document.querySelectorAll('.user-row[style=""]').length;
+            }
+
+            document.getElementById('visibleCount').textContent = visibleCount;
+            document.getElementById('visibleCountBottom').textContent = `${visibleCount} ${tab === 'admissions' ? 'admissions' : 'users'}`;
+
             window.history.pushState({}, '', `?tab=${tab}`);
-            filterTable();
+            if (tab !== 'admissions') filterTable();
         }
 
         // ========================
@@ -1792,6 +2209,11 @@ ob_start();
         // Event Listeners
         // ========================
         document.addEventListener('DOMContentLoaded', function() {
+            // Set initial tab based on URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab') || 'all';
+            switchTab(tab);
+
             // Attach filter listeners
             const searchInput = document.getElementById('searchUsers');
             const roleFilter = document.getElementById('roleFilter');

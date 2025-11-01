@@ -46,9 +46,6 @@
 [2025-11-01 16:24:29] Backing up table 41/43: users
 [2025-11-01 16:24:29] Backing up table 42/43: vpaa
 [2025-11-01 16:24:29] Backing up table 43/43: vw_subject_types
-PHP Warning:  Undefined array key "Create Table" in C:\Users\LENOVO\Desktop\acss-1\cli\backup-database.php on line 219
-
-Warning: Undefined array key "Create Table" in C:\Users\LENOVO\Desktop\acss-1\cli\backup-database.php on line 219
 [2025-11-01 16:24:29] Writing backup file...
 [2025-11-01 16:24:29] Backup file created: 223.36 KB
 [2025-11-01 16:24:29] Compressing backup...

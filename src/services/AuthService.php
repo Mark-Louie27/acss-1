@@ -491,6 +491,229 @@ class AuthService
         }
     }
 
+    public function submitAdmission($data)
+    {
+        try {
+            // Start transaction
+            if (!$this->db->beginTransaction()) {
+                throw new Exception("Failed to start transaction");
+            }
+
+            // Validate required fields
+            $required_fields = ['employee_id', 'username', 'password', 'email', 'first_name', 'last_name', 'department_id', 'college_id', 'role_id'];
+            foreach ($required_fields as $field) {
+                if (empty($data[$field])) {
+                    throw new Exception("Missing required field: $field");
+                }
+            }
+
+            // Check for duplicates in both admissions and users tables
+            if ($this->checkAdmissionExists($data['employee_id'], $data['username'], $data['email'])) {
+                throw new Exception("Employee ID, username, or email already exists in pending admissions or active users");
+            }
+
+            if ($this->userModel->employeeIdExists($data['employee_id'])) {
+                throw new Exception("Employee ID {$data['employee_id']} already exists in active users");
+            }
+
+            if ($this->userModel->emailExists($data['email'])) {
+                throw new Exception("Email {$data['email']} already exists in active users");
+            }
+
+            // Insert into admissions table
+            $query = "
+        INSERT INTO admissions (
+            employee_id, username, password_hash, email, phone, title, first_name, middle_name,
+            last_name, suffix, role_id, department_id, college_id, academic_rank, 
+            employment_type, classification, status, submitted_at
+        ) VALUES (
+            :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
+            :last_name, :suffix, :role_id, :department_id, :college_id, :academic_rank,
+            :employment_type, :classification, 'pending', NOW()
+        )";
+
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':employee_id' => $data['employee_id'],
+                ':username' => $data['username'],
+                ':password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
+                ':email' => $data['email'],
+                ':phone' => $data['phone'] ?? null,
+                ':title' => $data['title'] ?? null,
+                ':first_name' => $data['first_name'],
+                ':middle_name' => $data['middle_name'] ?? null,
+                ':last_name' => $data['last_name'],
+                ':suffix' => $data['suffix'] ?? null,
+                ':role_id' => $data['role_id'],
+                ':department_id' => $data['department_id'],
+                ':college_id' => $data['college_id'],
+                ':academic_rank' => $data['academic_rank'] ?? null,
+                ':employment_type' => $data['employment_type'] ?? null,
+                ':classification' => $data['classification'] ?? null
+            ]);
+
+            $admissionId = $this->db->lastInsertId();
+
+            // Insert roles into admission_roles (we'll create this table)
+            if (!empty($data['roles'])) {
+                $roleQuery = "INSERT INTO admission_roles (admission_id, role_id) VALUES (:admission_id, :role_id)";
+                $roleStmt = $this->db->prepare($roleQuery);
+                foreach ($data['roles'] as $roleId) {
+                    $roleStmt->execute([':admission_id' => $admissionId, ':role_id' => $roleId]);
+                    error_log("submitAdmission: Assigned role_id=$roleId to admission_id=$admissionId");
+                }
+            }
+
+            // For Program Chair, store multiple departments
+            if (in_array(5, $data['roles']) && !empty($data['department_ids'])) {
+                $deptQuery = "INSERT INTO admission_departments (admission_id, department_id, is_primary) VALUES (:admission_id, :department_id, :is_primary)";
+                $deptStmt = $this->db->prepare($deptQuery);
+
+                foreach ($data['department_ids'] as $deptId) {
+                    $isPrimary = ($deptId == $data['department_id']) ? 1 : 0;
+                    $deptStmt->execute([
+                        ':admission_id' => $admissionId,
+                        ':department_id' => $deptId,
+                        ':is_primary' => $isPrimary
+                    ]);
+                }
+            }
+
+            $this->db->commit();
+
+            // Send notification email to admin
+            $this->sendAdmissionNotification($data);
+
+            $this->logAuthAction(null, 'admission_submitted', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $data['employee_id']);
+            return true;
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("Error during admission submission for employee_id {$data['employee_id']}: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Check if admission already exists
+     */
+    private function checkAdmissionExists($employeeId, $username, $email)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM admissions 
+            WHERE (employee_id = :employee_id OR username = :username OR email = :email) 
+            AND status = 'pending'
+        ");
+            $stmt->execute([
+                ':employee_id' => $employeeId,
+                ':username' => $username,
+                ':email' => $email
+            ]);
+            return $stmt->fetchColumn() > 0;
+        } catch (PDOException $e) {
+            error_log("Error checking admission existence: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send notification email to admin about new admission
+     */
+    private function sendAdmissionNotification($data)
+    {
+        try {
+            $emailService = new EmailService();
+            $adminEmails = $this->getAdminEmails();
+
+            $subject = "New User Admission Request - " . $data['employee_id'];
+            $message = "
+            A new user has submitted an admission request:\n\n
+            Name: {$data['first_name']} {$data['last_name']}\n
+            Employee ID: {$data['employee_id']}\n
+            Email: {$data['email']}\n
+            College: " . $this->getCollegeName($data['college_id']) . "\n
+            Department: " . $this->getDepartmentName($data['department_id']) . "\n
+            Roles: " . implode(', ', $this->getRoleNames($data['roles'])) . "\n\n
+            Please review and approve/reject this admission request in the admin panel.
+        ";
+
+            foreach ($adminEmails as $adminEmail) {
+                $emailService->sendEmail($adminEmail, $subject, $message);
+            }
+        } catch (Exception $e) {
+            error_log("Error sending admission notification: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get admin emails for notifications
+     */
+    private function getAdminEmails()
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT email FROM users u 
+            JOIN user_roles ur ON u.user_id = ur.user_id 
+            WHERE ur.role_id IN (1, 2) AND u.is_active = 1
+        ");
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_COLUMN);
+        } catch (PDOException $e) {
+            error_log("Error getting admin emails: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get college name by ID
+     */
+    private function getCollegeName($collegeId)
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT college_name FROM colleges WHERE college_id = :college_id");
+            $stmt->execute([':college_id' => $collegeId]);
+            return $stmt->fetchColumn() ?: 'Unknown College';
+        } catch (PDOException $e) {
+            error_log("Error getting college name: " . $e->getMessage());
+            return 'Unknown College';
+        }
+    }
+
+    /**
+     * Get department name by ID
+     */
+    private function getDepartmentName($departmentId)
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT department_name FROM departments WHERE department_id = :department_id");
+            $stmt->execute([':department_id' => $departmentId]);
+            return $stmt->fetchColumn() ?: 'Unknown Department';
+        } catch (PDOException $e) {
+            error_log("Error getting department name: " . $e->getMessage());
+            return 'Unknown Department';
+        }
+    }
+
+    /**
+     * Get role names by IDs
+     */
+    private function getRoleNames($roleIds)
+    {
+        try {
+            if (empty($roleIds)) return ['Unknown Role'];
+
+            $placeholders = str_repeat('?,', count($roleIds) - 1) . '?';
+            $stmt = $this->db->prepare("SELECT role_name FROM roles WHERE role_id IN ($placeholders)");
+            $stmt->execute($roleIds);
+            return $stmt->fetchAll(PDO::FETCH_COLUMN);
+        } catch (PDOException $e) {
+            error_log("Error getting role names: " . $e->getMessage());
+            return ['Unknown Role'];
+        }
+    }
+
     /**
      * Start a session for a user
      * @param array $user
