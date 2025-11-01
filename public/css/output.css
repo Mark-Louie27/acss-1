@@ -453,9 +453,6 @@
   .order-2 {
     order: 2;
   }
-  .col-span-2 {
-    grid-column: span 2 / span 2;
-  }
   .container {
     width: 100%;
     @media (width >= 40rem) {
@@ -707,6 +704,9 @@
   }
   .max-h-40 {
     max-height: calc(var(--spacing) * 40);
+  }
+  .max-h-48 {
+    max-height: calc(var(--spacing) * 48);
   }
   .max-h-60 {
     max-height: calc(var(--spacing) * 60);
@@ -1416,8 +1416,14 @@
   .border-yellow-500 {
     border-color: var(--color-yellow-500);
   }
+  .border-yellow-600 {
+    border-color: var(--color-yellow-600);
+  }
   .border-t-gray-900 {
     border-top-color: var(--color-gray-900);
+  }
+  .border-t-transparent {
+    border-top-color: transparent;
   }
   .bg-\[var\(--solid-green\)\] {
     background-color: var(--solid-green);
@@ -1886,9 +1892,6 @@
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
   }
-  .py-5 {
-    padding-block: calc(var(--spacing) * 5);
-  }
   .py-6 {
     padding-block: calc(var(--spacing) * 6);
   }
@@ -1918,9 +1921,6 @@
   }
   .pt-6 {
     padding-top: calc(var(--spacing) * 6);
-  }
-  .pt-8 {
-    padding-top: calc(var(--spacing) * 8);
   }
   .pt-20 {
     padding-top: calc(var(--spacing) * 20);
@@ -2572,11 +2572,6 @@
       background-color: var(--color-gray-50);
     }
   }
-  .file\:bg-indigo-50 {
-    &::file-selector-button {
-      background-color: var(--color-indigo-50);
-    }
-  }
   .file\:bg-yellow-50 {
     &::file-selector-button {
       background-color: var(--color-yellow-50);
@@ -2609,20 +2604,9 @@
       font-weight: var(--font-weight-medium);
     }
   }
-  .file\:font-semibold {
-    &::file-selector-button {
-      --tw-font-weight: var(--font-weight-semibold);
-      font-weight: var(--font-weight-semibold);
-    }
-  }
   .file\:text-gray-700 {
     &::file-selector-button {
       color: var(--color-gray-700);
-    }
-  }
-  .file\:text-indigo-700 {
-    &::file-selector-button {
-      color: var(--color-indigo-700);
     }
   }
   .file\:text-yellow-700 {
@@ -3172,13 +3156,6 @@
       }
     }
   }
-  .hover\:text-indigo-800 {
-    &:hover {
-      @media (hover: hover) {
-        color: var(--color-indigo-800);
-      }
-    }
-  }
   .hover\:text-orange-200 {
     &:hover {
       @media (hover: hover) {
@@ -3341,15 +3318,6 @@
       @media (hover: hover) {
         &::file-selector-button {
           background-color: var(--color-gray-100);
-        }
-      }
-    }
-  }
-  .hover\:file\:bg-indigo-100 {
-    &:hover {
-      @media (hover: hover) {
-        &::file-selector-button {
-          background-color: var(--color-indigo-100);
         }
       }
     }

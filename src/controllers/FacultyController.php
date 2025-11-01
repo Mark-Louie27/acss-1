@@ -23,16 +23,6 @@ class FacultyController
         $this->schedulingService = new SchedulingService($this->db);
     }
 
-    private function restrictToFaculty()
-    {
-        error_log("restrictToFaculty: Checking session - user_id: " . ($_SESSION['user_id'] ?? 'none') . ", role_id: " . ($_SESSION['role_id'] ?? 'none'));
-        if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_id']) || $_SESSION['role_id'] != 6) {
-            error_log("restrictToFaculty: Redirecting to login due to unauthorized access");
-            header('Location: /login?error=Unauthorized access');
-            exit;
-        }
-    }
-
     private function getFacultyId($userId)
     {
         $stmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
@@ -72,9 +62,10 @@ class FacultyController
             $pendingRequests = $pendingRequestsStmt->fetchColumn();
 
             $recentSchedulesStmt = $this->db->prepare("
-                  SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type
+                  SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, sec.section_name
                   FROM schedules s
                   JOIN courses c ON s.course_id = c.course_id
+                  LEFT JOIN sections sec ON s.section_id = sec.section_id
                   LEFT JOIN classrooms r ON s.room_id = r.room_id
                   WHERE s.faculty_id = :faculty_id
                   ORDER BY s.created_at DESC

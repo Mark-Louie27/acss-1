@@ -199,7 +199,7 @@ ob_start();
                 <div class="p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h3>
                     <div class="space-y-4">
-                       
+
 
                         <a href="/faculty/schedule"
                             class="w-full bg-yellow-500 hover:bg-yellow-200 text-yellow-700 px-4 py-3 rounded-lg transition duration-200 flex items-center justify-center font-medium hover-lift">
@@ -247,7 +247,7 @@ ob_start();
                         </div>
                         <h3 class="text-lg font-medium text-gray-900 mb-2">No schedules assigned</h3>
                         <p class="text-gray-500 mb-6">You don't have any teaching schedules assigned yet.</p>
-                        
+
                     </div>
                 <?php else: ?>
                     <table class="min-w-full divide-y divide-gray-200">
@@ -255,6 +255,7 @@ ob_start();
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Code</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
@@ -281,6 +282,12 @@ ob_start();
                                             <div class="text-sm font-medium text-gray-900">
                                                 <?php echo htmlspecialchars($schedule['course_name']); ?>
                                             </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center text-sm text-gray-900">
+                                            <i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>
+                                            <?php echo htmlspecialchars($schedule['section_name']); ?>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">

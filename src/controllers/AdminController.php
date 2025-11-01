@@ -80,11 +80,44 @@ class AdminController
             $semestersStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters ORDER BY start_date DESC");
             $semesters = $semestersStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Handle semester set form submission (your existing code)
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_semester'])) {
-                // ... your existing semester handling code
+                $semesterName = filter_var(trim($_POST['semester_name'] ?? ''), FILTER_DEFAULT);
+                $academicYear = filter_var(trim($_POST['academic_year'] ?? ''), FILTER_DEFAULT);
+                if (in_array($semesterName, ['1st', '2nd', 'Mid Year']) && preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
+                    list($yearStart, $yearEnd) = explode('-', $academicYear);
+                    $startDate = "$yearStart-06-01";
+                    $endDate = "$yearEnd-05-31";
+                    // Deactivate all semesters
+                    $this->db->exec("UPDATE semesters SET is_current = 0");
+                    // Check if semester exists, update or insert
+                    $checkStmt = $this->db->prepare("SELECT semester_id FROM semesters WHERE semester_name = :semester_name AND academic_year = :academic_year");
+                    $checkStmt->execute([':semester_name' => $semesterName, ':academic_year' => $academicYear]);
+                    $existingSemester = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($existingSemester) {
+                        $updateStmt = $this->db->prepare("UPDATE semesters SET is_current = 1, start_date = :start_date, end_date = :end_date WHERE semester_id = :semester_id");
+                        $updateStmt->execute([
+                            ':semester_id' => $existingSemester['semester_id'],
+                            ':start_date' => $startDate,
+                            ':end_date' => $endDate
+                        ]);
+                    } else {
+                        $insertStmt = $this->db->prepare("INSERT INTO semesters (semester_name, academic_year, year_start, year_end, start_date, end_date, is_current) VALUES (:semester_name, :academic_year, :year_start, :year_end, :start_date, :end_date, 1)");
+                        $insertStmt->execute([
+                            ':semester_name' => $semesterName,
+                            ':academic_year' => $academicYear,
+                            ':year_start' => $yearStart,
+                            ':year_end' => $yearEnd,
+                            ':start_date' => $startDate,
+                            ':end_date' => $endDate
+                        ]);
+                    }
+                    $_SESSION['success'] = 'Semester updated successfully.';
+                    header('Location: /admin/dashboard');
+                    exit;
+                } else {
+                    $_SESSION['error'] = 'Invalid semester or year format. Use YYYY-YYYY (e.g., 2024-2025).';
+                }
             }
-
             $controller = $this;
             require_once __DIR__ . '/../views/admin/dashboard.php';
         } catch (PDOException $e) {
@@ -509,13 +542,20 @@ class AdminController
     public function manageUsers()
     {
         try {
+            // Handle POST requests first (API calls)
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $this->handleUserApiRequest();
+                return; // Stop execution after handling API request
+            }
+
+            // For GET requests, show the HTML page
             $action = $_GET['action'] ?? 'list';
             $userId = $_GET['user_id'] ?? null;
             $csrfToken = $this->authService->generateCsrfToken();
 
-            // Fetch common data
+            // Fetch common data for the view
             $usersStmt = $this->db->query("
-            SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email, u.profile_picture, u.phone,                    -- ADD THIS
+            SELECT u.user_id, u.employee_id, u.title, u.username, u.first_name, u.middle_name, u.last_name, u.suffix, u.is_active, u.email, u.profile_picture, u.phone,
                 u.created_at, r.role_name, c.college_id, c.college_name, d.department_id, d.department_name, f.academic_rank, f.employment_type, f.classification, bachelor_degree,
                 f.master_degree, f.doctorate_degree, f.post_doctorate_degree, f.designation, 
                 cd.department_id as chair_department_id,
@@ -530,14 +570,14 @@ class AdminController
             LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
             LEFT JOIN department_instructors di ON u.user_id = di.user_id AND di.is_current = 1
             ORDER BY u.first_name, u.last_name
-            ");
+        ");
             $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $roles = $this->db->query("SELECT role_id, role_name FROM roles ORDER BY role_name")->fetchAll(PDO::FETCH_ASSOC);
             $colleges = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name")->fetchAll(PDO::FETCH_ASSOC);
             $departments = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name")->fetchAll(PDO::FETCH_ASSOC);
             $programs = $this->db->query("SELECT program_id, program_name, department_id FROM programs ORDER BY program_name")->fetchAll(PDO::FETCH_ASSOC);
-            // FIX: Populate the enum data properly
+
             $titles = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.', 'Engr.', 'Atty.'];
             $academicRanks = [
                 'Instructor I',
@@ -561,50 +601,12 @@ class AdminController
             ];
             $employmentTypes = ['Regular', 'Contractual', 'Part-time', 'Full-time'];
             $classifications = ['TL', 'VSL'];
-        
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
-                    header('Location: /admin/users');
-                    exit;
-                }
-
-                $this->db->beginTransaction();
-
-                try {
-                    $data = $_POST;
-                    $data['user_id'] = $userId;
-
-                    if ($action === 'add') {
-                        $result = $this->addNewUser($data);
-                    } else {
-                        $result = $this->handleUserAction($data);
-                    }
-
-                    $this->db->commit();
-                    $_SESSION['flash'] = ['type' => $result['success'] ? 'success' : 'error', 'message' => $result['message'] ?? $result['error']];
-
-                    header('Content-Type: application/json');
-                    echo json_encode($result);
-                    exit;
-                } catch (PDOException $e) {
-                    $this->db->rollBack();
-                    error_log("User action error ($action): " . $e->getMessage());
-                    $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to process user action'];
-                    header('Content-Type: application/json');
-                    echo json_encode(['success' => false, 'message' => 'Database error occurred']);
-                    exit;
-                }
-            }
 
             // Group departments by college for the form
             $departmentsByCollege = [];
             foreach ($departments as $dept) {
                 $departmentsByCollege[$dept['college_id']][] = $dept;
             }
-
-            // In your manageUsers() function, before requiring the view:
-            $controller = $this;
 
             // Pass all data to the view
             $viewData = [
@@ -622,12 +624,15 @@ class AdminController
             ];
 
             extract($viewData);
-    
             require_once __DIR__ . '/../views/admin/users.php';
         } catch (PDOException $e) {
             error_log("Manage users error: " . $e->getMessage());
             http_response_code(500);
-            echo "Server error";
+            echo "Server error: " . $e->getMessage();
+        } catch (Exception $e) {
+            error_log("Manage users general error: " . $e->getMessage());
+            http_response_code(500);
+            echo "Server error: " . $e->getMessage();
         }
     }
 
@@ -642,9 +647,20 @@ class AdminController
                 }
             }
 
+            // Validate password
+            if (empty($data['temporary_password']) || strlen($data['temporary_password']) < 6) {
+                return ['success' => false, 'error' => 'Password must be at least 6 characters'];
+            }
+
+            // Validate email
+            if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                return ['success' => false, 'error' => 'Valid email is required'];
+            }
+
             // Check for existing user
             $checkStmt = $this->db->prepare("
-            SELECT user_id FROM users WHERE username = :username OR email = :email OR employee_id = :employee_id
+            SELECT user_id FROM users 
+            WHERE username = :username OR email = :email OR employee_id = :employee_id
         ");
             $checkStmt->execute([
                 ':username' => $data['username'],
@@ -656,8 +672,25 @@ class AdminController
                 return ['success' => false, 'error' => 'Username, email, or employee ID already exists'];
             }
 
-            // Generate temporary password
-            // Hash the generated password
+            // Handle department IDs - can be multiple for Program Chair
+            $departmentIds = [];
+            $primaryDepartmentId = intval($data['department_id'] ?? 0);
+
+            if (isset($data['department_ids']) && is_array($data['department_ids'])) {
+                // Multiple departments selected (Program Chair)
+                $departmentIds = array_map('intval', $data['department_ids']);
+                $primaryDepartmentId = intval($data['primary_department_id'] ?? 0);
+
+                // If no primary set, use first one
+                if ($primaryDepartmentId === 0 && !empty($departmentIds)) {
+                    $primaryDepartmentId = $departmentIds[0];
+                }
+            } else {
+                // Single department
+                $departmentIds = [$primaryDepartmentId];
+            }
+
+            // Hash the password
             $passwordHash = password_hash($data['temporary_password'], PASSWORD_DEFAULT);
 
             // Start transaction
@@ -670,9 +703,13 @@ class AdminController
                 last_name, suffix, role_id, college_id, department_id, is_active, created_at, updated_at
             ) VALUES (
                 :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
-                :last_name, :suffix, :role_id, :college_id, :department_id, 1, NOW(), NOW()
+                :last_name, :suffix, :role_id, :college_id, :department_id, :is_active, NOW(), NOW()
             )
         ");
+
+            // Determine if user should be auto-activated
+            $roleId = intval($data['role_id']);
+            $isActive = in_array($roleId, [1, 2, 4, 5]) ? 1 : 0; // Admin, Super Admin, Dean, Dept Chair = auto-active
 
             $userData = [
                 ':employee_id' => $data['employee_id'],
@@ -685,9 +722,10 @@ class AdminController
                 ':middle_name' => $data['middle_name'] ?? null,
                 ':last_name' => $data['last_name'],
                 ':suffix' => $data['suffix'] ?? null,
-                ':role_id' => $data['role_id'],
+                ':role_id' => $roleId,
                 ':college_id' => !empty($data['college_id']) ? $data['college_id'] : null,
-                ':department_id' => !empty($data['department_id']) ? $data['department_id'] : null
+                ':department_id' => $primaryDepartmentId > 0 ? $primaryDepartmentId : null,
+                ':is_active' => $isActive
             ];
 
             $stmt->execute($userData);
@@ -741,29 +779,35 @@ class AdminController
             $facultyStmt->execute($facultyData);
 
             // Handle role-specific assignments
-            $this->handleRoleSpecificAssignments($newUserId, $data);
+            $this->handleRoleSpecificAssignments($newUserId, array_merge($data, [
+                'user_id' => $newUserId,
+                'department_ids' => $departmentIds,
+                'department_id' => $primaryDepartmentId
+            ]));
 
             // Commit transaction
             $this->db->commit();
 
-            // Send welcome email (optional)
-            if (isset($data['send_welcome_email']) && $data['send_welcome_email']) {
-                $this->emailService->getWelcomeEmailTemplate(
-                    $data['email'],
-                    $data['first_name'],
-                    $data['employee_id'],
-                    $data['temporary_password']
-                );
-            }
+            // Send welcome email
+            $this->emailService->getWelcomeEmailTemplate(
+                $data['email'],
+                $data['first_name'],
+                $data['username'],
+                $data['temporary_password']
+            );
 
             return [
                 'success' => true,
                 'message' => 'User added successfully',
                 'user_id' => $newUserId,
+                'temporary_password' => $data['temporary_password'],
+                'username' => $data['username']
             ];
         } catch (Exception $e) {
             // Rollback transaction on error
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log("addNewUser error: " . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to add user: ' . $e->getMessage()];
         }
@@ -771,21 +815,75 @@ class AdminController
 
     private function handleRoleSpecificAssignments($userId, $data)
     {
-        $roleId = $data['role_id'];
+        $roleId = intval($data['role_id']);
 
-        switch ($roleId) {
-            case 3: //d.1
-                $this->UserModel->addDepartmentInstructor($data);
-                break;
-            case 4: //dean
-                $this->UserModel->addDean($data);
-                break;
-            case 5: //program chair
-                $this->UserModel->addProgramChair($data);
-                break;
-            case 6: //faculty
-                $this->UserModel->addFaculty($data);
-                break;
+        try {
+            switch ($roleId) {
+                case 3: // Department Instructor
+                    if (!empty($data['department_id'])) {
+                        $stmt = $this->db->prepare("
+                        INSERT INTO department_instructors (user_id, department_id, is_current, created_at) 
+                        VALUES (:user_id, :department_id, 1, NOW())
+                    ");
+                        $stmt->execute([
+                            ':user_id' => $userId,
+                            ':department_id' => $data['department_id']
+                        ]);
+                    }
+                    break;
+
+                case 4: // Dean
+                    if (!empty($data['college_id'])) {
+                        $stmt = $this->db->prepare("
+                        INSERT INTO deans (user_id, college_id, is_current, created_at) 
+                        VALUES (:user_id, :college_id, 1, NOW())
+                    ");
+                        $stmt->execute([
+                            ':user_id' => $userId,
+                            ':college_id' => $data['college_id']
+                        ]);
+                    }
+                    break;
+
+                case 5: // Program Chair (can have multiple departments)
+                    if (!empty($data['department_ids']) && is_array($data['department_ids'])) {
+                        $primaryDeptId = intval($data['department_id'] ?? $data['department_ids'][0]);
+
+                        foreach ($data['department_ids'] as $deptId) {
+                            $deptId = intval($deptId);
+                            $isPrimary = ($deptId === $primaryDeptId) ? 1 : 0;
+
+                            $stmt = $this->db->prepare("
+                            INSERT INTO chair_departments (user_id, department_id, is_primary, created_at) 
+                            VALUES (:user_id, :department_id, :is_primary, NOW())
+                        ");
+                            $stmt->execute([
+                                ':user_id' => $userId,
+                                ':department_id' => $deptId,
+                                ':is_primary' => $isPrimary
+                            ]);
+                        }
+                    } elseif (!empty($data['department_id'])) {
+                        // Single department fallback
+                        $stmt = $this->db->prepare("
+                        INSERT INTO chair_departments (user_id, department_id, is_primary, created_at) 
+                        VALUES (:user_id, :department_id, 1, NOW())
+                    ");
+                        $stmt->execute([
+                            ':user_id' => $userId,
+                            ':department_id' => $data['department_id']
+                        ]);
+                    }
+                    break;
+
+                case 6: // Faculty
+                    // Faculty data already inserted in main faculty table
+                    // Additional faculty-specific logic can be added here if needed
+                    break;
+            }
+        } catch (Exception $e) {
+            error_log("handleRoleSpecificAssignments error for role $roleId: " . $e->getMessage());
+            throw $e; // Re-throw to trigger rollback
         }
     }
 
@@ -821,34 +919,54 @@ class AdminController
     public function resetUserPassword($userId)
     {
         try {
-            $stmt = $this->db->prepare("SELECT username, email FROM users WHERE user_id = :user_id");
+            error_log("=== PASSWORD RESET DEBUG ===");
+            error_log("User ID: " . $userId);
+
+            $stmt = $this->db->prepare("SELECT username, email, employee_id FROM users WHERE user_id = :user_id");
             $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
+                error_log("User not found");
                 return ['success' => false, 'error' => 'User not found'];
             }
 
+            error_log("Found user: " . $user['username'] . " (Employee ID: " . $user['employee_id'] . ")");
+
             $temporaryPassword = $this->generateTemporaryPassword();
+            error_log("Generated temporary password: " . $temporaryPassword);
+
             $passwordHash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
+            error_log("Password hash: " . $passwordHash);
+
+            // Verify the hash works
+            $passwordVerify = password_verify($temporaryPassword, $passwordHash);
+            error_log("Password verify result: " . ($passwordVerify ? 'SUCCESS' : 'FAILED'));
 
             $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash WHERE user_id = :user_id");
-            $updateStmt->execute([
+            $result = $updateStmt->execute([
                 ':password_hash' => $passwordHash,
                 ':user_id' => $userId
             ]);
 
-            // Store for one-time display
-            $_SESSION['temp_passwords'][$userId] = [
-                'password' => $temporaryPassword,
-                'username' => $user['username'],
-                'timestamp' => time()
-            ];
+            error_log("Database update result: " . ($result ? 'SUCCESS' : 'FAILED'));
+            error_log("Rows affected: " . $updateStmt->rowCount());
+
+            // Verify the stored hash
+            $verifyStmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
+            $verifyStmt->execute([':user_id' => $userId]);
+            $storedHash = $verifyStmt->fetchColumn();
+
+            error_log("Stored hash in DB: " . $storedHash);
+            error_log("Verify stored hash: " . (password_verify($temporaryPassword, $storedHash) ? 'SUCCESS' : 'FAILED'));
+            error_log("=== END DEBUG ===");
 
             return [
                 'success' => true,
                 'message' => 'Password reset successfully',
                 'user_id' => $userId,
+                'username' => $user['username'],
+                'employee_id' => $user['employee_id'], // Add this for debugging
                 'temporary_password' => $temporaryPassword
             ];
         } catch (Exception $e) {
@@ -857,13 +975,72 @@ class AdminController
         }
     }
 
+    private function handleUserApiRequest()
+    {
+        // Clear any previous output
+        while (ob_get_level()) ob_end_clean();
+
+        header('Content-Type: application/json');
+
+        try {
+            // Get action from POST or GET
+            $action = $_POST['action'] ?? $_GET['action'] ?? '';
+            $userId = $_POST['user_id'] ?? $_GET['user_id'] ?? null;
+
+            error_log("API Request - Action: $action, User ID: $userId");
+
+            // Verify CSRF token
+            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']);
+                exit;
+            }
+
+            // Validate action
+            if (empty($action)) {
+                echo json_encode(['success' => false, 'error' => 'No action specified']);
+                exit;
+            }
+
+            $this->db->beginTransaction();
+
+            $data = $_POST;
+            $data['user_id'] = $userId;
+            $data['action'] = $action;
+
+            if ($action === 'add') {
+                $result = $this->addNewUser($data);
+            } else {
+                $result = $this->handleUserAction($data);
+            }
+
+            $this->db->commit();
+            echo json_encode($result);
+            exit;
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            error_log("User API error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Database error occurred']);
+            exit;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("User API error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'An error occurred: ' . $e->getMessage()]);
+            exit;
+        }
+    }
+
     private function handleUserAction($data)
     {
-        $userId = filter_var($data['user_id'], FILTER_VALIDATE_INT);
+        // Check if action exists
+        if (!isset($data['action'])) {
+            return ['success' => false, 'error' => 'No action specified'];
+        }
+
+        $userId = isset($data['user_id']) ? filter_var($data['user_id'], FILTER_VALIDATE_INT) : null;
         $action = $data['action'];
 
         if (!$userId) {
-            error_log("handleUserAction: Invalid user_id=$userId");
+            error_log("handleUserAction: Invalid user_id=" . ($data['user_id'] ?? 'null'));
             return ['success' => false, 'error' => 'Invalid user ID'];
         }
 
@@ -872,12 +1049,12 @@ class AdminController
             return $this->resetUserPassword($userId);
         }
 
-        // Fetch user details including college_id and department_id
+        // Fetch user details
         $stmt = $this->db->prepare("
         SELECT college_id, department_id, email, first_name, last_name, role_id
         FROM users
         WHERE user_id = :user_id
-        ");
+    ");
         $stmt->execute([':user_id' => $userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -886,9 +1063,6 @@ class AdminController
             return ['success' => false, 'error' => 'User not found'];
         }
 
-        $collegeId = $user['college_id'] ?: null;
-        $departmentId = $user['department_id'] ?: null;
-
         try {
             $this->db->beginTransaction();
 
@@ -896,13 +1070,11 @@ class AdminController
                 $query = "UPDATE users SET is_active = 0 WHERE user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId]);
-                error_log("handleUserAction: Deactivated user_id=$userId");
                 $message = 'User account deactivated successfully';
             } elseif ($action === 'activate') {
                 $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId]);
-                error_log("handleUserAction: Activated user_id=$userId");
 
                 // Fetch role name for email
                 $roleStmt = $this->db->prepare("SELECT role_name FROM roles WHERE role_id = :role_id");
@@ -915,13 +1087,10 @@ class AdminController
                         $user['first_name'] . ' ' . $user['last_name'],
                         $role
                     );
-                    error_log("handleUserAction: Approval email sent to {$user['email']}");
-                } else {
-                    error_log("handleUserAction: Failed to send email for user_id=$userId");
                 }
                 $message = 'User account activated successfully';
             } else {
-                throw new Exception("Invalid action: $action");
+                return ['success' => false, 'error' => "Invalid action: $action"];
             }
 
             $this->db->commit();
