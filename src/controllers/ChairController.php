@@ -2747,9 +2747,7 @@ class ChairController extends BaseController
                     break;
                 }
             }
-
-            // Log final faculty assignment distribution
-            error_log("generateSchedules: Final faculty assignment distribution:");
+            
             foreach ($facultyAssignments as $facultyId => $assignments) {
                 if (is_array($assignments)) {
                     $totalUnits = array_sum(array_column($assignments, 'units'));
@@ -4918,8 +4916,7 @@ class ChairController extends BaseController
         error_log("getFacultySpecializations called: dept=$departmentId, college=$collegeId, semester=$semesterType");
 
         try {
-            // Query: Get faculty assigned to the target department via faculty_departments
-            // Include college_id check to detect external faculty
+            // Query: Only get faculty explicitly assigned to the target department via faculty_departments with is_primary = 1
             $stmt = $this->db->prepare("
             SELECT DISTINCT
                 f.faculty_id,
@@ -4930,32 +4927,23 @@ class ChairController extends BaseController
                 f.max_hours,
                 f.academic_rank,
                 f.employment_type,
-                fd.is_primary as is_department_primary,
-                fd.department_id as assigned_department_id,
-                CASE 
-                    WHEN u.college_id != :college_id THEN 1
-                    ELSE 0
-                END as is_external_college
+                fd.is_primary as is_department_primary
             FROM faculty f
             JOIN users u ON f.user_id = u.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
             WHERE fd.department_id = :department_id
-            AND (fd.is_active = 1 OR fd.is_active IS NULL)
-            AND u.is_active = 1
+            AND fd.is_primary = 1
             ORDER BY f.faculty_id
         ");
 
-            $stmt->execute([
-                ':department_id' => $departmentId,
-                ':college_id' => $collegeId
-            ]);
+            $stmt->execute([':department_id' => $departmentId]);
 
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            error_log("QUERY: Found " . count($results) . " faculty for department $departmentId");
+            error_log("QUERY: Found " . count($results) . " faculty for department $departmentId in faculty_departments with is_primary=1");
 
             if (empty($results)) {
-                error_log("WARNING: No faculty found for department $departmentId in faculty_departments");
+                error_log("WARNING: No faculty found for department $departmentId in faculty_departments with is_primary=1");
                 return [];
             }
 
@@ -4963,7 +4951,6 @@ class ChairController extends BaseController
 
             foreach ($results as $row) {
                 $facultyId = $row['faculty_id'];
-                $isExternalCollege = (bool)$row['is_external_college'];
 
                 // Get specializations for this faculty
                 $specStmt = $this->db->prepare("SELECT course_id FROM specializations WHERE faculty_id = :faculty_id");
@@ -4974,61 +4961,31 @@ class ChairController extends BaseController
                 $deptStmt = $this->db->prepare("
                 SELECT department_id, is_primary 
                 FROM faculty_departments 
-                WHERE faculty_id = :faculty_id
-                AND (is_active = 1 OR is_active IS NULL)
-            ");
+                WHERE faculty_id = :faculty_id");
                 $deptStmt->execute([':faculty_id' => $facultyId]);
                 $deptAssignments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
 
                 $assignedDepts = array_column($deptAssignments, 'department_id');
                 $primaryDepts = array_column(array_filter($deptAssignments, fn($a) => $a['is_primary'] == 1), 'department_id');
 
-                // ✅ NEW: Determine faculty type based on college and department
-                $facultyType = 'INTERNAL'; // Default
-                $facultySource = '';
-
-                if ($isExternalCollege) {
-                    $facultyType = 'EXTERNAL_COLLEGE';
-                    $facultySource = "Faculty from College {$row['user_college_id']} (External)";
-                    error_log("🌐 Faculty $facultyId ({$row['faculty_name']}) is from EXTERNAL COLLEGE {$row['user_college_id']} (Current: $collegeId)");
-                } elseif ($row['user_department_id'] != $departmentId) {
-                    $facultyType = 'EXTERNAL_DEPARTMENT';
-                    $facultySource = "Faculty from Department {$row['user_department_id']} (Same College)";
-                    error_log("🏢 Faculty $facultyId ({$row['faculty_name']}) is from EXTERNAL DEPARTMENT {$row['user_department_id']} (Current: $departmentId)");
-                } else {
-                    $facultyType = 'INTERNAL';
-                    $facultySource = "Faculty from Department {$departmentId} (Primary)";
-                    error_log("✅ Faculty $facultyId ({$row['faculty_name']}) is INTERNAL to department $departmentId");
-                }
-
                 // Business Rules:
-                // 1. Can teach Professional Courses if:
-                //    - Assigned to this department (via faculty_departments) AND
-                //    - From the SAME college (not external college)
-                $canTeachProfessional = in_array($departmentId, $assignedDepts) && !$isExternalCollege;
+                // 1. Can teach Professional Courses if assigned to this department (via faculty_departments)
+                $canTeachProfessional = in_array($departmentId, $assignedDepts);
 
                 // 2. Can teach General Education if:
-                //    - External college faculty (from different college), OR
-                //    - External department faculty (same college, different dept), OR
-                //    - Not primary department faculty, OR
+                //    - Not the primary department (external faculty), OR
                 //    - VSL faculty during midyear/summer
                 $canTeachGeneral = false;
                 $isMidYearSummer = in_array(strtolower($semesterType), ['midyear', 'summer', 'mid-year', 'mid year', '3rd']);
 
-                if ($isExternalCollege) {
+                if ($isMidYearSummer && ($row['classification'] === 'VSL' || $row['classification'] === null)) {
                     $canTeachGeneral = true;
-                    error_log("✅ Faculty $facultyId can teach General Education (External College: {$row['user_college_id']})");
-                } elseif ($row['user_department_id'] != $departmentId) {
+                    error_log("Faculty $facultyId can teach General Education (VSL during midyear/summer)");
+                } elseif ($row['is_department_primary'] == 0 || $row['user_department_id'] != $departmentId) {
                     $canTeachGeneral = true;
-                    error_log("✅ Faculty $facultyId can teach General Education (External Department: {$row['user_department_id']})");
-                } elseif ($isMidYearSummer && ($row['classification'] === 'VSL' || $row['classification'] === null)) {
-                    $canTeachGeneral = true;
-                    error_log("✅ Faculty $facultyId can teach General Education (VSL during midyear/summer)");
-                } elseif ($row['is_department_primary'] == 0 || !in_array($departmentId, $primaryDepts)) {
-                    $canTeachGeneral = true;
-                    error_log("✅ Faculty $facultyId can teach General Education (Not primary department)");
+                    error_log("Faculty $facultyId can teach General Education (external faculty)");
                 } else {
-                    error_log("❌ Faculty $facultyId CANNOT teach General Education (Internal primary faculty during regular semester)");
+                    error_log("Faculty $facultyId CANNOT teach General Education (primary department faculty during regular semester)");
                 }
 
                 // Build subject types array
@@ -5050,9 +5007,7 @@ class ChairController extends BaseController
                     'specializations' => $specializations,
                     'department_source' => 'FACULTY_DEPARTMENTS',
                     'is_department_primary' => (bool)$row['is_department_primary'],
-                    'is_external_college' => $isExternalCollege,
-                    'faculty_type' => $facultyType,
-                    'faculty_source' => $facultySource,
+                    'faculty_type' => $canTeachProfessional ? 'DEPARTMENT_FACULTY' : 'EXTERNAL_FACULTY',
                     'can_teach_professional' => $canTeachProfessional,
                     'can_teach_general' => $canTeachGeneral,
                     'subject_types' => $subjectTypes
@@ -5062,40 +5017,27 @@ class ChairController extends BaseController
                 if ($canTeachProfessional) $teachingCapabilities[] = 'Professional';
                 if ($canTeachGeneral) $teachingCapabilities[] = 'General Ed';
 
-                error_log("📋 Added faculty: {$row['faculty_name']} (ID: $facultyId) - Type: $facultyType - Source: $facultySource - Can teach: " .
+                error_log("Added faculty: {$row['faculty_name']} (ID: $facultyId) - Source: FACULTY_DEPARTMENTS - Primary: {$row['is_department_primary']} - Can teach: " .
                     (empty($teachingCapabilities) ? 'NONE' : implode(', ', $teachingCapabilities)));
             }
 
-            // Log summary with college information
+            // Log summary
             $professionalCount = count(array_filter($facultyProfiles, fn($f) => $f['can_teach_professional']));
             $generalCount = count(array_filter($facultyProfiles, fn($f) => $f['can_teach_general']));
             $primaryCount = count(array_filter($facultyProfiles, fn($f) => $f['is_department_primary']));
-            $externalCollegeCount = count(array_filter($facultyProfiles, fn($f) => $f['is_external_college']));
-            $externalDeptCount = count(array_filter($facultyProfiles, fn($f) => $f['faculty_type'] === 'EXTERNAL_DEPARTMENT'));
-            $internalCount = count(array_filter($facultyProfiles, fn($f) => $f['faculty_type'] === 'INTERNAL'));
 
-            error_log("═══════════════════════════════════════════════");
-            error_log("Faculty Summary for Department $departmentId (College $collegeId):");
-            error_log("───────────────────────────────────────────────");
-            error_log("Faculty Types:");
-            error_log("  - Internal (same dept): $internalCount");
-            error_log("  - External department (same college): $externalDeptCount");
-            error_log("  - External college: $externalCollegeCount");
-            error_log("───────────────────────────────────────────────");
-            error_log("Teaching Capabilities:");
-            error_log("  - Professional Course teachers: $professionalCount");
-            error_log("  - General Education teachers: $generalCount");
-            error_log("  - Primary department faculty: $primaryCount");
-            error_log("───────────────────────────────────────────────");
-            error_log("Total faculty: " . count($facultyProfiles));
-            error_log("═══════════════════════════════════════════════");
+            error_log("Faculty breakdown:");
+            error_log("- Professional Course teachers: $professionalCount");
+            error_log("- General Education teachers: $generalCount");
+            error_log("- Primary department faculty: $primaryCount");
+            error_log("- Total faculty: " . count($facultyProfiles));
 
             return $facultyProfiles;
         } catch (PDOException $e) {
-            error_log("❌ getFacultySpecializations PDO error: " . $e->getMessage());
+            error_log("getFacultySpecializations PDO error: " . $e->getMessage());
             return [];
         } catch (Exception $e) {
-            error_log("❌ getFacultySpecializations error: " . $e->getMessage());
+            error_log("getFacultySpecializations error: " . $e->getMessage());
             return [];
         }
     }
@@ -8367,7 +8309,7 @@ class ChairController extends BaseController
 
                         $this->db->beginTransaction();
 
-                        $checkStmt = $this->db->prepare("SELECT u.role_id, u.department_id, u.employee_id FROM users u WHERE u.user_id = :user_id");
+                        $checkStmt = $this->db->prepare("SELECT u.role_id, u.department_id, u.college_id, u.employee_id FROM users u WHERE u.user_id = :user_id");
                         $checkStmt->execute([':user_id' => $userId]);
                         $user = $checkStmt->fetch(PDO::FETCH_ASSOC);
                         error_log("faculty: User check for user_id=$userId: " . print_r($user, true));
@@ -8457,6 +8399,9 @@ class ChairController extends BaseController
                         $hasPrimary = $primaryCheckStmt->fetchColumn() > 0;
                         error_log("faculty: Has primary dept for faculty_id=$facultyId: " . ($hasPrimary ? 'Yes' : 'No'));
 
+
+                        $isPrimary = !$hasPrimary;
+
                         $insertDeptStmt = $this->db->prepare("
                         INSERT INTO faculty_departments (
                             faculty_id, 
@@ -8470,22 +8415,12 @@ class ChairController extends BaseController
                         $insertDeptStmt->execute([
                             ':faculty_id' => $facultyId,
                             ':department_id' => $departmentId,
-                            ':is_primary' => $hasPrimary ? 0 : 1
+                            ':is_primary' => $isPrimary
                         ]);
-                        error_log("faculty: Inserted into faculty_departments for faculty_id=$facultyId, department_id=$departmentId, is_primary=" . ($hasPrimary ? 0 : 1));
 
-                        if (!$hasPrimary) {
-                            $updateStmt = $this->db->prepare("
-                            UPDATE users 
-                            SET department_id = :department_id, college_id = :college_id 
-                            WHERE user_id = :user_id");
-                            $updateStmt->execute([
-                                ':department_id' => $departmentId,
-                                ':college_id' => $collegeId,
-                                ':user_id' => $userId
-                            ]);
-                            error_log("faculty: Updated users for user_id=$userId, department_id=$departmentId, college_id=$collegeId");
-                        }
+                        // ✅ NO UPDATES to users.department_id or users.college_id
+                        error_log("faculty: Added faculty_department assignment - faculty_id=$facultyId, department_id=$departmentId, is_primary=$isPrimary");
+                        error_log("faculty: User's original department_id: {$user['department_id']}, college_id: {$user['college_id']} preserved");
 
                         $this->db->commit();
                         $faculty = $fetchFaculty($collegeId, $departmentId); // Refresh faculty list
@@ -8495,7 +8430,7 @@ class ChairController extends BaseController
                             'faculty' => $faculty
                         ];
                         $this->logActivity($chairId, $departmentId, 'Add Faculty', "Added faculty username=" . $_SESSION['username'] . " to department_id=$departmentId", 'faculty_departments', $this->db->lastInsertId());
-                        error_log("faculty: Added user_id=$userId to department_id=$departmentId, faculty_id=$facultyId, is_primary=" . ($hasPrimary ? 0 : 1));
+                        error_log("faculty: Added user_id=$userId to department_id=$departmentId, faculty_id=$facultyId, is_primary=$isPrimary");
                     } catch (PDOException | Exception $e) {
                         $this->db->rollBack();
                         $response = [
@@ -8549,75 +8484,40 @@ class ChairController extends BaseController
                         ]);
 
                         if ($deptInfo['is_primary']) {
-                            $updateStmt = $this->db->prepare("
-                            UPDATE users 
-                            SET department_id = NULL 
-                            WHERE user_id = :user_id");
-                            $updateStmt->execute([':user_id' => $userId]);
-
+                            // ✅ Only handle faculty_departments, don't touch users table
                             $newPrimaryStmt = $this->db->prepare("
                             SELECT department_id 
                             FROM faculty_departments 
                             WHERE faculty_id = :faculty_id 
+                            AND faculty_department_id != :current_dept_id
                             LIMIT 1");
-                            $newPrimaryStmt->execute([':faculty_id' => $facultyId]);
+                            $newPrimaryStmt->execute([
+                                ':faculty_id' => $facultyId,
+                                ':current_dept_id' => $deptInfo['faculty_department_id']
+                            ]);
                             $newPrimaryDept = $newPrimaryStmt->fetchColumn();
 
                             if ($newPrimaryDept) {
                                 $updateDeptStmt = $this->db->prepare("
-                                UPDATE faculty_departments 
-                                SET is_primary = 1 
-                                WHERE faculty_id = :faculty_id AND department_id = :department_id");
+                                    UPDATE faculty_departments 
+                                    SET is_primary = 1 
+                                    WHERE faculty_id = :faculty_id AND department_id = :department_id");
                                 $updateDeptStmt->execute([
                                     ':faculty_id' => $facultyId,
                                     ':department_id' => $newPrimaryDept
                                 ]);
-
-                                $collegeStmt = $this->db->prepare("
-                                SELECT college_id 
-                                FROM departments 
-                                WHERE department_id = :department_id");
-                                $collegeStmt->execute([':department_id' => $newPrimaryDept]);
-                                $newCollegeId = $collegeStmt->fetchColumn();
-
-                                if ($newCollegeId) {
-                                    $updateUserStmt = $this->db->prepare("
-                                    UPDATE users 
-                                    SET department_id = :department_id, college_id = :college_id 
-                                    WHERE user_id = :user_id");
-                                    $updateUserStmt->execute([
-                                        ':department_id' => $newPrimaryDept,
-                                        ':college_id' => $newCollegeId,
-                                        ':user_id' => $userId
-                                    ]);
-                                } else {
-                                    error_log("faculty: No college_id found for new primary department $newPrimaryDept");
-                                    throw new Exception("Failed to determine new college for faculty.");
-                                }
-                            } else {
-                                error_log("faculty: No new primary department found for faculty_id=$facultyId");
-                                $currentCollegeStmt = $this->db->prepare("SELECT college_id FROM users WHERE user_id = :user_id");
-                                $currentCollegeStmt->execute([':user_id' => $userId]);
-                                $currentCollegeId = $currentCollegeStmt->fetchColumn();
-                                if ($currentCollegeId) {
-                                    $updateUserStmt = $this->db->prepare("
-                                    UPDATE users 
-                                    SET department_id = NULL 
-                                    WHERE user_id = :user_id");
-                                    $updateUserStmt->execute([':user_id' => $userId]);
-                                } else {
-                                    throw new Exception("No current or new college assignment for faculty.");
-                                }
+                                error_log("faculty: Set new primary department: $newPrimaryDept for faculty_id=$facultyId");
                             }
+                            // ✅ NO updates to users.department_id or users.college_id
                         }
-
-                        $this->db->commit();
                         $faculty = $fetchFaculty($collegeId, $departmentId); // Refresh faculty list
                         $response = [
                             'success' => true,
                             'message' => "Faculty member removed successfully.",
                             'faculty' => $faculty
                         ];
+
+                        $this->db->commit();
                         $this->logActivity($chairId, $departmentId, 'Remove Faculty', "Removed faculty user_id=$userId from department_id=$departmentId", 'faculty_departments', $deptInfo['faculty_department_id']);
                         error_log("faculty: Removed user_id=$userId from department_id=$departmentId");
                     } catch (PDOException | Exception $e) {

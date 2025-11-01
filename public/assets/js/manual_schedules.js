@@ -1788,8 +1788,6 @@ function editSchedule(scheduleId) {
 
   currentEditingId = scheduleId;
   showModal();
-
-  console.log("=== END EDIT SCHEDULE DEBUG ===");
 }
 
 function showModal() {
