@@ -1,3 +1,36 @@
+<?php
+require_once __DIR__ . '/../../config/Database.php';
+
+// Fetch system settings
+$systemSettings = [];
+try {
+    $db = (new Database())->connect();
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM system_settings");
+    $stmt->execute();
+    $systemSettings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+} catch (PDOException $e) {
+    error_log("login: Error fetching system settings - " . $e->getMessage());
+    $systemSettings = [
+        'system_name' => 'ACSS',
+        'system_logo' => '/assets/logo/main_logo/PRMSUlogo.png',
+        'primary_color' => '#d97706',
+        'background_image' => '/assets/logo/main_logo/campus.jpg'
+    ];
+}
+
+// Set default values
+$systemName = $systemSettings['system_name'] ?? 'ACSS';
+$systemLogo = $systemSettings['system_logo'] ?? '/assets/logo/main_logo/PRMSUlogo.png';
+$primaryColor = $systemSettings['primary_color'] ?? '#d97706';
+$backgroundImage = $systemSettings['background_image'] ?? '/assets/logo/main_logo/campus.jpg';
+
+function getSettingsImagePath($path)
+{
+    if (empty($path)) return '';
+    return (strpos($path, '/') === 0) ? $path : '/' . $path;
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -26,7 +59,7 @@
         }
 
         .bg-image {
-            background-image: url('/assets/logo/main_logo/campus.jpg');
+            background-image: url('<?php echo htmlspecialchars(getSettingsImagePath($backgroundImage)); ?>');
             background-size: cover;
             background-position: center;
             position: absolute;
@@ -76,9 +109,16 @@
 
             <div class="text-center z-10 flex flex-col items-center">
                 <div class="mb-6">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-24 h-24 md:w-32 md:h-32 mx-auto">
+                    <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                        alt="System Logo"
+                        class="w-24 h-24 md:w-32 md:h-32 mx-auto"
+                        onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';">
                 </div>
                 <h1 class="text-3xl md:text-4xl font-bold mb-4">President Ramon Magsaysay State University</h1>
+                <!-- Update system name -->
+                <h1 class="text-3xl md:text-4xl font-bold mb-4">
+                    <?php echo htmlspecialchars($systemName); ?>
+                </h1>
                 <h2 class="text-xl md:text-2xl font-semibold mb-4">Scheduling System</h2>
                 <p class="text-base md:text-lg mb-6">Streamlining class scheduling for better academic planning and resource management.</p>
                 <p class="text-sm md:text-md italic">"Quality Education for Service"</p>
@@ -89,7 +129,10 @@
         <div class="w-full md:w-1/2 bg-white flex items-center justify-center p-6 md:p-12">
             <div class="w-full max-w-md">
                 <div class="text-center mb-6">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-16 h-16 mx-auto mb-4">
+                    <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                        alt="System Logo"
+                        class="w-16 h-16 mx-auto mb-4"
+                        onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';">
                     <h1 class="text-xl md:text-2xl font-bold text-yellow-600 mb-2">Welcome Back</h1>
                     <p class="text-sm md:text-base text-gray-600">Sign in to access your account</p>
                 </div>

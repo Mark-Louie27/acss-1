@@ -1,3 +1,37 @@
+<?php
+require_once __DIR__ . '/../../config/Database.php';
+
+// Fetch system settings
+$systemSettings = [];
+try {
+    $db = (new Database())->connect();
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM system_settings");
+    $stmt->execute();
+    $systemSettings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+} catch (PDOException $e) {
+    error_log("home: Error fetching system settings - " . $e->getMessage());
+    $systemSettings = [
+        'system_name' => 'ACSS',
+        'system_logo' => '/assets/logo/main_logo/PRMSUlogo.png',
+        'primary_color' => '#DA9100',
+        'background_image' => '/assets/logo/main_logo/campus.jpg'
+    ];
+}
+
+// Set default values if not in database
+$systemName = $systemSettings['system_name'] ?? 'ACSS';
+$systemLogo = $systemSettings['system_logo'] ?? '/assets/logo/main_logo/PRMSUlogo.png';
+$primaryColor = $systemSettings['primary_color'] ?? '#DA9100';
+$backgroundImage = $systemSettings['background_image'] ?? '/assets/logo/main_logo/campus.jpg';
+
+// Helper function for image paths
+function getSettingsImagePath($path)
+{
+    if (empty($path)) return '';
+    return (strpos($path, '/') === 0) ? $path : '/' . $path;
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -12,15 +46,33 @@
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
         :root {
-            --gold-primary: #DA9100;
-            --gold-secondary: #FCC201;
-            --gold-light: #FFEEAA;
-            --gold-dark: #B8860B;
-            --gold-gradient-start: #FFD200;
-            --gold-gradient-end: #FFEEAA;
+            --gold-primary: <?php echo htmlspecialchars($primaryColor); ?>;
+            --gold-secondary: <?php echo adjustBrightness($primaryColor, 20); ?>;
+            --gold-light: <?php echo adjustBrightness($primaryColor, 60); ?>;
+            --gold-dark: <?php echo adjustBrightness($primaryColor, -20); ?>;
         }
 
-        body {
+        <?php
+        // Helper function to adjust color brightness
+        function adjustBrightness($hex, $percent)
+        {
+            $hex = str_replace('#', '', $hex);
+            if (strlen($hex) == 3) {
+                $hex = str_repeat(substr($hex, 0, 1), 2) . str_repeat(substr($hex, 1, 1), 2) . str_repeat(substr($hex, 2, 1), 2);
+            }
+            $r = hexdec(substr($hex, 0, 2));
+            $g = hexdec(substr($hex, 2, 2));
+            $b = hexdec(substr($hex, 4, 2));
+
+            $r = max(0, min(255, $r + ($r * $percent / 100)));
+            $g = max(0, min(255, $g + ($g * $percent / 100)));
+            $b = max(0, min(255, $b + ($b * $percent / 100)));
+
+            return '#' . str_pad(dechex(round($r)), 2, '0', STR_PAD_LEFT)
+                . str_pad(dechex(round($g)), 2, '0', STR_PAD_LEFT)
+                . str_pad(dechex(round($b)), 2, '0', STR_PAD_LEFT);
+        }
+        ?>body {
             font-family: 'Montserrat', sans-serif;
             background-color: #FAFAFA;
             color: #333;
@@ -391,7 +443,10 @@
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center">
                     <div class="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center mr-3">
-                        <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
+                        <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                            alt="System Logo"
+                            class="w-12 h-12"
+                            onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';" />
                     </div>
                     <div>
                         <h2 class="text-lg font-bold text-gray-800">PRMSU</h2>
@@ -501,7 +556,10 @@
                     <div class="flex items-center">
                         <div class="mr-3 sm:mr-4">
                             <div class="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-md">
-                                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
+                                <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                                    alt="System Logo"
+                                    class="w-12 h-12"
+                                    onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';" />
                             </div>
                         </div>
                         <div>
@@ -750,7 +808,10 @@
                 <div class="lg:col-span-1">
                     <div class="flex items-center mb-4">
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center mr-3">
-                            <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-12 h-12" />
+                            <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                                alt="System Logo"
+                                class="w-12 h-12"
+                                onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';" />
                         </div>
                         <div>
                             <h2 class="text-xl font-bold">PRMSU</h2>
@@ -962,42 +1023,42 @@
                 }
             });
 
-            
+
             // Download button functionality
             //document.getElementById('downloadScheduleBtn').addEventListener('click', function() {
-              //  document.getElementById('downloadForm').classList.add('active');
+            //  document.getElementById('downloadForm').classList.add('active');
             //});
 
             //function closeDownloadForm() {
-              //  document.getElementById('downloadForm').classList.remove('active');
+            //  document.getElementById('downloadForm').classList.remove('active');
             //}
 
             //document.getElementById('downloadScheduleForm').addEventListener('submit', function(e) {
-              //  e.preventDefault();
-              //  const formData = new FormData(this);
-              //  fetch('/public/download-schedule-pdf', {
-               //     method: 'POST',
-                 //   body: formData
-                //}).then(response => {
-                  //  if (response.ok) {
-                    //    return response.blob();
-                    //} else {
-                      //  throw new Error('Failed to generate PDF');
-                    //}
-                //}).then(blob => {
-                  //  const url = window.URL.createObjectURL(blob);
-                    //const a = document.createElement('a');
-                   // a.href = url;
-                   // a.download = 'PRMSU_Schedule_' + new Date().toISOString().replace(/[:.]/g, '-') + '.pdf';
-                   // document.body.appendChild(a);
-                   // a.click();
-                   // a.remove();
-                   // window.URL.revokeObjectURL(url);
-                   // closeDownloadForm();
-                //}).catch(error => {
-                  //  console.error('Error downloading PDF:', error);
-                  //  alert('An error occurred while downloading the PDF.');
-               // });
+            //  e.preventDefault();
+            //  const formData = new FormData(this);
+            //  fetch('/public/download-schedule-pdf', {
+            //     method: 'POST',
+            //   body: formData
+            //}).then(response => {
+            //  if (response.ok) {
+            //    return response.blob();
+            //} else {
+            //  throw new Error('Failed to generate PDF');
+            //}
+            //}).then(blob => {
+            //  const url = window.URL.createObjectURL(blob);
+            //const a = document.createElement('a');
+            // a.href = url;
+            // a.download = 'PRMSU_Schedule_' + new Date().toISOString().replace(/[:.]/g, '-') + '.pdf';
+            // document.body.appendChild(a);
+            // a.click();
+            // a.remove();
+            // window.URL.revokeObjectURL(url);
+            // closeDownloadForm();
+            //}).catch(error => {
+            //  console.error('Error downloading PDF:', error);
+            //  alert('An error occurred while downloading the PDF.');
+            // });
             //});
         });
 

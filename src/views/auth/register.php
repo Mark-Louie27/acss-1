@@ -29,6 +29,34 @@ try {
     $error = "Error loading registration data: " . $e->getMessage();
 }
 
+// Fetch system settings
+$systemSettings = [];
+try {
+    $dbSettings = (new Database())->connect();
+    $stmt = $dbSettings->prepare("SELECT setting_key, setting_value FROM system_settings");
+    $stmt->execute();
+    $systemSettings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+} catch (PDOException $e) {
+    error_log("register: Error fetching system settings - " . $e->getMessage());
+    $systemSettings = [
+        'system_name' => 'ACSS',
+        'system_logo' => '/assets/logo/main_logo/PRMSUlogo.png',
+        'primary_color' => '#d97706',
+        'background_image' => '/assets/logo/main_logo/campus.jpg'
+    ];
+}
+
+$systemName = $systemSettings['system_name'] ?? 'ACSS';
+$systemLogo = $systemSettings['system_logo'] ?? '/assets/logo/main_logo/PRMSUlogo.png';
+$primaryColor = $systemSettings['primary_color'] ?? '#d97706';
+$backgroundImage = $systemSettings['background_image'] ?? '/assets/logo/main_logo/campus.jpg';
+
+function getSettingsImagePath($path)
+{
+    if (empty($path)) return '';
+    return (strpos($path, '/') === 0) ? $path : '/' . $path;
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -50,7 +78,7 @@ try {
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('/assets/logo/main_logo/campus.jpg');
+            background-image: url('<?php echo htmlspecialchars(getSettingsImagePath($backgroundImage)); ?>');
             background-size: cover;
             background-position: center;
             z-index: 1;
@@ -228,10 +256,19 @@ try {
 
             <div class="text-center z-10 flex flex-col items-center">
                 <div class="mb-4 lg:mb-6">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 mx-auto">
+                    <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                        alt="System Logo"
+                        class="w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 mx-auto"
+                        onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';">
                 </div>
                 <h1 class="text-xl sm:text-2xl lg:text-4xl font-bold mb-2 lg:mb-4">President Ramon Magsaysay State University</h1>
-                <h2 class="text-lg sm:text-xl lg:text-2xl font-semibold mb-2 lg:mb-4">Scheduling System</h2>
+                <!-- Update system name -->
+                <h1 class="text-xl sm:text-2xl lg:text-4xl font-bold mb-2 lg:mb-4">
+                    <?php echo htmlspecialchars($systemName); ?>
+                </h1>
+                <h2 class="text-lg sm:text-xl lg:text-2xl font-semibold mb-2 lg:mb-4">
+                    Scheduling System
+                </h2>
                 <p class="text-sm sm:text-base lg:text-lg mb-3 lg:mb-6 px-4">Streamlining class scheduling for better academic planning and resource management.</p>
                 <p class="text-xs sm:text-sm lg:text-base italic">"Quality Education for Service"</p>
             </div>
@@ -241,7 +278,10 @@ try {
         <div class="w-full lg:w-1/2 bg-white flex items-center justify-center p-4 sm:p-6 lg:p-8">
             <div class="w-full max-w-2xl form-wrapper">
                 <div class="text-center mb-6">
-                    <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-white shadow-lg">
+                    <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                        alt="System Logo"
+                        class="mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-white shadow-lg"
+                        onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';">
                     <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-yellow-600 mb-2">Create Your Account</h1>
                     <p class="text-sm sm:text-base text-gray-600">Register to access the scheduling system</p>
                 </div>
