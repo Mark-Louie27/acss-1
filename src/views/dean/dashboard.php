@@ -165,44 +165,6 @@ ob_start();
 
         <!-- Left Column - My Schedule & Quick Actions -->
         <div class="space-y-6">
-            <!-- My Schedule - MOVED TO LEFT COLUMN -->
-            <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">My Schedule</h3>
-                    <span class="fas fa-calendar text-yellow-500"></span>
-                </div>
-                <div class="space-y-3">
-                    <?php if (!empty($schedules)): ?>
-                        <?php foreach (array_slice($schedules, 0, 5) as $schedule): ?>
-                            <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-medium text-gray-900 text-sm"><?php echo htmlspecialchars($schedule['course_code']); ?></p>
-                                        <p class="text-xs text-gray-600"><?php echo htmlspecialchars($schedule['course_name']); ?></p>
-                                    </div>
-                                    <span class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
-                                        <?php echo htmlspecialchars($schedule['day_of_week'] ?? 'TBD'); ?>
-                                    </span>
-                                </div>
-                                <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
-                                    <span><?php echo htmlspecialchars($schedule['room_name'] ?? 'TBA'); ?></span>
-                                    <span><?php echo htmlspecialchars($schedule['start_time'] . ' - ' . $schedule['end_time']); ?></span>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                        <?php if (count($schedules) > 5): ?>
-                            <a href="/dean/schedule" class="block text-center text-sm text-yellow-600 hover:text-yellow-700 font-medium mt-2">
-                                View all <?php echo count($schedules); ?> schedules
-                            </a>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <div class="text-center py-6 text-gray-400">
-                            <span class="fas fa-calendar-times text-2xl mb-2"></span>
-                            <p class="text-sm">No schedules</p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
 
             <!-- Quick Actions -->
             <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">

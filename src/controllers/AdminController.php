@@ -2282,7 +2282,7 @@ class AdminController
         $stmt = $this->db->prepare("
         INSERT INTO system_settings (setting_key, setting_value) 
         VALUES (:key, :value)
-        ON DUPLICATE KEY UPDATE setting_value = :value
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
     ");
         return $stmt->execute([':key' => $key, ':value' => $value]);
     }

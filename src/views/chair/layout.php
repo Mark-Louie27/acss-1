@@ -87,6 +87,35 @@ $chairController = new ChairController();
 $deadlineStatus = $chairController->checkScheduleDeadlineStatus($userDepartmentId);
 $isScheduleLocked = $deadlineStatus['locked'] ?? false;
 
+// Fetch system settings
+$systemSettings = [];
+try {
+    $db = (new Database())->connect();
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM system_settings");
+    $stmt->execute();
+    $systemSettings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+} catch (PDOException $e) {
+    error_log("layout: Error fetching system settings - " . $e->getMessage());
+    // Set default values if settings table doesn't exist or error occurs
+    $systemSettings = [
+        'system_name' => 'ACSS',
+        'system_logo' => '/assets/logo/main_logo/PRMSUlogo.png',
+        'primary_color' => '#e5ad0f'
+    ];
+}
+
+// Set default values if not in database
+$systemName = $systemSettings['system_name'] ?? 'ACSS';
+$systemLogo = $systemSettings['system_logo'] ?? '/assets/logo/main_logo/PRMSUlogo.png';
+$primaryColor = $systemSettings['primary_color'] ?? '#e5ad0f';
+
+// Helper function for image paths
+function getSettingsImagePath($path)
+{
+    if (empty($path)) return '/assets/logo/main_logo/PRMSUlogo.png';
+    return (strpos($path, '/') === 0) ? $path : '/' . $path;
+}
+
 $currentUri = $_SERVER['REQUEST_URI'];
 $modal_content = $modal_content ?? '';
 
@@ -107,6 +136,101 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+        :root {
+            --primary-color: <?php echo htmlspecialchars($primaryColor); ?>;
+            --primary-hover: <?php echo adjustBrightness($primaryColor, -20); ?>;
+            --primary-light: <?php echo adjustBrightness($primaryColor, 40); ?>;
+        }
+
+        <?php
+        // Helper function to adjust color brightness
+        function adjustBrightness($hex, $percent)
+        {
+            $hex = str_replace('#', '', $hex);
+            $r = hexdec(substr($hex, 0, 2));
+            $g = hexdec(substr($hex, 2, 2));
+            $b = hexdec(substr($hex, 4, 2));
+
+            $r = max(0, min(255, $r + ($r * $percent / 100)));
+            $g = max(0, min(255, $g + ($g * $percent / 100)));
+            $b = max(0, min(255, $b + ($b * $percent / 100)));
+
+            return '#' . str_pad(dechex($r), 2, '0', STR_PAD_LEFT)
+                . str_pad(dechex($g), 2, '0', STR_PAD_LEFT)
+                . str_pad(dechex($b), 2, '0', STR_PAD_LEFT);
+        }
+        ?>
+
+        /* Apply primary color dynamically - More specific selectors */
+        /* Text colors */
+        .text-yellow-400,
+        .text-yellow-500,
+        .text-yellow-600,
+        .text-yellow-300,
+        .hover\:text-yellow-400:hover,
+        .hover\:text-yellow-500:hover,
+        .hover\:text-yellow-300:hover {
+            color: var(--primary-color) !important;
+        }
+
+        /* Background colors */
+        .bg-yellow-400,
+        .bg-yellow-500,
+        .bg-yellow-600,
+        .bg-yellow-50,
+        .hover\:bg-yellow-50:hover,
+        .hover\:bg-yellow-100:hover {
+            background-color: var(--primary-color) !important;
+        }
+
+        .bg-yellow-100 {
+            background-color: var(--primary-light) !important;
+        }
+
+        /* Border colors */
+        .border-yellow-400,
+        .border-yellow-500 {
+            border-color: var(--primary-color) !important;
+        }
+
+        /* Specific component styles */
+        .yellow-gradient {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%) !important;
+        }
+
+        /* Active navigation */
+        .active-nav {
+            border-left-color: var(--primary-color) !important;
+        }
+
+        /* Profile picture border */
+        .border-2.border-yellow-400,
+        .rounded-full.border-yellow-400 {
+            border-color: var(--primary-color) !important;
+        }
+
+        /* Buttons and interactive elements */
+        button.text-yellow-500,
+        a.text-yellow-500,
+        .hover\:text-yellow-500:hover {
+            color: var(--primary-color) !important;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color) !important;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-hover) !important;
+        }
+
+        /* Department/Role switcher active state */
+        .bg-yellow-100.text-yellow-700 {
+            background-color: var(--primary-light) !important;
+            color: var(--primary-hover) !important;
+        }
 
         body {
             font-family: 'Roboto', sans-serif;
@@ -557,8 +681,23 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 
                 <!-- Logo - Always visible -->
                 <a href="/chair/dashboard" class="flex items-center">
-                    <img src="<?php echo htmlspecialchars($collegeLogoPath); ?>" alt="College Logo" class="university-logo" onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png'; console.log('Fallback to university logo due to error')">
-                    <span class="text-lg font-heading text-gray-800 ml-2 hidden-mobile sm:inline">Automated Classroom Scheduling System</span>
+                    <?php
+                    // Determine which logo to display: College Logo > System Logo > Default
+                    $displayLogo = $collegeLogoPath;
+
+                    // If college logo doesn't exist or is default, try system logo
+                    if (empty($collegeLogoPath) || $collegeLogoPath === '/assets/logo/main_logo/PRMSUlogo.png') {
+                        $displayLogo = getSettingsImagePath($systemLogo);
+                    }
+                    ?>
+                    <img src="<?php echo htmlspecialchars($displayLogo); ?>"
+                        alt="Logo"
+                        class="university-logo"
+                        onerror="this.onerror=null; this.src='<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>'; 
+                  setTimeout(() => { if(this.complete && this.naturalHeight === 0) this.src='/assets/logo/main_logo/PRMSUlogo.png'; }, 100);">
+                    <span class="text-lg font-heading text-gray-800 ml-2 hidden-mobile sm:inline">
+                        <?php echo htmlspecialchars($systemName); ?>
+                    </span>
                 </a>
             </div>
 
@@ -667,7 +806,10 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
         <!-- Sidebar Header -->
         <div class="py-6 px-6 flex flex-col items-center justify-center border-b border-gray-700 bg-gray-900">
             <div class="flex items-center justify-center mb-3">
-                <img src="/assets/logo/main_logo/PRMSUlogo.png" alt="PRMSU Logo" class="h-12">
+                <img src="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>"
+                    alt="System Logo"
+                    class="h-12"
+                    onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';">
             </div>
             <h2 class="text-xl text-yellow-600 font-bold text-center">PRMSU Scheduling System - ACSS</h2>
             <p class="text-xs text-gray-400 mt-1 text-center">Management System</p>
