@@ -2108,26 +2108,7 @@ class DeanController extends BaseController
             error_log("faculty: Fetched " . count($faculty) . " faculty members");
 
             // Fetch Pending Users using user_roles
-            $queryPending = "
-            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
-                u.profile_picture, u.is_active, 
-                ur.role_id, r.role_name, f.academic_rank, f.employment_type, 
-                COALESCE(d.department_name, 'No Department') AS department_name, 
-                COALESCE(d.department_id, 0) AS department_id, c.college_name
-            FROM users u
-            JOIN faculty f ON u.user_id = f.user_id
-            JOIN user_roles ur ON u.user_id = ur.user_id
-            JOIN roles r ON ur.role_id = r.role_id
-            LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.is_primary = 1
-            LEFT JOIN departments d ON fd.department_id = d.department_id
-            JOIN colleges c ON u.college_id = c.college_id
-            WHERE u.college_id = :college_id AND u.is_active = 0 AND ur.role_id IN (5, 6)
-            ORDER BY u.created_at";
 
-            $stmtPending = $this->db->prepare($queryPending);
-            $stmtPending->execute([':college_id' => $collegeId]);
-            $pendingUsers = $stmtPending->fetchAll(PDO::FETCH_ASSOC);
-            error_log("faculty: Fetched " . count($pendingUsers) . " pending users");
 
             // Fetch Departments
             $queryDepartments = "

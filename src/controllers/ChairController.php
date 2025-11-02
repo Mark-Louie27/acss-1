@@ -2427,18 +2427,9 @@ class ChairController extends BaseController
                 error_log("generateSchedules: Iteration $iteration, remaining courses: " . count($unassignedCourses));
                 $unassignedInThisIteration = [];
 
-                // Prioritize Professional Courses
-                $professionalCourses = array_filter($unassignedCourses, function ($c) {
-                    $courseDetails = $this->getCourseDetails($c['course_id']);
-                    return ($courseDetails['subject_type'] ?? 'General Education') === 'Professional Course';
-                });
-
-                $generalCourses = array_filter($unassignedCourses, function ($c) {
-                    $courseDetails = $this->getCourseDetails($c['course_id']);
-                    return ($courseDetails['subject_type'] ?? 'General Education') !== 'Professional Course';
-                });
-
-                $coursesToProcess = array_merge(array_values($professionalCourses), array_values($generalCourses));
+                // ✅ CORRECTED: Sort courses by specialization priority
+                $coursesToProcess = $this->sortCoursesBySpecializationPriority($unassignedCourses, $facultySpecializations);
+                error_log("generateSchedules: Sorted " . count($coursesToProcess) . " courses by specialization priority");
 
                 foreach ($coursesToProcess as $course) {
                     $courseDetails = $this->getCourseDetails($course['course_id']);
@@ -3360,15 +3351,17 @@ class ChairController extends BaseController
         }
 
         foreach ($roomAssignments[$roomId] as $assignment) {
-            if ($assignment['day_of_week'] === $day) {
-                // Check for time overlap
+            // FIXED: Check for 'day_of_week' key (matches your saveScheduleToDB format)
+            $assignmentDay = $assignment['day_of_week'] ?? $assignment['day'] ?? null;
+
+            if ($assignmentDay === $day) {
                 $existingStart = strtotime($assignment['start_time']);
                 $existingEnd = strtotime($assignment['end_time']);
                 $newStart = strtotime($startTime);
                 $newEnd = strtotime($endTime);
 
                 if (($newStart < $existingEnd) && ($newEnd > $existingStart)) {
-                    error_log("ROOM ASSIGNMENT CONFLICT: Room $roomId already pending for $day at {$assignment['start_time']}-{$assignment['end_time']}");
+                    error_log("ROOM ASSIGNMENT CONFLICT: Room $roomId already pending for $day at {$assignment['start_time']}-{$assignment['end_time']} (Course: {$assignment['course_code']})");
                     return true;
                 }
             }
@@ -3834,16 +3827,32 @@ class ChairController extends BaseController
         $subjectType = $courseDetails['subject_type'] ?? 'General Education';
         $courseUnits = $courseDetails['units'] ?? 3;
 
-        error_log("Course details: Type=$subjectType, Units=$courseUnits");
-        error_log("Total faculty pool: " . count($facultySpecializations));
+        
+
+        // Log faculty specializations for debugging
+        $facultyWithSpecialization = 0;
+        foreach ($facultySpecializations as $f) {
+            $specs = $f['specializations'] ?? [];
+            $hasSpec = in_array($courseId, $specs);
+            if ($hasSpec) {
+                $facultyWithSpecialization++;
+                error_log("  ✅ Faculty {$f['faculty_id']} ({$f['faculty_name']}) HAS specialization in $courseCode");
+            }
+        }
+        if ($facultyWithSpecialization === 0) {
+            error_log("  ⚠️ NO FACULTY have specialization in $courseCode - will use random assignment");
+        } else {
+            error_log("  📊 Found $facultyWithSpecialization faculty with specialization in $courseCode");
+        }
 
         $eligibleFaculty = [];
         $specializedFaculty = [];
         $nonSpecializedFaculty = [];
 
+        // First pass: Filter eligible faculty and categorize by specialization
         foreach ($facultySpecializations as $faculty) {
             $facultyId = $faculty['faculty_id'];
-            $employmentType = $faculty['employment_type'] ?? 'Regular'; // Get employment type
+            $employmentType = $faculty['employment_type'] ?? 'Regular';
             $canTeachProfessional = $faculty['can_teach_professional'] ?? false;
             $canTeachGeneral = $faculty['can_teach_general'] ?? false;
             $specializations = $faculty['specializations'] ?? [];
@@ -3867,14 +3876,13 @@ class ChairController extends BaseController
                 // Try to free up expert faculty through reassignment
                 if ($this->freeUpExpertFaculty($collegeId, $facultyId, $targetDays, $startTime, $endTime, $facultyAssignments, $facultySpecializations, $departmentId, $schedules, $courseId)) {
                     error_log("Successfully freed up expert faculty $facultyId for $courseCode");
-                    // Faculty is now available, continue with selection
                 } else {
                     error_log("Failed to free up faculty $facultyId for $courseCode");
                     continue;
                 }
             }
 
-            // **ENHANCED**: Check load capacity with employment type and course code
+            // Check load capacity
             if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments, $facultySpecializations, $courseCode)) {
                 error_log("Faculty $facultyId rejected due to workload limits");
                 continue;
@@ -3883,10 +3891,13 @@ class ChairController extends BaseController
             // Add to eligible pool
             $eligibleFaculty[] = $faculty;
 
+            // Categorize by specialization - THIS IS THE KEY FIX
             if (in_array($courseId, $specializations)) {
                 $specializedFaculty[] = $faculty;
+                error_log("✅ Faculty $facultyId has SPECIALIZATION in course $courseCode (ID: $courseId)");
             } else {
                 $nonSpecializedFaculty[] = $faculty;
+                error_log("❌ Faculty $facultyId does NOT have specialization in course $courseCode");
             }
         }
 
@@ -3898,173 +3909,96 @@ class ChairController extends BaseController
         error_log("Faculty distribution: " . count($specializedFaculty) . " specialized, " .
             count($nonSpecializedFaculty) . " non-specialized");
 
-        // **ENHANCED**: Selection with workload consideration and underload prioritization
-
-        // PRIORITY 1A: Underloaded specialized faculty (help them reach minimum first)
+        // PRIORITY 1: Specialized faculty for this course (HIGHEST PRIORITY)
         if (!empty($specializedFaculty)) {
+            // For Professional Courses, prefer specialized faculty from same department
+            if ($subjectType === 'Professional Course') {
+                $specializedSameDept = array_filter($specializedFaculty, function ($faculty) use ($departmentId) {
+                    $assignedDepts = $faculty['assigned_departments'] ?? [];
+                    return in_array($departmentId, $assignedDepts);
+                });
+
+                if (!empty($specializedSameDept)) {
+                    $selected = $this->selectFacultyWithLeastLoad($specializedSameDept, $facultyAssignments, $courseCode);
+                    if ($selected) {
+                        error_log("PRIORITY 1A - Selected SPECIALIZED same-dept faculty {$selected['faculty_id']} for Professional $courseCode");
+                        return $selected['faculty_id'];
+                    }
+                }
+            }
+
+            // Check for underloaded specialized faculty first
             $underloadedSpecialized = array_filter($specializedFaculty, function ($faculty) use ($facultyAssignments, $facultySpecializations, $courseUnits) {
                 $load = $this->calculateFacultyLoad($faculty['faculty_id'], $facultyAssignments, $facultySpecializations);
                 $limits = $this->getFacultyWorkloadLimits($load['employment_type']);
-                return $load['units'] < $limits['min_units']; // Still below minimum
+                return $load['units'] < $limits['min_units'];
             });
 
             if (!empty($underloadedSpecialized)) {
                 $selected = $this->selectFacultyWithLeastLoad($underloadedSpecialized, $facultyAssignments, $courseCode);
                 if ($selected) {
-                    error_log("PRIORITY 1A - Selected UNDERLOADED SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
+                    error_log("PRIORITY 1B - Selected UNDERLOADED SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
                     return $selected['faculty_id'];
                 }
             }
 
-            // PRIORITY 1B: Regular specialized faculty
+            // Any specialized faculty (load-balanced)
             $selected = $this->selectFacultyWithLeastLoad($specializedFaculty, $facultyAssignments, $courseCode);
             if ($selected) {
-                error_log("PRIORITY 1B - Selected SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
+                error_log("PRIORITY 1C - Selected SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
                 return $selected['faculty_id'];
             }
         }
 
-        // PRIORITY 2: Underloaded non-specialized faculty (RANDOM ASSIGNMENT to help balance)
-        if (!empty($nonSpecializedFaculty)) {
+        // PRIORITY 2: VSL faculty for General Education (only if no specialized faculty)
+        if ($subjectType === 'General Education' && empty($specializedFaculty)) {
+            $vslFaculty = array_filter($nonSpecializedFaculty, function ($faculty) {
+                return ($faculty['classification'] ?? '') === 'VSL';
+            });
+
+            if (!empty($vslFaculty)) {
+                $selected = $this->selectFacultyWithLeastLoad($vslFaculty, $facultyAssignments, $courseCode);
+                if ($selected) {
+                    error_log("PRIORITY 2 - Selected VSL faculty {$selected['faculty_id']} for General Education $courseCode (no specialized available)");
+                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'vsl_no_specialization');
+                    return $selected['faculty_id'];
+                }
+            }
+        }
+
+        // PRIORITY 3: Underloaded non-specialized faculty (only if no specialized faculty available)
+        if (empty($specializedFaculty)) {
             $underloadedNonSpecialized = array_filter($nonSpecializedFaculty, function ($faculty) use ($facultyAssignments, $facultySpecializations, $courseUnits) {
                 $load = $this->calculateFacultyLoad($faculty['faculty_id'], $facultyAssignments, $facultySpecializations);
                 $limits = $this->getFacultyWorkloadLimits($load['employment_type']);
-                return $load['units'] < $limits['min_units']; // Still below minimum
+                return $load['units'] < $limits['min_units'];
             });
 
             if (!empty($underloadedNonSpecialized)) {
                 $selected = $this->selectFacultyWithLeastLoad($underloadedNonSpecialized, $facultyAssignments, $courseCode);
                 if ($selected) {
-                    error_log("PRIORITY 2 - RANDOMLY ASSIGNED to UNDERLOADED non-specialized faculty {$selected['faculty_id']} for $courseCode");
-                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'underloaded_non_specialized');
+                    error_log("PRIORITY 3 - RANDOMLY ASSIGNED to UNDERLOADED non-specialized faculty {$selected['faculty_id']} for $courseCode (NO SPECIALIZED AVAILABLE)");
+                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'underloaded_no_specialization');
                     return $selected['faculty_id'];
                 }
             }
         }
 
-        // PRIORITY 3: Department-specific selection for Professional Courses
-        if ($subjectType === 'Professional Course') {
-            // Try specialized from same department first
-            $specializedSameDeptFaculty = [];
-            foreach ($specializedFaculty as $faculty) {
-                $assignedDepts = $faculty['assigned_departments'] ?? [];
-                if (in_array($departmentId, $assignedDepts)) {
-                    $specializedSameDeptFaculty[] = $faculty;
-                }
-            }
-
-            if (!empty($specializedSameDeptFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($specializedSameDeptFaculty, $facultyAssignments, $courseCode);
-                if ($selected) {
-                    error_log("PRIORITY 3A - Selected SPECIALIZED same-department faculty {$selected['faculty_id']} for Professional Course $courseCode");
-                    return $selected['faculty_id'];
-                }
-            }
-
-            // Then non-specialized from same department (RANDOM ASSIGNMENT)
-            $nonSpecializedSameDeptFaculty = [];
-            foreach ($nonSpecializedFaculty as $faculty) {
-                $assignedDepts = $faculty['assigned_departments'] ?? [];
-                if (in_array($departmentId, $assignedDepts)) {
-                    $nonSpecializedSameDeptFaculty[] = $faculty;
-                }
-            }
-
-            if (!empty($nonSpecializedSameDeptFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($nonSpecializedSameDeptFaculty, $facultyAssignments, $courseCode);
-                if ($selected) {
-                    error_log("PRIORITY 3B - RANDOMLY ASSIGNED non-specialized same-dept faculty {$selected['faculty_id']} to Professional Course $courseCode");
-                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'no_specialization_professional_same_dept');
-                    return $selected['faculty_id'];
-                }
-            }
-        }
-
-        // PRIORITY 4: VSL faculty for General Education
-        if ($subjectType === 'General Education') {
-            // Specialized VSL first
-            $specializedVslFaculty = [];
-            foreach ($specializedFaculty as $faculty) {
-                if ($faculty['classification'] === 'VSL') {
-                    $specializedVslFaculty[] = $faculty;
-                }
-            }
-
-            if (!empty($specializedVslFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($specializedVslFaculty, $facultyAssignments, $courseCode);
-                if ($selected) {
-                    error_log("PRIORITY 4A - Selected SPECIALIZED VSL faculty {$selected['faculty_id']} for General Education $courseCode");
-                    return $selected['faculty_id'];
-                }
-            }
-
-            // Non-specialized VSL (RANDOM ASSIGNMENT)
-            $nonSpecializedVslFaculty = [];
-            foreach ($nonSpecializedFaculty as $faculty) {
-                if ($faculty['classification'] === 'VSL') {
-                    $nonSpecializedVslFaculty[] = $faculty;
-                }
-            }
-
-            if (!empty($nonSpecializedVslFaculty)) {
-                $selected = $this->selectFacultyWithLeastLoad($nonSpecializedVslFaculty, $facultyAssignments, $courseCode);
-                if ($selected) {
-                    error_log("PRIORITY 4B - RANDOMLY ASSIGNED non-specialized VSL faculty {$selected['faculty_id']} to General Education $courseCode");
-                    $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'no_specialization_vsl');
-                    return $selected['faculty_id'];
-                }
-            }
-        }
-
-        // PRIORITY 5: Any remaining specialized faculty
-        if (!empty($specializedFaculty)) {
-            $selected = $this->selectFacultyWithLeastLoad($specializedFaculty, $facultyAssignments, $courseCode);
-            if ($selected) {
-                error_log("PRIORITY 5 - Selected any available SPECIALIZED faculty {$selected['faculty_id']} for $courseCode");
-                return $selected['faculty_id'];
-            }
-        }
-
-        // PRIORITY 6: FINAL RANDOM ASSIGNMENT - Any non-specialized faculty (load-balanced)
-        if (!empty($nonSpecializedFaculty)) {
-            error_log("PRIORITY 6 - No specialized faculty available, proceeding with FINAL RANDOM ASSIGNMENT for $courseCode");
+        // PRIORITY 4: FINAL FALLBACK - Any non-specialized faculty (only if absolutely no specialized faculty)
+        if (empty($specializedFaculty) && !empty($nonSpecializedFaculty)) {
+            error_log("PRIORITY 4 - NO SPECIALIZED FACULTY AVAILABLE, proceeding with random assignment for $courseCode");
 
             $selected = $this->selectFacultyWithLeastLoad($nonSpecializedFaculty, $facultyAssignments, $courseCode);
             if ($selected) {
-                error_log("RANDOMLY ASSIGNED (load-balanced) faculty {$selected['faculty_id']} to $subjectType course $courseCode");
-                $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'final_random_assignment');
+                error_log("FINAL RANDOM ASSIGNMENT - Faculty {$selected['faculty_id']} to $subjectType course $courseCode");
+                $this->logRandomAssignment($selected['faculty_id'], $courseCode, $subjectType, 'final_random_no_specialization');
                 return $selected['faculty_id'];
             }
         }
 
-        error_log("No faculty could be selected for $courseCode after all priorities including random assignment");
-
-        // Debug: Show detailed rejection reasons (your original debug code)
-        error_log("=== DEBUGGING FACULTY SELECTION FOR $courseCode ===");
-        foreach ($facultySpecializations as $faculty) {
-            $facultyId = $faculty['faculty_id'];
-            $reasons = [];
-
-            if ($subjectType === 'Professional Course' && !$faculty['can_teach_professional']) {
-                $reasons[] = "cannot teach Professional Courses";
-            }
-            if ($subjectType === 'General Education' && !$faculty['can_teach_general']) {
-                $reasons[] = "cannot teach General Education";
-            }
-            if (!$this->isFacultyAvailable($facultyId, $targetDays, $startTime, $endTime, $facultyAssignments)) {
-                $reasons[] = "time conflict";
-            }
-            if (!$this->canFacultyTakeMoreLoad($facultyId, $courseUnits, $facultyAssignments, $employmentType, $courseCode, $sectionId)) {
-                $reasons[] = "overloaded";
-            }
-
-            if (!empty($reasons)) {
-                error_log("Faculty $facultyId rejected: " . implode(", ", $reasons));
-            } else {
-                error_log("Faculty $facultyId should be available - investigate selection logic");
-            }
+        if (!empty($specializedFaculty)) {
+            error_log("Available specialized faculty IDs: " . implode(', ', array_column($specializedFaculty, 'faculty_id')));
         }
-        error_log("=== END DEBUGGING ===");
 
         return null;
     }
@@ -4224,10 +4158,6 @@ class ChairController extends BaseController
 
         $canTake = $unitCheckPassed && $preparationCheckPassed && $courseCheckPassed;
 
-        error_log("Faculty $facultyId ($employmentType) workload check:");
-        error_log("  Current: {$load['units']} units, {$load['preparations']} preps, {$load['courses']} courses");
-        error_log("  New total: $newTotalUnits units, $newPreparationCount preps, $newCourseCount courses");
-        error_log("  Limits: MAX {$limits['max_units']} units, {$limits['max_preparations']} preps, {$limits['max_courses']} courses");
         error_log("  Result: " . ($canTake ? 'CAN TAKE' : 'CANNOT TAKE'));
 
         if (!$unitCheckPassed) {
@@ -4388,31 +4318,173 @@ class ChairController extends BaseController
         error_log("========================================\n");
     }
 
-    private function freeUpExpertFaculty($collegeId, $expertFacultyId, $targetDays, $startTime, $endTime, &$facultyAssignments, $facultySpecializations, $departmentId, $schedules, $expertCourseId)
+    private function reassignCourseToFaculty($collegeId, &$schedules, $fromFacultyId, $newFacultyId, $assignmentIndex, &$facultyAssignments)
     {
-        error_log("Attempting to free up EXPERT faculty $expertFacultyId");
+        // FIXED: Reordered parameters to match function signature
+        // Validation
+        if (!isset($facultyAssignments[$fromFacultyId])) {
+            error_log("Faculty $fromFacultyId has no assignments array");
+            return false;
+        }
 
-        // Find conflicting assignments for this faculty
+        if (!isset($facultyAssignments[$fromFacultyId][$assignmentIndex])) {
+            error_log("Assignment index $assignmentIndex not found for faculty $fromFacultyId");
+            return false;
+        }
+
+        $assignmentToMove = $facultyAssignments[$fromFacultyId][$assignmentIndex];
+
+        // Check if schedule_ids exists (for multi-day schedules)
+        if (isset($assignmentToMove['schedule_ids']) && is_array($assignmentToMove['schedule_ids'])) {
+            $scheduleIds = $assignmentToMove['schedule_ids'];
+        } else {
+            // Single schedule_id
+            $scheduleIds = isset($assignmentToMove['schedule_id']) ? [$assignmentToMove['schedule_id']] : [];
+        }
+
+        if (empty($scheduleIds)) {
+            error_log("No schedule IDs found for assignment index $assignmentIndex");
+            return false;
+        }
+
+        // Database Update - update ALL schedule IDs
+        try {
+            foreach ($scheduleIds as $scheduleId) {
+                $stmt = $this->db->prepare("
+                UPDATE schedules 
+                SET faculty_id = :new_faculty_id
+                WHERE schedule_id = :schedule_id
+            ");
+
+                $result = $stmt->execute([
+                    ':new_faculty_id' => $newFacultyId,
+                    ':schedule_id' => $scheduleId
+                ]);
+
+                if (!$result) {
+                    error_log("Database update failed for schedule $scheduleId");
+                    return false;
+                }
+            }
+        } catch (Exception $e) {
+            error_log("❌ DB Error during reassignment: " . $e->getMessage());
+            return false;
+        }
+
+        $newFacultyName = $this->getFaculty($newFacultyId, $collegeId);
+
+        // Update $schedules array (global tracking)
+        foreach ($scheduleIds as $scheduleId) {
+            foreach ($schedules as &$schedule) {
+                if ($schedule['schedule_id'] == $scheduleId) {
+                    $schedule['faculty_id'] = $newFacultyId;
+                    $schedule['faculty_name'] = $newFacultyName;
+                }
+            }
+            unset($schedule); // Break reference
+        }
+
+        // Update faculty assignments
+        unset($facultyAssignments[$fromFacultyId][$assignmentIndex]);
+        $facultyAssignments[$fromFacultyId] = array_values($facultyAssignments[$fromFacultyId]);
+
+        // Add to new faculty
+        $assignmentToMove['faculty_id'] = $newFacultyId;
+        $assignmentToMove['faculty_name'] = $newFacultyName;
+
+        if (!isset($facultyAssignments[$newFacultyId])) {
+            $facultyAssignments[$newFacultyId] = [];
+        }
+        $facultyAssignments[$newFacultyId][] = $assignmentToMove;
+
+        error_log("✅ Successfully reassigned " . count($scheduleIds) . " schedule(s) from faculty $fromFacultyId to $newFacultyId");
+        return true;
+    }
+
+    // ============================================================================
+    // SOLUTION: Swap non-expert course with expert course (keep 3 prep limit)
+    // ============================================================================
+
+    private function freeUpExpertFaculty($collegeId, $expertFacultyId, $targetDays, $startTime, $endTime, &$facultyAssignments, $facultySpecializations, $departmentId, &$schedules, $expertCourseId)
+    {
+        error_log("🎯 Attempting to free up EXPERT faculty $expertFacultyId for expert course ID $expertCourseId");
+
+        // Check current load and preparation status
+        $currentLoad = $this->calculateFacultyLoad($expertFacultyId, $facultyAssignments, $facultySpecializations);
+        $limits = $this->getFacultyWorkloadLimits($currentLoad['employment_type']);
+
+        error_log("📊 Faculty $expertFacultyId status: {$currentLoad['preparations']}/{$limits['max_preparations']} preparations, {$currentLoad['units']}/{$limits['max_units']} units");
+
+        // Get expert course details
+        $expertCourseDetails = $this->getCourseDetails($expertCourseId);
+        $expertCourseCode = $expertCourseDetails['course_code'] ?? 'Unknown';
+
+        // Check if faculty already teaches this course
+        $alreadyTeachesExpertCourse = isset($currentLoad['preparation_details'][$expertCourseCode]);
+
+        // STRATEGY 1: If at preparation limit and doesn't teach expert course yet
+        $atPreparationLimit = ($currentLoad['preparations'] >= $limits['max_preparations']);
+
+        if ($atPreparationLimit && !$alreadyTeachesExpertCourse) {
+            error_log("⚠️ Faculty $expertFacultyId at preparation limit ({$currentLoad['preparations']}/{$limits['max_preparations']})");
+            error_log("🔄 Need to SWAP a non-expert course with expert course $expertCourseCode");
+
+            // Find the best non-expert course to swap out
+            $courseToSwap = $this->findBestCourseToSwap($expertFacultyId, $expertCourseId, $facultyAssignments, $facultySpecializations);
+
+            if ($courseToSwap) {
+                error_log("🔀 Found course to swap: {$courseToSwap['course_code']} (ID: {$courseToSwap['course_id']})");
+
+                // Find replacement faculty who has FEWER preparations and can teach the course
+                $replacementFaculty = $this->findReplacementFaculty(
+                    $courseToSwap,
+                    $expertFacultyId,
+                    $facultySpecializations,
+                    $facultyAssignments,
+                    $departmentId
+                );
+
+                if ($replacementFaculty) {
+                    error_log("✅ Found replacement faculty $replacementFaculty for {$courseToSwap['course_code']}");
+
+                    // Swap ALL sections of this course
+                    if ($this->swapEntireCourse($collegeId, $schedules, $expertFacultyId, $replacementFaculty, $courseToSwap, $facultyAssignments, $facultySpecializations)) {
+                        error_log("✅ Successfully swapped {$courseToSwap['course_code']} - faculty $expertFacultyId now has room for expert course");
+                        // Now faculty has room for expert course (still 3 preparations)
+                    } else {
+                        error_log("❌ Failed to swap {$courseToSwap['course_code']}");
+                        return false;
+                    }
+                } else {
+                    error_log("❌ No replacement faculty found for {$courseToSwap['course_code']}");
+                    return false;
+                }
+            } else {
+                error_log("❌ No swappable course found - all courses are expert or required");
+                return false;
+            }
+        }
+
+        // STRATEGY 2: Handle time conflicts (if any)
         $conflictingAssignments = $this->findConflictingAssignments($expertFacultyId, $targetDays, $startTime, $endTime, $facultyAssignments);
 
         if (empty($conflictingAssignments)) {
-            error_log("Faculty $expertFacultyId already free - no conflicts found");
-            return true; // Already free
+            error_log("✅ Faculty $expertFacultyId is now available (no time conflicts)");
+            return true;
         }
 
-        error_log("Found " . count($conflictingAssignments) . " conflicting assignments to reassign");
+        error_log("⏰ Found " . count($conflictingAssignments) . " time-conflicting assignments");
 
-        foreach ($conflictingAssignments as $assignmentIndex => $assignment) {
+        // Try to resolve time conflicts by reassigning
+        foreach ($conflictingAssignments as $assignment) {
             $conflictCourseId = $assignment['course_id'];
 
-            error_log("Processing conflicting assignment: Course $conflictCourseId");
-
-            // Skip if expert in both courses (can't reassign)
+            // Skip if expert in both courses (can't reassign expert course)
             if (
                 $this->isExpertInCourse($expertFacultyId, $conflictCourseId, $facultySpecializations) &&
                 $this->isExpertInCourse($expertFacultyId, $expertCourseId, $facultySpecializations)
             ) {
-                error_log("Cannot reassign course $conflictCourseId - faculty $expertFacultyId is EXPERT in both courses");
+                error_log("⚠️ Cannot resolve conflict - faculty is expert in BOTH courses");
                 continue;
             }
 
@@ -4431,22 +4503,424 @@ class ChairController extends BaseController
             );
 
             if ($alternativeFaculty) {
-                error_log("Found alternative faculty $alternativeFaculty for course $conflictCourseId");
+                // Find assignment index
+                $assignmentIndex = null;
+                if (isset($facultyAssignments[$expertFacultyId])) {
+                    foreach ($facultyAssignments[$expertFacultyId] as $idx => $fa) {
+                        if ($fa['course_id'] == $conflictCourseId && $fa['section_id'] == $assignment['section_id']) {
+                            $assignmentIndex = $idx;
+                            break;
+                        }
+                    }
+                }
 
-                if ($this->reassignCourseToFaculty($collegeId, $schedules, $expertFacultyId, $alternativeFaculty, $assignmentIndex, $facultyAssignments)) {
-                    error_log("Successfully reassigned course $conflictCourseId from faculty $expertFacultyId to $alternativeFaculty");
-                } else {
-                    error_log("Failed to reassign course $conflictCourseId");
-                    return false;
+                if ($assignmentIndex !== null) {
+                    if ($this->reassignCourseToFaculty($collegeId, $schedules, $expertFacultyId, $alternativeFaculty, $assignmentIndex, $facultyAssignments)) {
+                        error_log("✅ Resolved time conflict by reassigning to faculty $alternativeFaculty");
+                    } else {
+                        error_log("❌ Failed to reassign conflicting course");
+                        return false;
+                    }
                 }
             } else {
-                error_log("Could not find alternative faculty for course $conflictCourseId");
+                error_log("❌ No alternative faculty for conflicting course");
                 return false;
             }
         }
 
-        error_log("Successfully freed up expert faculty $expertFacultyId");
+        error_log("✅ Successfully freed up expert faculty $expertFacultyId");
         return true;
+    }
+
+    // ============================================================================
+    // DIAGNOSTIC: Check facultyAssignments structure first
+    // ============================================================================
+
+    private function findBestCourseToSwap($facultyId, $expertCourseId, $facultyAssignments, $facultySpecializations)
+    {
+        error_log("🔍 DEBUG: findBestCourseToSwap called for faculty $facultyId, expert course $expertCourseId");
+
+        // DEBUG: Log the structure of facultyAssignments
+        error_log("DEBUG: facultyAssignments type: " . gettype($facultyAssignments));
+        error_log("DEBUG: facultyAssignments is_array: " . (is_array($facultyAssignments) ? 'YES' : 'NO'));
+
+        if (!is_array($facultyAssignments)) {
+            error_log("❌ CRITICAL: facultyAssignments is not an array!");
+            return null;
+        }
+
+        // Check structure: is it indexed by faculty_id or flat array?
+        $firstKey = array_key_first($facultyAssignments);
+        if ($firstKey !== null) {
+            error_log("DEBUG: First key in facultyAssignments: $firstKey (type: " . gettype($firstKey) . ")");
+            error_log("DEBUG: First value type: " . gettype($facultyAssignments[$firstKey]));
+        }
+
+        // FIXED: Handle different structures of $facultyAssignments
+        $facultyAssignmentsList = [];
+
+        // Structure 1: Array indexed by faculty_id
+        // Example: [6 => [assignment1, assignment2], 7 => [assignment3]]
+        if (isset($facultyAssignments[$facultyId]) && is_array($facultyAssignments[$facultyId])) {
+            $facultyAssignmentsList = $facultyAssignments[$facultyId];
+            error_log("DEBUG: Using Structure 1 - assignments indexed by faculty_id");
+        }
+        // Structure 2: Flat array of assignments (each has faculty_id key)
+        // Example: [0 => ['faculty_id' => 6, ...], 1 => ['faculty_id' => 7, ...]]
+        else {
+            foreach ($facultyAssignments as $assignment) {
+                if (is_array($assignment) && isset($assignment['faculty_id']) && $assignment['faculty_id'] == $facultyId) {
+                    $facultyAssignmentsList[] = $assignment;
+                }
+            }
+            error_log("DEBUG: Using Structure 2 - flat array with faculty_id in each assignment");
+        }
+
+        if (empty($facultyAssignmentsList)) {
+            error_log("❌ No assignments found for faculty $facultyId");
+            return null;
+        }
+
+        error_log("✅ Found " . count($facultyAssignmentsList) . " assignments for faculty $facultyId");
+
+        $facultyLoad = $this->calculateFacultyLoad($facultyId, $facultyAssignments, $facultySpecializations);
+
+        // Verify preparation_details exists
+        if (!isset($facultyLoad['preparation_details']) || !is_array($facultyLoad['preparation_details'])) {
+            error_log("❌ No preparation_details found for faculty $facultyId");
+            return null;
+        }
+
+        $preparations = $facultyLoad['preparation_details'];
+
+        error_log("📋 Faculty $facultyId teaches " . count($preparations) . " different courses:");
+        foreach ($preparations as $courseCode => $details) {
+            if (!is_array($details)) {
+                error_log("   ⚠️ Invalid details for $courseCode (type: " . gettype($details) . ")");
+                continue;
+            }
+            $sectionCount = isset($details['sections']) && is_array($details['sections']) ? count($details['sections']) : 0;
+            error_log("   - $courseCode ($sectionCount sections)");
+        }
+
+        $swapCandidates = [];
+
+        // Find all non-expert courses
+        foreach ($preparations as $courseCode => $details) {
+            if (!is_array($details)) {
+                error_log("   ⚠️ Skipping invalid details for $courseCode");
+                continue;
+            }
+
+            // Find actual course_id from assignments
+            $actualCourseId = null;
+            $sectionCount = 0;
+            $totalUnits = 0;
+            $sections = [];
+
+            foreach ($facultyAssignmentsList as $assignment) {
+                if (!is_array($assignment)) {
+                    error_log("   ⚠️ Skipping non-array assignment");
+                    continue;
+                }
+
+                $assignmentCourseCode = $assignment['course_code'] ?? '';
+
+                if ($assignmentCourseCode === $courseCode) {
+                    if (!$actualCourseId) {
+                        $actualCourseId = $assignment['course_id'] ?? null;
+                        $totalUnits = $assignment['units'] ?? 3;
+                    }
+                    $sectionCount++;
+                    $sections[] = $assignment['section_id'] ?? null;
+                }
+            }
+
+            if (!$actualCourseId) {
+                error_log("   ⚠️ Could not find course_id for $courseCode");
+                continue;
+            }
+
+            // Skip if this is the expert course we're trying to add
+            if ($actualCourseId == $expertCourseId) {
+                error_log("   ℹ️ Skipping $courseCode - this is the expert course we want to add");
+                continue;
+            }
+
+            // Check if faculty is expert in this course
+            $isExpert = $this->isExpertInCourse($facultyId, $actualCourseId, $facultySpecializations);
+
+            if (!$isExpert) {
+                $swapCandidates[] = [
+                    'course_id' => $actualCourseId,
+                    'course_code' => $courseCode,
+                    'section_count' => $sectionCount,
+                    'units' => $totalUnits,
+                    'sections' => $sections
+                ];
+                error_log("   ✅ $courseCode is SWAPPABLE (not expert) - $sectionCount sections");
+            } else {
+                error_log("   ❌ $courseCode is EXPERT course - cannot swap");
+            }
+        }
+
+        if (empty($swapCandidates)) {
+            error_log("❌ No swappable courses - all are expert courses");
+            return null;
+        }
+
+        // Priority: Swap course with FEWEST sections (easier to reassign)
+        usort($swapCandidates, function ($a, $b) {
+            // Prefer courses with fewer sections
+            if ($a['section_count'] !== $b['section_count']) {
+                return $a['section_count'] <=> $b['section_count'];
+            }
+            // Tie-breaker: fewer units
+            return $a['units'] <=> $b['units'];
+        });
+
+        $selected = $swapCandidates[0];
+        error_log("🎯 Selected course to swap: {$selected['course_code']} ({$selected['section_count']} sections, {$selected['units']} units)");
+
+        return $selected;
+    }
+
+    // ============================================================================
+    // ALSO FIX: swapEntireCourse to handle both structures
+    // ============================================================================
+
+    private function swapEntireCourse($collegeId, &$schedules, $fromFacultyId, $toFacultyId, $courseToSwap, &$facultyAssignments, $facultySpecializations)
+    {
+        $courseId = $courseToSwap['course_id'];
+        $courseCode = $courseToSwap['course_code'];
+
+        error_log("🔄 Swapping ALL sections of $courseCode from faculty $fromFacultyId to faculty $toFacultyId");
+
+        // Find all assignments for this course from source faculty
+        $assignmentsToSwap = [];
+
+        // FIXED: Handle different structures
+        $facultyAssignmentsList = [];
+
+        // Structure 1: Indexed by faculty_id
+        if (isset($facultyAssignments[$fromFacultyId]) && is_array($facultyAssignments[$fromFacultyId])) {
+            $facultyAssignmentsList = $facultyAssignments[$fromFacultyId];
+            error_log("DEBUG: Using indexed structure for swap");
+
+            foreach ($facultyAssignmentsList as $idx => $assignment) {
+                if (is_array($assignment) && ($assignment['course_id'] ?? null) == $courseId) {
+                    $assignmentsToSwap[] = [
+                        'index' => $idx,
+                        'assignment' => $assignment
+                    ];
+                }
+            }
+        }
+        // Structure 2: Flat array
+        else {
+            error_log("DEBUG: Using flat structure for swap");
+
+            foreach ($facultyAssignments as $idx => $assignment) {
+                if (
+                    is_array($assignment) &&
+                    ($assignment['faculty_id'] ?? null) == $fromFacultyId &&
+                    ($assignment['course_id'] ?? null) == $courseId
+                ) {
+                    $assignmentsToSwap[] = [
+                        'index' => $idx,
+                        'assignment' => $assignment
+                    ];
+                }
+            }
+        }
+
+        if (empty($assignmentsToSwap)) {
+            error_log("❌ No assignments found for $courseCode from faculty $fromFacultyId");
+            return false;
+        }
+
+        error_log("📦 Found " . count($assignmentsToSwap) . " sections to swap");
+
+        // Verify target faculty can take all sections
+        foreach ($assignmentsToSwap as $item) {
+            $assignment = $item['assignment'];
+
+            $days = $assignment['days'] ?? [];
+            $startTime = $assignment['start_time'] ?? '';
+            $endTime = $assignment['end_time'] ?? '';
+
+            // Check time availability
+            if (!$this->isFacultyAvailable($toFacultyId, $days, $startTime, $endTime, $facultyAssignments)) {
+                error_log("❌ Target faculty $toFacultyId not available at " . (is_array($days) ? implode(',', $days) : $days) . " $startTime-$endTime");
+                return false;
+            }
+        }
+
+        // Perform the swap (process in reverse order to avoid index issues)
+        usort($assignmentsToSwap, fn($a, $b) => $b['index'] <=> $a['index']);
+
+        $successCount = 0;
+        foreach ($assignmentsToSwap as $item) {
+            if ($this->reassignCourseToFaculty($collegeId, $schedules, $fromFacultyId, $toFacultyId, $item['index'], $facultyAssignments)) {
+                $successCount++;
+            } else {
+                error_log("⚠️ Failed to swap section at index {$item['index']}");
+            }
+        }
+
+        $allSuccess = ($successCount === count($assignmentsToSwap));
+
+        if ($allSuccess) {
+            error_log("✅ Successfully swapped all $successCount sections of $courseCode");
+        } else {
+            error_log("⚠️ Partial swap: $successCount/" . count($assignmentsToSwap) . " sections swapped");
+        }
+
+        return $allSuccess;
+    }
+
+    // ============================================================================
+    // Find replacement faculty who has room in their preparation count
+    // ============================================================================
+
+    private function findReplacementFaculty($courseToSwap, $excludeFacultyId, $facultySpecializations, $facultyAssignments, $departmentId)
+    {
+        $courseId = $courseToSwap['course_id'];
+        $courseCode = $courseToSwap['course_code'];
+
+        error_log("🔍 Finding replacement faculty for $courseCode (excluding faculty $excludeFacultyId)");
+
+        $courseDetails = $this->getCourseDetails($courseId);
+        $subjectType = $courseDetails['subject_type'] ?? 'General Education';
+        $courseUnits = $courseDetails['units'] ?? 3;
+
+        $candidates = [];
+
+        foreach ($facultySpecializations as $faculty) {
+            $facultyId = $faculty['faculty_id'];
+
+            if ($facultyId == $excludeFacultyId) continue;
+
+            // Check if can teach this subject type
+            $canTeach = false;
+            if ($subjectType === 'Professional Course' && ($faculty['can_teach_professional'] ?? false)) {
+                $canTeach = true;
+            } elseif ($subjectType === 'General Education' && ($faculty['can_teach_general'] ?? false)) {
+                $canTeach = true;
+            }
+
+            if (!$canTeach) {
+                error_log("   ❌ Faculty $facultyId cannot teach $subjectType");
+                continue;
+            }
+
+            // Calculate current load
+            $load = $this->calculateFacultyLoad($facultyId, $facultyAssignments, $facultySpecializations);
+            $limits = $this->getFacultyWorkloadLimits($load['employment_type']);
+
+            // Check if already teaches this course (won't increase preparation count)
+            $alreadyTeaches = isset($load['preparation_details'][$courseCode]);
+            $newPrepCount = $alreadyTeaches ? $load['preparations'] : $load['preparations'] + 1;
+
+            // Check if has room in preparation count
+            if ($newPrepCount > $limits['max_preparations']) {
+                error_log("   ❌ Faculty $facultyId at prep limit ({$load['preparations']}/{$limits['max_preparations']})");
+                continue;
+            }
+
+            // Check if has room in units
+            $newUnits = $load['units'] + ($courseUnits * $courseToSwap['section_count']);
+            if ($newUnits > $limits['max_units']) {
+                error_log("   ❌ Faculty $facultyId would exceed unit limit ($newUnits > {$limits['max_units']})");
+                continue;
+            }
+
+            // Check if expert in this course (priority)
+            $isExpert = $this->isExpertInCourse($facultyId, $courseId, $facultySpecializations);
+
+            $candidates[] = [
+                'faculty_id' => $facultyId,
+                'faculty_name' => $faculty['faculty_name'],
+                'is_expert' => $isExpert,
+                'current_preps' => $load['preparations'],
+                'current_units' => $load['units'],
+                'already_teaches' => $alreadyTeaches,
+                'prep_utilization' => $newPrepCount / $limits['max_preparations']
+            ];
+
+            error_log("   ✅ Faculty $facultyId is candidate - Preps: {$load['preparations']}/{$limits['max_preparations']}, Expert: " . ($isExpert ? 'YES' : 'NO'));
+        }
+
+        if (empty($candidates)) {
+            error_log("❌ No candidate faculty found for $courseCode");
+            return null;
+        }
+
+        // Sort by priority:
+        // 1. Expert in this course
+        // 2. Already teaches this course (no new prep)
+        // 3. Lowest preparation utilization
+        usort($candidates, function ($a, $b) {
+            // Priority 1: Experts first
+            if ($a['is_expert'] && !$b['is_expert']) return -1;
+            if (!$a['is_expert'] && $b['is_expert']) return 1;
+
+            // Priority 2: Already teaches (no new prep)
+            if ($a['already_teaches'] && !$b['already_teaches']) return -1;
+            if (!$a['already_teaches'] && $b['already_teaches']) return 1;
+
+            // Priority 3: Fewer preparations
+            return $a['current_preps'] <=> $b['current_preps'];
+        });
+
+        $selected = $candidates[0];
+        error_log("🎯 Selected replacement: Faculty {$selected['faculty_id']} ({$selected['faculty_name']}) - Expert: " . ($selected['is_expert'] ? 'YES' : 'NO') . ", Preps: {$selected['current_preps']}");
+
+        return $selected['faculty_id'];
+    }
+
+    // Add this method to pre-sort courses before the main loop
+    private function sortCoursesBySpecializationPriority($courses, $facultySpecializations)
+    {
+        $courseSpecializationCount = [];
+
+        foreach ($courses as $course) {
+            $courseId = $course['course_id'];
+            $specializedFacultyCount = 0;
+
+            foreach ($facultySpecializations as $faculty) {
+                if (in_array($courseId, $faculty['specializations'] ?? [])) {
+                    $specializedFacultyCount++;
+                }
+            }
+
+            $courseSpecializationCount[$courseId] = $specializedFacultyCount;
+        }
+
+        // Sort courses: fewer specialized faculty = higher priority
+        usort($courses, function ($a, $b) use ($courseSpecializationCount) {
+            $countA = $courseSpecializationCount[$a['course_id']] ?? 999;
+            $countB = $courseSpecializationCount[$b['course_id']] ?? 999;
+
+            // Courses with fewer specialized faculty get scheduled first
+            if ($countA != $countB) {
+                return $countA <=> $countB;
+            }
+
+            // Tie-breaker: Professional courses first
+            $courseDetailsA = $this->getCourseDetails($a['course_id']);
+            $courseDetailsB = $this->getCourseDetails($b['course_id']);
+
+            $isProfA = ($courseDetailsA['subject_type'] ?? '') === 'Professional Course';
+            $isProfB = ($courseDetailsB['subject_type'] ?? '') === 'Professional Course';
+
+            if ($isProfA && !$isProfB) return -1;
+            if (!$isProfA && $isProfB) return 1;
+
+            return 0;
+        });
+
+        return $courses;
     }
 
     private function isExpertInCourse($facultyId, $courseId, $facultySpecializations)
@@ -4537,72 +5011,6 @@ class ChairController extends BaseController
         }
 
         return $conflicts;
-    }
-
-    private function reassignCourseToFaculty($fromFacultyId, $newFacultyId, $assignmentIndex, $collegeId, &$facultyAssignments, &$schedules)
-    {
-        // 1. Validation and Data Extraction (from old reassignCourseToFaculty)
-        if (!isset($facultyAssignments[$fromFacultyId][$assignmentIndex])) {
-            error_log("Assignment index $assignmentIndex not found for faculty $fromFacultyId. Aborting.");
-            return false;
-        }
-
-        // Get the assignment object and its schedule ID before modifying the array
-        $assignmentToMove = $facultyAssignments[$fromFacultyId][$assignmentIndex];
-        $scheduleId = $assignmentToMove['schedule_id'];
-
-        // 2. Database Update (from old reassignCourse)
-        try {
-            $stmt = $this->db->prepare("
-            UPDATE schedules 
-            SET faculty_id = :new_faculty_id
-            WHERE schedule_id = :schedule_id
-        ");
-
-            $result = $stmt->execute([
-                ':new_faculty_id' => $newFacultyId,
-                ':schedule_id' => $scheduleId
-            ]);
-
-            if (!$result) {
-                error_log("Database update failed for schedule $scheduleId.");
-                return false;
-            }
-        } catch (Exception $e) {
-            error_log("❌ DB Error during course reassignment (schedule $scheduleId): " . $e->getMessage());
-            return false;
-        }
-
-        $newFacultyName = $this->getFaculty($newFacultyId, $collegeId);
-
-        // 3. Update broad $schedules array (for global consistency)
-        foreach ($schedules as &$schedule) {
-            if ($schedule['schedule_id'] == $scheduleId) {
-                $schedule['faculty_id'] = $newFacultyId;
-                // Update other relevant fields like faculty_name if it exists in this array
-                $schedule['faculty_name'] = $newFacultyName;
-                break;
-            }
-        }
-        unset($schedule); // Highly important to break the reference after loop
-
-        unset($facultyAssignments[$fromFacultyId][$assignmentIndex]);
-
-        // b. Reindex the array to avoid gaps in $fromFacultyId's list
-        $facultyAssignments[$fromFacultyId] = array_values($facultyAssignments[$fromFacultyId]);
-
-        // c. Prepare the assignment for the new faculty
-        $assignmentToMove['faculty_id'] = $newFacultyId;
-        $assignmentToMove['faculty_name'] = $newFacultyName;
-
-        // d. Add to new faculty
-        if (!isset($facultyAssignments[$newFacultyId])) {
-            $facultyAssignments[$newFacultyId] = [];
-        }
-        $facultyAssignments[$newFacultyId][] = $assignmentToMove;
-
-        error_log("✅ Successfully reassigned schedule $scheduleId from faculty $fromFacultyId to $newFacultyId.");
-        return true;
     }
 
     // Helper method to check faculty availability
@@ -4969,7 +5377,7 @@ class ChairController extends BaseController
             AND (fd.is_active = 1 OR fd.is_active IS NULL)
             AND u.is_active = 1
             ORDER BY f.faculty_id
-        ");
+            ");
 
             $stmt->execute([
                 ':department_id' => $departmentId,
@@ -5099,22 +5507,6 @@ class ChairController extends BaseController
             $externalCollegeCount = count(array_filter($facultyProfiles, fn($f) => $f['is_external_college']));
             $externalDeptCount = count(array_filter($facultyProfiles, fn($f) => $f['faculty_type'] === 'EXTERNAL_DEPARTMENT'));
             $internalCount = count(array_filter($facultyProfiles, fn($f) => $f['faculty_type'] === 'INTERNAL'));
-
-            error_log("═══════════════════════════════════════════════");
-            error_log("Faculty Summary for Department $departmentId (College $collegeId):");
-            error_log("───────────────────────────────────────────────");
-            error_log("Faculty Types:");
-            error_log("  - Internal (same dept): $internalCount");
-            error_log("  - External department (same college): $externalDeptCount");
-            error_log("  - External college: $externalCollegeCount");
-            error_log("───────────────────────────────────────────────");
-            error_log("Teaching Capabilities:");
-            error_log("  - Professional Course teachers: $professionalCount");
-            error_log("  - General Education teachers: $generalCount");
-            error_log("  - Primary department faculty: $primaryCount");
-            error_log("───────────────────────────────────────────────");
-            error_log("Total faculty: " . count($facultyProfiles));
-            error_log("═══════════════════════════════════════════════");
 
             return $facultyProfiles;
         } catch (PDOException $e) {

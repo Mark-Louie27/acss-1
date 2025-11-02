@@ -198,15 +198,7 @@ ob_start();
                         <span>Faculty Members</span>
                         <span id="faculty-badge" class="bg-gray-100 text-gray-800 text-xs rounded-full px-2 py-1"><?php echo count($faculty); ?></span>
                     </button>
-                    <button id="tab-pending" class="tab-button py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap">
-                        <i class="fas fa-user-plus"></i>
-                        <span>Pending Users</span>
-                        <?php if (!empty($pendingUsers)): ?>
-                            <span id="pending-badge" class="bg-red-100 text-red-800 text-xs rounded-full px-2 py-1"><?php echo count($pendingUsers); ?></span>
-                        <?php else: ?>
-                            <span id="pending-badge" class="bg-gray-100 text-gray-800 text-xs rounded-full px-2 py-1">0</span>
-                        <?php endif; ?>
-                    </button>
+
                 </nav>
             </div>
         </div>
@@ -481,84 +473,6 @@ ob_start();
                     </div>
                 </div>
             </div>
-
-            <!-- Pending Users Section -->
-            <div id="pending-content" class="tab-content hidden">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="px-4 md:px-6 py-4 border-b border-gray-200 bg-gray-50">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                            <h2 class="text-lg font-semibold text-gray-900">Pending Users</h2>
-                            <div class="mt-2 sm:mt-0 text-sm text-gray-600">
-                                <span id="pending-count" class="font-medium"><?php echo count($pendingUsers); ?></span> pending approval
-                            </div>
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200" id="pendingTable">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th scope="col" class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th scope="col" class="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                                    <th scope="col" class="px-4 md:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200" id="pending-tbody">
-                                <?php if (empty($pendingUsers)): ?>
-                                    <tr>
-                                        <td colspan="4" class="px-4 md:px-6 py-12 text-center">
-                                            <div class="flex flex-col items-center justify-center text-gray-400">
-                                                <i class="fas fa-clipboard-check text-4xl mb-3"></i>
-                                                <p class="text-lg font-medium">No pending users</p>
-                                                <p class="text-sm">All users have been approved</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($pendingUsers as $user): ?>
-                                        <tr class="hover:bg-gray-50 transition-colors pending-row"
-                                            data-department="<?php echo $user['department_id']; ?>"
-                                            data-name="<?php echo htmlspecialchars(strtolower($user['last_name'] . ' ' . $user['first_name'])); ?>"
-                                            data-user-id="<?php echo $user['user_id']; ?>">
-                                            <td class="px-4 md:px-6 py-4 whitespace-nowrap cursor-pointer" onclick="showUserModal(<?php echo $user['user_id']; ?>, 'pending')">
-                                                <div class="flex items-center">
-                                                    <div class="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center text-white font-medium">
-                                                        <?php echo strtoupper(substr($user['first_name'], 0, 1) . substr($user['last_name'], 0, 1)); ?>
-                                                    </div>
-                                                    <div class="ml-4">
-                                                        <div class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($user['last_name'] . ', ' . $user['first_name']); ?></div>
-                                                        <div class="text-sm text-gray-500"><?php echo htmlspecialchars($user['email']); ?></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?php echo htmlspecialchars($user['role_name']); ?></td>
-                                            <td class="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?php echo htmlspecialchars($user['department_name']); ?></td>
-                                            <td class="px-4 md:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div class="flex justify-end space-x-2">
-                                                    <form method="POST" class="inline action-form">
-                                                        <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
-                                                        <input type="hidden" name="action" value="activate">
-                                                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
-                                                            <i class="fas fa-check mr-1.5"></i> Approve
-                                                        </button>
-                                                    </form>
-                                                    <form method="POST" class="inline action-form">
-                                                        <input type="hidden" name="user_id" value="<?php echo $user['user_id']; ?>">
-                                                        <input type="hidden" name="action" value="deactivate">
-                                                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                                                            <i class="fas fa-times mr-1.5"></i> Reject
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
         </div>
     </main>
 </div>
@@ -597,33 +511,33 @@ ob_start();
 
         // User data mapping - fixed version
         const userDataMap = <?php
-            $allUsers = array_merge($programChairs, $faculty, $pendingUsers);
-            $userDataArray = [];
-            foreach ($allUsers as $user) {
-                $userDataArray[$user['user_id']] = [
-                    'user_id' => $user['user_id'],
-                    'employee_id' => $user['employee_id'] ?? 'N/A',
-                    'email' => $user['email'] ?? 'N/A',
-                    'title' => $user['title'] ?? '',
-                    'first_name' => $user['first_name'] ?? 'Unknown',
-                    'middle_name' => $user['middle_name'] ?? '',
-                    'last_name' => $user['last_name'] ?? 'Unknown',
-                    'suffix' => $user['suffix'] ?? '',
-                    'profile_picture' => $user['profile_picture'] ?? null,
-                    'is_active' => $user['is_active'] ?? false,
-                    'program_name' => $user['program_name'] ?? 'N/A',
-                    'department_name' => $user['department_name'] ?? 'N/A',
-                    'college_name' => $user['college_name'] ?? 'N/A',
-                    'academic_rank' => $user['academic_rank'] ?? 'N/A',
-                    'employment_type' => $user['employment_type'] ?? 'N/A',
-                    'specialization' => $user['specialization'] ?? 'N/A',
-                    'expertise_level' => $user['expertise_level'] ?? 'N/A',
-                    'role_name' => $user['role_name'] ?? 'N/A'
-                ];
-            }
-            // Output the entire map as a valid JS object literal
-            echo json_encode($userDataArray, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        ?>;
+                            $allUsers = array_merge($programChairs, $faculty, $pendingUsers);
+                            $userDataArray = [];
+                            foreach ($allUsers as $user) {
+                                $userDataArray[$user['user_id']] = [
+                                    'user_id' => $user['user_id'],
+                                    'employee_id' => $user['employee_id'] ?? 'N/A',
+                                    'email' => $user['email'] ?? 'N/A',
+                                    'title' => $user['title'] ?? '',
+                                    'first_name' => $user['first_name'] ?? 'Unknown',
+                                    'middle_name' => $user['middle_name'] ?? '',
+                                    'last_name' => $user['last_name'] ?? 'Unknown',
+                                    'suffix' => $user['suffix'] ?? '',
+                                    'profile_picture' => $user['profile_picture'] ?? null,
+                                    'is_active' => $user['is_active'] ?? false,
+                                    'program_name' => $user['program_name'] ?? 'N/A',
+                                    'department_name' => $user['department_name'] ?? 'N/A',
+                                    'college_name' => $user['college_name'] ?? 'N/A',
+                                    'academic_rank' => $user['academic_rank'] ?? 'N/A',
+                                    'employment_type' => $user['employment_type'] ?? 'N/A',
+                                    'specialization' => $user['specialization'] ?? 'N/A',
+                                    'expertise_level' => $user['expertise_level'] ?? 'N/A',
+                                    'role_name' => $user['role_name'] ?? 'N/A'
+                                ];
+                            }
+                            // Output the entire map as a valid JS object literal
+                            echo json_encode($userDataArray, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                            ?>;
 
         userData = userDataMap[userId];
 

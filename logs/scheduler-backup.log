@@ -1,58 +1,61 @@
-[2025-11-01 16:24:29] ========================================
-[2025-11-01 16:24:29] Starting automated database backup...
-[2025-11-01 16:24:29] ========================================
-[2025-11-01 16:24:29] Database: acss1
-[2025-11-01 16:24:29] Tables to backup: 43
-[2025-11-01 16:24:29] Backing up table 1/43: academic_calendar
-[2025-11-01 16:24:29] Backing up table 2/43: activity_logs
-[2025-11-01 16:24:29] Backing up table 3/43: auth_logs
-[2025-11-01 16:24:29] Backing up table 4/43: chair_departments
-[2025-11-01 16:24:29] Backing up table 5/43: classroom_departments
-[2025-11-01 16:24:29] Backing up table 6/43: classrooms
-[2025-11-01 16:24:29] Backing up table 7/43: colleges
-[2025-11-01 16:24:29] Backing up table 8/43: course_offerings
-[2025-11-01 16:24:29] Backing up table 9/43: courses
-[2025-11-01 16:24:29] Backing up table 10/43: curricula
-[2025-11-01 16:24:29] Backing up table 11/43: curriculum_approvals
-[2025-11-01 16:24:29] Backing up table 12/43: curriculum_courses
-[2025-11-01 16:24:29] Backing up table 13/43: curriculum_group_courses
-[2025-11-01 16:24:29] Backing up table 14/43: curriculum_programs
-[2025-11-01 16:24:29] Backing up table 15/43: curriculum_versions
-[2025-11-01 16:24:29] Backing up table 16/43: deans
-[2025-11-01 16:24:29] Backing up table 17/43: department_instructors
-[2025-11-01 16:24:29] Backing up table 18/43: departments
-[2025-11-01 16:24:29] Backing up table 19/43: faculty
-[2025-11-01 16:24:29] Backing up table 20/43: faculty_departments
-[2025-11-01 16:24:29] Backing up table 21/43: faculty_requests
-[2025-11-01 16:24:29] Backing up table 22/43: prerequisite_chains
-[2025-11-01 16:24:29] Backing up table 23/43: program_chairs
-[2025-11-01 16:24:29] Backing up table 24/43: program_requirements
-[2025-11-01 16:24:29] Backing up table 25/43: programs
-[2025-11-01 16:24:29] Backing up table 26/43: reports
-[2025-11-01 16:24:29] Backing up table 27/43: roles
-[2025-11-01 16:24:29] Backing up table 28/43: room_reservations
-[2025-11-01 16:24:29] Backing up table 29/43: schedule_deadlines
-[2025-11-01 16:24:29] Backing up table 30/43: schedule_requests
-[2025-11-01 16:24:29] Backing up table 31/43: schedules
-[2025-11-01 16:24:29] Backing up table 32/43: section_courses
-[2025-11-01 16:24:29] Backing up table 33/43: sections
-[2025-11-01 16:24:29] Backing up table 34/43: semesters
-[2025-11-01 16:24:29] Backing up table 35/43: specializations
-[2025-11-01 16:24:29] Backing up table 36/43: subject_groups
-[2025-11-01 16:24:29] Backing up table 37/43: system_settings
-[2025-11-01 16:24:29] Backing up table 38/43: teaching_loads
-[2025-11-01 16:24:29] Backing up table 39/43: user_metadata
-[2025-11-01 16:24:29] Backing up table 40/43: user_roles
-[2025-11-01 16:24:29] Backing up table 41/43: users
-[2025-11-01 16:24:29] Backing up table 42/43: vpaa
-[2025-11-01 16:24:29] Backing up table 43/43: vw_subject_types
+[2025-11-02 23:31:55] ========================================
+[2025-11-02 23:31:55] Starting automated database backup...
+[2025-11-02 23:31:55] ========================================
+[2025-11-02 23:31:55] Database: acss1
+[2025-11-02 23:31:55] Tables to backup: 46
+[2025-11-02 23:31:55] Backing up table 1/46: academic_calendar
+[2025-11-02 23:31:56] Backing up table 2/46: activity_logs
+[2025-11-02 23:31:56] Backing up table 3/46: admission_departments
+[2025-11-02 23:31:56] Backing up table 4/46: admission_roles
+[2025-11-02 23:31:56] Backing up table 5/46: admissions
+[2025-11-02 23:31:56] Backing up table 6/46: auth_logs
+[2025-11-02 23:31:56] Backing up table 7/46: chair_departments
+[2025-11-02 23:31:56] Backing up table 8/46: classroom_departments
+[2025-11-02 23:31:56] Backing up table 9/46: classrooms
+[2025-11-02 23:31:56] Backing up table 10/46: colleges
+[2025-11-02 23:31:56] Backing up table 11/46: course_offerings
+[2025-11-02 23:31:56] Backing up table 12/46: courses
+[2025-11-02 23:31:56] Backing up table 13/46: curricula
+[2025-11-02 23:31:56] Backing up table 14/46: curriculum_approvals
+[2025-11-02 23:31:56] Backing up table 15/46: curriculum_courses
+[2025-11-02 23:31:56] Backing up table 16/46: curriculum_group_courses
+[2025-11-02 23:31:56] Backing up table 17/46: curriculum_programs
+[2025-11-02 23:31:56] Backing up table 18/46: curriculum_versions
+[2025-11-02 23:31:56] Backing up table 19/46: deans
+[2025-11-02 23:31:56] Backing up table 20/46: department_instructors
+[2025-11-02 23:31:56] Backing up table 21/46: departments
+[2025-11-02 23:31:56] Backing up table 22/46: faculty
+[2025-11-02 23:31:56] Backing up table 23/46: faculty_departments
+[2025-11-02 23:31:56] Backing up table 24/46: faculty_requests
+[2025-11-02 23:31:56] Backing up table 25/46: prerequisite_chains
+[2025-11-02 23:31:56] Backing up table 26/46: program_chairs
+[2025-11-02 23:31:56] Backing up table 27/46: program_requirements
+[2025-11-02 23:31:56] Backing up table 28/46: programs
+[2025-11-02 23:31:56] Backing up table 29/46: reports
+[2025-11-02 23:31:56] Backing up table 30/46: roles
+[2025-11-02 23:31:56] Backing up table 31/46: room_reservations
+[2025-11-02 23:31:56] Backing up table 32/46: schedule_deadlines
+[2025-11-02 23:31:56] Backing up table 33/46: schedule_requests
+[2025-11-02 23:31:56] Backing up table 34/46: schedules
+[2025-11-02 23:31:56] Backing up table 35/46: section_courses
+[2025-11-02 23:31:56] Backing up table 36/46: sections
+[2025-11-02 23:31:56] Backing up table 37/46: semesters
+[2025-11-02 23:31:56] Backing up table 38/46: specializations
+[2025-11-02 23:31:56] Backing up table 39/46: subject_groups
+[2025-11-02 23:31:56] Backing up table 40/46: system_settings
+[2025-11-02 23:31:56] Backing up table 41/46: teaching_loads
+[2025-11-02 23:31:56] Backing up table 42/46: user_metadata
+[2025-11-02 23:31:56] Backing up table 43/46: user_roles
+[2025-11-02 23:31:56] Backing up table 44/46: users
+[2025-11-02 23:31:56] Backing up table 45/46: vpaa
+[2025-11-02 23:31:56] Backing up table 46/46: vw_subject_types
 PHP Warning:  Undefined array key "Create Table" in C:\Users\LENOVO\Desktop\acss-1\cli\backup-database.php on line 219
 
 Warning: Undefined array key "Create Table" in C:\Users\LENOVO\Desktop\acss-1\cli\backup-database.php on line 219
-[2025-11-01 16:24:29] Writing backup file...
-[2025-11-01 16:24:29] Backup file created: 223.36 KB
-[2025-11-01 16:24:29] Compressing backup...
-[2025-11-01 16:24:29] Backup compressed: 29.59 KB
-[2025-11-01 16:24:29] Cleaning up old backups...
-[2025-11-01 16:24:29] No old backups to clean up
-[2025-11-01 16:24:29] ✓ SUCCESS: Database backup created successfully: backup_acss1_2025-11-01_16-24-29.sql.zip (29.59 KB)
+[2025-11-02 23:31:56] Writing backup file...
+[2025-11-02 23:31:56] Backup file created: 229.42 KB
+[2025-11-02 23:31:56] Compressing backup...
+[2025-11-02 23:31:56] Backup compressed: 30.41 KB
+[2025-11-02 23:31:56] Cleaning up old backups...
+[2025-11-02 23:31:56] No old backups to clean up
+[2025-11-02 23:31:56] ✓ SUCCESS: Database backup created successfully: backup_acss1_2025-11-02_23-31-55.sql.zip (30.41 KB)
