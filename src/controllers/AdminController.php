@@ -541,12 +541,13 @@ class AdminController
 
     public function manageUsers()
     {
+        // Handle POST requests first (API calls)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleUserApiRequest();
+            return; // Stop execution after handling API request
+        }
+
         try {
-            // Handle POST requests first (API calls)
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $this->handleUserApiRequest();
-                return; // Stop execution after handling API request
-            }
 
             // For GET requests, show the HTML page
             $action = $_GET['action'] ?? 'list';
@@ -570,7 +571,7 @@ class AdminController
             LEFT JOIN deans ON u.user_id = deans.user_id AND deans.is_current = 1
             LEFT JOIN department_instructors di ON u.user_id = di.user_id AND di.is_current = 1
             ORDER BY u.first_name, u.last_name
-            ");
+        ");
             $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Get pending admissions
@@ -633,10 +634,36 @@ class AdminController
             require_once __DIR__ . '/../views/admin/users.php';
         } catch (PDOException $e) {
             error_log("Manage users error: " . $e->getMessage());
+
+            // Check if this is an API request
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Database error occurred: ' . $e->getMessage()
+                ]);
+                exit;
+            }
+
+            // For GET requests, show error page
             http_response_code(500);
             echo "Server error: " . $e->getMessage();
         } catch (Exception $e) {
             error_log("Manage users general error: " . $e->getMessage());
+
+            // Check if this is an API request
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'An error occurred: ' . $e->getMessage()
+                ]);
+                exit;
+            }
+
+            // For GET requests, show error page
             http_response_code(500);
             echo "Server error: " . $e->getMessage();
         }
@@ -645,10 +672,14 @@ class AdminController
     private function addNewUser($data)
     {
         try {
+            error_log("=== ADD NEW USER DEBUG ===");
+            error_log("Input data: " . json_encode($data));
+
             // Validate required fields
             $required = ['employee_id', 'username', 'email', 'first_name', 'last_name', 'role_id'];
             foreach ($required as $field) {
                 if (empty($data[$field])) {
+                    error_log("Missing required field: $field");
                     return ['success' => false, 'error' => "Field '$field' is required"];
                 }
             }
@@ -680,21 +711,50 @@ class AdminController
 
             // Handle department IDs - can be multiple for Program Chair
             $departmentIds = [];
-            $primaryDepartmentId = intval($data['department_id'] ?? 0);
+            $primaryDepartmentId = 0;
+            $roleId = intval($data['role_id']);
 
-            if (isset($data['department_ids']) && is_array($data['department_ids'])) {
-                // Multiple departments selected (Program Chair)
-                $departmentIds = array_map('intval', $data['department_ids']);
-                $primaryDepartmentId = intval($data['primary_department_id'] ?? 0);
+            error_log("Role ID: $roleId");
 
-                // If no primary set, use first one
-                if ($primaryDepartmentId === 0 && !empty($departmentIds)) {
-                    $primaryDepartmentId = $departmentIds[0];
+            if ($roleId === 5) { // Program Chair
+                // Check if department_ids is set (checkbox array)
+                if (isset($data['department_ids']) && is_array($data['department_ids'])) {
+                    $departmentIds = array_map('intval', array_filter($data['department_ids']));
+                    error_log("Program Chair - Multiple departments: " . json_encode($departmentIds));
+
+                    if (empty($departmentIds)) {
+                        return ['success' => false, 'error' => 'Program Chair must have at least one department'];
+                    }
+
+                    // Get primary department
+                    if (!empty($data['primary_department_id'])) {
+                        $primaryDepartmentId = intval($data['primary_department_id']);
+                    } else {
+                        // If no primary set, use first one
+                        $primaryDepartmentId = $departmentIds[0];
+                    }
+
+                    // Validate primary is in the list
+                    if (!in_array($primaryDepartmentId, $departmentIds)) {
+                        $primaryDepartmentId = $departmentIds[0];
+                    }
+                } elseif (!empty($data['department_id'])) {
+                    // Fallback for single department
+                    $primaryDepartmentId = intval($data['department_id']);
+                    $departmentIds = [$primaryDepartmentId];
+                } else {
+                    return ['success' => false, 'error' => 'Program Chair must have at least one department'];
                 }
             } else {
-                // Single department
-                $departmentIds = [$primaryDepartmentId];
+                // Other roles - single department
+                if (!empty($data['department_id'])) {
+                    $primaryDepartmentId = intval($data['department_id']);
+                    $departmentIds = [$primaryDepartmentId];
+                }
             }
+
+            error_log("Primary Department ID: $primaryDepartmentId");
+            error_log("All Department IDs: " . json_encode($departmentIds));
 
             // Hash the password
             $passwordHash = password_hash($data['temporary_password'], PASSWORD_DEFAULT);
@@ -714,7 +774,6 @@ class AdminController
         ");
 
             // Determine if user should be auto-activated
-            $roleId = intval($data['role_id']);
             $isActive = in_array($roleId, [1, 2, 4, 5]) ? 1 : 0; // Admin, Super Admin, Dean, Dept Chair = auto-active
 
             $userData = [
@@ -729,13 +788,17 @@ class AdminController
                 ':last_name' => $data['last_name'],
                 ':suffix' => $data['suffix'] ?? null,
                 ':role_id' => $roleId,
-                ':college_id' => !empty($data['college_id']) ? $data['college_id'] : null,
+                ':college_id' => !empty($data['college_id']) ? intval($data['college_id']) : null,
                 ':department_id' => $primaryDepartmentId > 0 ? $primaryDepartmentId : null,
                 ':is_active' => $isActive
             ];
 
+            error_log("User data for insert: " . json_encode($userData));
+
             $stmt->execute($userData);
             $newUserId = $this->db->lastInsertId();
+
+            error_log("New user ID: $newUserId");
 
             // Insert into faculty table for ALL user roles
             $facultyStmt = $this->db->prepare("
@@ -762,25 +825,27 @@ class AdminController
                 ':academic_rank' => $data['academic_rank'] ?? null,
                 ':employment_type' => $data['employment_type'] ?? null,
                 ':classification' => $data['classification'] ?? null,
-                ':max_hours' => $data['max_hours'] ?? 18.00,
+                ':max_hours' => !empty($data['max_hours']) ? floatval($data['max_hours']) : 18.00,
                 ':bachelor_degree' => $data['bachelor_degree'] ?? null,
                 ':master_degree' => $data['master_degree'] ?? null,
                 ':doctorate_degree' => $data['doctorate_degree'] ?? null,
                 ':post_doctorate_degree' => $data['post_doctorate_degree'] ?? null,
                 ':designation' => $data['designation'] ?? null,
-                ':equiv_teaching_load' => $data['equiv_teaching_load'] ?? null,
-                ':total_lecture_hours' => $data['total_lecture_hours'] ?? null,
-                ':total_laboratory_hours' => $data['total_laboratory_hours'] ?? null,
-                ':total_laboratory_hours_x075' => $data['total_laboratory_hours_x075'] ?? null,
-                ':no_of_preparation' => $data['no_of_preparation'] ?? null,
+                ':equiv_teaching_load' => !empty($data['equiv_teaching_load']) ? floatval($data['equiv_teaching_load']) : null,
+                ':total_lecture_hours' => !empty($data['total_lecture_hours']) ? floatval($data['total_lecture_hours']) : null,
+                ':total_laboratory_hours' => !empty($data['total_laboratory_hours']) ? floatval($data['total_laboratory_hours']) : null,
+                ':total_laboratory_hours_x075' => !empty($data['total_laboratory_hours_x075']) ? floatval($data['total_laboratory_hours_x075']) : null,
+                ':no_of_preparation' => !empty($data['no_of_preparation']) ? intval($data['no_of_preparation']) : null,
                 ':advisory_class' => $data['advisory_class'] ?? null,
-                ':equiv_units_no_of_prep' => $data['equiv_units_no_of_prep'] ?? null,
-                ':actual_teaching_loads' => $data['actual_teaching_loads'] ?? null,
-                ':total_working_load' => $data['total_working_load'] ?? null,
-                ':excess_hours' => $data['excess_hours'] ?? null,
-                ':primary_program_id' => $data['primary_program_id'] ?? null,
-                ':secondary_program_id' => $data['secondary_program_id'] ?? null
+                ':equiv_units_no_of_prep' => !empty($data['equiv_units_no_of_prep']) ? floatval($data['equiv_units_no_of_prep']) : null,
+                ':actual_teaching_loads' => !empty($data['actual_teaching_loads']) ? floatval($data['actual_teaching_loads']) : null,
+                ':total_working_load' => !empty($data['total_working_load']) ? floatval($data['total_working_load']) : null,
+                ':excess_hours' => !empty($data['excess_hours']) ? floatval($data['excess_hours']) : null,
+                ':primary_program_id' => !empty($data['primary_program_id']) ? intval($data['primary_program_id']) : null,
+                ':secondary_program_id' => !empty($data['secondary_program_id']) ? intval($data['secondary_program_id']) : null
             ];
+
+            error_log("Faculty data for insert: " . json_encode($facultyData));
 
             $facultyStmt->execute($facultyData);
 
@@ -794,13 +859,20 @@ class AdminController
             // Commit transaction
             $this->db->commit();
 
+            error_log("User added successfully");
+
             // Send welcome email
-            $this->emailService->getWelcomeEmailTemplate(
-                $data['email'],
-                $data['first_name'],
-                $data['username'],
-                $data['temporary_password']
-            );
+            try {
+                $this->emailService->getWelcomeEmailTemplate(
+                    $data['email'],
+                    $data['first_name'],
+                    $data['username'],
+                    $data['temporary_password']
+                );
+            } catch (Exception $e) {
+                error_log("Email sending failed: " . $e->getMessage());
+                // Don't fail the whole operation if email fails
+            }
 
             return [
                 'success' => true,
@@ -815,6 +887,7 @@ class AdminController
                 $this->db->rollBack();
             }
             error_log("addNewUser error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return ['success' => false, 'error' => 'Failed to add user: ' . $e->getMessage()];
         }
     }
@@ -994,16 +1067,23 @@ class AdminController
             $userId = $_POST['user_id'] ?? $_GET['user_id'] ?? null;
 
             error_log("API Request - Action: $action, User ID: $userId");
-
-            // Verify CSRF token
-            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-                echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']);
-                exit;
-            }
+            error_log("POST data: " . print_r($_POST, true));
 
             // Validate action
             if (empty($action)) {
                 echo json_encode(['success' => false, 'error' => 'No action specified']);
+                exit;
+            }
+
+            // Verify CSRF token for all actions
+            $csrfToken = $_POST['csrf_token'] ?? '';
+            if (empty($csrfToken)) {
+                echo json_encode(['success' => false, 'error' => 'CSRF token missing']);
+                exit;
+            }
+
+            if (!$this->authService->verifyCsrfToken($csrfToken)) {
+                echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']);
                 exit;
             }
 
@@ -1014,6 +1094,7 @@ class AdminController
                 exit;
             }
 
+            // Start transaction for user operations
             $this->db->beginTransaction();
 
             $data = $_POST;
@@ -1021,23 +1102,40 @@ class AdminController
             $data['action'] = $action;
 
             if ($action === 'add') {
+                error_log("Calling addNewUser with data: " . json_encode($data));
                 $result = $this->addNewUser($data);
             } else {
                 $result = $this->handleUserAction($data);
             }
 
             $this->db->commit();
+
+            error_log("Operation result: " . json_encode($result));
             echo json_encode($result);
             exit;
         } catch (PDOException $e) {
-            $this->db->rollBack();
-            error_log("User API error: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => 'Database error occurred']);
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("User API PDO error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+
+            echo json_encode([
+                'success' => false,
+                'error' => 'Database error: ' . $e->getMessage()
+            ]);
             exit;
         } catch (Exception $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             error_log("User API error: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => 'An error occurred: ' . $e->getMessage()]);
+            error_log("Stack trace: " . $e->getTraceAsString());
+
+            echo json_encode([
+                'success' => false,
+                'error' => 'An error occurred: ' . $e->getMessage()
+            ]);
             exit;
         }
     }

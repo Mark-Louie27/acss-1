@@ -283,7 +283,6 @@ ob_start();
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Role</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[150px]">College</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[150px]">Department</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Password</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[100px]">Status</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Actions</th>
                             </tr>
@@ -334,14 +333,6 @@ ob_start();
                                         <div class="truncate max-w-[140px]" title="<?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>">
                                             <?php echo htmlspecialchars($user['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
                                         </div>
-                                    </td>
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
-                                        ••••••••
-                                        <button onclick="showPassword(<?php echo $user['user_id']; ?>)"
-                                            class="ml-2 text-blue-600 hover:text-blue-900 text-xs"
-                                            title="View Password">
-                                            View
-                                        </button>
                                     </td>
                                     <td class="px-4 py-4 whitespace-nowrap">
                                         <?php $isActive = isset($user['is_active']) && $user['is_active']; ?>
@@ -1257,6 +1248,7 @@ ob_start();
         // ========================
         // Form Submission Handler
         // ========================
+        // Replace your form submission handler with this:
         document.addEventListener('DOMContentLoaded', function() {
             const addUserForm = document.getElementById('addUserForm');
 
@@ -1278,6 +1270,9 @@ ob_start();
                     }
                     formData.set('temporary_password', password);
 
+                    // Add action
+                    formData.set('action', 'add');
+
                     // Handle Program Chair multi-department
                     const roleId = parseInt(document.getElementById('roleSelect').value);
                     if (roleId === 5) { // Program Chair
@@ -1288,6 +1283,16 @@ ob_start();
                             return;
                         }
 
+                        // Remove any existing department_ids[] entries
+                        formData.delete('department_ids[]');
+
+                        // Add all checked departments
+                        checkedDepts.forEach(checkbox => {
+                            formData.append('department_ids[]', checkbox.value);
+                        });
+
+                        console.log('Selected departments:', Array.from(checkedDepts).map(cb => cb.value));
+
                         if (checkedDepts.length > 1) {
                             const primaryDept = document.getElementById('primaryDepartmentSelect').value;
                             if (!primaryDept) {
@@ -1295,17 +1300,26 @@ ob_start();
                                 return;
                             }
                             formData.set('primary_department_id', primaryDept);
+                            console.log('Primary department:', primaryDept);
                         } else if (checkedDepts.length === 1) {
                             // Single department - set as both department_id and primary
                             formData.set('department_id', checkedDepts[0].value);
                             formData.set('primary_department_id', checkedDepts[0].value);
+                            console.log('Single department:', checkedDepts[0].value);
                         }
                     } else {
                         // For other roles, ensure single department is set
                         const deptId = document.getElementById('departmentSelect').value;
                         if (deptId) {
-                            formData.set('department_ids[]', deptId);
+                            formData.set('department_id', deptId);
+                            console.log('Single department for non-chair:', deptId);
                         }
+                    }
+
+                    // Log all form data for debugging
+                    console.log('FormData contents:');
+                    for (let [key, value] of formData.entries()) {
+                        console.log(`  ${key}: ${value}`);
                     }
 
                     // Show loading state
@@ -1318,10 +1332,15 @@ ob_start();
                         })
                         .then(response => {
                             console.log('Response status:', response.status);
+                            console.log('Response headers:', response.headers);
 
                             const contentType = response.headers.get('content-type');
                             if (!contentType || !contentType.includes('application/json')) {
-                                throw new Error('Server returned non-JSON response');
+                                // Get the actual response text to see what went wrong
+                                return response.text().then(text => {
+                                    console.error('Non-JSON response:', text);
+                                    throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                                });
                             }
                             return response.json();
                         })
@@ -1340,7 +1359,7 @@ ob_start();
                         })
                         .catch(error => {
                             console.error('Fetch error:', error);
-                            showErrorModal('Network Error', 'An error occurred while adding the user. Please try again.');
+                            showErrorModal('Network Error', error.message || 'An error occurred while adding the user. Please try again.');
                         })
                         .finally(() => {
                             submitButton.textContent = originalText;
