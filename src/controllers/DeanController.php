@@ -1865,84 +1865,229 @@ class DeanController extends BaseController
         // Add this line before requiring the view
         $controller = $this;
 
-        if (isset($_POST['toggle_availability'])) {
-            $roomId = $_POST['room_id'];
-            $currentAvailability = $_POST['current_availability'];
-            $nextAvailability = [
-                'available' => 'unavailable',
-                'unavailable' => 'under_maintenance',
-                'under_maintenance' => 'available'
-            ][$currentAvailability];
-            $query = "UPDATE classrooms SET availability = :availability, updated_at = NOW() WHERE room_id = :room_id";
-            $stmt = $this->db->prepare($query);
-            try {
-                $stmt->execute([':availability' => $nextAvailability, ':room_id' => $roomId]);
-                header("Location: /dean/classroom?success=Availability updated successfully");
-            } catch (PDOException $e) {
-                error_log("Error updating availability: " . $e->getMessage());
-                header("Location: /dean/classroom?error=Failed to update availability");
-            }
-            exit;
+        // Check if it's an AJAX request for schedule data
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
         }
 
-        if (isset($_POST['update_classroom'])) {
-            $roomId = $_POST['room_id'];
-            $roomName = $_POST['room_name'];
-            $building = $_POST['building'];
-            $departmentId = $_POST['department_id'];
-            $capacity = $_POST['capacity'];
-            $roomType = $_POST['room_type'];
-            $shared = isset($_POST['shared']) ? 1 : 0;
-            $availability = $_POST['availability'];
-            $query = "UPDATE classrooms SET room_name = :room_name, building = :building, department_id = :department_id, capacity = :capacity, room_type = :room_type, shared = :shared, availability = :availability, updated_at = NOW() WHERE room_id = :room_id";
-            $stmt = $this->db->prepare($query);
-            try {
+        try {
+            // Handle AJAX request for classroom schedule
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_classroom_schedule') {
+                $room_id = (int)($_POST['room_id'] ?? 0);
+                if (!$room_id) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid room ID']);
+                    exit;
+                }
+
+                $currentSemester = $this->getCurrentSemester();
+                $currentSemesterId = $currentSemester['semester_id'];
+
+                $query = "
+                SELECT 
+                    s.day_of_week,
+                    s.start_time,
+                    s.end_time,
+                    sec.section_name,
+                    crs.course_code,
+                    crs.course_name,
+                    COALESCE(
+                        TRIM(CONCAT(
+                            COALESCE(u.title, ''), ' ',
+                            COALESCE(u.first_name, ''), ' ',
+                            COALESCE(u.middle_name, ''), ' ',
+                            COALESCE(u.last_name, ''), ' ',
+                            COALESCE(u.suffix, '')
+                        )),
+                        u.email,
+                        'TBA'
+                    ) AS faculty_name,
+                    c.room_type
+                FROM schedules s
+                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                LEFT JOIN courses crs ON s.course_id = crs.course_id
+                LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+                LEFT JOIN users u ON f.user_id = u.user_id
+                LEFT JOIN classrooms c ON s.room_id = c.room_id
+                WHERE s.room_id = :room_id 
+                AND s.semester_id = :semester_id
+                ORDER BY 
+                    FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'),
+                    s.start_time
+            ";
+
+                $stmt = $this->db->prepare($query);
                 $stmt->execute([
-                    ':room_name' => $roomName,
-                    ':building' => $building,
-                    ':department_id' => $departmentId,
-                    ':capacity' => $capacity,
-                    ':room_type' => $roomType,
-                    ':shared' => $shared,
-                    ':availability' => $availability,
-                    ':room_id' => $roomId
+                    ':room_id' => $room_id,
+                    ':semester_id' => $currentSemesterId
                 ]);
-                header("Location: /dean/classroom?success=Classroom updated successfully");
-            } catch (PDOException $e) {
-                error_log("Error updating classroom: " . $e->getMessage());
-                header("Location: /dean/classroom?error=Failed to update classroom");
+
+                $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Group schedules by day
+                $groupedSchedule = [];
+                foreach ($schedules as $schedule) {
+                    $day = $schedule['day_of_week'];
+                    if (!isset($groupedSchedule[$day])) {
+                        $groupedSchedule[$day] = [];
+                    }
+
+                    $groupedSchedule[$day][] = [
+                        'time' => date('h:i A', strtotime($schedule['start_time'])) . ' - ' . date('h:i A', strtotime($schedule['end_time'])),
+                        'course' => $schedule['course_code'] . ' - ' . $schedule['course_name'],
+                        'section' => $schedule['section_name'],
+                        'faculty' => $schedule['faculty_name'],
+                        'type' => $schedule['room_type'] === 'laboratory' ? 'Lab' : 'Lecture'
+                    ];
+                }
+
+                // Get classroom info for the header
+                $classroomStmt = $this->db->prepare("
+                SELECT c.room_name, c.building, d.department_name
+                FROM classrooms c
+                LEFT JOIN departments d ON c.department_id = d.department_id
+                WHERE c.room_id = :room_id
+            ");
+                $classroomStmt->execute([':room_id' => $room_id]);
+                $classroomInfo = $classroomStmt->fetch(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'success' => true,
+                    'schedule' => $groupedSchedule,
+                    'classroom_info' => $classroomInfo
+                ]);
+                exit;
             }
-            exit;
+
+            if (isset($_POST['toggle_availability'])) {
+                $roomId = $_POST['room_id'];
+                $currentAvailability = $_POST['current_availability'];
+                $nextAvailability = [
+                    'available' => 'unavailable',
+                    'unavailable' => 'under_maintenance',
+                    'under_maintenance' => 'available'
+                ][$currentAvailability];
+                $query = "UPDATE classrooms SET availability = :availability, updated_at = NOW() WHERE room_id = :room_id";
+                $stmt = $this->db->prepare($query);
+                try {
+                    $stmt->execute([':availability' => $nextAvailability, ':room_id' => $roomId]);
+                    header("Location: /dean/classroom?success=Availability updated successfully");
+                } catch (PDOException $e) {
+                    error_log("Error updating availability: " . $e->getMessage());
+                    header("Location: /dean/classroom?error=Failed to update availability");
+                }
+                exit;
+            }
+
+            if (isset($_POST['update_classroom'])) {
+                $roomId = $_POST['room_id'];
+                $roomName = $_POST['room_name'];
+                $building = $_POST['building'];
+                $departmentId = $_POST['department_id'];
+                $capacity = $_POST['capacity'];
+                $roomType = $_POST['room_type'];
+                $shared = isset($_POST['shared']) ? 1 : 0;
+                $availability = $_POST['availability'];
+                $query = "UPDATE classrooms SET room_name = :room_name, building = :building, department_id = :department_id, capacity = :capacity, room_type = :room_type, shared = :shared, availability = :availability, updated_at = NOW() WHERE room_id = :room_id";
+                $stmt = $this->db->prepare($query);
+                try {
+                    $stmt->execute([
+                        ':room_name' => $roomName,
+                        ':building' => $building,
+                        ':department_id' => $departmentId,
+                        ':capacity' => $capacity,
+                        ':room_type' => $roomType,
+                        ':shared' => $shared,
+                        ':availability' => $availability,
+                        ':room_id' => $roomId
+                    ]);
+                    header("Location: /dean/classroom?success=Classroom updated successfully");
+                } catch (PDOException $e) {
+                    error_log("Error updating classroom: " . $e->getMessage());
+                    header("Location: /dean/classroom?error=Failed to update classroom");
+                }
+                exit;
+            }
+
+            if (!$collegeId) {
+                error_log("No college found for dean user_id: $userId");
+                return ['error' => 'No college assigned to this dean'];
+            }
+
+            // Handle add classroom
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_classroom'])) {
+                $this->addClassroom($_POST, $collegeId);
+            }
+
+            // Handle room reservation approval
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reservation_id'])) {
+                $this->handleRoomReservation($_POST);
+            }
+
+            // Fetch classrooms with enhanced schedule data
+            $currentSemester = $this->getCurrentSemester();
+            $currentSemesterId = $currentSemester['semester_id'];
+
+            $query = "
+            SELECT 
+                c.*,
+                d.department_name,
+                col.college_name,
+                COUNT(DISTINCT s.schedule_id) AS current_semester_usage,
+                GROUP_CONCAT(DISTINCT s.day_of_week) AS schedule_days,
+                GROUP_CONCAT(DISTINCT sec.section_name) AS sections,
+                GROUP_CONCAT(DISTINCT CONCAT(
+                    COALESCE(u.first_name, ''), ' ',
+                    COALESCE(u.last_name, '')
+                )) AS faculty_names
+            FROM classrooms c
+            JOIN departments d ON c.department_id = d.department_id
+            JOIN colleges col ON d.college_id = col.college_id
+            LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+            LEFT JOIN users u ON f.user_id = u.user_id
+            WHERE d.college_id = :college_id
+            GROUP BY c.room_id
+            ORDER BY d.department_name, c.building, c.room_name";
+
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([
+                ':college_id' => $collegeId,
+                ':current_semester_id' => $currentSemesterId
+            ]);
+            $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Process schedule data for each classroom
+            foreach ($classrooms as &$classroom) {
+                $classroom['schedule_days'] = !empty($classroom['schedule_days'])
+                    ? array_unique(explode(',', $classroom['schedule_days']))
+                    : [];
+
+                $classroom['sections'] = !empty($classroom['sections'])
+                    ? array_unique(explode(',', $classroom['sections']))
+                    : [];
+
+                $classroom['faculty'] = !empty($classroom['faculty_names'])
+                    ? array_unique(array_filter(explode(',', $classroom['faculty_names'])))
+                    : [];
+            }
+
+            // Load classroom management view
+            require_once __DIR__ . '/../views/dean/classroom.php';
+        } catch (Exception $e) {
+            error_log("classroom: General Error: " . $e->getMessage());
+            if ($isAjax) {
+                ob_clean();
+                echo json_encode([
+                    'success' => false,
+                    'message' => "An error occurred: " . htmlspecialchars($e->getMessage())
+                ]);
+                exit;
+            }
+            $error = "An error occurred: " . htmlspecialchars($e->getMessage());
+            require_once __DIR__ . '/../views/dean/classroom.php';
         }
-
-        if (!$collegeId) {
-            error_log("No college found for dean user_id: $userId");
-            return ['error' => 'No college assigned to this dean'];
-        }
-
-        // Handle add classroom
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_classroom'])) {
-            $this->addClassroom($_POST, $collegeId);
-        }
-
-        // Handle room reservation approval
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reservation_id'])) {
-            $this->handleRoomReservation($_POST);
-        }
-
-        // Fetch classrooms
-        $query = "
-        SELECT c.*, d.department_name
-        FROM classrooms c
-        JOIN departments d ON c.department_id = d.department_id
-        WHERE d.college_id = :college_id
-        ORDER BY c.building, c.room_name";
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([':college_id' => $collegeId]);
-        $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Load classroom management view
-        require_once __DIR__ . '/../views/dean/classroom.php';
     }
 
     private function addClassroom($data, $collegeId)

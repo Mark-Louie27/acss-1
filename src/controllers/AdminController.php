@@ -1404,30 +1404,224 @@ class AdminController
     public function classroom()
     {
         try {
+            // Check if it's an AJAX request for schedule data or filtering
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+            }
+
+            // Handle AJAX request for classroom schedule
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_classroom_schedule') {
+                $room_id = (int)($_POST['room_id'] ?? 0);
+                if (!$room_id) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid room ID']);
+                    exit;
+                }
+
+                $currentSemester = $this->UserModel->getCurrentSemester();
+                $currentSemesterId = $currentSemester['semester_id'];
+
+                $query = "
+                SELECT 
+                    s.day_of_week,
+                    s.start_time,
+                    s.end_time,
+                    sec.section_name,
+                    crs.course_code,
+                    crs.course_name,
+                    COALESCE(
+                        TRIM(CONCAT(
+                            COALESCE(u.title, ''), ' ',
+                            COALESCE(u.first_name, ''), ' ',
+                            COALESCE(u.middle_name, ''), ' ',
+                            COALESCE(u.last_name, ''), ' ',
+                            COALESCE(u.suffix, '')
+                        )),
+                        u.email,
+                        'TBA'
+                    ) AS faculty_name,
+                    c.room_type
+                FROM schedules s
+                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                LEFT JOIN courses crs ON s.course_id = crs.course_id
+                LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+                LEFT JOIN users u ON f.user_id = u.user_id
+                LEFT JOIN classrooms c ON s.room_id = c.room_id
+                WHERE s.room_id = :room_id 
+                AND s.semester_id = :semester_id
+                ORDER BY 
+                    FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'),
+                    s.start_time
+            ";
+
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([
+                    ':room_id' => $room_id,
+                    ':semester_id' => $currentSemesterId
+                ]);
+
+                $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Group schedules by day
+                $groupedSchedule = [];
+                foreach ($schedules as $schedule) {
+                    $day = $schedule['day_of_week'];
+                    if (!isset($groupedSchedule[$day])) {
+                        $groupedSchedule[$day] = [];
+                    }
+
+                    $groupedSchedule[$day][] = [
+                        'time' => date('h:i A', strtotime($schedule['start_time'])) . ' - ' . date('h:i A', strtotime($schedule['end_time'])),
+                        'course' => $schedule['course_code'] . ' - ' . $schedule['course_name'],
+                        'section' => $schedule['section_name'],
+                        'faculty' => $schedule['faculty_name'],
+                        'type' => $schedule['room_type'] === 'laboratory' ? 'Lab' : 'Lecture'
+                    ];
+                }
+
+                // Get classroom info for the header
+                $classroomStmt = $this->db->prepare("
+                SELECT c.room_name, c.building, d.department_name, col.college_name
+                FROM classrooms c
+                LEFT JOIN departments d ON c.department_id = d.department_id
+                LEFT JOIN colleges col ON d.college_id = col.college_id
+                WHERE c.room_id = :room_id
+            ");
+                $classroomStmt->execute([':room_id' => $room_id]);
+                $classroomInfo = $classroomStmt->fetch(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'success' => true,
+                    'schedule' => $groupedSchedule,
+                    'classroom_info' => $classroomInfo
+                ]);
+                exit;
+            }
+
+            // Handle AJAX request for departments by college
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_departments_by_college') {
+                $collegeId = (int)($_POST['college_id'] ?? 0);
+
+                $query = "SELECT department_id, department_name FROM departments";
+                $params = [];
+
+                if ($collegeId > 0) {
+                    $query .= " WHERE college_id = :college_id";
+                    $params[':college_id'] = $collegeId;
+                }
+
+                $query .= " ORDER BY department_name";
+
+                $stmt = $this->db->prepare($query);
+                $stmt->execute($params);
+                $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'success' => true,
+                    'departments' => $departments
+                ]);
+                exit;
+            }
+
+            // Build query with filters
             $query = "
-        SELECT 
-            c.room_id, c.room_name, c.building, c.capacity, c.room_type, c.shared, c.availability,
-            c.created_at, c.updated_at, c.department_id,
-            d.department_name
-        FROM classrooms c
-        LEFT JOIN departments d ON c.department_id = d.department_id
+            SELECT 
+                c.room_id, c.room_name, c.building, c.capacity, c.room_type, c.shared, c.availability,
+                c.created_at, c.updated_at, c.department_id,
+                d.department_name,
+                col.college_name,
+                col.college_id,
+                COUNT(DISTINCT s.schedule_id) AS current_semester_usage,
+                GROUP_CONCAT(DISTINCT s.day_of_week) AS schedule_days,
+                GROUP_CONCAT(DISTINCT sec.section_name) AS sections,
+                GROUP_CONCAT(DISTINCT CONCAT(
+                    COALESCE(u.first_name, ''), ' ',
+                    COALESCE(u.last_name, '')
+                )) AS faculty_names
+            FROM classrooms c
+            LEFT JOIN departments d ON c.department_id = d.department_id
+            LEFT JOIN colleges col ON d.college_id = col.college_id
+            LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+            LEFT JOIN users u ON f.user_id = u.user_id
+            WHERE 1=1
         ";
 
-            $query .= " ORDER BY c.department_id, c.room_name";
+            $params = [':current_semester_id' => $this->UserModel->getCurrentSemester()['semester_id']];
+
+            // Apply college filter
+            if (isset($_GET['college_id']) && !empty($_GET['college_id'])) {
+                $query .= " AND col.college_id = :college_id";
+                $params[':college_id'] = (int)$_GET['college_id'];
+            }
+
+            // Apply department filter
+            if (isset($_GET['department_id']) && !empty($_GET['department_id'])) {
+                $query .= " AND c.department_id = :department_id";
+                $params[':department_id'] = (int)$_GET['department_id'];
+            }
+
+            // Apply availability filter
+            if (isset($_GET['availability']) && !empty($_GET['availability'])) {
+                $query .= " AND c.availability = :availability";
+                $params[':availability'] = $_GET['availability'];
+            }
+
+            $query .= " GROUP BY c.room_id ORDER BY col.college_name, d.department_name, c.room_name";
 
             // Prepare and execute the query
             $stmt = $this->db->prepare($query);
-            $stmt->execute();
+            $stmt->execute($params);
 
             // Fetch all results and store them in a variable
             $classrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // Process schedule data for each classroom
+            foreach ($classrooms as &$classroom) {
+                $classroom['schedule_days'] = !empty($classroom['schedule_days'])
+                    ? array_unique(explode(',', $classroom['schedule_days']))
+                    : [];
+
+                $classroom['sections'] = !empty($classroom['sections'])
+                    ? array_unique(explode(',', $classroom['sections']))
+                    : [];
+
+                $classroom['faculty'] = !empty($classroom['faculty_names'])
+                    ? array_unique(array_filter(explode(',', $classroom['faculty_names'])))
+                    : [];
+            }
+
+            // Get colleges and departments for filters
+            $collegeStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
+            $colleges = $collegeStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $deptStmt = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
+            $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+
             $controller = $this;
+
+            if ($isAjax) {
+                ob_clean();
+                echo json_encode([
+                    'success' => true,
+                    'classrooms' => $classrooms
+                ]);
+                exit;
+            }
 
             // Include the view file and pass the data to it
             require_once __DIR__ . '/../views/admin/classroom.php';
         } catch (PDOException $e) {
             error_log("Classroom error: " . $e->getMessage());
+            if ($isAjax) {
+                ob_clean();
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Server error: ' . $e->getMessage()
+                ]);
+                exit;
+            }
             http_response_code(500);
             echo "Server error";
         }

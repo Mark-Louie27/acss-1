@@ -137,6 +137,101 @@ if (!is_array($reservations)) {
         .group:hover .tooltip {
             display: block;
         }
+
+        /* Schedule Modal Styles */
+        .schedule-day {
+            margin-bottom: 1.5rem;
+        }
+
+        .schedule-day-header {
+            background-color: var(--gray-dark);
+            color: var(--white);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+            font-weight: 600;
+        }
+
+        .schedule-session {
+            background-color: var(--white);
+            border: 1px solid var(--gray-light);
+            border-top: none;
+            padding: 1rem;
+        }
+
+        .schedule-session:last-child {
+            border-radius: 0 0 0.5rem 0.5rem;
+        }
+
+        .schedule-time {
+            font-weight: 600;
+            color: var(--gray-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .schedule-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .schedule-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .schedule-label {
+            font-weight: 600;
+            color: var(--gray-dark);
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .no-schedule {
+            text-align: center;
+            padding: 2rem;
+            color: var(--gray-dark);
+            background-color: var(--gray-light);
+            border-radius: 0.5rem;
+        }
+
+        .print-only {
+            display: none;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            .schedule-modal-content,
+            .schedule-modal-content * {
+                visibility: visible;
+            }
+
+            .schedule-modal-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                box-shadow: none;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block;
+            }
+
+            .schedule-header {
+                text-align: center;
+                margin-bottom: 2rem;
+                border-bottom: 2px solid var(--gray-dark);
+                padding-bottom: 1rem;
+            }
+        }
     </style>
 </head>
 
@@ -153,7 +248,7 @@ if (!is_array($reservations)) {
         </div>
 
         <!-- Add Classroom Modal -->
-        <div id="addClassroomModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div id="addClassroomModal" class="modal fixed inset-0 bg-black/70 backdrop-blur-sm bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
                 <!-- Modal Header -->
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -290,7 +385,7 @@ if (!is_array($reservations)) {
         </div>
 
         <!-- Edit Classroom Modal -->
-        <div id="editClassroomModal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+        <div id="editClassroomModal" class="modal fixed inset-0 bg-black/70 backdrop-blur-sm bg-opacity-60 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 transform modal-content scale-95">
                 <!-- Modal Header -->
                 <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl">
@@ -427,6 +522,36 @@ if (!is_array($reservations)) {
             </div>
         </div>
 
+        <!-- Schedule Modal -->
+        <div id="scheduleModal" class="modal fixed inset-0 bg-black/70 backdrop-blur-sm bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto modal-content scale-95 schedule-modal-content">
+                <!-- Modal Header -->
+                <div class="flex justify-between items-center p-6 border-b border-gray-light bg-gradient-to-r from-white to-gray-50 rounded-t-xl sticky top-0 z-10">
+                    <h3 class="text-xl font-bold text-gray-dark" id="scheduleModalTitle">Classroom Schedule</h3>
+                    <div class="flex items-center space-x-2">
+                        <button id="printScheduleBtn" class="bg-gold text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition-all duration-200 flex items-center space-x-2 no-print">
+                            <i class="fas fa-print"></i>
+                            <span>Print</span>
+                        </button>
+                        <button id="closeScheduleModalBtn" class="text-gray-dark hover:text-gray-700 focus:outline-none bg-gray-light hover:bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center transition-all duration-200" aria-label="Close modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-6">
+                    <div class="print-only schedule-header mb-6">
+                        <h2 class="text-2xl font-bold text-gray-dark" id="printTitle"></h2>
+                        <p class="text-lg text-gray-dark" id="printSubtitle"></p>
+                        <p class="text-sm text-gray-600" id="printDate"></p>
+                    </div>
+                    <div id="scheduleContent">
+                        <!-- Schedule content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Search and Filter Section -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-8 fade-in">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -541,6 +666,18 @@ if (!is_array($reservations)) {
                                         </form>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <!-- View Schedule Button -->
+                                        <button class="view-schedule-btn bg-blue-500 text-white px-3 py-1 rounded shadow-md hover:shadow-lg transition-all duration-200 group relative mr-2"
+                                            data-room-id="<?php echo $classroom['room_id']; ?>"
+                                            data-room-name="<?php echo htmlspecialchars($classroom['room_name']); ?>"
+                                            data-building="<?php echo htmlspecialchars($classroom['building']); ?>"
+                                            data-department="<?php echo htmlspecialchars($classroom['department_name']); ?>"
+                                            title="View Schedule">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">View Schedule</span>
+                                        </button>
+
+                                        <!-- Edit Button -->
                                         <button class="editClassroomBtn btn-gold px-3 py-1 rounded shadow-md hover:shadow-lg transition-all duration-200 group relative"
                                             data-room-id="<?php echo $classroom['room_id']; ?>"
                                             data-room-name="<?php echo htmlspecialchars($classroom['room_name']); ?>"
@@ -551,7 +688,7 @@ if (!is_array($reservations)) {
                                             data-shared="<?php echo $classroom['shared']; ?>"
                                             data-availability="<?php echo htmlspecialchars($classroom['availability']); ?>"
                                             title="Edit Classroom">
-                                            Edit
+                                            <i class="fas fa-edit"></i>
                                             <span class="tooltip absolute bg-gray-dark text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit Classroom</span>
                                         </button>
                                     </td>
@@ -659,6 +796,174 @@ if (!is_array($reservations)) {
             const cancelEditModalBtn = document.getElementById('cancelEditModalBtn');
             const editModalContent = editModal.querySelector('.modal-content');
             const editClassroomButtons = document.querySelectorAll('.editClassroomBtn');
+
+            // Schedule Modal Functions
+            const scheduleModal = document.getElementById('scheduleModal');
+            const closeScheduleModalBtn = document.getElementById('closeScheduleModalBtn');
+            const printScheduleBtn = document.getElementById('printScheduleBtn');
+            const scheduleModalContent = scheduleModal.querySelector('.modal-content');
+
+            // View Schedule Function
+            function viewSchedule(classroom) {
+                const modalTitle = document.getElementById('scheduleModalTitle');
+                const scheduleContent = document.getElementById('scheduleContent');
+                const printTitle = document.getElementById('printTitle');
+                const printSubtitle = document.getElementById('printSubtitle');
+                const printDate = document.getElementById('printDate');
+
+                // Set modal title and print information
+                modalTitle.textContent = `Schedule - ${classroom.roomName}`;
+                printTitle.textContent = `Classroom Schedule: ${classroom.roomName}`;
+                printSubtitle.textContent = `${classroom.building} - ${classroom.department}`;
+                printDate.textContent = `Generated on: ${new Date().toLocaleDateString()}`;
+
+                // Show loading state
+                scheduleContent.innerHTML = `
+        <div class="flex justify-center items-center py-12">
+            <div class="loading text-gray-dark">Loading schedule...</div>
+        </div>
+        `;
+
+                scheduleModal.classList.remove('hidden');
+                scheduleModalContent.classList.remove('scale-95');
+                scheduleModalContent.classList.add('scale-100');
+                document.body.style.overflow = 'hidden';
+
+                // Make API call to get real schedule data
+                fetchScheduleData(classroom.roomId)
+                    .then(scheduleData => {
+                        renderSchedule(scheduleData, classroom);
+                    })
+                    .catch(error => {
+                        console.error('Error loading schedule:', error);
+                        scheduleContent.innerHTML = `
+                <div class="no-schedule">
+                    <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                    <p class="text-lg font-medium">Error loading schedule</p>
+                    <p class="text-sm mt-1">Unable to load schedule data. Please try again.</p>
+                </div>
+            `;
+                    });
+            }
+
+            // Function to fetch real schedule data from backend
+            async function fetchScheduleData(roomId) {
+                const formData = new FormData();
+                formData.append('action', 'get_classroom_schedule');
+                formData.append('room_id', roomId);
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to load schedule');
+                }
+
+                return data.schedule;
+            }
+
+            // Render schedule in the modal
+            function renderSchedule(schedule, classroom) {
+                const scheduleContent = document.getElementById('scheduleContent');
+
+                if (!schedule || Object.keys(schedule).length === 0) {
+                    scheduleContent.innerHTML = `
+            <div class="no-schedule">
+                <i class="fas fa-calendar-times text-4xl mb-4"></i>
+                <p class="text-lg font-medium">No schedule available</p>
+                <p class="text-sm mt-1">This classroom has no scheduled classes for the current semester.</p>
+            </div>
+        `;
+                    return;
+                }
+
+                // Define day order for proper sorting
+                const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+                let html = '';
+
+                // Sort days according to dayOrder
+                const sortedDays = Object.keys(schedule).sort((a, b) => {
+                    return dayOrder.indexOf(a) - dayOrder.indexOf(b);
+                });
+
+                sortedDays.forEach(day => {
+                    html += `
+            <div class="schedule-day">
+                <div class="schedule-day-header">
+                    ${day}
+                </div>
+                ${schedule[day].map(session => `
+                    <div class="schedule-session">
+                        <div class="schedule-time">
+                            <i class="fas fa-clock mr-2"></i>${session.time}
+                        </div>
+                        <div class="schedule-details">
+                            <div class="schedule-item">
+                                <span class="schedule-label">Course:</span>
+                                ${session.course}
+                            </div>
+                            <div class="schedule-item">
+                                <span class="schedule-label">Section:</span>
+                                ${session.section}
+                            </div>
+                            <div class="schedule-item">
+                                <span class="schedule-label">Faculty:</span>
+                                ${session.faculty}
+                            </div>
+                            <div class="schedule-item">
+                                <span class="schedule-label">Type:</span>
+                                ${session.type}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+                });
+
+                scheduleContent.innerHTML = html;
+            }
+
+            // Print schedule function
+            function printSchedule() {
+                window.print();
+            }
+
+            // Close Schedule Modal
+            const closeScheduleModal = () => {
+                scheduleModalContent.classList.remove('scale-100');
+                scheduleModalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    scheduleModal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }, 200);
+            };
+
+            // Event Listeners for Schedule Modal
+            closeScheduleModalBtn.addEventListener('click', closeScheduleModal);
+            printScheduleBtn.addEventListener('click', printSchedule);
+
+            scheduleModal.addEventListener('click', (e) => {
+                if (e.target === scheduleModal) closeScheduleModal();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !scheduleModal.classList.contains('hidden')) {
+                    closeScheduleModal();
+                }
+            });
 
             // Open Add Modal
             openModalBtn.addEventListener('click', () => {
@@ -848,6 +1153,20 @@ if (!is_array($reservations)) {
 
             // Trigger initial table update
             updateTable();
+
+            // Add event listeners for view schedule buttons
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('.view-schedule-btn')) {
+                    const button = e.target.closest('.view-schedule-btn');
+                    const classroom = {
+                        roomId: button.dataset.roomId,
+                        roomName: button.dataset.roomName,
+                        building: button.dataset.building,
+                        department: button.dataset.department
+                    };
+                    viewSchedule(classroom);
+                }
+            });
         });
     </script>
 </body>
