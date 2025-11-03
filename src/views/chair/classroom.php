@@ -180,6 +180,101 @@ ob_start();
         .group:hover .tooltip {
             display: block;
         }
+
+        /* Schedule Modal Styles */
+        .schedule-day {
+            margin-bottom: 1.5rem;
+        }
+
+        .schedule-day-header {
+            background-color: var(--dark-gray);
+            color: var(--white);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+            font-weight: 600;
+        }
+
+        .schedule-session {
+            background-color: var(--white);
+            border: 1px solid var(--gray-light);
+            border-top: none;
+            padding: 1rem;
+        }
+
+        .schedule-session:last-child {
+            border-radius: 0 0 0.5rem 0.5rem;
+        }
+
+        .schedule-time {
+            font-weight: 600;
+            color: var(--dark-gray);
+            margin-bottom: 0.5rem;
+        }
+
+        .schedule-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .schedule-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .schedule-label {
+            font-weight: 600;
+            color: var(--dark-gray);
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .no-schedule {
+            text-align: center;
+            padding: 2rem;
+            color: var(--dark-gray);
+            background-color: var(--gray-light);
+            border-radius: 0.5rem;
+        }
+
+        .print-only {
+            display: none;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            .schedule-modal-content,
+            .schedule-modal-content * {
+                visibility: visible;
+            }
+
+            .schedule-modal-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                box-shadow: none;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block;
+            }
+
+            .schedule-header {
+                text-align: center;
+                margin-bottom: 2rem;
+                border-bottom: 2px solid var(--dark-gray);
+                padding-bottom: 1rem;
+            }
+        }
     </style>
 </head>
 
@@ -201,21 +296,21 @@ ob_start();
         <?php endif; ?>
 
         <!-- Search and Add Classroom Buttons -->
-        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 fade-in">
-            <div class="w-full sm:w-1/2">
-                <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-dark-gray"></i>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 fade-in">
+            <div class="w-full sm:flex-1">
+                <div class="relative max-w-2xl">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-dark-gray z-10"></i>
                     <input type="text" id="searchInput" name="search" value="<?= htmlspecialchars($searchTerm) ?>"
                         placeholder="Search shared rooms..."
                         class="pl-10 w-full px-4 py-2.5 border border-dark-gray rounded-lg focus:ring-2 focus:ring-yellow focus:border-yellow transition-all"
                         autocomplete="off">
-                    <span id="search-feedback" class="ml-3 text-sm font-medium"></span>
+                    <div id="search-feedback" class="absolute -bottom-6 left-0 text-sm font-medium mt-1"></div>
                 </div>
-                <div id="suggestions" class="suggestions hidden"></div>
+                <div id="suggestions" class="suggestions hidden absolute z-20 w-full max-w-2xl mt-1"></div>
             </div>
-            <div class="flex gap-4">
+            <div class="w-full sm:w-auto flex justify-start sm:justify-end">
                 <button onclick="openModal('addClassroomModal')"
-                    class="px-6 py-3 bg-dark-gray text-white rounded-lg font-medium shadow-lg hover:bg-yellow hover:text-dark-gray transition-colors duration-300 flex items-center gap-2">
+                    class="px-6 py-3 bg-dark-gray text-white rounded-lg font-medium shadow-lg hover:bg-yellow hover:text-dark-gray transition-colors duration-300 flex items-center gap-2 w-full sm:w-auto justify-center">
                     <i class="fas fa-plus"></i>
                     Add Classroom
                 </button>
@@ -292,10 +387,18 @@ ob_start();
                                             <?= htmlspecialchars($classroom['current_semester_usage']) ?> schedules
                                         </td>
                                         <td class="px-4 py-3 space-x-2">
+                                            <!-- View Schedule Button -->
+                                            <button class="view-schedule-btn text-blue-600 hover:text-blue-800 focus:outline-none group relative"
+                                                data-classroom='<?= json_encode($classroom) ?>'>
+                                                <i class="fas fa-calendar-alt"></i>
+                                                <span class="tooltip absolute bg-dark-gray text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">View Schedule</span>
+                                            </button>
+
                                             <?php if ($classroom['room_status'] === 'Owned'): ?>
-                                                <button class="edit-classroom-btn text-yellow hover:text-dark-gray focus:outline-none"
+                                                <button class="edit-classroom-btn text-yellow hover:text-dark-gray focus:outline-none group relative"
                                                     data-classroom='<?= json_encode($classroom) ?>'>
                                                     <i class="fas fa-edit"></i>
+                                                    <span class="tooltip absolute bg-dark-gray text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit</span>
                                                 </button>
                                             <?php elseif ($classroom['room_status'] === 'Included'): ?>
                                                 <button class="remove-btn text-red-600 group relative hover:text-red-700 transition-all duration-200"
@@ -312,6 +415,34 @@ ob_start();
                         </table>
                     </div>
                 <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Schedule Modal -->
+        <div id="scheduleModal" class="modal hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto schedule-modal-content">
+                <div class="bg-dark-gray text-white px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
+                    <h5 class="text-xl font-semibold" id="scheduleModalTitle">Classroom Schedule</h5>
+                    <div class="flex items-center space-x-2">
+                        <button id="printScheduleBtn" class="px-4 py-2 bg-yellow text-dark-gray rounded-lg font-medium hover:bg-opacity-90 transition-colors no-print flex items-center space-x-2">
+                            <i class="fas fa-print"></i>
+                            <span>Print</span>
+                        </button>
+                        <button onclick="closeModal('scheduleModal')" class="text-white hover:text-yellow transition-colors focus:outline-none text-2xl" aria-label="Close modal">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div class="print-only schedule-header">
+                        <h2 class="text-2xl font-bold" id="printTitle"></h2>
+                        <p class="text-lg" id="printSubtitle"></p>
+                        <p class="text-sm text-gray-600" id="printDate"></p>
+                    </div>
+                    <div id="scheduleContent">
+                        <!-- Schedule content will be loaded here -->
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -628,11 +759,160 @@ ob_start();
             openModal('editClassroomModal');
         }
 
+        // View Schedule Function
+        function viewSchedule(classroom) {
+            const modalTitle = document.getElementById('scheduleModalTitle');
+            const scheduleContent = document.getElementById('scheduleContent');
+            const printTitle = document.getElementById('printTitle');
+            const printSubtitle = document.getElementById('printSubtitle');
+            const printDate = document.getElementById('printDate');
+
+            // Set modal title and print information
+            modalTitle.textContent = `Schedule - ${classroom.room_name}`;
+            printTitle.textContent = `Classroom Schedule: ${classroom.room_name}`;
+            printSubtitle.textContent = `${classroom.building} - ${classroom.department_name || 'N/A'}`;
+            printDate.textContent = `Generated on: ${new Date().toLocaleDateString()}`;
+
+            // Show loading state
+            scheduleContent.innerHTML = `
+        <div class="flex justify-center items-center py-12">
+            <div class="loading text-dark-gray">Loading schedule...</div>
+        </div>
+    `;
+
+            openModal('scheduleModal');
+
+            // Make API call to get real schedule data
+            fetchScheduleData(classroom.room_id)
+                .then(scheduleData => {
+                    renderSchedule(scheduleData, classroom);
+                })
+                .catch(error => {
+                    console.error('Error loading schedule:', error);
+                    scheduleContent.innerHTML = `
+                <div class="no-schedule">
+                    <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                    <p class="text-lg font-medium">Error loading schedule</p>
+                    <p class="text-sm mt-1">Unable to load schedule data. Please try again.</p>
+                </div>
+            `;
+                });
+        }
+
+        // Function to fetch real schedule data from backend
+        async function fetchScheduleData(roomId) {
+            const formData = new FormData();
+            formData.append('action', 'get_classroom_schedule');
+            formData.append('room_id', roomId);
+
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to load schedule');
+            }
+
+            return data.schedule;
+        }
+
+        // Render schedule in the modal
+        function renderSchedule(schedule, classroom) {
+            const scheduleContent = document.getElementById('scheduleContent');
+
+            if (!schedule || Object.keys(schedule).length === 0) {
+                scheduleContent.innerHTML = `
+            <div class="no-schedule">
+                <i class="fas fa-calendar-times text-4xl mb-4"></i>
+                <p class="text-lg font-medium">No schedule available</p>
+                <p class="text-sm mt-1">This classroom has no scheduled classes for the current semester.</p>
+            </div>
+        `;
+                return;
+            }
+
+            // Define day order for proper sorting
+            const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+            let html = '';
+
+            // Sort days according to dayOrder
+            const sortedDays = Object.keys(schedule).sort((a, b) => {
+                return dayOrder.indexOf(a) - dayOrder.indexOf(b);
+            });
+
+            sortedDays.forEach(day => {
+                html += `
+            <div class="schedule-day">
+                <div class="schedule-day-header">
+                    ${day}
+                </div>
+                ${schedule[day].map(session => `
+                    <div class="schedule-session">
+                        <div class="schedule-time">
+                            <i class="fas fa-clock mr-2"></i>${session.time}
+                        </div>
+                        <div class="schedule-details">
+                            <div class="schedule-item">
+                                <span class="schedule-label">Course:</span>
+                                ${session.course}
+                            </div>
+                            <div class="schedule-item">
+                                <span class="schedule-label">Section:</span>
+                                ${session.section}
+                            </div>
+                            <div class="schedule-item">
+                                <span class="schedule-label">Faculty:</span>
+                                ${session.faculty}
+                            </div>
+                            <div class="schedule-item">
+                                <span class="schedule-label">Type:</span>
+                                ${session.type}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+            });
+
+            scheduleContent.innerHTML = html;
+        }
+
+        // Print schedule function
+        function printSchedule() {
+            window.print();
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const searchInput = document.getElementById('searchInput');
             const searchFeedback = document.getElementById('search-feedback');
             const suggestions = document.getElementById('suggestions');
             const searchResults = document.getElementById('search-results');
+            const printScheduleBtn = document.getElementById('printScheduleBtn');
+
+            // Add event listener for print button
+            if (printScheduleBtn) {
+                printScheduleBtn.addEventListener('click', printSchedule);
+            }
+
+            // Add event listeners for view schedule buttons
+            document.querySelectorAll('.view-schedule-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const classroom = JSON.parse(this.dataset.classroom);
+                    viewSchedule(classroom);
+                });
+            });
 
             let searchTimeout;
             searchInput.addEventListener('input', () => {
@@ -884,10 +1164,18 @@ ob_start();
                         <td class="px-4 py-3 text-sm text-dark-gray">${classroom.room_status}</td>
                         <td class="px-4 py-3 text-sm text-dark-gray">${classroom.current_semester_usage} schedules</td>
                         <td class="px-4 py-3 space-x-2">
+                            <!-- View Schedule Button -->
+                            <button class="view-schedule-btn text-blue-600 hover:text-blue-800 focus:outline-none group relative"
+                                data-classroom='${JSON.stringify(classroom).replace(/'/g, "&#39;")}'>
+                                <i class="fas fa-calendar-alt"></i>
+                                <span class="tooltip absolute bg-dark-gray text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">View Schedule</span>
+                            </button>
+                            
                             ${classroom.room_status === 'Owned' ? `
-                                <button class="edit-classroom-btn text-yellow hover:text-dark-gray focus:outline-none"
+                                <button class="edit-classroom-btn text-yellow hover:text-dark-gray focus:outline-none group relative"
                                     data-classroom='${JSON.stringify(classroom).replace(/'/g, "&#39;")}'>
                                     <i class="fas fa-edit"></i>
+                                    <span class="tooltip absolute bg-dark-gray text-white text-xs rounded py-1 px-2 -top-8 left-1/2 transform -translate-x-1/2">Edit</span>
                                 </button>
                             ` : (classroom.room_status === 'Included' ? `
                                 <button class="remove-btn text-red-600 group relative hover:text-red-700 transition-all duration-200"
@@ -901,7 +1189,14 @@ ob_start();
                     </tr>
                 `).join('');
 
-                // Reattach remove button event listeners
+                // Reattach event listeners
+                document.querySelectorAll('.view-schedule-btn').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const classroom = JSON.parse(this.dataset.classroom);
+                        viewSchedule(classroom);
+                    });
+                });
+
                 document.querySelectorAll('.remove-btn').forEach(button => {
                     button.addEventListener('click', () => {
                         const roomId = button.dataset.id;
@@ -995,6 +1290,11 @@ ob_start();
                 if (editBtn) {
                     const classroom = JSON.parse(editBtn.dataset.classroom);
                     editClassroom(classroom);
+                }
+                const viewScheduleBtn = e.target.closest('.view-schedule-btn');
+                if (viewScheduleBtn) {
+                    const classroom = JSON.parse(viewScheduleBtn.dataset.classroom);
+                    viewSchedule(classroom);
                 }
             });
         });

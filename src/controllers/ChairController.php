@@ -6488,33 +6488,52 @@ class ChairController extends BaseController
                 $currentSemesterId = $currentSemester['semester_id'];
 
                 $query = "
-        SELECT 
-            c.*,
-            d.department_name,
-            cl.college_name,
-            CASE 
-                WHEN c.department_id = :department_id1 THEN 'Owned'
-                WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
-                -- REMOVED the College-Shared condition to prevent cross-department access
-                ELSE 'Unknown'
-            END AS room_status,
-            COUNT(s.schedule_id) AS current_semester_usage
-        FROM classrooms c
-        JOIN departments d ON c.department_id = d.department_id
-        JOIN colleges cl ON d.college_id = cl.college_id
-        LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
-        LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id AND s.room_id IS NOT NULL
-        WHERE (
-            -- Only show classrooms owned by this department
-            c.department_id = :department_id3
-            OR 
-            -- Only show classrooms explicitly shared with this department
-            (c.shared = 1 AND cd.department_id = :department_id4)
-            -- REMOVED: College-shared rooms condition that was causing the issue
-        )
-        GROUP BY c.room_id
-        ORDER BY c.room_name
-        ";
+                    SELECT 
+                        c.*,
+                        d.department_name,
+                        cl.college_name,
+                        CASE 
+                            WHEN c.department_id = :department_id1 THEN 'Owned'
+                            WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
+                            ELSE 'Unknown'
+                        END AS room_status,
+                        COUNT(DISTINCT s.schedule_id) AS current_semester_usage,
+                        GROUP_CONCAT(DISTINCT CONCAT(
+                            sec.section_name, '|',
+                            COALESCE(crs.course_code, 'N/A'), '|',
+                            COALESCE(
+                                TRIM(CONCAT(
+                                    COALESCE(u.title, ''), ' ',
+                                    COALESCE(u.first_name, ''), ' ',
+                                    COALESCE(u.middle_name, ''), ' ',
+                                    COALESCE(u.last_name, ''), ' ',
+                                    COALESCE(u.suffix, '')
+                                )),
+                                u.email,
+                                'TBA'
+                            ), '|',
+                            s.day_of_week, '|',
+                            s.start_time, '|',
+                            s.end_time
+                        ) SEPARATOR ';;;') AS schedule_details
+                    FROM classrooms c
+                    JOIN departments d ON c.department_id = d.department_id
+                    JOIN colleges cl ON d.college_id = cl.college_id
+                    LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
+                    LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id AND s.room_id IS NOT NULL
+                    LEFT JOIN sections sec ON s.section_id = sec.section_id
+                    LEFT JOIN courses crs ON s.course_id = crs.course_id
+                    LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+                    LEFT JOIN users u ON f.user_id = u.user_id
+                    WHERE (
+                        c.department_id = :department_id3
+                        OR 
+                        (c.shared = 1 AND cd.department_id = :department_id4)
+                    )
+                    GROUP BY c.room_id
+                    ORDER BY c.room_name
+                ";
+
                 $stmt = $this->db->prepare($query);
 
                 $params = [
@@ -6524,9 +6543,72 @@ class ChairController extends BaseController
                     ':department_id4' => $departmentId,
                     ':current_semester_id' => $currentSemesterId
                 ];
-                error_log("classroom: Executing FIXED query with params: " . json_encode($params));
+
+                error_log("classroom: Executing ENHANCED query with params: " . json_encode($params));
                 $stmt->execute($params);
                 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Process schedule details for each classroom
+                foreach ($results as &$classroom) {
+                    $classroom['sections'] = [];
+                    $classroom['faculty'] = [];
+                    $classroom['schedule_days'] = [];
+                    $classroom['time_ranges'] = [];
+
+                    if (!empty($classroom['schedule_details'])) {
+                        $schedules = explode(';;;', $classroom['schedule_details']);
+                        $uniqueSections = [];
+                        $uniqueFaculty = [];
+                        $daysBySchedule = []; // Group days by section-course-faculty combination
+
+                        foreach ($schedules as $schedule) {
+                            $parts = explode('|', $schedule);
+                            if (count($parts) === 6) {
+                                list($section, $course, $faculty, $dayOfWeek, $startTime, $endTime) = $parts;
+
+                                // Clean up faculty name (remove extra spaces)
+                                $faculty = preg_replace('/\s+/', ' ', trim($faculty));
+
+                                // Collect unique sections with course
+                                $sectionKey = $section . ' - ' . $course;
+                                if (!in_array($sectionKey, $uniqueSections)) {
+                                    $uniqueSections[] = $sectionKey;
+                                }
+
+                                // Collect unique faculty
+                                if (!in_array($faculty, $uniqueFaculty) && $faculty !== 'TBA' && !empty($faculty)) {
+                                    $uniqueFaculty[] = $faculty;
+                                }
+
+                                // Group days by time range for the same section-course
+                                $timeKey = substr($startTime, 0, 5) . '-' . substr($endTime, 0, 5); // Format: HH:MM-HH:MM
+                                $scheduleKey = $sectionKey . '|' . $timeKey;
+
+                                if (!isset($daysBySchedule[$scheduleKey])) {
+                                    $daysBySchedule[$scheduleKey] = [];
+                                }
+                                $daysBySchedule[$scheduleKey][] = $dayOfWeek;
+                            }
+                        }
+
+                        // Format days using SchedulingService
+                        $uniqueDays = [];
+                        foreach ($daysBySchedule as $scheduleKey => $days) {
+                            // Join days with comma and format them
+                            $dayString = implode(', ', array_unique($days));
+                            $formattedDays = $this->schedulingService->formatScheduleDays($dayString);
+
+                            if (!in_array($formattedDays, $uniqueDays)) {
+                                $uniqueDays[] = $formattedDays;
+                            }
+                        }
+
+                        $classroom['sections'] = $uniqueSections;
+                        $classroom['faculty'] = $uniqueFaculty;
+                        $classroom['schedule_days'] = $uniqueDays;
+                    }
+                }
+
                 error_log("classroom: Fetched " . count($results) . " classrooms for department_id=$departmentId");
 
                 return $results;
@@ -6539,6 +6621,103 @@ class ChairController extends BaseController
             // Handle POST actions
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 switch ($_POST['action']) {
+                    // Add this case to your POST actions switch statement
+                    case 'get_classroom_schedule':
+                        try {
+                            $room_id = (int)($_POST['room_id'] ?? 0);
+                            if (!$room_id) {
+                                throw new Exception("Invalid room ID.");
+                            }
+
+                            $currentSemester = $this->getCurrentSemester();
+                            $currentSemesterId = $currentSemester['semester_id'];
+
+                            $query = "
+            SELECT 
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                sec.section_name,
+                crs.course_code,
+                crs.course_name,
+                COALESCE(
+                    TRIM(CONCAT(
+                        COALESCE(u.title, ''), ' ',
+                        COALESCE(u.first_name, ''), ' ',
+                        COALESCE(u.middle_name, ''), ' ',
+                        COALESCE(u.last_name, ''), ' ',
+                        COALESCE(u.suffix, '')
+                    )),
+                    u.email,
+                    'TBA'
+                ) AS faculty_name,
+                c.room_type
+            FROM schedules s
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN courses crs ON s.course_id = crs.course_id
+            LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+            LEFT JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN classrooms c ON s.room_id = c.room_id
+            WHERE s.room_id = :room_id 
+            AND s.semester_id = :semester_id
+            ORDER BY 
+                FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'),
+                s.start_time
+        ";
+
+                            $stmt = $this->db->prepare($query);
+                            $stmt->execute([
+                                ':room_id' => $room_id,
+                                ':semester_id' => $currentSemesterId
+                            ]);
+
+                            $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                            // Group schedules by day
+                            $groupedSchedule = [];
+                            foreach ($schedules as $schedule) {
+                                $day = $schedule['day_of_week'];
+                                if (!isset($groupedSchedule[$day])) {
+                                    $groupedSchedule[$day] = [];
+                                }
+
+                                $groupedSchedule[$day][] = [
+                                    'time' => date('h:i A', strtotime($schedule['start_time'])) . ' - ' . date('h:i A', strtotime($schedule['end_time'])),
+                                    'course' => $schedule['course_code'] . ' - ' . $schedule['course_name'],
+                                    'section' => $schedule['section_name'],
+                                    'faculty' => $schedule['faculty_name'],
+                                    'type' => $schedule['room_type'] === 'laboratory' ? 'Lab' : 'Lecture'
+                                ];
+                            }
+
+                            // Get classroom info for the header
+                            $classroomStmt = $this->db->prepare("
+            SELECT c.room_name, c.building, d.department_name
+            FROM classrooms c
+            LEFT JOIN departments d ON c.department_id = d.department_id
+            WHERE c.room_id = :room_id
+        ");
+                            $classroomStmt->execute([':room_id' => $room_id]);
+                            $classroomInfo = $classroomStmt->fetch(PDO::FETCH_ASSOC);
+
+                            $response = [
+                                'success' => true,
+                                'schedule' => $groupedSchedule,
+                                'classroom_info' => $classroomInfo
+                            ];
+                        } catch (PDOException | Exception $e) {
+                            $response = [
+                                'success' => false,
+                                'message' => "Failed to fetch schedule: " . htmlspecialchars($e->getMessage())
+                            ];
+                            error_log("classroom: Get Schedule Error: " . $e->getMessage());
+                        }
+
+                        ob_clean();
+                        echo json_encode($response);
+                        exit;
+                        break;
+                        
                     case 'add':
                         try {
                             if (!$departmentId) {
