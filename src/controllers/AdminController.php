@@ -759,8 +759,7 @@ class AdminController
             // Hash the password
             $passwordHash = password_hash($data['temporary_password'], PASSWORD_DEFAULT);
 
-            // Start transaction
-            $this->db->beginTransaction();
+            // Note: Transaction is already started in handleUserApiRequest()
 
             // Insert user
             $stmt = $this->db->prepare("
@@ -856,22 +855,21 @@ class AdminController
                 'department_id' => $primaryDepartmentId
             ]));
 
-            // Commit transaction
-            $this->db->commit();
+            // Note: Transaction will be committed in handleUserApiRequest()
 
             error_log("User added successfully");
 
-            // Send welcome email
-            try {
-                $this->emailService->getWelcomeEmailTemplate(
-                    $data['email'],
-                    $data['first_name'],
-                    $data['username'],
-                    $data['temporary_password']
-                );
-            } catch (Exception $e) {
-                error_log("Email sending failed: " . $e->getMessage());
-                // Don't fail the whole operation if email fails
+            $emailSent = $this->emailService->sendWelcomeEmail(
+                $data['email'],              // 1. Email address
+                $data['first_name'],         // 2. First name only
+                $data['employee_id'],        // 3. Employee ID (username)
+                $data['temporary_password']  // 4. Temporary password
+            );
+
+            if ($emailSent) {
+                error_log("✅ SUCCESS: Welcome email sent to " . $data['email']);
+            } else {
+                error_log("⚠️ WARNING: Welcome email failed to send to " . $data['email']);
             }
 
             return [
@@ -882,10 +880,7 @@ class AdminController
                 'username' => $data['username']
             ];
         } catch (Exception $e) {
-            // Rollback transaction on error
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
+            // Don't rollback here - let handleUserApiRequest() handle it
             error_log("addNewUser error: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
             return ['success' => false, 'error' => 'Failed to add user: ' . $e->getMessage()];
@@ -897,6 +892,8 @@ class AdminController
         $roleId = intval($data['role_id']);
 
         try {
+            error_log("handleRoleSpecificAssignments: userId=$userId, roleId=$roleId");
+
             switch ($roleId) {
                 case 3: // Department Instructor
                     if (!empty($data['department_id'])) {
@@ -908,6 +905,7 @@ class AdminController
                             ':user_id' => $userId,
                             ':department_id' => $data['department_id']
                         ]);
+                        error_log("Department instructor assignment created");
                     }
                     break;
 
@@ -921,6 +919,7 @@ class AdminController
                             ':user_id' => $userId,
                             ':college_id' => $data['college_id']
                         ]);
+                        error_log("Dean assignment created");
                     }
                     break;
 
@@ -941,6 +940,7 @@ class AdminController
                                 ':department_id' => $deptId,
                                 ':is_primary' => $isPrimary
                             ]);
+                            error_log("Chair department assignment created: dept=$deptId, primary=$isPrimary");
                         }
                     } elseif (!empty($data['department_id'])) {
                         // Single department fallback
@@ -952,17 +952,26 @@ class AdminController
                             ':user_id' => $userId,
                             ':department_id' => $data['department_id']
                         ]);
+                        error_log("Chair department assignment created (single)");
                     }
                     break;
 
                 case 6: // Faculty
                     // Faculty data already inserted in main faculty table
-                    // Additional faculty-specific logic can be added here if needed
+                    error_log("Faculty role - no additional assignments needed");
+                    break;
+
+                default:
+                    error_log("No special assignments for role $roleId");
                     break;
             }
+
+            // DO NOT commit or rollback here - let the caller handle it
+
         } catch (Exception $e) {
             error_log("handleRoleSpecificAssignments error for role $roleId: " . $e->getMessage());
-            throw $e; // Re-throw to trigger rollback
+            // DO NOT rollback here - let the caller handle it
+            throw $e; // Re-throw to trigger rollback in parent
         }
     }
 
@@ -1087,7 +1096,7 @@ class AdminController
                 exit;
             }
 
-            // Handle admission actions
+            // Handle admission actions (they manage their own transactions)
             if (strpos($action, 'admission') !== false) {
                 $result = $this->handleAdmissionAction($_POST);
                 echo json_encode($result);
@@ -1095,24 +1104,46 @@ class AdminController
             }
 
             // Start transaction for user operations
-            $this->db->beginTransaction();
+            if (!$this->db->inTransaction()) {
+                $this->db->beginTransaction();
+                error_log("Transaction started");
+            }
 
             $data = $_POST;
             $data['user_id'] = $userId;
             $data['action'] = $action;
 
-            if ($action === 'add') {
-                error_log("Calling addNewUser with data: " . json_encode($data));
-                $result = $this->addNewUser($data);
-            } else {
-                $result = $this->handleUserAction($data);
+            try {
+                if ($action === 'add') {
+                    error_log("Calling addNewUser with data: " . json_encode($data));
+                    $result = $this->addNewUser($data);
+                } else {
+                    $result = $this->handleUserAction($data);
+                }
+
+                // Check if operation was successful
+                if (isset($result['success']) && $result['success']) {
+                    if ($this->db->inTransaction()) {
+                        $this->db->commit();
+                        error_log("Transaction committed successfully");
+                    }
+                } else {
+                    if ($this->db->inTransaction()) {
+                        $this->db->rollBack();
+                        error_log("Transaction rolled back due to failure");
+                    }
+                }
+
+                error_log("Operation result: " . json_encode($result));
+                echo json_encode($result);
+                exit;
+            } catch (Exception $innerException) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                    error_log("Transaction rolled back due to exception");
+                }
+                throw $innerException; // Re-throw to outer catch
             }
-
-            $this->db->commit();
-
-            error_log("Operation result: " . json_encode($result));
-            echo json_encode($result);
-            exit;
         } catch (PDOException $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();

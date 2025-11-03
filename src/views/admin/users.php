@@ -468,7 +468,7 @@ ob_start();
     </div>
 
     <!-- Decline User Confirmation Modal -->
-    <div id="declineUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="declineUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
             <div class="mt-3 text-center">
                 <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
@@ -495,7 +495,7 @@ ob_start();
     </div>
 
     <!-- Disable User Confirmation Modal -->
-    <div id="disableUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="disableUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
             <div class="mt-3 text-center">
                 <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
@@ -522,7 +522,7 @@ ob_start();
     </div>
 
     <!-- View User Modal -->
-    <div id="viewUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="viewUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-full max-w-2xl shadow-lg rounded-xl bg-white">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-semibold text-gray-900">User Details</h3>
@@ -539,7 +539,7 @@ ob_start();
     </div>
 
     <!-- Add User Modal -->
-    <div id="addUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="addUserModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-full max-w-6xl shadow-lg rounded-xl bg-white max-h-[95vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-semibold text-gray-900">Add New User</h3>
@@ -579,7 +579,7 @@ ob_start();
                     </div>
 
                     <!-- Personal Information -->
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
                             <select name="title" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
@@ -598,6 +598,10 @@ ob_start();
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
                             <input type="text" name="last_name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Suffix *</label>
+                            <input type="text" name="suffix" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
                         </div>
                     </div>
                 </div>
@@ -825,7 +829,7 @@ ob_start();
     </div>
 
     <!-- Temporary Password Modal -->
-    <div id="tempPasswordModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="tempPasswordModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
             <div class="text-center">
                 <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
@@ -851,7 +855,7 @@ ob_start();
     </div>
 
     <!-- Admission Review Modal -->
-    <div id="admissionReviewModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="admissionReviewModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-full max-w-4xl shadow-lg rounded-xl bg-white max-h-[95vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-semibold text-gray-900">Review Admission Request</h3>
@@ -879,7 +883,7 @@ ob_start();
     </div>
 
     <!-- Rejection Reason Modal -->
-    <div id="rejectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div id="rejectionModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
             <div class="mt-3 text-center">
                 <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">

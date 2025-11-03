@@ -508,38 +508,56 @@ class EmailService
         }
     }
 
-    public function sendWelcomeEmail($email, $firstName, $username, $temporaryPassword)
+    public function sendWelcomeEmail($email, $firstName, $employeeId, $temporaryPassword)
     {
         try {
-            // Create PHPMailer instance (adjust based on your setup)
-            $mail = new PHPMailer(true);
+            error_log("=== SENDING WELCOME EMAIL ===");
+            error_log("To: $email");
+            error_log("Name: $firstName");
+            error_log("Employee ID: $employeeId");
+            error_log("Password: " . str_repeat('*', strlen($temporaryPassword)));
 
-            // Server settings
-            $mail->isSMTP();
-            $mail->Host = 'your-smtp-host.com';
-            $mail->SMTPAuth = true;
-            $mail->Username = 'your-smtp-username';
-            $mail->Password = 'your-smtp-password';
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = 587;
+            // Clear any previous recipients
+            $this->mailer->clearAddresses();
+            $this->mailer->clearAttachments();
+            $this->mailer->clearReplyTos();
 
-            // Recipients
-            $mail->setFrom('noreply@university.edu', 'University Scheduling System');
-            $mail->addAddress($email, $firstName);
-            $mail->addReplyTo('support@university.edu', 'Support Team');
+            // Set sender (using existing configured mailer)
+            $this->mailer->setFrom('mlbausa84@gmail.com', 'University Scheduling System');
 
-            // Content
-            $mail->isHTML(true);
-            $mail->Subject = 'Welcome to the University Scheduling System';
+            // Set recipient
+            $this->mailer->addAddress($email, $firstName);
 
-            $mail->Body = $this->getWelcomeEmailTemplate($firstName, $username, $temporaryPassword);
-            $mail->AltBody = $this->getWelcomeEmailTextTemplate($firstName, $username, $temporaryPassword);
+            // Set reply-to
+            $this->mailer->addReplyTo('mlbausa84@gmail.com', 'Support Team');
 
-            $mail->send();
-            error_log("Welcome email sent successfully to: {$email}");
-            return true;
+            // Set email format to HTML
+            $this->mailer->isHTML(true);
+
+            // Set subject
+            $this->mailer->Subject = 'Welcome to University Scheduling System - Your Account Credentials';
+
+            // Get HTML body using your existing template
+            $this->mailer->Body = $this->getWelcomeEmailTemplate($firstName, $employeeId, $temporaryPassword);
+
+            // Plain text alternative
+            $this->mailer->AltBody = $this->getWelcomeEmailTextTemplate($firstName, $employeeId, $temporaryPassword);
+
+            // Send email
+            $result = $this->mailer->send();
+
+            if ($result) {
+                error_log("✅ SUCCESS: Welcome email sent to $email");
+                return true;
+            } else {
+                error_log("❌ FAILED: Email send returned false");
+                error_log("Mailer ErrorInfo: " . $this->mailer->ErrorInfo);
+                return false;
+            }
         } catch (Exception $e) {
-            error_log("Error sending welcome email to {$email}: " . $e->getMessage());
+            error_log("❌ EXCEPTION: Email sending failed");
+            error_log("Error message: " . $e->getMessage());
+            error_log("Mailer error info: " . $this->mailer->ErrorInfo);
             return false;
         }
     }
