@@ -58,6 +58,10 @@ function handleAdminRoutes($path)
             error_log("Routing to AdminController::schedule");
             $controller->mySchedule();
             break;
+        case '/admin/schedule-history':
+            error_log("Routing to AdminController::viewScheduleHistory");
+            $controller->viewScheduleHistory();
+            break;
         case '/admin/users':
         case '/admin/edit_user':
             error_log("Routing to AdminController::users");

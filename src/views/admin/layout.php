@@ -699,6 +699,12 @@ $currentUri = $_SERVER['REQUEST_URI'];
                 <span>Manage Classrooms</span>
             </a>
 
+            <!-- Schedule history Link -->
+            <a href="/admin/schedule-history" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/schedule-history') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-history w-5 mr-3 <?= strpos($currentUri, '/admin/schedule-history') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Schedules Histroy</span>
+            </a>
+
             <!-- Profile Link -->
             <a href="/admin/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/admin/profile') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-user-circle w-5 mr-3 <?= strpos($currentUri, '/admin/profile') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>

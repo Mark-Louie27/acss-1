@@ -1652,6 +1652,222 @@ class AdminController
         }
     }
 
+    public function viewScheduleHistory()
+    {
+        $error = $success = null;
+        $historicalSchedules = [];
+        $allSemesters = [];
+        $colleges = [];
+        $departments = [];
+
+        try {
+            // Get all colleges and departments
+            $collegeStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
+            $colleges = $collegeStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $deptStmt = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
+            $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get all semesters
+            $allSemesters = $this->getAllSemesters();
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $semesterId = $_POST['semester_id'] ?? null;
+                $academicYear = $_POST['academic_year'] ?? null;
+                $collegeId = $_POST['college_id'] ?? null;
+                $departmentId = $_POST['department_id'] ?? null;
+
+                if ($semesterId || $academicYear) {
+                    $historicalSchedules = $this->getAllHistoricalSchedules($semesterId, $academicYear, $collegeId, $departmentId);
+                    $success = "Schedules retrieved: " . count($historicalSchedules) . " schedules found";
+                } else {
+                    $error = "Please select a semester or academic year.";
+                }
+            }
+        } catch (PDOException $e) {
+            error_log("Admin Schedule History Error: " . $e->getMessage());
+            $error = "Database error occurred while fetching schedule history.";
+        }
+
+        $data = [
+            'error' => $error,
+            'success' => $success,
+            'historicalSchedules' => $historicalSchedules,
+            'allSemesters' => $allSemesters,
+            'colleges' => $colleges,
+            'departments' => $departments,
+            'title' => 'Schedule History - All Colleges'
+        ];
+
+        require_once __DIR__ . '/../views/admin/schedule-history.php';
+    }
+
+    private function getAllHistoricalSchedules($semesterId = null, $academicYear = null, $collegeId = null, $departmentId = null)
+    {
+        try {
+            $sql = "SELECT 
+                s.*, 
+                c.course_code, 
+                c.course_name, 
+                c.units, 
+                u.first_name, 
+                u.last_name, 
+                r.room_name, 
+                r.building,
+                se.section_name, 
+                sem.semester_name, 
+                sem.academic_year,
+                d.department_name,
+                col.college_name,
+                GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                    FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') 
+                    SEPARATOR ', ') as all_days,
+                MIN(s.start_time) as start_time, 
+                MAX(s.end_time) as end_time
+            FROM schedules s
+            LEFT JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+            LEFT JOIN users u ON f.user_id = u.user_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            LEFT JOIN sections se ON s.section_id = se.section_id
+            LEFT JOIN semesters sem ON s.semester_id = sem.semester_id
+            LEFT JOIN departments d ON s.department_id = d.department_id
+            LEFT JOIN colleges col ON d.college_id = col.college_id
+            WHERE 1=1";
+
+            $params = [];
+
+            if ($semesterId) {
+                $sql .= " AND s.semester_id = :semesterId";
+                $params[':semesterId'] = $semesterId;
+            }
+            if ($academicYear) {
+                $sql .= " AND sem.academic_year = :academicYear";
+                $params[':academicYear'] = $academicYear;
+            }
+            if ($collegeId) {
+                $sql .= " AND col.college_id = :collegeId";
+                $params[':collegeId'] = $collegeId;
+            }
+            if ($departmentId) {
+                $sql .= " AND s.department_id = :departmentId";
+                $params[':departmentId'] = $departmentId;
+            }
+
+            $sql .= " GROUP BY s.course_id, s.faculty_id, s.section_id, s.room_id, s.semester_id, 
+                 c.course_code, c.course_name, c.units, u.first_name, u.last_name, r.room_name, 
+                 se.section_name, sem.semester_name, sem.academic_year, d.department_name, col.college_name
+                 ORDER BY col.college_name, d.department_name, c.course_code, se.section_name";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            return array_map(function ($schedule) {
+                return [
+                    'schedule_id' => $schedule['schedule_id'],
+                    'course_code' => $schedule['course_code'],
+                    'course_name' => $schedule['course_name'],
+                    'units' => $schedule['units'] ?? 3,
+                    'faculty_name' => trim($schedule['first_name'] . ' ' . $schedule['last_name']) ?: 'TBA',
+                    'room_name' => $schedule['room_name'] ?? 'Online',
+                    'building' => $schedule['building'] ?? 'N/A',
+                    'section_name' => $schedule['section_name'],
+                    'day_of_week' => $this->formatScheduleDaysAdmin($schedule['all_days']),
+                    'start_time' => $schedule['start_time'] ? date('h:i A', strtotime($schedule['start_time'])) : 'N/A',
+                    'end_time' => $schedule['end_time'] ? date('h:i A', strtotime($schedule['end_time'])) : 'N/A',
+                    'schedule_type' => $schedule['schedule_type'] ?? 'Regular',
+                    'semester_name' => $schedule['semester_name'],
+                    'academic_year' => $schedule['academic_year'],
+                    'department_name' => $schedule['department_name'],
+                    'college_name' => $schedule['college_name']
+                ];
+            }, $schedules);
+        } catch (PDOException $e) {
+            error_log("Error fetching all historical schedules: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function getAllSemesters()
+    {
+        try {
+            $sql = "SELECT semester_id, semester_name, academic_year 
+                FROM semesters 
+                ORDER BY academic_year DESC, 
+                         FIELD(semester_name, 'Summer', 'Midyear', 'Second', 'First')";
+            $stmt = $this->db->query($sql);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error fetching all semesters: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function formatScheduleDaysAdmin($daysString)
+    {
+        if (empty($daysString)) {
+            return 'No Schedule';
+        }
+
+        $days = explode(', ', $daysString);
+        $dayMap = [
+            'Monday' => 'Mon',
+            'Tuesday' => 'Tue',
+            'Wednesday' => 'Wed',
+            'Thursday' => 'Thu',
+            'Friday' => 'Fri',
+            'Saturday' => 'Sat',
+            'Sunday' => 'Sun'
+        ];
+
+        $formattedDays = array_map(function ($day) use ($dayMap) {
+            return $dayMap[$day] ?? $day;
+        }, $days);
+
+        return implode(', ', $formattedDays);
+    }
+
+    // Add this method to get departments by college for AJAX
+    public function getDepartmentsByCollege()
+    {
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['college_id'])) {
+            $collegeId = (int)$_POST['college_id'];
+
+            try {
+                $query = "SELECT department_id, department_name FROM departments";
+                $params = [];
+
+                if ($collegeId > 0) {
+                    $query .= " WHERE college_id = :college_id";
+                    $params[':college_id'] = $collegeId;
+                }
+
+                $query .= " ORDER BY department_name";
+
+                $stmt = $this->db->prepare($query);
+                $stmt->execute($params);
+                $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true,
+                    'departments' => $departments
+                ]);
+                exit;
+            } catch (PDOException $e) {
+                error_log("Error fetching departments: " . $e->getMessage());
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Error fetching departments'
+                ]);
+                exit;
+            }
+        }
+    }
+
     public function createCollegeDepartment()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
