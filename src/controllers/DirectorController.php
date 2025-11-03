@@ -2416,63 +2416,185 @@ class DirectorController
 
     public function settings()
     {
-        if (!$this->authService->isLoggedIn()) {
-            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view settings'];
-            header('Location: /login');
-            exit;
-        }
-
-        $userId = $_SESSION['user_id'];
-        $csrfToken = $this->authService->generateCsrfToken();
-        $errors = [];
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Invalid CSRF token'];
-                header('Location: /director/settings');
+        try {
+            if (!$this->authService->isLoggedIn()) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view settings'];
+                header('Location: /login');
                 exit;
             }
 
-            $currentPassword = $_POST['current_password'] ?? '';
-            $newPassword = $_POST['new_password'] ?? '';
-            $confirmPassword = $_POST['confirm_password'] ?? '';
+            $userId = $_SESSION['user_id'];
+            $csrfToken = $this->authService->generateCsrfToken();
 
-            if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
-                $errors[] = 'All password fields are required.';
-            } else {
-                if ($newPassword !== $confirmPassword) {
-                    $errors[] = 'New password and confirmation do not match.';
-                }
-
-                if (strlen($newPassword) < 8) {
-                    $errors[] = 'New password must be at least 8 characters long.';
-                }
-
-                // Fetch current password hash
-                $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
-                $stmt->execute([':user_id' => $userId]);
-                $currentHash = $stmt->fetchColumn();
-
-                if (!password_verify($currentPassword, $currentHash)) {
-                    $errors[] = 'Current password is incorrect.';
-                }
+            // Fetch user data
+            $userData = $this->getUserData();
+            if (!$userData) {
+                error_log("settings: Failed to load user data for user_id: $userId");
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load user data'];
+                header('Location: /director/dashboard');
+                exit;
             }
 
-            if (empty($errors)) {
-                $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
-                $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
-                if ($updateStmt->execute([':password_hash' => $newHash, ':user_id' => $userId])) {
-                    $_SESSION['flash'] = ['type' => 'success', 'message' => 'Password updated successfully'];
-                    header('Location: /director/settings');
-                    exit;
-                } else {
-                    error_log("settings: Failed to update password for user_id: $userId");
-                    $errors[] = 'Failed to update password. Please try again.';
-                }
-            }
+            // Get recent login history from auth_logs (if table exists)
+            $loginHistory = $this->getRecentSecurityLogs($userId, 5);
+
+            // Get account creation date and last update
+            $stmt = $this->db->prepare("
+            SELECT created_at, updated_at 
+            FROM users 
+            WHERE user_id = :user_id
+        ");
+            $stmt->execute([':user_id' => $userId]);
+            $accountInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $data = [
+                'user' => $userData,
+                'csrf_token' => $csrfToken,
+                'login_history' => $loginHistory,
+                'account_info' => $accountInfo,
+                'title' => 'Account Settings'
+            ];
+
+            require_once __DIR__ . '/../views/director/settings.php';
+        } catch (Exception $e) {
+            error_log("settings: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load settings'];
+            header('Location: /director/dashboard');
+            exit;
         }
+    }
 
-        // Render the settings view
-        require_once __DIR__ . '/../views/director/settings.php';
+    /**
+     * Update password
+     */
+    public function updatePassword()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            if (!$this->authService->isLoggedIn()) {
+                echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+                exit;
+            }
+
+            if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+                echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
+                exit;
+            }
+
+            $userId = $_SESSION['user_id'];
+            $currentPassword = trim($_POST['current_password'] ?? '');
+            $newPassword = trim($_POST['new_password'] ?? '');
+            $confirmPassword = trim($_POST['confirm_password'] ?? '');
+
+            // Validation
+            $errors = [];
+
+            if (empty($currentPassword)) {
+                $errors[] = 'Current password is required';
+            }
+
+            if (empty($newPassword)) {
+                $errors[] = 'New password is required';
+            } elseif (strlen($newPassword) < 8) {
+                $errors[] = 'New password must be at least 8 characters long';
+            } elseif (!preg_match('/[A-Z]/', $newPassword)) {
+                $errors[] = 'New password must contain at least one uppercase letter';
+            } elseif (!preg_match('/[a-z]/', $newPassword)) {
+                $errors[] = 'New password must contain at least one lowercase letter';
+            } elseif (!preg_match('/[0-9]/', $newPassword)) {
+                $errors[] = 'New password must contain at least one number';
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                $errors[] = 'New password and confirmation do not match';
+            }
+
+            if (!empty($errors)) {
+                echo json_encode(['success' => false, 'message' => implode(', ', $errors)]);
+                exit;
+            }
+
+            // Verify current password
+            $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
+            $stmt->execute([':user_id' => $userId]);
+            $currentHash = $stmt->fetchColumn();
+
+            if (!password_verify($currentPassword, $currentHash)) {
+                echo json_encode(['success' => false, 'message' => 'Current password is incorrect']);
+                exit;
+            }
+
+            // Check if new password is same as current
+            if (password_verify($newPassword, $currentHash)) {
+                echo json_encode(['success' => false, 'message' => 'New password must be different from current password']);
+                exit;
+            }
+
+            // Update password
+            $newHash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
+            $updateStmt = $this->db->prepare("
+            UPDATE users 
+            SET password_hash = :password_hash, 
+                password_changed_at = NOW(), 
+                updated_at = NOW() 
+            WHERE user_id = :user_id
+        ");
+
+            if ($updateStmt->execute([':password_hash' => $newHash, ':user_id' => $userId])) {
+                // Log security event
+                $this->logSecurityEvent($userId, 'password_changed', 'Password updated successfully');
+
+                echo json_encode(['success' => true, 'message' => 'Password updated successfully']);
+            } else {
+                error_log("updatePassword: Failed to update password for user_id: $userId");
+                echo json_encode(['success' => false, 'message' => 'Failed to update password. Please try again.']);
+            }
+        } catch (Exception $e) {
+            error_log("updatePassword: Error - " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'An error occurred while updating password']);
+        }
+        exit;
+    }
+
+    private function getRecentSecurityLogs($userId, $limit = 10)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT action, description, ip_address, user_agent, created_at
+            FROM auth_logs
+            WHERE user_id = :user_id
+            ORDER BY created_at DESC
+            LIMIT :limit
+        ");
+            $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("getRecentSecurityLogs: Error - " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function logSecurityEvent($userId, $action, $description)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            INSERT INTO auth_logs (user_id, action,  ip_address, user_agent, created_at)
+            VALUES (:user_id, :action, :ip_address, :user_agent, NOW())
+        ");
+
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':action' => $action,
+                ':description' => $description,
+                ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'Unknown',
+                ':user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
+            ]);
+        } catch (PDOException $e) {
+            error_log("logSecurityEvent: Error - " . $e->getMessage());
+        }
     }
 }

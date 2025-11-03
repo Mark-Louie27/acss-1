@@ -66,7 +66,6 @@ $deanController = new DeanController();
 $stats = $deanController->getStats();
 $stats = $stats ?? ['total_pending' => 0];
 
-$pendingFacultyCount = $deanController->getPendingFacultyCount();
 ?>
 
 <!DOCTYPE html>
@@ -929,11 +928,6 @@ $pendingFacultyCount = $deanController->getPendingFacultyCount();
                     <a href="/dean/faculty" class="nav-dropdown-item <?= strpos($currentUri, '/dean/faculty') !== false ? 'active-nav' : '' ?>">
                         <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= strpos($currentUri, '/dean/faculty') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                         <span>Manage Faculty</span>
-                        <?php if (isset($pendingFacultyCount) && $pendingFacultyCount > 0): ?>
-                            <span class="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                                <?php echo $pendingFacultyCount; ?>
-                            </span>
-                        <?php endif; ?>
                     </a>
                 </div>
             </div>
