@@ -1,7 +1,7 @@
 <?php
 // Terms and Conditions Modal Content
 ?>
-<div id="termsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+<div id="termsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
         <!-- Modal Header -->
         <div class="bg-yellow-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">

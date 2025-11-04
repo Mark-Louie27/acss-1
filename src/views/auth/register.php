@@ -57,6 +57,26 @@ function getSettingsImagePath($path)
     return (strpos($path, '/') === 0) ? $path : '/' . $path;
 }
 
+// Check if this is a successful registration response
+$registrationSuccess = false;
+$successMessage = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
+    // This means we're processing a form submission that didn't have errors
+    $registrationSuccess = true;
+
+    // Generate appropriate success message
+    $isDean = isset($_POST['roles']) && in_array(4, array_map('intval', (array)$_POST['roles']));
+    $isProgramChair = isset($_POST['roles']) && in_array(5, array_map('intval', (array)$_POST['roles']));
+
+    if ($isDean) {
+        $successMessage = "Dean registration submitted successfully. Your account is pending admin approval.";
+    } elseif ($isProgramChair) {
+        $successMessage = "Program Chair registration submitted successfully. Your account is pending admin approval.";
+    } else {
+        $successMessage = "Registration submitted successfully. Your account is pending admin approval.";
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -242,6 +262,40 @@ function getSettingsImagePath($path)
                 width: 32px;
                 height: 32px;
                 font-size: 0.875rem;
+            }
+        }
+
+        /* Smooth modal animations */
+        .modal-enter {
+            animation: modalEnter 0.3s ease-out;
+        }
+
+        @keyframes modalEnter {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        /* Pulse animation for status */
+        .pulse-gentle {
+            animation: pulseGentle 2s infinite;
+        }
+
+        @keyframes pulseGentle {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
             }
         }
     </style>
@@ -778,12 +832,117 @@ function getSettingsImagePath($path)
                 </div>
             </div>
         </div>
+
+        <!-- Universal Approval Waiting Modal -->
+        <div id="approvalModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl max-w-md w-full mx-4 p-6 transform transition-all duration-300 scale-95 modal-enter">
+                <!-- Success Icon -->
+                <div class="flex justify-center mb-4">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div class="text-center">
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">Registration Submitted Successfully! 🎉</h3>
+
+                    <div class="space-y-3 text-gray-600 mb-6">
+                        <!-- Dynamic success message -->
+                        <p class="text-sm" id="modalMessage">Your registration has been received and is pending admin approval.</p>
+
+                        <!-- Process info box -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-left">
+                            <h4 class="font-semibold text-blue-800 text-sm mb-1">What happens next?</h4>
+                            <ul class="text-xs text-blue-700 space-y-1">
+                                <li class="flex items-center">
+                                    <svg class="w-3 h-3 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Admin will review your application
+                                </li>
+                                <li class="flex items-center">
+                                    <svg class="w-3 h-3 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                    </svg>
+                                    You'll receive an email once approved
+                                </li>
+                                <li class="flex items-center">
+                                    <svg class="w-3 h-3 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Approval typically takes 24-48 hours
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Contact info -->
+                        <div class="text-xs text-gray-500">
+                            Questions? Contact <a href="mailto:admin@prmsu.edu.ph" class="text-yellow-600 hover:text-yellow-700 font-medium">admin@prmsu.edu.ph</a>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex space-x-3">
+                        <button onclick="closeModalAndReset()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors font-medium">
+                            Register Another
+                        </button>
+                        <button onclick="goToLogin()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 transition-colors font-medium">
+                            Go to Login
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script>
         let currentStep = 1;
         let selectedRoles = [];
+
+        // Modal control functions
+        function showApprovalModal(message = '') {
+            if (message) {
+                document.getElementById('modalMessage').textContent = message;
+            }
+            document.getElementById('approvalModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeApprovalModal() {
+            document.getElementById('approvalModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function closeModalAndReset() {
+            closeApprovalModal();
+            // Reset the form
+            document.getElementById('registration-form').reset();
+            // Reset to step 1
+            currentStep = 1;
+            document.querySelectorAll('.form-step').forEach(step => step.classList.remove('active'));
+            document.querySelector('.form-step[data-step="1"]').classList.add('active');
+
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+            document.querySelector('.step[data-step="1"]').classList.add('active');
+            updateProgressBar();
+        }
+
+        function goToLogin() {
+            window.location.href = '/login';
+        }
+
+        // Auto-show modal if this is a successful registration
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php if ($registrationSuccess): ?>
+                showApprovalModal('<?php echo addslashes($successMessage); ?>');
+            <?php endif; ?>
+        });
 
         // Step navigation
         function nextStep() {
@@ -840,6 +999,17 @@ function getSettingsImagePath($path)
                     input.classList.remove('border-red-500');
                 }
             });
+
+            // For step 3, don't validate department if Dean is selected
+            if (step === 3) {
+                const hasDean = $('.role-checkbox[value="4"]:checked').length > 0;
+                const departmentInput = $('#department_id');
+
+                if (hasDean && departmentInput.length > 0) {
+                    // Remove required validation for department when Dean is selected
+                    departmentInput.removeClass('border-red-500');
+                }
+            }
 
             if (step === 2) {
                 const password = document.getElementById('password').value;
@@ -954,16 +1124,29 @@ function getSettingsImagePath($path)
 
         function toggleDepartmentSelection() {
             const hasProgramChair = selectedRoles.some(role => role.id == 5);
+            const hasDean = selectedRoles.some(role => role.id == 4);
 
             if (hasProgramChair) {
+                // Program Chair - show multiple department selection (required)
                 $('#single-department').addClass('hidden');
                 $('#multiple-departments').removeClass('hidden');
-                $('#dept-label').text('Departments (Select Multiple)');
+                $('#dept-label').html('Departments (Select Multiple) <span class="text-red-500">*</span>');
                 $('#department_id').removeAttr('required');
-            } else {
+                $('.dept-checkbox').attr('required', true);
+            } else if (hasDean) {
+                // Dean - show single department selection (optional)
+                $('#department-section').removeClass('hidden');
                 $('#single-department').removeClass('hidden');
                 $('#multiple-departments').addClass('hidden');
-                $('#dept-label').text('Department');
+                $('#dept-label').html('Department <span class="text-gray-500">(Optional)</span>');
+                $('#department_id').removeAttr('required');
+                $('.dept-checkbox').removeAttr('required');
+            } else {
+                // Other roles - show single department selection (required)
+                $('#department-section').removeClass('hidden');
+                $('#single-department').removeClass('hidden');
+                $('#multiple-departments').addClass('hidden');
+                $('#dept-label').html('Department <span class="text-red-500">*</span>');
                 $('#department_id').attr('required', true);
                 $('.dept-checkbox').removeAttr('required').prop('checked', false);
                 $('#primary_department_id').val('');
@@ -1110,7 +1293,6 @@ function getSettingsImagePath($path)
             if (!document.getElementById('terms_accepted')) {
                 e.preventDefault();
                 document.getElementById('terms-error').classList.remove('hidden');
-                // Scroll to terms section
                 document.querySelector('[onclick="openTermsModal()"]').scrollIntoView({
                     behavior: 'smooth',
                     block: 'center'
@@ -1121,6 +1303,7 @@ function getSettingsImagePath($path)
             }
 
             const programChairChecked = $('.role-checkbox[value="5"]:checked').length > 0;
+            const deanChecked = $('.role-checkbox[value="4"]:checked').length > 0;
 
             if (programChairChecked) {
                 const checkedDepts = $('.dept-checkbox:checked').length;
@@ -1141,7 +1324,16 @@ function getSettingsImagePath($path)
                 if (checkedDepts === 1 && !primaryDept) {
                     $('#primary_department_id').val($('.dept-checkbox:checked').val());
                 }
+            } else if (!deanChecked) {
+                // For roles other than Dean and Program Chair, check if department is selected
+                const hasDepartment = $('#department_id').val() || $('.dept-checkbox:checked').length > 0;
+                if (!hasDepartment) {
+                    e.preventDefault();
+                    alert('Please select a department.');
+                    return false;
+                }
             }
+            // Dean doesn't require department validation - it's optional
 
             const checkedRoles = $('.role-checkbox:checked');
             if (checkedRoles.length === 0) {

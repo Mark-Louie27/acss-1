@@ -672,10 +672,6 @@ ob_start();
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Max Hours</label>
-                            <input type="number" name="max_hours" step="0.01" value="18.00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Designation</label>
                             <input type="text" name="designation" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500" placeholder="e.g., Department Head, Coordinator">
                         </div>
@@ -751,67 +747,6 @@ ob_start();
                                 </select>
                                 <p class="text-xs text-gray-500 mt-1">This will be the main department assignment</p>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Primary Program</label>
-                            <select name="primary_program_id" id="primaryProgramSelect"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="">Select Primary Program</option>
-                                <?php foreach ($programs as $program): ?>
-                                    <option value="<?php echo $program['program_id']; ?>" data-department="<?php echo $program['department_id']; ?>">
-                                        <?php echo htmlspecialchars($program['program_name'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Secondary Program</label>
-                            <select name="secondary_program_id" id="secondaryProgramSelect"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="">Select Secondary Program</option>
-                                <?php foreach ($programs as $program): ?>
-                                    <option value="<?php echo $program['program_id']; ?>" data-department="<?php echo $program['department_id']; ?>">
-                                        <?php echo htmlspecialchars($program['program_name'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Teaching Load Information (Optional) -->
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h4 class="text-lg font-medium text-gray-900 mb-4">Teaching Load Information (Optional)</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Equivalent Teaching Load</label>
-                            <input type="number" name="equiv_teaching_load" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Lecture Hours</label>
-                            <input type="number" name="total_lecture_hours" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Laboratory Hours</label>
-                            <input type="number" name="total_laboratory_hours" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">No. of Preparations</label>
-                            <input type="number" name="no_of_preparation" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Advisory Class</label>
-                            <input type="text" name="advisory_class" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Working Load</label>
-                            <input type="number" name="total_working_load" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
                         </div>
                     </div>
                 </div>
@@ -1450,15 +1385,21 @@ ob_start();
 
                     const modal = showLoadingModal('Approving user...');
 
-                    fetch('/admin/users', {
+                    fetch('/admin/users', { // ← No query params in URL
                             method: 'POST',
-                            body: formData
+                            body: formData // ← FormData in body
                         })
-                        .then(response => response.json())
+                        .then(response => {
+                            console.log('Response status:', response.status);
+                            return response.json();
+                        })
                         .then(data => {
                             modal.remove();
+                            console.log('Response data:', data);
+
                             if (data.success) {
-                                location.reload();
+                                showSuccessModal('Success', data.message || 'User approved successfully');
+                                setTimeout(() => location.reload(), 1500);
                             } else {
                                 showErrorModal('Approval Failed', data.error || 'Unknown error occurred');
                             }
@@ -1516,15 +1457,22 @@ ob_start();
         // ========================
         function showLoadingModal(message = 'Processing...') {
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50';
             modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 flex items-center space-x-3">
-            <div class="loading-spinner w-6 h-6 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></div>
-            <span class="text-gray-700">${message}</span>
-        </div>
-    `;
+                <div class="bg-white rounded-lg p-6 flex items-center space-x-3">
+                    <div class="loading-spinner w-6 h-6 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-gray-700">${message}</span>
+                </div>
+            `;
             document.body.appendChild(modal);
             return modal;
+        }
+
+        function disableUser(userId, userName) {
+            currentUserId = userId;
+            document.getElementById('disableUserName').textContent = userName;
+            document.getElementById('disableUserModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         }
 
         function closeDisableUserModal() {
@@ -1535,23 +1483,39 @@ ob_start();
 
         function confirmDisableUser() {
             if (!currentUserId) return;
-            fetch(`/admin/users?action=deactivate&user_id=${currentUserId}`, {
+
+            const formData = new FormData();
+            formData.append('action', 'deactivate');
+            formData.append('user_id', currentUserId);
+            formData.append('csrf_token', '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>');
+
+            const modal = showLoadingModal('Disabling user...');
+
+            fetch('/admin/users', { // ← No query params
                     method: 'POST',
-                    headers: {
-                        'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    modal.remove();
+                    if (data.success) {
+                        closeDisableUserModal();
+                        showSuccessModal('Success', data.message || 'User disabled successfully');
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        showErrorModal('Disable Failed', data.error || 'Unknown error occurred');
                     }
                 })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.success) location.reload();
-                    else alert('Error: ' + (d.error || d.message));
-                })
-                .catch(() => alert('Network error occurred'));
+                .catch(error => {
+                    modal.remove();
+                    console.error('Disable user error:', error);
+                    showErrorModal('Network Error', 'An error occurred while disabling the user.');
+                });
         }
 
-        function declineUser(id, name) {
-            currentUserId = id;
-            document.getElementById('declineUserName').textContent = name;
+        function declineUser(userId, userName) {
+            currentUserId = userId;
+            document.getElementById('declineUserName').textContent = userName;
             document.getElementById('declineUserModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
@@ -1564,53 +1528,34 @@ ob_start();
 
         function confirmDeclineUser() {
             if (!currentUserId) return;
-            fetch(`/admin/users?action=deactivate&user_id=${currentUserId}`, {
+
+            const formData = new FormData();
+            formData.append('action', 'deactivate');
+            formData.append('user_id', currentUserId);
+            formData.append('csrf_token', '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>');
+
+            const modal = showLoadingModal('Declining user...');
+
+            fetch('/admin/users', { // ← No query params
                     method: 'POST',
-                    headers: {
-                        'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken); ?>'
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    modal.remove();
+                    if (data.success) {
+                        closeDeclineUserModal();
+                        showSuccessModal('Success', data.message || 'User declined successfully');
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        showErrorModal('Decline Failed', data.error || 'Unknown error occurred');
                     }
                 })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.success) location.reload();
-                    else alert('Error: ' + (d.error || d.message));
-                })
-                .catch(() => alert('Network error occurred'));
-        }
-
-        function approveUser(userId, userName) {
-            showConfirmationModal(
-                'Approve User',
-                `Are you sure you want to approve ${userName}?`,
-                () => {
-                    fetch(`/admin/users?action=activate&user_id=${userId}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                            }
-                        })
-                        .then(response => {
-                            const contentType = response.headers.get('content-type');
-                            if (!contentType || !contentType.includes('application/json')) {
-                                throw new Error('Server returned non-JSON response');
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            if (data.success) {
-                                location.reload();
-                            } else {
-                                showErrorModal('Approval Failed', data.message || 'Unknown error occurred');
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            showErrorModal('Network Error', 'An error occurred while approving the user');
-                        });
-                }
-            );
+                .catch(error => {
+                    modal.remove();
+                    console.error('Decline user error:', error);
+                    showErrorModal('Network Error', 'An error occurred while declining the user.');
+                });
         }
 
         // ========================
@@ -1874,30 +1819,30 @@ ob_start();
         // ========================
         function showConfirmationModal(title, message, onConfirm) {
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50';
             modal.innerHTML = `
-        <div class="bg-white rounded-lg max-w-md w-full mx-4">
-            <div class="flex items-center gap-3 p-6 border-b border-gray-200">
-                <div class="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                    </svg>
+                <div class="bg-white rounded-lg max-w-md w-full mx-4">
+                    <div class="flex items-center gap-3 p-6 border-b border-gray-200">
+                        <div class="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-gray-600">${message}</p>
+                    </div>
+                    <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                            Cancel
+                        </button>
+                        <button class="confirm-btn px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
+                            Confirm
+                        </button>
+                    </div>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
-            </div>
-            <div class="p-6">
-                <p class="text-gray-600">${message}</p>
-            </div>
-            <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
-                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                    Cancel
-                </button>
-                <button class="confirm-btn px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
-                    Confirm
-                </button>
-            </div>
-        </div>
-    `;
+            `;
             document.body.appendChild(modal);
 
             modal.querySelector('.confirm-btn').addEventListener('click', function() {
@@ -1908,27 +1853,27 @@ ob_start();
 
         function showErrorModal(title, message) {
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50';
             modal.innerHTML = `
-        <div class="bg-white rounded-lg max-w-md w-full mx-4">
-            <div class="flex items-center gap-3 p-6 border-b border-gray-200">
-                <div class="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                    </svg>
+                <div class="bg-white rounded-lg max-w-md w-full mx-4">
+                    <div class="flex items-center gap-3 p-6 border-b border-gray-200">
+                        <div class="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-gray-600">${message}</p>
+                    </div>
+                    <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                            Close
+                        </button>
+                    </div>
                 </div>
-                <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
-            </div>
-            <div class="p-6">
-                <p class="text-gray-600">${message}</p>
-            </div>
-            <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
-                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
-                    Close
-                </button>
-            </div>
-        </div>
-    `;
+            `;
             document.body.appendChild(modal);
         }
 

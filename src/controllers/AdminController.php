@@ -1206,7 +1206,6 @@ class AdminController
         }
 
         try {
-            $this->db->beginTransaction();
 
             if ($action === 'deactivate') {
                 $query = "UPDATE users SET is_active = 0 WHERE user_id = :user_id";

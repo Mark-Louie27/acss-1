@@ -111,24 +111,32 @@ class AuthController
             error_log("Received roles: " . print_r($_POST['roles'] ?? 'empty', true));
             error_log("Received department_ids: " . print_r($_POST['department_ids'] ?? 'empty', true));
 
-            // Handle department IDs - can be multiple for Program Chair
+            // Check if Dean is selected EARLY
+            $isDean = isset($_POST['roles']) && in_array(4, array_map('intval', (array)$_POST['roles']));
+            $isProgramChair = isset($_POST['roles']) && in_array(5, array_map('intval', (array)$_POST['roles']));
+
+            // Handle department IDs - FIXED LOGIC
             $departmentIds = [];
-            $primaryDepartmentId = 0;
+            $primaryDepartmentId = null; // Start as null
 
-            if (isset($_POST['department_ids']) && is_array($_POST['department_ids'])) {
-                // Multiple departments selected (Program Chair)
-                $departmentIds = array_map('intval', $_POST['department_ids']);
-                $primaryDepartmentId = intval($_POST['primary_department_id'] ?? 0);
-
-                // If no primary set, use first one
-                if ($primaryDepartmentId === 0 && !empty($departmentIds)) {
-                    $primaryDepartmentId = $departmentIds[0];
+            if ($isProgramChair) {
+                // Program Chair - multiple departments required
+                if (isset($_POST['department_ids']) && is_array($_POST['department_ids'])) {
+                    $departmentIds = array_map('intval', array_filter($_POST['department_ids']));
+                    if (!empty($departmentIds)) {
+                        $primaryDepartmentId = intval($_POST['primary_department_id'] ?? $departmentIds[0]);
+                    }
                 }
-            } else {
-                // Single department
-                $primaryDepartmentId = intval($_POST['department_id'] ?? 0);
+            } elseif (!$isDean && !empty($_POST['department_id'])) {
+                // Other roles (except Dean) - single department required
+                $primaryDepartmentId = intval($_POST['department_id']);
+                $departmentIds = [$primaryDepartmentId];
+            } elseif ($isDean && !empty($_POST['department_id'])) {
+                // Dean - optional single department (only if provided)
+                $primaryDepartmentId = intval($_POST['department_id']);
                 $departmentIds = [$primaryDepartmentId];
             }
+            // If Dean and no department selected, both remain as empty array and null
 
             $data = [
                 'employee_id' => trim($_POST['employee_id'] ?? ''),
@@ -142,8 +150,8 @@ class AuthController
                 'phone' => trim($_POST['phone'] ?? ''),
                 'roles' => isset($_POST['roles']) ? array_map('intval', (array)$_POST['roles']) : [],
                 'college_id' => intval($_POST['college_id'] ?? 0),
-                'department_id' => $primaryDepartmentId, // Primary department
-                'department_ids' => $departmentIds, // All selected departments
+                'department_id' => $primaryDepartmentId, // This will be NULL for Dean without department
+                'department_ids' => $departmentIds, // This will be empty array for Dean without department
                 'academic_rank' => trim($_POST['academic_rank'] ?? ''),
                 'employment_type' => trim($_POST['employment_type'] ?? ''),
                 'classification' => trim($_POST['classification'] ?? ''),
@@ -158,7 +166,6 @@ class AuthController
             $errors = [];
 
             // Basic validation
-            // Add this to the validation section in register method
             if (empty($_POST['terms_accepted']) || $_POST['terms_accepted'] !== '1') {
                 $errors[] = "You must accept the Terms and Conditions to register.";
             }
@@ -174,17 +181,11 @@ class AuthController
             if (empty($data['last_name'])) $errors[] = "Last name is required.";
             if (empty($data['roles'])) $errors[] = "At least one role must be selected.";
             if (empty($data['college_id'])) $errors[] = "College is required.";
-            if (empty($data['department_ids'])) $errors[] = "At least one department is required.";
             if (empty($data['role_id'])) $errors[] = "A valid role is required.";
-            // NEW: Terms validation
-            if (empty($_POST['terms_accepted']) || $_POST['terms_accepted'] !== '1') {
-                $errors[] = "You must accept the Terms and Conditions to register.";
-            }
 
-            // Check if Program Chair is selected
-            $isProgramChair = in_array(5, $data['roles']);
-
+            // Department validation logic
             if ($isProgramChair) {
+                // Program Chair requires at least one department
                 if (count($data['department_ids']) === 0) {
                     $errors[] = "Program Chair must be assigned to at least one department.";
                 }
@@ -192,31 +193,36 @@ class AuthController
                 if (count($data['department_ids']) > 1 && empty($data['department_id'])) {
                     $errors[] = "Please select a primary department.";
                 }
-
-                // Get program_id from first department (you may need to adjust this logic)
-                if (empty($data['program_id'])) {
-                    try {
-                        $programs = $this->userModel->getProgramsByDepartment($data['department_id']);
-                        if (!empty($programs)) {
-                            $data['program_id'] = $programs[0]['program_id'];
-                        } else {
-                            $errors[] = "No program found for the selected department.";
-                        }
-                    } catch (Exception $e) {
-                        $errors[] = "Error loading program information.";
-                    }
+            } elseif (!$isDean) {
+                // For roles other than Dean and Program Chair, require department
+                if (empty($data['department_ids'])) {
+                    $errors[] = "At least one department is required.";
                 }
             }
 
             if (empty($errors)) {
                 try {
                     if ($this->authService->submitAdmission($data)) {
-                        $deptCount = count($data['department_ids']);
-                        $deptText = $deptCount > 1 ? "$deptCount departments" : "1 department";
+                        // Set success state
+                        $registrationSuccess = true;
 
-                        $success = "Registration submitted successfully for $deptText. Your account is pending admin approval. You will receive an email once approved.";
+                        // Generate success message
+                        $isDean = in_array(4, $data['roles']);
+                        $isProgramChair = in_array(5, $data['roles']);
 
-                        header('Location: /login?success=' . urlencode($success));
+                        if ($isDean) {
+                            $successMessage = "Dean registration submitted successfully. Your account is pending admin approval.";
+                        } elseif ($isProgramChair) {
+                            $successMessage = "Program Chair registration submitted successfully. Your account is pending admin approval.";
+                        } else {
+                            $successMessage = "Registration submitted successfully. Your account is pending admin approval.";
+                        }
+
+                        // Clear the form data
+                        $_POST = [];
+
+                        // Re-render the form (this will trigger the modal via JavaScript)
+                        require_once __DIR__ . '/../views/auth/register.php';
                         exit;
                     } else {
                         $error = "Registration failed. Employee ID or email may already be in use.";
@@ -224,12 +230,9 @@ class AuthController
                     }
                 } catch (Exception $e) {
                     $error = $e->getMessage();
-                    error_log("Registration exception: " . $error);
+                    error_log("Registration exception: " . $e->getMessage());
                     require_once __DIR__ . '/../views/auth/register.php';
                 }
-            } else {
-                $error = implode("<br>", $errors);
-                require_once __DIR__ . '/../views/auth/register.php';
             }
         } else {
             require_once __DIR__ . '/../views/auth/register.php';

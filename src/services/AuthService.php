@@ -326,14 +326,15 @@ class AuthService
     {
         try {
             $stmt = $this->db->prepare("
-            SELECT u.user_id, u.employee_id, u.first_name, u.last_name
-            FROM users u
-            INNER JOIN user_roles ur ON u.user_id = ur.user_id
-            WHERE u.college_id = :college_id
-            AND ur.role_id = :role_id
-            AND u.is_active = 1
-            LIMIT 1
-        ");
+                SELECT u.user_id, u.employee_id, u.first_name, u.last_name, r.role_name
+                FROM users u
+                INNER JOIN user_roles ur ON u.user_id = ur.user_id
+                INNER JOIN roles r ON ur.role_id = r.role_id
+                WHERE u.college_id = :college_id
+                AND ur.role_id = :role_id
+                AND u.is_active = 1
+                LIMIT 1
+            ");
 
             $stmt->execute([
                 ':college_id' => $collegeId,
@@ -354,16 +355,31 @@ class AuthService
     {
         try {
             // For Program Chair, check both users table and chair_departments
-            $stmt = $this->db->prepare("
-            SELECT DISTINCT u.user_id, u.employee_id, u.first_name, u.last_name
-            FROM users u
-            INNER JOIN user_roles ur ON u.user_id = ur.user_id
-            LEFT JOIN chair_departments cd ON u.user_id = cd.user_id
-            WHERE ur.role_id = :role_id
-            AND (u.department_id = :department_id OR cd.department_id = :department_id)
-            AND u.is_active = 1
-            LIMIT 1
-        ");
+            if ($roleId == 5) { // Program Chair
+                $stmt = $this->db->prepare("
+                    SELECT DISTINCT u.user_id, u.employee_id, u.first_name, u.last_name, r.role_name
+                    FROM users u
+                    INNER JOIN user_roles ur ON u.user_id = ur.user_id
+                    INNER JOIN roles r ON ur.role_id = r.role_id
+                    LEFT JOIN chair_departments cd ON u.user_id = cd.user_id
+                    WHERE ur.role_id = :role_id
+                    AND (u.department_id = :department_id OR cd.department_id = :department_id)
+                    AND u.is_active = 1
+                    LIMIT 1
+                ");
+            } else {
+                // For other department roles
+                $stmt = $this->db->prepare("
+                    SELECT u.user_id, u.employee_id, u.first_name, u.last_name, r.role_name
+                    FROM users u
+                    INNER JOIN user_roles ur ON u.user_id = ur.user_id
+                    INNER JOIN roles r ON ur.role_id = r.role_id
+                    WHERE ur.role_id = :role_id
+                    AND u.department_id = :department_id
+                    AND u.is_active = 1
+                    LIMIT 1
+                ");
+            }
 
             $stmt->execute([
                 ':role_id' => $roleId,
@@ -373,6 +389,53 @@ class AuthService
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Error checking existing department role: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Check if a Program Chair already exists for a department
+     */
+    private function checkExistingProgramChair($departmentId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT DISTINCT u.user_id, u.employee_id, u.first_name, u.last_name, r.role_name
+            FROM users u
+            INNER JOIN user_roles ur ON u.user_id = ur.user_id
+            INNER JOIN roles r ON ur.role_id = r.role_id
+            WHERE ur.role_id = 5
+            AND u.is_active = 1
+            AND (
+                -- Check chair_departments table (multiple department assignments)
+                u.user_id IN (
+                    SELECT cd.user_id 
+                    FROM chair_departments cd 
+                    WHERE cd.department_id = :department_id
+                )
+                OR
+                -- Check program_chairs table (through programs -> departments)
+                u.user_id IN (
+                    SELECT pc.user_id 
+                    FROM program_chairs pc 
+                    INNER JOIN programs p ON pc.program_id = p.program_id 
+                    WHERE p.department_id = :department_id 
+                    AND pc.is_current = 1
+                )
+                OR
+                -- Check users table (direct department assignment)
+                u.department_id = :department_id
+            )
+            LIMIT 1
+        ");
+
+            $stmt->execute([
+                ':department_id' => $departmentId
+            ]);
+
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error checking existing Program Chair for department_id=$departmentId: " . $e->getMessage());
             return null;
         }
     }
@@ -499,8 +562,18 @@ class AuthService
                 throw new Exception("Failed to start transaction");
             }
 
-            // Validate required fields
-            $required_fields = ['employee_id', 'username', 'password', 'email', 'first_name', 'last_name', 'department_id', 'college_id', 'role_id'];
+            // Check if Dean is selected
+            $isDean = in_array(4, $data['roles'] ?? []);
+            $isProgramChair = in_array(5, $data['roles'] ?? []);
+
+            // Validate required fields - adjust based on role
+            $required_fields = ['employee_id', 'username', 'password', 'email', 'first_name', 'last_name', 'college_id', 'role_id'];
+
+            // Department is required for all roles except Dean
+            if (!$isDean) {
+                $required_fields[] = 'department_id';
+            }
+
             foreach ($required_fields as $field) {
                 if (empty($data[$field])) {
                     throw new Exception("Missing required field: $field");
@@ -520,17 +593,51 @@ class AuthService
                 throw new Exception("Email {$data['email']} already exists in active users");
             }
 
+            // Check for existing college-level roles (Dean)
+            if ($isDean) {
+                $existingDean = $this->checkExistingCollegeRole(4, $data['college_id']);
+                if ($existingDean) {
+                    throw new Exception("A Dean already exists for this college: {$existingDean['first_name']} {$existingDean['last_name']} (Employee ID: {$existingDean['employee_id']})");
+                }
+            }
+
+            // Check for existing department-level roles (Program Chair)
+            if ($isProgramChair && !empty($data['department_ids'])) {
+                foreach ($data['department_ids'] as $deptId) {
+                    error_log("Checking for existing Program Chair in department_id: " . $deptId);
+                    $existingChair = $this->checkExistingProgramChair($deptId);
+                    if ($existingChair) {
+                        error_log("Found existing Program Chair: " . json_encode($existingChair));
+                        throw new Exception("A Program Chair already exists for this department: {$existingChair['first_name']} {$existingChair['last_name']} (Employee ID: {$existingChair['employee_id']})");
+                    } else {
+                        error_log("No existing Program Chair found for department_id: " . $deptId);
+                    }
+                }
+            }
+
+            // For single department roles (not Program Chair), check if role already exists in department
+            if (!$isDean && !$isProgramChair && !empty($data['department_id'])) {
+                $existingRole = $this->checkExistingDepartmentRole($data['role_id'], $data['department_id']);
+                if ($existingRole) {
+                    $roleName = $this->getRoleNames($data['role_id']);
+                    throw new Exception("A {$roleName} already exists for this department: {$existingRole['first_name']} {$existingRole['last_name']} (Employee ID: {$existingRole['employee_id']})");
+                }
+            }
+
+            // Handle department_id for Dean - can be NULL
+            $departmentId = $isDean ? ($data['department_id'] ?? null) : $data['department_id'];
+
             // Insert into admissions table
             $query = "
-        INSERT INTO admissions (
-            employee_id, username, password_hash, email, phone, title, first_name, middle_name,
-            last_name, suffix, role_id, department_id, college_id, academic_rank, 
-            employment_type, classification, status, submitted_at
-        ) VALUES (
-            :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
-            :last_name, :suffix, :role_id, :department_id, :college_id, :academic_rank,
-            :employment_type, :classification, 'pending', NOW()
-        )";
+                INSERT INTO admissions (
+                    employee_id, username, password_hash, email, phone, title, first_name, middle_name,
+                    last_name, suffix, role_id, department_id, college_id, academic_rank, 
+                    employment_type, classification, status, submitted_at
+                ) VALUES (
+                    :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
+                    :last_name, :suffix, :role_id, :department_id, :college_id, :academic_rank,
+                    :employment_type, :classification, 'pending', NOW()
+                )";
 
             $stmt = $this->db->prepare($query);
             $stmt->execute([
@@ -545,7 +652,7 @@ class AuthService
                 ':last_name' => $data['last_name'],
                 ':suffix' => $data['suffix'] ?? null,
                 ':role_id' => $data['role_id'],
-                ':department_id' => $data['department_id'],
+                ':department_id' => $departmentId,
                 ':college_id' => $data['college_id'],
                 ':academic_rank' => $data['academic_rank'] ?? null,
                 ':employment_type' => $data['employment_type'] ?? null,
@@ -554,7 +661,7 @@ class AuthService
 
             $admissionId = $this->db->lastInsertId();
 
-            // Insert roles into admission_roles (we'll create this table)
+            // Insert roles into admission_roles
             if (!empty($data['roles'])) {
                 $roleQuery = "INSERT INTO admission_roles (admission_id, role_id) VALUES (:admission_id, :role_id)";
                 $roleStmt = $this->db->prepare($roleQuery);
@@ -565,7 +672,7 @@ class AuthService
             }
 
             // For Program Chair, store multiple departments
-            if (in_array(5, $data['roles']) && !empty($data['department_ids'])) {
+            if ($isProgramChair && !empty($data['department_ids'])) {
                 $deptQuery = "INSERT INTO admission_departments (admission_id, department_id, is_primary) VALUES (:admission_id, :department_id, :is_primary)";
                 $deptStmt = $this->db->prepare($deptQuery);
 
@@ -602,10 +709,10 @@ class AuthService
     {
         try {
             $stmt = $this->db->prepare("
-            SELECT COUNT(*) FROM admissions 
-            WHERE (employee_id = :employee_id OR username = :username OR email = :email) 
-            AND status = 'pending'
-        ");
+                SELECT COUNT(*) FROM admissions 
+                WHERE (employee_id = :employee_id OR username = :username OR email = :email) 
+                AND status = 'pending'
+            ");
             $stmt->execute([
                 ':employee_id' => $employeeId,
                 ':username' => $username,
@@ -699,7 +806,7 @@ class AuthService
     /**
      * Get role names by IDs
      */
-    private function getRoleNames($roleIds)
+    public function getRoleNames($roleIds)
     {
         try {
             if (empty($roleIds)) return ['Unknown Role'];
