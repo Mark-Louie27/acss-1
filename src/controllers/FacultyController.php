@@ -327,7 +327,7 @@ class FacultyController
         }
     }
 
-    private function handleDownload($chairId)
+    private function handleDownload($facultyId)
     {
         $format = $_GET['format'] ?? 'pdf';
 
@@ -342,7 +342,7 @@ class FacultyController
         JOIN users u ON f.user_id = u.user_id 
         WHERE u.user_id = ?
         ");
-        $facultyStmt->execute([$chairId]);
+        $facultyStmt->execute([$facultyId]);
         $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$faculty) {
@@ -363,7 +363,7 @@ class FacultyController
         JOIN colleges c ON d.college_id = c.college_id 
         WHERE f.user_id = ? 
         ");
-        $deptStmt->execute([$chairId]);
+        $deptStmt->execute([$facultyId]);
         $department = $deptStmt->fetch(PDO::FETCH_ASSOC);
         $departmentName = $department['department_name'] ?? 'Not Assigned';
         $collegeName = $department['college_name'] ?? 'Not Assigned';
@@ -1088,17 +1088,50 @@ class FacultyController
         }
     }
 
+    private function logActivity($userId, $departmentId, $actionType, $actionDescription, $entityType, $entityId, $metadataId = null)
+    {
+        try {
+            // First, get the user's complete name
+            $userName = $this->schedulingService->getUserCompleteName($userId);
+
+            // Replace user_id with user name in the action description
+            $formattedDescription = $this->schedulingService->formatActionDescription($actionDescription, $userId, $userName);
+
+            $stmt = $this->db->prepare("
+            INSERT INTO activity_logs 
+            (user_id, department_id, action_type, action_description, entity_type, entity_id, metadata_id, created_at) 
+            VALUES (:user_id, :department_id, :action_type, :action_description, :entity_type, :entity_id, :metadata_id, NOW())
+        ");
+            $params = [
+                ':user_id' => $userId,
+                ':department_id' => $departmentId,
+                ':action_type' => $actionType,
+                ':action_description' => $formattedDescription,
+                ':entity_type' => $entityType,
+                ':entity_id' => $entityId,
+                ':metadata_id' => $metadataId
+            ];
+            error_log("Logging activity: Query = INSERT INTO activity_log ..., Params = " . json_encode($params));
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            error_log("logActivity: Failed to log activity - " . $e->getMessage());
+        }
+    }
+
     public function settings()
     {
         if (!$this->authService->isLoggedIn()) {
-            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to view settings'];
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Please log in to access settings'];
             header('Location: /login');
             exit;
         }
 
         $userId = $_SESSION['user_id'];
+        $facultyId = $this->getFacultyId($userId);
+        $departmentId = $_SESSION['department_id'];
         $csrfToken = $this->authService->generateCsrfToken();
-        $errors = [];
+        $error = '';
+        $success = '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$this->authService->verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -1110,43 +1143,66 @@ class FacultyController
             $currentPassword = $_POST['current_password'] ?? '';
             $newPassword = $_POST['new_password'] ?? '';
             $confirmPassword = $_POST['confirm_password'] ?? '';
+            $newEmail = $_POST['new_email'] ?? '';
 
-            if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
-                $errors[] = 'All password fields are required.';
-            } else {
-                if ($newPassword !== $confirmPassword) {
-                    $errors[] = 'New password and confirmation do not match.';
-                }
-
-                if (strlen($newPassword) < 8) {
-                    $errors[] = 'New password must be at least 8 characters long.';
-                }
-
-                // Fetch current password hash
-                $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
-                $stmt->execute([':user_id' => $userId]);
-                $currentHash = $stmt->fetchColumn();
-
-                if (!password_verify($currentPassword, $currentHash)) {
-                    $errors[] = 'Current password is incorrect.';
-                }
-            }
-
-            if (empty($errors)) {
-                $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
-                $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
-                if ($updateStmt->execute([':password_hash' => $newHash, ':user_id' => $userId])) {
-                    $_SESSION['flash'] = ['type' => 'success', 'message' => 'Password updated successfully'];
-                    header('Location: /faculty/settings');
-                    exit;
+            // Handle password update
+            if (!empty($newPassword) || !empty($confirmPassword)) {
+                if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+                    $error = 'All password fields are required.';
+                } elseif ($newPassword !== $confirmPassword) {
+                    $error = 'New password and confirmation do not match.';
+                } elseif (strlen($newPassword) < 8) {
+                    $error = 'New password must be at least 8 characters long.';
                 } else {
-                    error_log("settings: Failed to update password for user_id: $userId");
-                    $errors[] = 'Failed to update password. Please try again.';
+                    $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE user_id = :user_id");
+                    $stmt->execute([':user_id' => $userId]);
+                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$row || !password_verify($currentPassword, $row['password_hash'])) {
+                        $error = 'Current password is incorrect.';
+                    } else {
+                        $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+                        $updateStmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
+                        if ($updateStmt->execute([':password_hash' => $newHash, ':user_id' => $userId])) {
+                            $success = 'Password updated successfully.';
+                            $this->logActivity($facultyId, $departmentId, 'Change Password', 'Changed account password', 'users', $userId);
+                        } else {
+                            $error = 'Failed to update password. Please try again.';
+                        }
+                    }
                 }
             }
+
+            // Handle email update
+            if (!empty($newEmail)) {
+                if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                    $error = 'Invalid email format.';
+                } else {
+                    $checkStmt = $this->db->prepare("SELECT user_id FROM users WHERE email = :email AND user_id != :user_id");
+                    $checkStmt->execute([':email' => $newEmail, ':user_id' => $userId]);
+                    if ($checkStmt->fetch()) {
+                        $error = 'Email is already in use.';
+                    } else {
+                        $updateEmailStmt = $this->db->prepare("UPDATE users SET email = :email, updated_at = NOW() WHERE user_id = :user_id");
+                        if ($updateEmailStmt->execute([':email' => $newEmail, ':user_id' => $userId])) {
+                            $success = $success ? "$success Email updated successfully." : 'Email updated successfully.';
+                            $this->logActivity($facultyId, $departmentId, 'Change Email', 'Changed account email', 'users', $userId);
+                        } else {
+                            $error = 'Failed to update email. Please try again.';
+                        }
+                    }
+                }
+            }
+
+            if (!empty($error)) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => $error];
+            } elseif (!empty($success)) {
+                $_SESSION['flash'] = ['type' => 'success', 'message' => $success];
+            }
+            header('Location: /faculty/settings');
+            exit;
         }
 
-        // Render the settings view
         require_once __DIR__ . '/../views/faculty/settings.php';
     }
 
