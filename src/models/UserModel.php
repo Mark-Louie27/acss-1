@@ -836,12 +836,12 @@ class UserModel
     public function demoteProgramChair($userId)
     {
         try {
-            // Verify user is a program chair and get department_id for faculty_departments
+            // Verify user is a program chair and get department_id for reference
             $query = "SELECT u.role_id, p.department_id, pc.program_id 
-                      FROM users u 
-                      JOIN program_chairs pc ON u.user_id = pc.user_id 
-                      JOIN programs p ON pc.program_id = p.program_id 
-                      WHERE u.user_id = :user_id AND pc.is_current = 1";
+                  FROM users u 
+                  JOIN program_chairs pc ON u.user_id = pc.user_id 
+                  JOIN programs p ON pc.program_id = p.program_id 
+                  WHERE u.user_id = :user_id AND pc.is_current = 1";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -854,11 +854,36 @@ class UserModel
 
             $this->db->beginTransaction();
 
-            // Update user role to Faculty (role_id = 6)
+            // Update user role to Faculty (role_id = 6) in users table
             $query = "UPDATE users SET role_id = 6 WHERE user_id = :user_id";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':user_id' => $userId]);
-            error_log("demoteProgramChair: Updated role to Faculty for user_id=$userId");
+            error_log("demoteProgramChair: Updated role to Faculty in users table for user_id=$userId");
+
+            // Check if user already has faculty role in user_roles table
+            $checkRoleQuery = "SELECT COUNT(*) FROM user_roles WHERE user_id = :user_id AND role_id = 6";
+            $stmt = $this->db->prepare($checkRoleQuery);
+            $stmt->execute([':user_id' => $userId]);
+            $hasFacultyRole = $stmt->fetchColumn() > 0;
+
+            if (!$hasFacultyRole) {
+                // User doesn't have faculty role, so update their existing role to faculty
+                $updateRoleQuery = "UPDATE user_roles SET role_id = 6 WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($updateRoleQuery);
+                $stmt->execute([':user_id' => $userId]);
+                $affectedRoles = $stmt->rowCount();
+                error_log("demoteProgramChair: Updated user_roles to Faculty for user_id=$userId, affected rows: $affectedRoles");
+
+                // If no rows were updated (user had no entry in user_roles), insert the faculty role
+                if ($affectedRoles === 0) {
+                    $insertQuery = "INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, 6)";
+                    $stmt = $this->db->prepare($insertQuery);
+                    $stmt->execute([':user_id' => $userId]);
+                    error_log("demoteProgramChair: Inserted faculty role in user_roles for user_id=$userId");
+                }
+            } else {
+                error_log("demoteProgramChair: User already has faculty role in user_roles, no update needed for user_id=$userId");
+            }
 
             // Fetch all program_chairs entries for this user
             $query = "SELECT program_id FROM program_chairs WHERE user_id = :user_id AND is_current = 1";
@@ -872,7 +897,7 @@ class UserModel
                 // For each program_id, check for existing is_current = 0 entries
                 foreach ($programIds as $programId) {
                     $checkQuery = "SELECT COUNT(*) FROM program_chairs 
-                                   WHERE program_id = :program_id AND is_current = 0";
+                               WHERE program_id = :program_id AND is_current = 0";
                     $stmt = $this->db->prepare($checkQuery);
                     $stmt->execute([':program_id' => $programId]);
                     $existingCount = $stmt->fetchColumn();
@@ -880,7 +905,7 @@ class UserModel
                     if ($existingCount > 0) {
                         // Delete existing is_current = 0 entries for this program_id
                         $deleteQuery = "DELETE FROM program_chairs 
-                                        WHERE program_id = :program_id AND is_current = 0";
+                                    WHERE program_id = :program_id AND is_current = 0";
                         $stmt = $this->db->prepare($deleteQuery);
                         $stmt->execute([':program_id' => $programId]);
                         error_log("demoteProgramChair: Deleted $existingCount is_current=0 entries for program_id=$programId");
@@ -895,30 +920,8 @@ class UserModel
                 error_log("demoteProgramChair: Updated $affectedRows program_chairs entries for user_id=$userId");
             }
 
-            // Ensure faculty_departments entry exists or update it
-            $facultyQuery = "SELECT f.faculty_id FROM faculty f WHERE f.user_id = :user_id";
-            $stmt = $this->db->prepare($facultyQuery);
-            $stmt->execute([':user_id' => $userId]);
-            $facultyId = $stmt->fetchColumn();
-            if ($facultyId) {
-                $checkQuery = "SELECT COUNT(*) FROM faculty_departments 
-                               WHERE faculty_id = :faculty_id AND department_id = :dept_id";
-                $stmt = $this->db->prepare($checkQuery);
-                $stmt->execute([':faculty_id' => $facultyId, ':dept_id' => $deptId]);
-                $exists = $stmt->fetchColumn();
-
-                if ($exists) {
-                    error_log("demoteProgramChair: faculty_departments entry already exists for faculty_id=$facultyId, dept_id=$deptId; no changes made");
-                } else {
-                    $insertQuery = "INSERT INTO faculty_departments (faculty_id, department_id, is_primary, created_at) 
-                                    VALUES (:faculty_id, :dept_id, 1, NOW())";
-                    $stmt = $this->db->prepare($insertQuery);
-                    $stmt->execute([':faculty_id' => $facultyId, ':dept_id' => $deptId]);
-                    error_log("demoteProgramChair: Added faculty_departments entry for faculty_id=$facultyId, dept_id=$deptId");
-                }
-            } else {
-                error_log("demoteProgramChair: No faculty record found for user_id=$userId");
-            }
+            // Note: No need to insert into faculty_departments as the user already has department assignments
+            error_log("demoteProgramChair: User demoted successfully, no faculty_departments changes needed for user_id=$userId");
 
             $this->db->commit();
             return ['success' => true, 'message' => 'User demoted to Faculty successfully'];

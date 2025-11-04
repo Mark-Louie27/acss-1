@@ -2338,10 +2338,10 @@ class DeanController extends BaseController
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId, ':college_id' => $collegeId]);
                 $query = "SELECT u.email, u.first_name, u.last_name, ur.role_id AS user_role_id, r.role_name 
-                      FROM users u 
-                      JOIN user_roles ur ON u.user_id = ur.user_id
-                      JOIN roles r ON ur.role_id = r.role_id 
-                      WHERE u.user_id = :user_id";
+                  FROM users u 
+                  JOIN user_roles ur ON u.user_id = ur.user_id
+                  JOIN roles r ON ur.role_id = r.role_id 
+                  WHERE u.user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId]);
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2355,20 +2355,61 @@ class DeanController extends BaseController
                 $message = 'User account activated successfully';
                 $this->logActivity($_SESSION['user_id'], $departmentId, 'Activate User', "Activated user ID $userId", 'users', $userId);
             } elseif ($action === 'promote') {
-                if (!$programId) {
-                    throw new Exception('Program ID is required for promotion');
+                $departmentId = isset($data['department_id']) ? filter_var($data['department_id'], FILTER_VALIDATE_INT) : null;
+                if (!$departmentId) {
+                    throw new Exception('Department ID is required for promotion');
                 }
-                $result = $this->userModel->promoteToProgramChair($userId, $programId);
+
+                // Use your existing userModel method which expects department_id
+                $result = $this->userModel->promoteToProgramChair($userId, $departmentId);
                 if (!$result['success']) {
                     throw new Exception($result['error']);
                 }
+
+                // Send congratulatory email - get program names from the department
+                $programsQuery = "SELECT GROUP_CONCAT(program_name SEPARATOR ', ') as program_names 
+                             FROM programs 
+                             WHERE department_id = :department_id";
+                $stmt = $this->db->prepare($programsQuery);
+                $stmt->execute([':department_id' => $departmentId]);
+                $programs = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                $userQuery = "SELECT u.email, u.first_name, u.last_name 
+                         FROM users u 
+                         WHERE u.user_id = :user_id";
+                $stmt = $this->db->prepare($userQuery);
+                $stmt->execute([':user_id' => $userId]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($user && $programs) {
+                    $this->emailService->sendPromotionEmail(
+                        $user['email'],
+                        $user['first_name'] . ' ' . $user['last_name'],
+                        $programs['program_names'] ?: 'the department programs'
+                    );
+                }
+
                 $message = 'User promoted to Program Chair successfully';
-                $this->logActivity($_SESSION['user_id'], $departmentId, 'Promote User', "Promoted user ID $userId to Program Chair for program ID $programId", 'users', $userId);
+                $this->logActivity($_SESSION['user_id'], $departmentId, 'Promote User', "Promoted user ID $userId to Program Chair for department ID $departmentId", 'users', $userId);
             } elseif ($action === 'demote') {
                 $result = $this->userModel->demoteProgramChair($userId);
                 if (!$result['success']) {
                     throw new Exception($result['error']);
                 }
+
+                // Send demotion notification email
+                $userQuery = "SELECT u.email, u.first_name, u.last_name FROM users u WHERE u.user_id = :user_id";
+                $stmt = $this->db->prepare($userQuery);
+                $stmt->execute([':user_id' => $userId]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($user) {
+                    $this->emailService->sendDemotionEmail(
+                        $user['email'],
+                        $user['first_name'] . ' ' . $user['last_name']
+                    );
+                }
+
                 $message = 'User demoted to Faculty successfully';
                 $this->logActivity($_SESSION['user_id'], $departmentId, 'Demote User', "Demoted user ID $userId to Faculty", 'users', $userId);
             } else {

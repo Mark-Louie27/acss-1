@@ -986,4 +986,78 @@ class EmailService
             return false;
         }
     }
+
+    public function sendPromotionEmail($email, $name, $programName)
+    {
+        $subject = "Congratulations! You've been promoted to Program Chair";
+        $message = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #f8f9fa; padding: 20px; text-align: center; }
+            .content { padding: 20px; }
+            .footer { background: #f8f9fa; padding: 10px; text-align: center; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h2>Program Chair Promotion</h2>
+            </div>
+            <div class='content'>
+                <p>Dear $name,</p>
+                <p>We are pleased to inform you that you have been promoted to the position of <strong>Program Chair</strong> for <strong>$programName</strong>.</p>
+                <p>This promotion recognizes your dedication and contributions to our institution. We are confident that you will excel in this new role.</p>
+                <p>Please log in to the system to access your new responsibilities and privileges.</p>
+                <p>Congratulations on this achievement!</p>
+            </div>
+            <div class='footer'>
+                <p>Best regards,<br>Academic Administration</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+
+        return $this->sendEmail($email, $subject, $message);
+    }
+
+    public function sendDemotionEmail($email, $name)
+    {
+        $subject = "Update: Program Chair Role Change";
+        $message = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #f8f9fa; padding: 20px; text-align: center; }
+            .content { padding: 20px; }
+            .footer { background: #f8f9fa; padding: 10px; text-align: center; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h2>Role Update Notification</h2>
+            </div>
+            <div class='content'>
+                <p>Dear $name,</p>
+                <p>This is to inform you that your role as Program Chair has been concluded, and you have been reassigned to the Faculty role.</p>
+                <p>We thank you for your service as Program Chair and appreciate your continued contributions as a faculty member.</p>
+                <p>Your access privileges have been updated accordingly in the system.</p>
+                <p>If you have any questions, please contact the academic administration.</p>
+            </div>
+            <div class='footer'>
+                <p>Best regards,<br>Academic Administration</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+
+        return $this->sendEmail($email, $subject, $message);
+    }
 }
