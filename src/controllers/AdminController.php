@@ -799,6 +799,17 @@ class AdminController
 
             error_log("New user ID: $newUserId");
 
+            // ✅ INSERT INTO USER_ROLES TABLE
+            $userRoleStmt = $this->db->prepare("
+            INSERT INTO user_roles (user_id, role_id) 
+            VALUES (:user_id, :role_id)
+        ");
+            $userRoleStmt->execute([
+                ':user_id' => $newUserId,
+                ':role_id' => $roleId
+            ]);
+            error_log("Inserted into user_roles: user_id=$newUserId, role_id=$roleId");
+
             // Insert into faculty table for ALL user roles
             $facultyStmt = $this->db->prepare("
             INSERT INTO faculty (
@@ -927,32 +938,84 @@ class AdminController
                     if (!empty($data['department_ids']) && is_array($data['department_ids'])) {
                         $primaryDeptId = intval($data['department_id'] ?? $data['department_ids'][0]);
 
+                        // Get faculty_id first
+                        $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyStmt->execute([':user_id' => $userId]);
+                        $facultyId = $facultyStmt->fetchColumn();
+
+                        if (!$facultyId) {
+                            throw new Exception("Faculty record not found for Program Chair");
+                        }
+
                         foreach ($data['department_ids'] as $deptId) {
                             $deptId = intval($deptId);
-                            $isPrimary = ($deptId === $primaryDeptId) ? 1 : 0;
 
-                            $stmt = $this->db->prepare("
-                            INSERT INTO chair_departments (user_id, department_id, is_primary, created_at) 
-                            VALUES (:user_id, :department_id, :is_primary, NOW())
-                        ");
-                            $stmt->execute([
+                            // ✅ AUTO-SELECT PROGRAM BASED ON DEPARTMENT
+                            $programStmt = $this->db->prepare("
+                                SELECT program_id 
+                                FROM programs 
+                                WHERE department_id = :department_id 
+                                LIMIT 1
+                            ");
+                            $programStmt->execute([':department_id' => $deptId]);
+                            $programId = $programStmt->fetchColumn();
+
+                            if (!$programId) {
+                                error_log("WARNING: No program found for department_id=$deptId, skipping program_chairs insert");
+                                exit; // Skip if no program exists for this department
+                            }
+
+                            // Insert into program_chairs with auto-selected program
+                            $pcStmt = $this->db->prepare("
+                                    INSERT INTO program_chairs (faculty_id, user_id, program_id, is_current, start_date, created_at) 
+                                    VALUES (:faculty_id, :user_id, :program_id, 1, CURDATE(), NOW())
+                                ");
+                            $pcStmt->execute([
+                                ':faculty_id' => $facultyId,
                                 ':user_id' => $userId,
-                                ':department_id' => $deptId,
-                                ':is_primary' => $isPrimary
+                                ':program_id' => $programId
                             ]);
-                            error_log("Chair department assignment created: dept=$deptId, primary=$isPrimary");
+
+                            error_log("Program chair created: faculty_id=$facultyId, user_id=$userId, program_id=$programId, dept=$deptId");
                         }
                     } elseif (!empty($data['department_id'])) {
                         // Single department fallback
-                        $stmt = $this->db->prepare("
-                        INSERT INTO chair_departments (user_id, department_id, is_primary, created_at) 
-                        VALUES (:user_id, :department_id, 1, NOW())
-                    ");
-                        $stmt->execute([
+                        $deptId = intval($data['department_id']);
+
+                        // Get faculty_id
+                        $facultyStmt = $this->db->prepare("SELECT faculty_id FROM faculty WHERE user_id = :user_id");
+                        $facultyStmt->execute([':user_id' => $userId]);
+                        $facultyId = $facultyStmt->fetchColumn();
+
+                        if (!$facultyId) {
+                            throw new Exception("Faculty record not found for Program Chair");
+                        }
+
+                        // Auto-select program
+                        $programStmt = $this->db->prepare("
+                            SELECT program_id 
+                            FROM programs 
+                            WHERE department_id = :department_id 
+                            LIMIT 1
+                        ");
+                        $programStmt->execute([':department_id' => $deptId]);
+                        $programId = $programStmt->fetchColumn();
+
+                        if (!$programId) {
+                            throw new Exception("No program found for department_id=$deptId. Please create a program first.");
+                        }
+
+                        $pcStmt = $this->db->prepare("
+                            INSERT INTO program_chairs (faculty_id, user_id, program_id, is_current, start_date, created_at) 
+                            VALUES (:faculty_id, :user_id, :program_id, 1, CURDATE(), NOW())
+                        ");
+                        $pcStmt->execute([
+                            ':faculty_id' => $facultyId,
                             ':user_id' => $userId,
-                            ':department_id' => $data['department_id']
+                            ':program_id' => $programId
                         ]);
-                        error_log("Chair department assignment created (single)");
+
+                        error_log("Program chair created (single): faculty_id=$facultyId, program_id=$programId");
                     }
                     break;
 
@@ -1281,88 +1344,73 @@ class AdminController
         }
     }
 
-    /**
-     * Handle admission approval/rejection in the API request handler
-     */
     private function handleAdmissionAction($data)
     {
-        $action = $data['action'] ?? '';
-        $admissionId = isset($data['admission_id']) ? filter_var($data['admission_id'], FILTER_VALIDATE_INT) : null;
-
-        if (!$admissionId) {
-            return ['success' => false, 'error' => 'Invalid admission ID'];
-        }
-
         try {
-            $this->db->beginTransaction();
+            $action = $data['action'] ?? '';
+            $admissionId = $data['admission_id'] ?? null;
 
-            if ($action === 'approve_admission') {
-                $result = $this->approveAdmission($admissionId);
-            } elseif ($action === 'reject_admission') {
-                $rejectionReason = $data['rejection_reason'] ?? '';
-                $result = $this->rejectAdmission($admissionId, $rejectionReason);
-            } else {
-                return ['success' => false, 'error' => "Invalid admission action: $action"];
+            if (!$admissionId) {
+                return ['success' => false, 'error' => 'Admission ID required'];
             }
 
-            $this->db->commit();
-            return $result;
+            if ($action === 'approve_admission') {
+                return $this->approveAdmission($admissionId);
+            } elseif ($action === 'reject_admission') {
+                return $this->rejectAdmission($admissionId, $data['rejection_reason'] ?? '');
+            }
+
+            return ['success' => false, 'error' => 'Invalid admission action'];
         } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log("Admission action error: " . $e->getMessage());
-            return ['success' => false, 'error' => 'An error occurred: ' . $e->getMessage()];
+            error_log("handleAdmissionAction error: " . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
         }
     }
 
-    /**
-     * Approve an admission and create user account
-     */
     private function approveAdmission($admissionId)
     {
         try {
-            // Get admission data
+            $this->db->beginTransaction();
+
+            // Get admission details
             $stmt = $this->db->prepare("
-            SELECT a.*, r.role_name, c.college_name, d.department_name
+            SELECT a.*
             FROM admissions a
-            LEFT JOIN roles r ON a.role_id = r.role_id
-            LEFT JOIN colleges c ON a.college_id = c.college_id
-            LEFT JOIN departments d ON a.department_id = d.department_id
             WHERE a.admission_id = :admission_id AND a.status = 'pending'
         ");
             $stmt->execute([':admission_id' => $admissionId]);
             $admission = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$admission) {
-                return ['success' => false, 'error' => 'Admission not found or already processed'];
+                throw new Exception("Admission not found or already processed");
             }
 
-            // Check for duplicates in users table
-            $checkStmt = $this->db->prepare("
-            SELECT user_id FROM users 
-            WHERE username = :username OR email = :email OR employee_id = :employee_id
+            // Get all roles for this admission
+            $rolesStmt = $this->db->prepare("
+            SELECT role_id FROM admission_roles WHERE admission_id = :admission_id
         ");
-            $checkStmt->execute([
-                ':username' => $admission['username'],
-                ':email' => $admission['email'],
-                ':employee_id' => $admission['employee_id']
-            ]);
+            $rolesStmt->execute([':admission_id' => $admissionId]);
+            $roles = $rolesStmt->fetchAll(PDO::FETCH_COLUMN);
 
-            if ($checkStmt->fetch()) {
-                return ['success' => false, 'error' => 'User with same username, email, or employee ID already exists'];
-            }
+            $isProgramChair = in_array(5, $roles);
+            $isDean = in_array(4, $roles);
+
+            error_log("approveAdmission: admission_id=$admissionId, isProgramChair=$isProgramChair, isDean=$isDean");
 
             // Insert into users table
-            $userStmt = $this->db->prepare("
+            $userQuery = "
             INSERT INTO users (
-                employee_id, username, password_hash, email, phone, title, first_name, middle_name,
-                last_name, suffix, role_id, department_id, college_id, is_active, created_at, updated_at
+                employee_id, username, password_hash, email, phone, title, 
+                first_name, middle_name, last_name, suffix, role_id, 
+                department_id, college_id, is_active, created_at, updated_at
             ) VALUES (
-                :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
-                :last_name, :suffix, :role_id, :department_id, :college_id, 1, NOW(), NOW()
-            )
-        ");
+                :employee_id, :username, :password_hash, :email, :phone, :title,
+                :first_name, :middle_name, :last_name, :suffix, :role_id,
+                :department_id, :college_id, 1, NOW(), NOW()
+            )";
 
-            $userData = [
+            $userStmt = $this->db->prepare($userQuery);
+            $userStmt->execute([
                 ':employee_id' => $admission['employee_id'],
                 ':username' => $admission['username'],
                 ':password_hash' => $admission['password_hash'],
@@ -1376,155 +1424,230 @@ class AdminController
                 ':role_id' => $admission['role_id'],
                 ':department_id' => $admission['department_id'],
                 ':college_id' => $admission['college_id']
-            ];
+            ]);
 
-            $userStmt->execute($userData);
-            $newUserId = $this->db->lastInsertId();
+            $userId = $this->db->lastInsertId();
+            error_log("approveAdmission: Created user_id=$userId");
 
-            // Insert into faculty table
-            $facultyStmt = $this->db->prepare("
-            INSERT INTO faculty (
-                user_id, employee_id, academic_rank, employment_type, classification, max_hours,
-                bachelor_degree, master_degree, doctorate_degree, post_doctorate_degree,
-                designation, created_at, updated_at
-            ) VALUES (
-                :user_id, :employee_id, :academic_rank, :employment_type, :classification, :max_hours,
-                :bachelor_degree, :master_degree, :doctorate_degree, :post_doctorate_degree,
-                :designation, NOW(), NOW()
-            )
+            // ✅ INSERT INTO USER_ROLES TABLE
+            $userRoleStmt = $this->db->prepare("
+            INSERT INTO user_roles (user_id, role_id) 
+            VALUES (:user_id, :role_id)
         ");
+            $userRoleStmt->execute([
+                ':user_id' => $userId,
+                ':role_id' => $admission['role_id']
+            ]);
+            error_log("approveAdmission: Inserted into user_roles: user_id=$userId, role_id={$admission['role_id']}");
 
-            $facultyData = [
-                ':user_id' => $newUserId,
-                ':employee_id' => $admission['employee_id'],
-                ':academic_rank' => $admission['academic_rank'],
-                ':employment_type' => $admission['employment_type'],
-                ':classification' => $admission['classification'],
-                ':max_hours' => 18.00,
-                ':bachelor_degree' => $admission['bachelor_degree'] ?? null,
-                ':master_degree' => $admission['master_degree'] ?? null,
-                ':doctorate_degree' => $admission['doctorate_degree'] ?? null,
-                ':post_doctorate_degree' => $admission['post_doctorate_degree'] ?? null,
-                ':designation' => $admission['designation'] ?? null
-            ];
+            // Create faculty record if role is faculty-related (roles 3, 4, 5, 6)
+            $facultyId = null;
+            if (in_array($admission['role_id'], [3, 4, 5, 6])) {
+                $facultyQuery = "
+                INSERT INTO faculty (
+                    user_id, 
+                    employee_id, 
+                    academic_rank, 
+                    employment_type,
+                    classification,
+                    max_hours,
+                    created_at
+                ) VALUES (
+                    :user_id, 
+                    :employee_id, 
+                    :academic_rank, 
+                    :employment_type,
+                    :classification,
+                    :max_hours,
+                    NOW()
+                )";
 
-            $facultyStmt->execute($facultyData);
+                $facultyStmt = $this->db->prepare($facultyQuery);
+                $facultyStmt->execute([
+                    ':user_id' => $userId,
+                    ':employee_id' => $admission['employee_id'],
+                    ':academic_rank' => $admission['academic_rank'] ?? 'Instructor',
+                    ':employment_type' => $admission['employment_type'] ?? 'Part-time',
+                    ':classification' => $admission['classification'] ?? null,
+                    ':max_hours' => 18.00
+                ]);
 
-            // Get admission roles and assign to user
-            $roleStmt = $this->db->prepare("
-            SELECT role_id FROM admission_roles WHERE admission_id = :admission_id
-        ");
-            $roleStmt->execute([':admission_id' => $admissionId]);
-            $admissionRoles = $roleStmt->fetchAll(PDO::FETCH_COLUMN);
-
-            if (!empty($admissionRoles)) {
-                $userRoleStmt = $this->db->prepare("INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)");
-                foreach ($admissionRoles as $roleId) {
-                    $userRoleStmt->execute([':user_id' => $newUserId, ':role_id' => $roleId]);
-                }
+                $facultyId = $this->db->lastInsertId();
+                error_log("approveAdmission: Created faculty_id=$facultyId");
             }
 
-            // Handle Program Chair multiple departments
-            if (in_array(5, $admissionRoles)) {
+            // ✅ PROGRAM CHAIR - Insert into program_chairs and faculty_departments
+            if ($isProgramChair && $facultyId) {
+                // Get all departments for this Program Chair from admission_departments
                 $deptStmt = $this->db->prepare("
-                SELECT department_id, is_primary FROM admission_departments 
+                SELECT department_id, is_primary 
+                FROM admission_departments 
                 WHERE admission_id = :admission_id
             ");
                 $deptStmt->execute([':admission_id' => $admissionId]);
-                $admissionDepartments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+                $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
 
-                if (!empty($admissionDepartments)) {
-                    $chairDeptStmt = $this->db->prepare("
-                    INSERT INTO chair_departments (user_id, department_id, is_primary, assigned_date)
-                    VALUES (:user_id, :department_id, :is_primary, NOW())
-                ");
+                error_log("approveAdmission: Found " . count($departments) . " departments for Program Chair");
 
-                    foreach ($admissionDepartments as $dept) {
-                        $chairDeptStmt->execute([
-                            ':user_id' => $newUserId,
-                            ':department_id' => $dept['department_id'],
-                            ':is_primary' => $dept['is_primary']
+                if (!empty($departments)) {
+                    foreach ($departments as $dept) {
+                        $departmentId = $dept['department_id'];
+
+                        // ✅ AUTO-SELECT PROGRAM BASED ON DEPARTMENT
+                        $programStmt = $this->db->prepare("
+                        SELECT program_id 
+                        FROM programs 
+                        WHERE department_id = :department_id 
+                        LIMIT 1
+                    ");
+                        $programStmt->execute([':department_id' => $departmentId]);
+                        $programId = $programStmt->fetchColumn();
+
+                        if (!$programId) {
+                            error_log("WARNING: No program found for department_id=$departmentId, skipping program_chairs insert");
+                            continue; // Skip if no program exists for this department
+                        }
+
+                        // ✅ Insert into program_chairs table with faculty_id
+                        $pcQuery = "
+                        INSERT INTO program_chairs (
+                            faculty_id,
+                            user_id, 
+                            program_id,
+                            is_current,
+                            start_date,
+                            created_at
+                        ) VALUES (
+                            :faculty_id,
+                            :user_id,
+                            :program_id,
+                            1,
+                            CURDATE(),
+                            NOW()
+                        )";
+
+                        $pcStmt = $this->db->prepare($pcQuery);
+                        $pcStmt->execute([
+                            ':faculty_id' => $facultyId,
+                            ':user_id' => $userId,
+                            ':program_id' => $programId
                         ]);
+
+                        error_log("approveAdmission: Inserted program_chairs with faculty_id=$facultyId, user_id=$userId, program_id=$programId");
+
+                        
                     }
                 }
             }
 
-            // Update admission status
-            $updateStmt = $this->db->prepare("
+            // ✅ DEAN - Insert into deans table
+            if ($isDean) {
+                $deanQuery = "
+                INSERT INTO deans (
+                    user_id,
+                    college_id,
+                    is_current,
+                    start_date,
+                    created_at
+                ) VALUES (
+                    :user_id,
+                    :college_id,
+                    1,
+                    CURDATE(),
+                    NOW()
+                )";
+
+                $deanStmt = $this->db->prepare($deanQuery);
+                $deanStmt->execute([
+                    ':user_id' => $userId,
+                    ':college_id' => $admission['college_id']
+                ]);
+
+                error_log("approveAdmission: Inserted deans record for user_id=$userId, college_id={$admission['college_id']}");
+            }
+
+            // Update admission status to 'approved'
+            $updateQuery = "
             UPDATE admissions 
             SET status = 'approved', reviewed_at = NOW(), reviewed_by = :reviewed_by 
             WHERE admission_id = :admission_id
-        ");
+        ";
+            $updateStmt = $this->db->prepare($updateQuery);
             $updateStmt->execute([
                 ':reviewed_by' => $_SESSION['user_id'],
                 ':admission_id' => $admissionId
             ]);
 
             // Send approval email
-            $emailService = new EmailService();
-            $emailService->sendApprovalEmail(
-                $admission['email'],
-                $admission['first_name'] . ' ' . $admission['last_name'],
-                $admission['role_name']
-            );
+            if ($this->emailService) {
+                $this->emailService->sendApprovalEmail(
+                    $admission['email'],
+                    $admission['first_name'] . ' ' . $admission['last_name'],
+                    $admission['role_name'] ?? 'User'
+                );
+            }
+
+            $this->db->commit();
+            error_log("approveAdmission: Successfully approved admission_id=$admissionId, created user_id=$userId");
 
             return [
                 'success' => true,
-                'message' => 'Admission approved successfully. User account created.',
-                'user_id' => $newUserId
+                'message' => 'Admission approved successfully. User account created.'
             ];
         } catch (Exception $e) {
-            error_log("Approve admission error: " . $e->getMessage());
+            $this->db->rollBack();
+            error_log("approveAdmission: Error - " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return ['success' => false, 'error' => 'Failed to approve admission: ' . $e->getMessage()];
         }
     }
 
-    /**
-     * Reject an admission
-     */
-    private function rejectAdmission($admissionId, $rejectionReason)
+    private function rejectAdmission($admissionId, $reason)
     {
         try {
-            // Get admission data for email
-            $stmt = $this->db->prepare("
-            SELECT a.*, r.role_name FROM admissions a
-            LEFT JOIN roles r ON a.role_id = r.role_id
-            WHERE a.admission_id = :admission_id AND a.status = 'pending'
-        ");
+            $this->db->beginTransaction();
+
+            // Get admission details for email
+            $stmt = $this->db->prepare("SELECT * FROM admissions WHERE admission_id = :admission_id");
             $stmt->execute([':admission_id' => $admissionId]);
             $admission = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$admission) {
-                return ['success' => false, 'error' => 'Admission not found or already processed'];
+                throw new Exception("Admission not found");
             }
 
             // Update admission status
-            $updateStmt = $this->db->prepare("
+            $updateQuery = "
             UPDATE admissions 
-            SET status = 'rejected', rejection_reason = :rejection_reason, 
-                reviewed_at = NOW(), reviewed_by = :reviewed_by 
+            SET status = 'rejected', 
+                rejection_reason = :reason,
+                reviewed_at = NOW() 
             WHERE admission_id = :admission_id
-        ");
+        ";
+            $updateStmt = $this->db->prepare($updateQuery);
             $updateStmt->execute([
-                ':rejection_reason' => $rejectionReason,
-                ':reviewed_by' => $_SESSION['user_id'],
-                ':admission_id' => $admissionId
+                ':admission_id' => $admissionId,
+                ':reason' => $reason
             ]);
 
-            // Send rejection email
-            $emailService = new EmailService();
-            $emailService->sendRejectionEmail(
-                $admission['email'],
-                $admission['first_name'] . ' ' . $admission['last_name'],
-                $rejectionReason
-            );
+            $this->db->commit();
+
+            // Send rejection email (if you have this method)
+            if ($this->emailService && method_exists($this->emailService, 'sendRejectionEmail')) {
+                $this->emailService->sendRejectionEmail(
+                    $admission['email'],
+                    $admission['first_name'] . ' ' . $admission['last_name'],
+                    $reason
+                );
+            }
 
             return [
                 'success' => true,
                 'message' => 'Admission rejected successfully.'
             ];
         } catch (Exception $e) {
-            error_log("Reject admission error: " . $e->getMessage());
+            $this->db->rollBack();
+            error_log("rejectAdmission: Error - " . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to reject admission: ' . $e->getMessage()];
         }
     }

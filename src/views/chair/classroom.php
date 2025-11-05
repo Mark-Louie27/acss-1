@@ -384,7 +384,7 @@ ob_start();
                                             <?= htmlspecialchars($classroom['room_status']) ?>
                                         </td>
                                         <td class="px-4 py-3 text-sm text-dark-gray">
-                                            <?= htmlspecialchars($classroom['current_semester_usage']) ?> schedules
+                                            <?= htmlspecialchars($classroom['current_semester_usage']) ?> Classes
                                         </td>
                                         <td class="px-4 py-3 space-x-2">
                                             <!-- View Schedule Button -->
@@ -534,7 +534,6 @@ ob_start();
                                         class="pl-12 w-full px-4 py-2.5 border border-dark-gray rounded-lg focus:ring-2 focus:ring-yellow focus:border-yellow appearance-none bg-white">
                                         <option value="available">Available</option>
                                         <option value="unavailable">Unavailable</option>
-                                        <option value="under_maintenance">Under Maintenance</option>
                                     </select>
                                 </div>
                             </div>
@@ -634,7 +633,6 @@ ob_start();
                                         class="pl-12 w-full px-4 py-2.5 border border-dark-gray rounded-lg focus:ring-2 focus:ring-yellow focus:border-yellow appearance-none bg-white">
                                         <option value="available">Available</option>
                                         <option value="unavailable">Unavailable</option>
-                                        <option value="under_maintenance">Under Maintenance</option>
                                     </select>
                                 </div>
                             </div>

@@ -2,664 +2,509 @@
 ob_start();
 ?>
 
-<!DOCTYPE html>
-<html lang=" en">
+<div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed right-4 z-50 space-y-2"></div>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Settings - PRMSU Faculty</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
-
-        :root {
-            --gold-primary: #DA9100;
-            --gold-secondary: #FCC201;
-            --gold-light: #FFEEAA;
-            --gold-dark: #B8860B;
-        }
-
-        body {
-            background-color: #f8fafc;
-        }
-
-        .gold-gradient {
-            background: linear-gradient(135deg, var(--gold-primary), var(--gold-secondary));
-        }
-
-        .gold-gradient-text {
-            background: linear-gradient(135deg, var(--gold-dark), var(--gold-secondary));
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--gold-dark), var(--gold-primary));
-            color: white;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary:hover {
-            filter: brightness(1.1);
-            transform: translateY(-1px);
-        }
-
-        .flash-message {
-            animation: slideIn 0.3s ease-out;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .form-input:focus {
-            border-color: var(--gold-primary);
-            box-shadow: 0 0 0 3px rgba(218, 145, 0, 0.1);
-        }
-
-        .settings-tab {
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .settings-tab.active {
-            border-bottom: 3px solid var(--gold-primary);
-            color: var(--gold-dark);
-            font-weight: 600;
-        }
-
-        .settings-section {
-            display: none;
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .settings-section.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .password-strength-bar {
-            height: 4px;
-            border-radius: 2px;
-            transition: all 0.3s ease;
-        }
-    </style>
-</head>
-
-<body class="min-h-screen bg-gray-50">
-    <!-- Main Content -->
-    <main class="container mx-auto px-6 py-8">
-        <!-- Flash Messages -->
+    <div class="container mx-auto ">
+        <!-- Success/Error Messages -->
         <?php if (isset($_SESSION['flash'])): ?>
-            <div class="flash-message mb-6 p-4 rounded-lg <?php echo $_SESSION['flash']['type'] === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'; ?>">
-                <div class="flex items-center justify-between">
+            <div class="mb-6 animate-fade-in">
+                <div class="<?php echo $_SESSION['flash']['type'] === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'; ?> border rounded-xl p-4 shadow-sm">
                     <div class="flex items-center">
-                        <i class="fas <?php echo $_SESSION['flash']['type'] === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?> mr-2"></i>
-                        <span><?php echo htmlspecialchars($_SESSION['flash']['message']); ?></span>
+                        <i class="fas <?php echo $_SESSION['flash']['type'] === 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500'; ?> text-lg mr-3"></i>
+                        <div>
+                            <p class="text-sm font-medium <?php echo $_SESSION['flash']['type'] === 'success' ? 'text-green-800' : 'text-red-800'; ?>">
+                                <?php echo htmlspecialchars($_SESSION['flash']['message']); ?>
+                            </p>
+                        </div>
                     </div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-500 hover:text-gray-700">
-                        <i class="fas fa-times"></i>
-                    </button>
                 </div>
             </div>
             <?php unset($_SESSION['flash']); ?>
         <?php endif; ?>
 
-        <div class="max-w-6xl mx-auto">
-            <!-- Page Header -->
-            <div class="mb-6">
-                <h1 class="text-3xl font-bold gold-gradient-text mb-2">
-                    <i class="fas fa-cog mr-3"></i>Account Settings
-                </h1>
-                <p class="text-gray-600">Manage your account security and preferences</p>
-            </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Sidebar - Navigation -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sticky top-8">
+                    <div class="text-center mb-6">
+                        <div class="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center text-white text-xl font-bold mx-auto mb-3 shadow-lg">
+                            <i class="fas fa-user-tie"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">Program Chair</h3>
+                        <p class="text-sm text-gray-500 mt-1">Account Settings</p>
+                    </div>
 
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-                <!-- Tabs Navigation -->
-                <div class="border-b border-gray-200">
-                    <nav class="flex -mb-px overflow-x-auto">
-                        <button class="settings-tab active px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="security">
-                            <i class="fas fa-shield-alt mr-2"></i>Security
+                    <nav class="space-y-2">
+                        <button onclick="showSection('email')"
+                            class="settings-nav-btn active w-full text-left px-4 py-3 rounded-xl transition-all duration-200 bg-yellow-50 text-yellow-700 border-2 border-yellow-200 shadow-sm">
+                            <i class="fas fa-envelope mr-3 text-yellow-600"></i>
+                            Email Settings
                         </button>
-                        <button class="settings-tab px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="profile">
-                            <i class="fas fa-user mr-2"></i>Profile Information
+                        <button onclick="showSection('password')"
+                            class="settings-nav-btn w-full text-left px-4 py-3 rounded-xl transition-all duration-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-2 border-transparent">
+                            <i class="fas fa-lock mr-3 text-gray-500"></i>
+                            Password Security
                         </button>
-                        <button class="settings-tab px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="activity">
-                            <i class="fas fa-history mr-2"></i>Activity Log
-                        </button>
-                        <button class="settings-tab px-6 py-4 text-sm font-medium text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="account">
-                            <i class="fas fa-info-circle mr-2"></i>Account Info
+                        <button onclick="showSection('security')"
+                            class="settings-nav-btn w-full text-left px-4 py-3 rounded-xl transition-all duration-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-2 border-transparent">
+                            <i class="fas fa-shield-alt mr-3 text-gray-500"></i>
+                            Security Info
                         </button>
                     </nav>
                 </div>
+            </div>
 
-                <!-- Tab Content -->
-                <div class="p-6">
-                    <!-- Security Section -->
-                    <div id="security" class="settings-section active">
-                        <!-- Change Password -->
-                        <div class="mb-8">
-                            <h3 class="text-xl font-semibold gold-gradient-text mb-4">
-                                <i class="fas fa-lock mr-2"></i>Change Password
-                            </h3>
-
-                            <div id="password-alert" class="hidden mb-4 p-4 rounded-lg"></div>
-
-                            <form id="passwordForm" class="space-y-6">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-
-                                <!-- Current Password -->
-                                <div>
-                                    <label for="current_password" class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-key mr-2"></i>Current Password
-                                    </label>
-                                    <div class="relative">
-                                        <input
-                                            type="password"
-                                            id="current_password"
-                                            name="current_password"
-                                            required
-                                            class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg form-input focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                                            placeholder="Enter your current password">
-                                        <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 toggle-password">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- New Password -->
-                                <div>
-                                    <label for="new_password" class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-lock mr-2"></i>New Password
-                                    </label>
-                                    <div class="relative">
-                                        <input
-                                            type="password"
-                                            id="new_password"
-                                            name="new_password"
-                                            required
-                                            class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg form-input focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                                            placeholder="Enter your new password"
-                                            minlength="8">
-                                        <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 toggle-password">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <div class="mt-2">
-                                        <div class="password-strength-bar bg-gray-200" id="strength-bar"></div>
-                                        <p class="text-sm text-gray-500 mt-1" id="strength-text">Must be at least 8 characters long</p>
-                                    </div>
-                                </div>
-
-                                <!-- Confirm Password -->
-                                <div>
-                                    <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-lock mr-2"></i>Confirm New Password
-                                    </label>
-                                    <div class="relative">
-                                        <input
-                                            type="password"
-                                            id="confirm_password"
-                                            name="confirm_password"
-                                            required
-                                            class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg form-input focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                                            placeholder="Confirm your new password"
-                                            minlength="8">
-                                        <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 toggle-password">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Submit Button -->
-                                <div class="pt-4">
-                                    <button
-                                        type="submit"
-                                        class="btn-primary px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition">
-                                        <i class="fas fa-save mr-2"></i>Update Password
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-
-                        <!-- Security Tips -->
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                            <h4 class="font-semibold text-yellow-800 mb-2">
-                                <i class="fas fa-shield-alt mr-2"></i>Security Best Practices
-                            </h4>
-                            <ul class="text-yellow-700 text-sm space-y-1">
-                                <li>• Use a strong, unique password that you don't use elsewhere</li>
-                                <li>• Include a mix of uppercase, lowercase, numbers, and symbols</li>
-                                <li>• Avoid using personal information in your password</li>
-                                <li>• Change your password regularly (every 3-6 months)</li>
-                                <li>• Never share your password with anyone</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <!-- Profile Information Section -->
-                    <div id="profile" class="settings-section">
-                        <h3 class="text-xl font-semibold gold-gradient-text mb-4">
-                            <i class="fas fa-user mr-2"></i>Profile Information
-                        </h3>
-
-                        <div id="profile-alert" class="hidden mb-4 p-4 rounded-lg"></div>
-
-                        <!-- Email Update -->
-                        <div class="mb-8">
-                            <h4 class="text-lg font-semibold text-gray-800 mb-4">Email Address</h4>
-                            <form id="emailForm" class="space-y-4">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-
-                                <div>
-                                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-envelope mr-2"></i>New Email Address
-                                    </label>
-                                    <input
-                                        type="email"
-                                        id="email"
-                                        name="email"
-                                        value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>"
-                                        required
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                                        placeholder="your.email@prmsu.edu.ph">
-                                </div>
-
-                                <div>
-                                    <label for="email_password" class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-key mr-2"></i>Confirm with Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        id="email_password"
-                                        name="password"
-                                        required
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                                        placeholder="Enter your password to confirm">
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    class="btn-primary px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition">
-                                    <i class="fas fa-save mr-2"></i>Update Email
-                                </button>
-                            </form>
-                        </div>
-
-                        <!-- Phone Update -->
-                        <div class="mb-8 pt-8 border-t border-gray-200">
-                            <h4 class="text-lg font-semibold text-gray-800 mb-4">Phone Number</h4>
-                            <form id="phoneForm" class="space-y-4">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-
-                                <div>
-                                    <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-phone mr-2"></i>Phone Number
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        id="phone"
-                                        name="phone"
-                                        value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>"
-                                        pattern="[0-9]{10,15}"
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg form-input focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                                        placeholder="09123456789">
-                                    <p class="mt-1 text-sm text-gray-500">10-15 digits only</p>
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    class="btn-primary px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition">
-                                    <i class="fas fa-save mr-2"></i>Update Phone
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- Activity Log Section -->
-                    <div id="activity" class="settings-section">
-                        <h3 class="text-xl font-semibold gold-gradient-text mb-4">
-                            <i class="fas fa-history mr-2"></i>Recent Activity
-                        </h3>
-
-                        <?php if (!empty($login_history) && is_array($login_history)): ?>
-                            <div class="space-y-3">
-                                <?php foreach ($login_history as $log): ?>
-                                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                        <div class="flex items-center">
-                                            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4">
-                                                <i class="fas fa-sign-in-alt text-blue-600"></i>
-                                            </div>
-                                            <div>
-                                                <p class="font-medium text-gray-800">
-                                                    <?php echo htmlspecialchars($log['action_type'] ?? 'Activity'); ?>
-                                                </p>
-                                                <p class="text-sm text-gray-500">
-                                                    <?php echo htmlspecialchars($log['action_description'] ?? ''); ?>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-sm text-gray-600">
-                                                <?php
-                                                $date = new DateTime($log['created_at']);
-                                                echo $date->format('M d, Y');
-                                                ?>
-                                            </p>
-                                            <p class="text-xs text-gray-500">
-                                                <?php echo $date->format('h:i A'); ?>
-                                            </p>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
+            <!-- Right Content Area -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Email Settings Section -->
+                <section id="email-section" class="settings-section active">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 transition-all duration-300 hover:shadow-md">
+                        <div class="flex items-center mb-6">
+                            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white mr-4 shadow-lg">
+                                <i class="fas fa-envelope text-lg"></i>
                             </div>
-                        <?php else: ?>
-                            <div class="text-center py-8 text-gray-500">
-                                <i class="fas fa-info-circle text-4xl mb-3"></i>
-                                <p>No recent activity to display</p>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">Email Settings</h2>
+                                <p class="text-gray-600 mt-1">Update your email address for account communications</p>
                             </div>
-                        <?php endif; ?>
-                    </div>
+                        </div>
 
-                    <!-- Account Info Section -->
-                    <div id="account" class="settings-section">
-                        <h3 class="text-xl font-semibold gold-gradient-text mb-4">
-                            <i class="fas fa-info-circle mr-2"></i>Account Information
-                        </h3>
+                        <form method="POST" action="/chair/settings" class="space-y-6">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p class="text-sm text-gray-600 mb-1">Account Created</p>
-                                <p class="font-semibold text-gray-800">
-                                    <?php
-                                    if (isset($account_info['created_at'])) {
-                                        $date = new DateTime($account_info['created_at']);
-                                        echo $date->format('F d, Y');
-                                    } else {
-                                        echo 'N/A';
-                                    }
-                                    ?>
+                            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                <div class="flex items-start">
+                                    <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+                                    <div>
+                                        <p class="text-sm text-blue-800 font-medium">Email Update Notice</p>
+                                        <p class="text-sm text-blue-700 mt-1">
+                                            Your email address is used for important notifications and account recovery.
+                                            Please ensure it's current and accessible.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="new_email" class="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-at mr-2 text-yellow-600"></i>
+                                    New Email Address <span class="text-red-500 ml-1">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="email"
+                                        id="new_email"
+                                        name="new_email"
+                                        class="w-full px-4 py-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 text-gray-900 placeholder-gray-400"
+                                        placeholder="your.new.email@university.edu"
+                                        required>
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-4">
+                                        <i class="fas fa-envelope text-gray-400"></i>
+                                    </div>
+                                </div>
+                                <p class="mt-2 text-sm text-gray-500 flex items-center">
+                                    <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>
+                                    Enter a valid email address you have access to
                                 </p>
                             </div>
 
-                            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p class="text-sm text-gray-600 mb-1">Last Updated</p>
-                                <p class="font-semibold text-gray-800">
-                                    <?php
-                                    if (isset($account_info['updated_at'])) {
-                                        $date = new DateTime($account_info['updated_at']);
-                                        echo $date->format('F d, Y');
-                                    } else {
-                                        echo 'N/A';
-                                    }
-                                    ?>
-                                </p>
+                            <div class="flex justify-end pt-4">
+                                <button type="submit"
+                                    name="update_email"
+                                    class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center">
+                                    <i class="fas fa-save mr-2"></i>
+                                    Update Email
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Password Security Section -->
+                <section id="password-section" class="settings-section hidden">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 transition-all duration-300 hover:shadow-md">
+                        <div class="flex items-center mb-6">
+                            <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center text-white mr-4 shadow-lg">
+                                <i class="fas fa-lock text-lg"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">Password Security</h2>
+                                <p class="text-gray-600 mt-1">Change your password to keep your account secure</p>
+                            </div>
+                        </div>
+
+                        <form method="POST" action="/chair/settings" class="space-y-6">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+
+                            <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+                                <div class="flex items-start">
+                                    <i class="fas fa-shield-alt text-green-500 mt-1 mr-3"></i>
+                                    <div>
+                                        <p class="text-sm text-green-800 font-medium">Security Best Practices</p>
+                                        <p class="text-sm text-green-700 mt-1">
+                                            Use a strong, unique password with at least 8 characters including uppercase,
+                                            lowercase, numbers, and special characters.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p class="text-sm text-gray-600 mb-1">User ID</p>
-                                <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($user['user_id'] ?? 'N/A'); ?></p>
+                            <div>
+                                <label for="current_password" class="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-key mr-2 text-yellow-600"></i>
+                                    Current Password <span class="text-red-500 ml-1">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="password"
+                                        id="current_password"
+                                        name="current_password"
+                                        class="w-full px-4 py-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 text-gray-900 placeholder-gray-400"
+                                        placeholder="Enter your current password"
+                                        required>
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-4">
+                                        <i class="fas fa-lock text-gray-400"></i>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p class="text-sm text-gray-600 mb-1">Username</p>
-                                <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($user['username'] ?? 'N/A'); ?></p>
+                            <div>
+                                <label for="new_password" class="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-key mr-2 text-yellow-600"></i>
+                                    New Password <span class="text-red-500 ml-1">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="password"
+                                        id="new_password"
+                                        name="new_password"
+                                        class="w-full px-4 py-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 text-gray-900 placeholder-gray-400"
+                                        placeholder="Create a new password"
+                                        minlength="8"
+                                        required>
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-4">
+                                        <i class="fas fa-lock text-gray-400"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-check-circle mr-1 text-green-500"></i>
+                                        Minimum 8 characters
+                                    </div>
+                                    <div class="flex items-center">
+                                        <i class="fas fa-check-circle mr-1 text-green-500"></i>
+                                        Uppercase & lowercase
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p class="text-sm text-gray-600 mb-1">Email</p>
-                                <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($user['email'] ?? 'N/A'); ?></p>
+                            <div>
+                                <label for="confirm_password" class="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-check-double mr-2 text-yellow-600"></i>
+                                    Confirm New Password <span class="text-red-500 ml-1">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="password"
+                                        id="confirm_password"
+                                        name="confirm_password"
+                                        class="w-full px-4 py-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 text-gray-900 placeholder-gray-400"
+                                        placeholder="Confirm your new password"
+                                        required>
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-4">
+                                        <i class="fas fa-lock text-gray-400"></i>
+                                    </div>
+                                </div>
+                                <div id="password-match" class="mt-2 text-sm hidden">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
                             </div>
 
-                            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <p class="text-sm text-gray-600 mb-1">Phone</p>
-                                <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($user['phone'] ?? 'Not set'); ?></p>
+                            <div class="flex justify-end pt-4">
+                                <button type="submit"
+                                    name="change_password"
+                                    class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center">
+                                    <i class="fas fa-key mr-2"></i>
+                                    Change Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Security Information Section -->
+                <section id="security-section" class="settings-section hidden">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 transition-all duration-300 hover:shadow-md">
+                        <div class="flex items-center mb-6">
+                            <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center text-white mr-4 shadow-lg">
+                                <i class="fas fa-shield-alt text-lg"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">Security Information</h2>
+                                <p class="text-gray-600 mt-1">Important security details about your account</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div class="bg-purple-50 border border-purple-200 rounded-xl p-6">
+                                <h3 class="text-lg font-semibold text-purple-900 mb-3 flex items-center">
+                                    <i class="fas fa-user-shield mr-2"></i>
+                                    Account Security
+                                </h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between py-2 border-b border-purple-100">
+                                        <span class="text-sm text-purple-800">Last Password Change</span>
+                                        <span class="text-sm font-medium text-purple-900">Recently</span>
+                                    </div>
+                                    <div class="flex items-center justify-between py-2 border-b border-purple-100">
+                                        <span class="text-sm text-purple-800">Two-Factor Authentication</span>
+                                        <span class="text-sm font-medium text-yellow-600">Not Enabled</span>
+                                    </div>
+                                    <div class="flex items-center justify-between py-2">
+                                        <span class="text-sm text-purple-800">Account Status</span>
+                                        <span class="text-sm font-medium text-green-600">Active</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                                    <i class="fas fa-lightbulb mr-2 text-yellow-600"></i>
+                                    Security Tips
+                                </h3>
+                                <ul class="space-y-2 text-sm text-gray-700">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                                        Use a unique password for this account
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                                        Change your password every 90 days
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                                        Never share your password with anyone
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                                        Log out from shared computers
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="text-center pt-4">
+                                <button onclick="showSection('password')"
+                                    class="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center mx-auto">
+                                    <i class="fas fa-lock mr-2"></i>
+                                    Change Password Now
+                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Footer Actions -->
-                <div class="border-t border-gray-200 px-6 py-4 bg-gray-50">
-                    <div class="flex justify-between items-center">
-                        <a
-                            href="/director/dashboard"
-                            class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-100 transition">
-                            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                        </a>
-                    </div>
-                </div>
+                </section>
             </div>
         </div>
-    </main>
+    </div>
+</div>
 
-    <script>
-        // Tab Switching
-        document.querySelectorAll('.settings-tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                // Remove active class from all tabs and sections
-                document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Program Chair Settings page loaded');
 
-                // Add active class to clicked tab and corresponding section
-                this.classList.add('active');
-                const tabId = this.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
-            });
-        });
+        // Initialize settings navigation
+        initializeSettingsNavigation();
 
-        // Toggle password visibility
-        document.querySelectorAll('.toggle-password').forEach(button => {
+        // Initialize password validation
+        initializePasswordValidation();
+
+        // Show success/error messages as toasts
+        showFlashMessages();
+    });
+
+    // Settings Navigation
+    function initializeSettingsNavigation() {
+        const navButtons = document.querySelectorAll('.settings-nav-btn');
+
+        navButtons.forEach(button => {
             button.addEventListener('click', function() {
-                const input = this.parentElement.querySelector('input');
-                const icon = this.querySelector('i');
+                const sectionName = this.textContent.toLowerCase().includes('email') ? 'email' :
+                    this.textContent.toLowerCase().includes('password') ? 'password' :
+                    this.textContent.toLowerCase().includes('security') ? 'security' : 'email';
 
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
-                } else {
-                    input.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
-                }
+                showSection(sectionName);
             });
         });
 
-        // Password strength indicator
-        const newPasswordInput = document.getElementById('new_password');
-        const strengthBar = document.getElementById('strength-bar');
-        const strengthText = document.getElementById('strength-text');
+        // Ensure email section is active by default
+        setTimeout(() => {
+            showSection('email');
+        }, 100);
+    }
 
-        if (newPasswordInput) {
-            newPasswordInput.addEventListener('input', function() {
-                const password = this.value;
-                let strength = 0;
-                let feedback = [];
+    function showSection(sectionName) {
+        console.log('Switching to section:', sectionName);
 
-                if (password.length >= 8) {
-                    strength++;
-                } else {
-                    feedback.push('at least 8 characters');
-                }
+        // Hide all sections
+        document.querySelectorAll('.settings-section').forEach(section => {
+            section.classList.add('hidden');
+        });
 
-                if (/[A-Z]/.test(password)) {
-                    strength++;
-                } else {
-                    feedback.push('uppercase letter');
-                }
+        // Remove active class from all nav buttons
+        document.querySelectorAll('.settings-nav-btn').forEach(btn => {
+            btn.classList.remove('active', 'bg-yellow-50', 'text-yellow-700', 'border-yellow-200');
+            btn.classList.add('text-gray-600', 'hover:bg-gray-50', 'hover:text-gray-900', 'border-transparent');
+        });
 
-                if (/[a-z]/.test(password)) {
-                    strength++;
-                } else {
-                    feedback.push('lowercase letter');
-                }
-
-                if (/[0-9]/.test(password)) {
-                    strength++;
-                } else {
-                    feedback.push('number');
-                }
-
-                if (/[^A-Za-z0-9]/.test(password)) {
-                    strength++;
-                } else {
-                    feedback.push('special character');
-                }
-
-                const strengthLevels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
-                const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500', 'bg-green-600'];
-                const textColors = ['text-red-500', 'text-orange-500', 'text-yellow-500', 'text-blue-500', 'text-green-500', 'text-green-600'];
-
-                strengthBar.className = `password-strength-bar ${strengthColors[strength]}`;
-                strengthBar.style.width = `${(strength / 5) * 100}%`;
-
-                if (password.length === 0) {
-                    strengthText.textContent = 'Must be at least 8 characters long';
-                    strengthText.className = 'text-sm text-gray-500 mt-1';
-                    strengthBar.style.width = '0%';
-                } else if (feedback.length > 0) {
-                    strengthText.textContent = `Add: ${feedback.join(', ')}`;
-                    strengthText.className = `text-sm ${textColors[strength]} mt-1 font-medium`;
-                } else {
-                    strengthText.textContent = `Password strength: ${strengthLevels[strength]}`;
-                    strengthText.className = `text-sm ${textColors[strength]} mt-1 font-medium`;
-                }
-            });
+        // Show selected section
+        const targetSection = document.getElementById(sectionName + '-section');
+        if (targetSection) {
+            targetSection.classList.remove('hidden');
         }
 
-        // Password Form Submission
-        document.getElementById('passwordForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
+        // Activate selected nav button
+        const activeBtn = Array.from(document.querySelectorAll('.settings-nav-btn')).find(btn =>
+            btn.textContent.toLowerCase().includes(sectionName)
+        );
 
-            const newPassword = document.getElementById('new_password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            const alertDiv = document.getElementById('password-alert');
+        if (activeBtn) {
+            activeBtn.classList.add('active', 'bg-yellow-50', 'text-yellow-700', 'border-yellow-200');
+            activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-50', 'hover:text-gray-900', 'border-transparent');
+        }
+    }
 
-            if (newPassword !== confirmPassword) {
-                showAlert(alertDiv, 'New password and confirmation do not match.', 'error');
-                return;
-            }
+    // Password Validation
+    function initializePasswordValidation() {
+        const newPassword = document.getElementById('new_password');
+        const confirmPassword = document.getElementById('confirm_password');
+        const passwordMatch = document.getElementById('password-match');
 
-            if (newPassword.length < 8) {
-                showAlert(alertDiv, 'New password must be at least 8 characters long.', 'error');
-                return;
-            }
-
-            const formData = new FormData(this);
-
-            try {
-                const response = await fetch('/director/updatePassword', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showAlert(alertDiv, result.message, 'success');
-                    this.reset();
-                    strengthBar.style.width = '0%';
-                    strengthText.textContent = 'Must be at least 8 characters long';
-                    strengthText.className = 'text-sm text-gray-500 mt-1';
+        if (newPassword && confirmPassword && passwordMatch) {
+            const validatePasswords = () => {
+                if (newPassword.value && confirmPassword.value) {
+                    if (newPassword.value === confirmPassword.value) {
+                        passwordMatch.className = 'mt-2 text-sm text-green-600 flex items-center animate-pulse';
+                        passwordMatch.innerHTML = '<i class="fas fa-check-circle mr-2"></i><span>Passwords match! You\'re good to go.</span>';
+                        passwordMatch.classList.remove('hidden');
+                    } else {
+                        passwordMatch.className = 'mt-2 text-sm text-red-600 flex items-center';
+                        passwordMatch.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i><span>Passwords do not match. Please try again.</span>';
+                        passwordMatch.classList.remove('hidden');
+                    }
                 } else {
-                    showAlert(alertDiv, result.message, 'error');
+                    passwordMatch.classList.add('hidden');
                 }
-            } catch (error) {
-                showAlert(alertDiv, 'An error occurred. Please try again.', 'error');
-            }
-        });
+            };
 
-        // Email Form Submission
-        document.getElementById('emailForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
+            confirmPassword.addEventListener('input', validatePasswords);
+            newPassword.addEventListener('input', validatePasswords);
+        }
+    }
 
-            const formData = new FormData(this);
-            const alertDiv = document.getElementById('profile-alert');
+    // Flash Messages as Toasts
+    function showFlashMessages() {
+        const flashDiv = document.querySelector('.bg-green-50, .bg-red-50');
+        if (flashDiv) {
+            const isSuccess = flashDiv.classList.contains('bg-green-50');
+            const message = flashDiv.querySelector('p').textContent;
 
-            try {
-                const response = await fetch('/director/updateEmail', {
-                    method: 'POST',
-                    body: formData
-                });
+            showToast(message, isSuccess ? 'success' : 'error');
 
-                const result = await response.json();
-
-                if (result.success) {
-                    showAlert(alertDiv, result.message, 'success');
-                    document.getElementById('email_password').value = '';
-                } else {
-                    showAlert(alertDiv, result.message, 'error');
-                }
-            } catch (error) {
-                showAlert(alertDiv, 'An error occurred. Please try again.', 'error');
-            }
-        });
-
-        // Phone Form Submission
-        document.getElementById('phoneForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(this);
-            const alertDiv = document.getElementById('profile-alert');
-
-            try {
-                const response = await fetch('/director/updatePhone', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showAlert(alertDiv, result.message, 'success');
-                } else {
-                    showAlert(alertDiv, result.message, 'error');
-                }
-            } catch (error) {
-                showAlert(alertDiv, 'An error occurred. Please try again.', 'error');
-            }
-        });
-
-        // Show Alert Helper Function
-        function showAlert(element, message, type) {
-            element.className = `mb-4 p-4 rounded-lg ${type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`;
-            element.innerHTML = `
-                <div class="flex items-center">
-                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>
-                    <span>${message}</span>
-                </div>
-            `;
-            element.classList.remove('hidden');
-
+            // Remove the original flash message after showing toast
             setTimeout(() => {
-                element.classList.add('hidden');
-            }, 5000);
+                flashDiv.remove();
+            }, 100);
         }
-    </script>
-</body>
+    }
 
-</html>
+    // Toast Notification System
+    function showToast(message, type) {
+        const toast = document.createElement('div');
+        toast.className = `bg-${type === 'success' ? 'green' : 'red'}-500 text-white px-6 py-4 rounded-xl shadow-xl flex items-center justify-between min-w-80 transform transition-all duration-300 translate-x-full`;
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-3 text-lg"></i>
+                <span class="font-medium">${message}</span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        document.getElementById('toast-container').appendChild(toast);
+
+        // Animate in
+        setTimeout(() => toast.classList.remove('translate-x-full'), 100);
+
+        // Auto remove
+        setTimeout(() => {
+            toast.classList.add('translate-x-full');
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // Form validation enhancement
+    document.addEventListener('DOMContentLoaded', function() {
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                const requiredFields = form.querySelectorAll('input[required]');
+                let isValid = true;
+
+                requiredFields.forEach(field => {
+                    if (!field.value.trim()) {
+                        field.classList.add('border-red-500', 'ring-2', 'ring-red-200');
+                        isValid = false;
+                    } else {
+                        field.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    showToast('Please fill in all required fields', 'error');
+                }
+            });
+
+            // Remove error styling on input
+            form.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', function() {
+                    this.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+                });
+            });
+        });
+    });
+</script>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .settings-section {
+        transition: all 0.3s ease-in-out;
+    }
+
+    .settings-nav-btn {
+        transition: all 0.2s ease-in-out;
+    }
+
+    .settings-nav-btn:hover {
+        transform: translateX(4px);
+    }
+
+    .settings-nav-btn.active {
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+    }
+</style>
 
 <?php
 $content = ob_get_clean();

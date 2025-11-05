@@ -422,10 +422,6 @@ ob_start();
                                                 <?php echo htmlspecialchars($admission['department_name'] ?? 'Not assigned', ENT_QUOTES, 'UTF-8'); ?>
                                             </div>
                                         </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
-                                            ••••••••
-                                            <span class="text-xs text-gray-400">(Hidden)</span>
-                                        </td>
                                         <td class="px-4 py-4 whitespace-nowrap">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                                                 Pending Review

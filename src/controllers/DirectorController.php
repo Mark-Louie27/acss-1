@@ -2453,7 +2453,7 @@ class DirectorController
         }
 
         $userId = $_SESSION['user_id'];
-        $facultyId = $this->getFacultyId($userId);
+        $facultyId = $this->getUserData();
         $departmentId = $_SESSION['department_id'];
         $csrfToken = $this->authService->generateCsrfToken();
         $error = '';
@@ -2525,10 +2525,10 @@ class DirectorController
             } elseif (!empty($success)) {
                 $_SESSION['flash'] = ['type' => 'success', 'message' => $success];
             }
-            header('Location: /faculty/settings');
+            header('Location: /director/settings');
             exit;
         }
 
-        require_once __DIR__ . '/../views/faculty/settings.php';
+        require_once __DIR__ . '/../views/director/settings.php';
     }
 }

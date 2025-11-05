@@ -753,7 +753,7 @@ class EmailService
                 <div class='credentials'>
                     <h3>Login Credentials</h3>
                     <div class='cred-item'>
-                        <strong>Username:</strong>
+                        <strong>Employee Id:</strong>
                         <span><code>{$employeeId}</code></span>
                     </div>
                     <div class='cred-item'>

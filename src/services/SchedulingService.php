@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+
 class SchedulingService
 {
     private $conn;
@@ -20,7 +21,7 @@ class SchedulingService
 
     public function generateOfficialPDF($schedules, $semesterName, $collegeName, $facultyData, $facultyName)
     {
-       
+
         $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
 
         $pdf->SetCreator('PRMSU ACSS System');
@@ -1947,12 +1948,12 @@ class SchedulingService
             </thead>
             <tbody>';
 
-            if (!empty($schedules)) {
-                foreach ($schedules as $schedule) {
-                    $timeRange = htmlspecialchars(($schedule['start_time'] ?? '') . '-' . ($schedule['end_time'] ?? ''));
-                    $courseInfo = htmlspecialchars(($schedule['course_code'] ?? 'N/A') . ' - ' . ($schedule['course_name'] ?? 'N/A'));
+        if (!empty($schedules)) {
+            foreach ($schedules as $schedule) {
+                $timeRange = htmlspecialchars(($schedule['start_time'] ?? '') . '-' . ($schedule['end_time'] ?? ''));
+                $courseInfo = htmlspecialchars(($schedule['course_code'] ?? 'N/A') . ' - ' . ($schedule['course_name'] ?? 'N/A'));
 
-                    $scheduleHtml .= '
+                $scheduleHtml .= '
                 <tr>
                     <td style="text-align: center; padding: 4px;">' . $timeRange . '</td>
                     <td style="text-align: center; padding: 4px;">' . htmlspecialchars($schedule['day_of_week'] ?? 'N/A') . '</td>
@@ -1962,7 +1963,7 @@ class SchedulingService
                     <td style="text-align: center; padding: 4px;">-</td>
                     <td style="text-align: center; padding: 4px;">' . htmlspecialchars($schedule['schedule_type'] ?? 'N/A') . '</td>
                 </tr>';
-                }
+            }
 
             // Add empty rows to match the original format
             for ($i = count($schedules); $i < 12; $i++) {
@@ -3443,9 +3444,4 @@ class SchedulingService
             return 'Normal Load';
         }
     }
-    
 }
-
-
-
-

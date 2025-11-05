@@ -3425,7 +3425,6 @@ class DeanController extends BaseController
         }
     }
 
-    // Add this method for password change
     private function changePassword($data, $userId)
     {
         try {
@@ -3454,11 +3453,21 @@ class DeanController extends BaseController
                 return ['error' => 'Current password is incorrect'];
             }
 
-            // Update password
+            // Update password - FIXED: Use :password_hash instead of :password
             $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
             $stmt = $this->db->prepare("UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE user_id = :user_id");
-            $stmt->execute([':password' => $newHash, ':user_id' => $userId]);
+            $stmt->execute([
+                ':password_hash' => $newHash, // Fixed parameter name
+                ':user_id' => $userId
+            ]);
 
+            // Check if password was actually updated
+            if ($stmt->rowCount() === 0) {
+                error_log("changePassword: No rows affected for user_id: $userId");
+                return ['error' => 'Failed to update password'];
+            }
+
+            error_log("changePassword: Password successfully updated for user_id: $userId");
             return ['success' => 'Password changed successfully'];
         } catch (PDOException $e) {
             error_log("changePassword: PDO Error - " . $e->getMessage());

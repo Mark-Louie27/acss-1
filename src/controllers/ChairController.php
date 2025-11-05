@@ -8686,7 +8686,6 @@ class ChairController extends BaseController
                 echo json_encode(['error' => 'No user session']);
                 exit;
             }
-            error_log("search: Processing for chair_id=$chairId");
 
             $departmentId = $this->getChairDepartment($chairId);
             if (!$departmentId) {
@@ -8696,8 +8695,7 @@ class ChairController extends BaseController
                 echo json_encode(['error' => 'No department assigned']);
                 exit;
             }
-            error_log("search: Department ID: $departmentId");
-
+    
             $collegeStmt = $this->db->prepare("SELECT college_id FROM departments WHERE department_id = :department_id");
             $collegeStmt->execute([':department_id' => $departmentId]);
             $collegeId = $collegeStmt->fetchColumn();
@@ -8708,11 +8706,10 @@ class ChairController extends BaseController
                 echo json_encode(['error' => 'No college assigned']);
                 exit;
             }
-            error_log("search: College ID: $collegeId");
+           
 
             $name = isset($_POST['name']) ? trim($_POST['name']) : '';
-            error_log("search: Search parameter - name: '$name'");
-
+           
             if (empty($name)) {
                 error_log("search: No name provided");
                 header('Content-Type: application/json');
@@ -8763,8 +8760,7 @@ class ChairController extends BaseController
                 ':name3' => "%$name%"
             ];
 
-            error_log("search: Executing query: $query");
-            error_log("search: Query parameters: " . json_encode($params));
+           
             $stmt = $this->db->prepare($query);
             if (!$stmt) {
                 $errorInfo = $this->db->errorInfo();
@@ -8826,18 +8822,16 @@ class ChairController extends BaseController
                 ':name3' => "%$name%"
             ];
 
-            error_log("search: Executing includable query: $includableQuery");
-            error_log("search: Includable query parameters: " . json_encode($includableParams));
+           
             $includableStmt = $this->db->prepare($includableQuery);
             if (!$includableStmt) {
                 $errorInfo = $this->db->errorInfo();
-                error_log("search: Includable Prepare Error: " . print_r($errorInfo, true));
+                
                 throw new Exception("Failed to prepare includable statement: " . $errorInfo[2]);
             }
             $includableStmt->execute($includableParams);
             $includableResults = $includableStmt->fetchAll(PDO::FETCH_ASSOC);
-            error_log("search: Found " . count($includableResults) . " includable results");
-
+       
             header('Content-Type: application/json');
             echo json_encode(['results' => $results, 'includable' => $includableResults]);
             exit;
