@@ -664,13 +664,11 @@ function getSettingsImagePath($path)
                         </div>
                     </div>
                 </div>
-                <!--
                 <div class="md:col-span-2">
-                    <button type="button" id="downloadScheduleBtn" class="btn-primary mt-4">
-                        <i class="fas fa-download mr-2"></i> Download Schedule PDF
+                    <button type="button" id="downloadPdfBtn" class="btn-primary mt-4 w-full">
+                        <i class="fas fa-download mr-2"></i> Download PDF Schedule
                     </button>
                 </div>
-                -->
             </form>
 
             <!-- Download Customization Form
@@ -1021,6 +1019,25 @@ function getSettingsImagePath($path)
                     sectionSelect.innerHTML = '<option value="">All Sections</option>';
                     fetchSchedules();
                 }
+            });
+
+            document.getElementById('downloadPdfBtn').addEventListener('click', function() {
+                const formData = new FormData(document.getElementById('searchForm'));
+
+                fetch('/public/download-schedule-pdf', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.blob())
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'PRMSU_Schedule_<?= date('Y-m-d') ?>.pdf';
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                    })
+                    .catch(err => alert('Error generating PDF'));
             });
 
 

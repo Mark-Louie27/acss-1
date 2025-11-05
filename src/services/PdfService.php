@@ -455,5 +455,13 @@ class PdfService
         echo $pdfData;
         exit;
     }
+
+    public function generateFromHtml($html)
+    {
+        $this->dompdf->loadHtml($html);
+        $this->dompdf->setPaper('A4', 'landscape');
+        $this->dompdf->render();
+        return $this->dompdf->output();
+    }
 }
 ?>

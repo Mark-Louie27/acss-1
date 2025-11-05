@@ -455,7 +455,7 @@ function handleFacultyRoutes($path)
 $path = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 
 // Public routes that don't require authentication
-$publicRoutes = ['login', 'register', '', 'home', 'public/search', 'public/departments', 'public/sections', 'forgot-password', 'api/departments'];
+$publicRoutes = ['login', 'register', '', 'home', 'public/search', 'public/departments', 'public/sections', 'forgot-password', 'api/departments', 'public/download-schedule-pdf'];
 
 if (in_array($path, $publicRoutes)) {
     require_once __DIR__ . '/../src/controllers/AuthController.php';
@@ -506,6 +506,15 @@ if (in_array($path, $publicRoutes)) {
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 require_once __DIR__ . '/../src/controllers/PublicController.php';
                 (new PublicController())->getSectionsByDepartment();
+            } else {
+                http_response_code(405);
+                echo "Method Not Allowed";
+            }
+            break;
+        case 'public/download-schedule-pdf':
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                require_once __DIR__ . '/../src/controllers/PublicController.php';
+                (new PublicController())->downloadSchedulePdf();
             } else {
                 http_response_code(405);
                 echo "Method Not Allowed";
