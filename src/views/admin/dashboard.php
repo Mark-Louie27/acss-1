@@ -107,8 +107,7 @@ ob_start();
 
     <!-- Main Header Section -->
     <div class="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl p-6 sm:p-8 mb-8 shadow-lg relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-64 h-64 bg-yellow-500 opacity-10 rounded-full -translate-y-32 translate-x-32"></div>
-        <div class="absolute bottom-0 left-0 w-32 h-32 bg-amber-500 opacity-10 rounded-full translate-y-16 -translate-x-16"></div>
+        <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
 
         <div class="relative">
             <div class="flex flex-col md:flex-row items-start md:items-center justify-between">

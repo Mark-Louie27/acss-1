@@ -211,7 +211,8 @@ ob_start();
 <body>
     <div class="min-h-screen px-4 sm:px-6 lg:px-8 py-6">
         <!-- Main Header -->
-        <div class="bg-gray-800 text-white rounded-xl p-6 mb-8 shadow-lg">
+        <div class="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl p-6 sm:p-8 mb-8 shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
             <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold mb-2">PRMSU Scheduling System</h1>

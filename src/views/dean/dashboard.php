@@ -170,7 +170,7 @@ ob_start();
             <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                 <div class="space-y-3">
-                    <a href="/dean/pending-approvals" class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors border border-yellow-200">
+                    <a href="/dean/manage_schedules" class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors border border-yellow-200">
                         <div class="flex items-center">
                             <span class="fas fa-check-circle text-yellow-600 text-lg mr-3"></span>
                             <span class="font-medium text-gray-900">Review Approvals</span>
