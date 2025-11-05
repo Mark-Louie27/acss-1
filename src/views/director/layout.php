@@ -745,11 +745,12 @@ $stats = $stats ?? ['total_pending' => 0];
                 <span>Dashboard</span>
             </a>
 
-            <!-- Schedule Link -->
+            <!-- Schedule Link
             <a href="/director/schedule" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= $currentUri === '/director/schedule' ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
                 <i class="fas fa-list w-5 mr-3 <?= $currentUri === '/director/schedule' ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>My Schedule</span>
             </a>
+             -->
 
             <!-- My set Schedule Link -->
             <a href="/director/schedule_deadline" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?php echo $currentUri === '/director/schedule_deadline' ? 'active-nav bg-gray-800 text-yellow-400' : ''; ?>">

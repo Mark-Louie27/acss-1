@@ -152,9 +152,10 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
             $g = hexdec(substr($hex, 2, 2));
             $b = hexdec(substr($hex, 4, 2));
 
-            $r = max(0, min(255, $r + ($r * $percent / 100)));
-            $g = max(0, min(255, $g + ($g * $percent / 100)));
-            $b = max(0, min(255, $b + ($b * $percent / 100)));
+            // FIXED: Explicitly cast to integers
+            $r = (int) max(0, min(255, $r + ($r * $percent / 100)));
+            $g = (int) max(0, min(255, $g + ($g * $percent / 100)));
+            $b = (int) max(0, min(255, $b + ($b * $percent / 100)));
 
             return '#' . str_pad(dechex($r), 2, '0', STR_PAD_LEFT)
                 . str_pad(dechex($g), 2, '0', STR_PAD_LEFT)
@@ -854,9 +855,9 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 
             <!-- Schedule Dropdown -->
             <div class="dropdown relative my-1">
-                <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false || strpos($currentUri, '/chair/faculty-teaching-load') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                     <div class="flex items-center">
-                        <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                        <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false || strpos($currentUri, '/chair/faculty-teaching-load') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                         <span>Schedule</span>
                     </div>
                     <i class="fas fa-chevron-down text-xs transition-transform duration-300 toggle-icon"></i>

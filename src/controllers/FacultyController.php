@@ -3,12 +3,14 @@
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/SchedulingService.php';
+require_once __DIR__ . '/../services/PdfService.php';
 
 class FacultyController
 {
     private $db;
     private $authService;
     private $schedulingService;
+    private $pdfService;
 
     public function __construct()
     {
@@ -21,6 +23,7 @@ class FacultyController
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->authService = new AuthService($this->db);
         $this->schedulingService = new SchedulingService($this->db);
+        $this->pdfService = new PdfService($this->db);
     }
 
     private function getFacultyId($userId)
@@ -1206,4 +1209,1469 @@ class FacultyController
         require_once __DIR__ . '/../views/faculty/settings.php';
     }
 
+    public function teachingLoadReport()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+
+            if (!$facultyId) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'No faculty profile found'];
+                header('Location: /faculty/dashboard');
+                exit;
+            }
+
+            // Get semester filter - FIXED: Use proper parameter handling
+            $semesterId = $_GET['semester_id'] ?? null;
+
+            // Build the query with proper parameter handling
+            $semesterFilter = "";
+            $params = [$facultyId];
+
+            if ($semesterId) {
+                $semesterFilter = "AND s.semester_id = ?";
+                $params[] = $semesterId;
+            } else {
+                // Get current semester if no filter
+                $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
+                $currentSemester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+                if ($currentSemester) {
+                    $semesterFilter = "AND s.semester_id = ?";
+                    $params[] = $currentSemester['semester_id'];
+                    $semesterId = $currentSemester['semester_id'];
+                }
+            }
+
+            // Fetch faculty basic info
+            $facultyStmt = $this->db->prepare("
+            SELECT f.*, 
+                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                          COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                          COALESCE(u.suffix, '')) AS faculty_name,
+                   d.department_name,
+                   c.college_name
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$faculty) {
+                throw new Exception("Faculty profile not found");
+            }
+
+            // Fetch teaching load data - FIXED: Use proper parameter binding
+            $teachingLoadStmt = $this->db->prepare("
+            SELECT 
+                c.course_code,
+                c.course_name,
+                c.units,
+                s.schedule_type,
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours,
+                r.room_name,
+                sec.section_name,
+                sec.current_students,
+                sem.semester_name,
+                sem.academic_year,
+                CASE 
+                    WHEN s.schedule_type = 'Laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 * 0.75
+                    ELSE TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60
+                END AS computed_hours
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            JOIN semesters sem ON s.semester_id = sem.semester_id
+            WHERE s.faculty_id = ? $semesterFilter
+            ORDER BY c.course_code, s.day_of_week, s.start_time
+        ");
+
+            error_log("teachingLoadReport: Executing query with params: " . print_r($params, true));
+            $teachingLoadStmt->execute($params);
+            $teachingData = $teachingLoadStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Calculate totals
+            $totalHours = 0;
+            $totalComputedHours = 0;
+            $lectureHours = 0;
+            $labHours = 0;
+            $courseCount = 0;
+            $preparations = [];
+
+            foreach ($teachingData as $row) {
+                $totalHours += $row['duration_hours'];
+                $totalComputedHours += $row['computed_hours'];
+
+                if ($row['schedule_type'] === 'Lecture') {
+                    $lectureHours += $row['duration_hours'];
+                } else {
+                    $labHours += $row['duration_hours'];
+                }
+
+                $preparations[$row['course_code']] = true;
+            }
+
+            $courseCount = count($preparations);
+            $equivalentLoad = $faculty['equiv_teaching_load'] ?? 0;
+            $totalWorkingLoad = $totalComputedHours + $equivalentLoad;
+
+            // Get available semesters for filter
+            $semestersStmt = $this->db->query("
+            SELECT semester_id, CONCAT(semester_name, ' ', academic_year) as semester_display 
+            FROM semesters 
+            ORDER BY academic_year DESC, semester_name
+        ");
+            $semesters = $semestersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get semester info for display
+            $semesterInfo = "Current Semester";
+            if ($semesterId) {
+                $semesterDisplayStmt = $this->db->prepare("SELECT CONCAT(semester_name, ' ', academic_year) as semester_display FROM semesters WHERE semester_id = ?");
+                $semesterDisplayStmt->execute([$semesterId]);
+                $semesterDisplay = $semesterDisplayStmt->fetch(PDO::FETCH_ASSOC);
+                if ($semesterDisplay) {
+                    $semesterInfo = $semesterDisplay['semester_display'];
+                }
+            }
+
+            require_once __DIR__ . '/../views/faculty/reports/teaching_load.php';
+        } catch (Exception $e) {
+            error_log("teachingLoadReport: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to generate teaching load report: ' . $e->getMessage()];
+            header('Location: /faculty/dashboard');
+            exit;
+        }
+    }
+
+    public function specializationsReport()  // Changed from specializationReport()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+
+            if (!$facultyId) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'No faculty profile found'];
+                header('Location: /faculty/dashboard');
+                exit;
+            }
+
+            // Fetch faculty info
+            $facultyStmt = $this->db->prepare("
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                       COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                       COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                c.college_name,
+                f.academic_rank,
+                f.employment_type
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$faculty) {
+                throw new Exception("Faculty profile not found");
+            }
+
+            // Fetch specializations
+            $specializationStmt = $this->db->prepare("
+            SELECT 
+                s.specialization_id,
+                c.course_code,
+                c.course_name,
+                c.units,
+                d.department_name,
+                s.expertise_level,
+                s.created_at,
+                s.updated_at
+            FROM specializations s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN departments d ON c.department_id = d.department_id
+            WHERE s.faculty_id = ?
+            ORDER BY c.course_code
+        ");
+            $specializationStmt->execute([$facultyId]);
+            $specializations = $specializationStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Count by expertise level
+            $expertiseCount = [
+                'beginner' => 0,
+                'intermediate' => 0,
+                'expert' => 0
+            ];
+
+            foreach ($specializations as $spec) {
+                $level = strtolower($spec['expertise_level']);
+                if (isset($expertiseCount[$level])) {
+                    $expertiseCount[$level]++;
+                }
+            }
+
+            require_once __DIR__ . '/../views/faculty/reports/specializations.php';
+        } catch (Exception $e) {
+            error_log("specializationsReport: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to generate specialization report'];
+            header('Location: /faculty/dashboard');
+            exit;
+        }
+    }
+
+    /**
+     * Generate schedule report
+     */
+    public function scheduleReport()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+
+            if (!$facultyId) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'No faculty profile found'];
+                header('Location: /faculty/dashboard');
+                exit;
+            }
+
+            // Get semester filter
+            $semesterId = $_GET['semester_id'] ?? null;
+
+            // Get current semester if no filter
+            if (!$semesterId) {
+                $semesterStmt = $this->db->query("SELECT semester_id FROM semesters WHERE is_current = 1");
+                $currentSemester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+                $semesterId = $currentSemester['semester_id'] ?? null;
+            }
+
+            // Fetch faculty info
+            $facultyStmt = $this->db->prepare("
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                       COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                       COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                c.college_name,
+                f.academic_rank
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Fetch schedule data grouped by day and time
+            $scheduleStmt = $this->db->prepare("
+            SELECT 
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                c.course_code,
+                c.course_name,
+                s.schedule_type,
+                r.room_name,
+                sec.section_name,
+                sec.year_level,
+                sec.current_students,
+                sem.semester_name,
+                sem.academic_year
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            JOIN semesters sem ON s.semester_id = sem.semester_id
+            WHERE s.faculty_id = ? AND s.semester_id = ?
+            ORDER BY 
+                FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'),
+                s.start_time
+        ");
+
+            $scheduleStmt->execute([$facultyId, $semesterId]);
+            $scheduleData = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Group by day for better display
+            $scheduleByDay = [];
+            foreach ($scheduleData as $class) {
+                $day = $class['day_of_week'];
+                if (!isset($scheduleByDay[$day])) {
+                    $scheduleByDay[$day] = [];
+                }
+                $scheduleByDay[$day][] = $class;
+            }
+
+            // Get available semesters for filter
+            $semestersStmt = $this->db->query("
+            SELECT semester_id, CONCAT(semester_name, ' ', academic_year) as semester_display 
+            FROM semesters 
+            ORDER BY academic_year DESC, semester_name
+        ");
+            $semesters = $semestersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            require_once __DIR__ . '/../views/faculty/reports/schedule.php';
+        } catch (Exception $e) {
+            error_log("scheduleReport: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to generate schedule report'];
+            header('Location: /faculty/dashboard');
+            exit;
+        }
+    }
+
+    /**
+     * Generate specialization report
+     */
+    public function specializationReport()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+
+            if (!$facultyId) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'No faculty profile found'];
+                header('Location: /faculty/dashboard');
+                exit;
+            }
+
+            // Fetch faculty info
+            $facultyStmt = $this->db->prepare("
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                       COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                       COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                c.college_name,
+                f.academic_rank,
+                f.employment_type
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Fetch specializations
+            $specializationStmt = $this->db->prepare("
+            SELECT 
+                s.specialization_id,
+                c.course_code,
+                c.course_name,
+                c.units,
+                d.department_name,
+                s.expertise_level,
+                s.created_at,
+                s.updated_at
+            FROM specializations s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN departments d ON c.department_id = d.department_id
+            WHERE s.faculty_id = ?
+            ORDER BY c.course_code
+        ");
+            $specializationStmt->execute([$facultyId]);
+            $specializations = $specializationStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Count by expertise level
+            $expertiseCount = [
+                'beginner' => 0,
+                'intermediate' => 0,
+                'expert' => 0
+            ];
+
+            foreach ($specializations as $spec) {
+                $level = strtolower($spec['expertise_level']);
+                if (isset($expertiseCount[$level])) {
+                    $expertiseCount[$level]++;
+                }
+            }
+
+            require_once __DIR__ . '/../views/faculty/reports/specializations.php';
+        } catch (Exception $e) {
+            error_log("specializationReport: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to generate specialization report'];
+            header('Location: /faculty/dashboard');
+            exit;
+        }
+    }
+
+    /**
+     * Download report in various formats
+     */
+    public function downloadReport()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+
+            if (!$facultyId) {
+                http_response_code(404);
+                echo "No faculty profile found";
+                exit;
+            }
+
+            $reportType = $_GET['type'] ?? '';
+            $format = $_GET['format'] ?? 'pdf';
+            $semesterId = $_GET['semester_id'] ?? null;
+
+            switch ($reportType) {
+                case 'teaching_load':
+                    $this->downloadTeachingLoadReport($facultyId, $format, $semesterId);
+                    break;
+                case 'schedule':
+                    $this->downloadScheduleReport($facultyId, $format, $semesterId);
+                    break;
+                case 'specializations':
+                    $this->downloadSpecializationReport($facultyId, $format);
+                    break;
+                default:
+                    http_response_code(400);
+                    echo "Invalid report type";
+                    exit;
+            }
+        } catch (Exception $e) {
+            error_log("downloadReport: Error - " . $e->getMessage());
+            http_response_code(500);
+            echo "Failed to generate download";
+            exit;
+        }
+    }
+
+
+    // Then replace the download methods with these:
+
+    /**
+     * Download teaching load report
+     */
+    private function downloadTeachingLoadReport($facultyId, $format, $semesterId = null)
+    {
+        try {
+            // Fetch faculty data
+            $facultyStmt = $this->db->prepare("
+            SELECT f.*, 
+                   CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                          COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                          COALESCE(u.suffix, '')) AS faculty_name,
+                   d.department_name,
+                   c.college_name
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$faculty) {
+                throw new Exception("Faculty not found");
+            }
+
+            // Get semester info
+            if (!$semesterId) {
+                $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
+                $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+                $semesterId = $semester['semester_id'] ?? null;
+            } else {
+                $semesterStmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE semester_id = ?");
+                $semesterStmt->execute([$semesterId]);
+                $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+            }
+
+            $semesterName = $semester ? "{$semester['semester_name']} Semester, A.Y {$semester['academic_year']}" : 'Current Semester';
+
+            // Fetch teaching load data
+            $teachingStmt = $this->db->prepare("
+            SELECT 
+                c.course_code,
+                c.course_name,
+                c.units,
+                s.schedule_type,
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 AS duration_hours,
+                r.room_name,
+                sec.section_name,
+                sec.current_students,
+                CASE 
+                    WHEN s.schedule_type = 'Laboratory' THEN TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60 * 0.75
+                    ELSE TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60
+                END AS computed_hours
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = ? AND s.semester_id = ?
+            ORDER BY c.course_code, s.day_of_week, s.start_time
+        ");
+            $teachingStmt->execute([$facultyId, $semesterId]);
+            $teachingData = $teachingStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Calculate totals
+            $totalHours = 0;
+            $totalComputedHours = 0;
+            $lectureHours = 0;
+            $labHours = 0;
+            $preparations = [];
+
+            foreach ($teachingData as $row) {
+                $totalHours += $row['duration_hours'];
+                $totalComputedHours += $row['computed_hours'];
+
+                if ($row['schedule_type'] === 'Lecture') {
+                    $lectureHours += $row['duration_hours'];
+                } else {
+                    $labHours += $row['duration_hours'];
+                }
+
+                $preparations[$row['course_code']] = true;
+            }
+
+            $courseCount = count($preparations);
+            $equivalentLoad = $faculty['equiv_teaching_load'] ?? 0;
+            $totalWorkingLoad = $totalComputedHours + $equivalentLoad;
+
+            // Generate PDF
+            $pdfService = new PdfService();
+
+            if ($format === 'pdf') {
+                $pdfContent = $this->generateTeachingLoadPdf($faculty, $teachingData, $semesterName, [
+                    'total_hours' => $totalHours,
+                    'total_computed_hours' => $totalComputedHours,
+                    'lecture_hours' => $lectureHours,
+                    'lab_hours' => $labHours,
+                    'course_count' => $courseCount,
+                    'equivalent_load' => $equivalentLoad,
+                    'total_working_load' => $totalWorkingLoad
+                ]);
+
+                $filename = "teaching_load_{$faculty['faculty_name']}_" . date('Y-m-d') . ".pdf";
+                $pdfService->sendAsDownload($pdfContent, $filename);
+            } elseif ($format === 'excel') {
+                // For Excel, you can create a simple CSV or implement Excel generation
+                $this->generateTeachingLoadExcel($faculty, $teachingData, $semesterName, [
+                    'total_hours' => $totalHours,
+                    'total_computed_hours' => $totalComputedHours,
+                    'lecture_hours' => $lectureHours,
+                    'lab_hours' => $labHours,
+                    'course_count' => $courseCount,
+                    'equivalent_load' => $equivalentLoad,
+                    'total_working_load' => $totalWorkingLoad
+                ]);
+            }
+        } catch (Exception $e) {
+            error_log("downloadTeachingLoadReport: Error - " . $e->getMessage());
+            http_response_code(500);
+            echo "Failed to generate teaching load report: " . $e->getMessage();
+            exit;
+        }
+    }
+
+    /**
+     * Download schedule report
+     */
+    private function downloadScheduleReport($facultyId, $format, $semesterId = null)
+    {
+        try {
+            // Fetch faculty data
+            $facultyStmt = $this->db->prepare("
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                       COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                       COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                c.college_name,
+                f.academic_rank
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Get semester info
+            if (!$semesterId) {
+                $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
+                $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+                $semesterId = $semester['semester_id'] ?? null;
+            } else {
+                $semesterStmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE semester_id = ?");
+                $semesterStmt->execute([$semesterId]);
+                $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+            }
+
+            $semesterName = $semester ? "{$semester['semester_name']} Semester, A.Y {$semester['academic_year']}" : 'Current Semester';
+
+            // Fetch schedule data
+            $scheduleStmt = $this->db->prepare("
+            SELECT 
+                s.day_of_week,
+                s.start_time,
+                s.end_time,
+                c.course_code,
+                c.course_name,
+                s.schedule_type,
+                r.room_name,
+                sec.section_name,
+                sec.year_level,
+                sec.current_students
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = ? AND s.semester_id = ?
+            ORDER BY 
+                FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'),
+                s.start_time
+        ");
+            $scheduleStmt->execute([$facultyId, $semesterId]);
+            $scheduleData = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Generate PDF
+            $pdfService = new PdfService();
+
+            if ($format === 'pdf') {
+                $pdfContent = $this->generateSchedulePdf($faculty, $scheduleData, $semesterName);
+                $filename = "schedule_{$faculty['faculty_name']}_" . date('Y-m-d') . ".pdf";
+                $pdfService->sendAsDownload($pdfContent, $filename);
+            } elseif ($format === 'excel') {
+                // Use enhanced version for better Excel compatibility
+                $this->generateEnhancedScheduleExcel($faculty, $scheduleData, $semesterName, 'csv');
+            }
+        } catch (Exception $e) {
+            error_log("downloadScheduleReport: Error - " . $e->getMessage());
+            http_response_code(500);
+            echo "Failed to generate schedule report: " . $e->getMessage();
+            exit;
+        }
+    }
+
+    /**
+     * Download specialization report
+     */
+    private function downloadSpecializationReport($facultyId, $format)
+    {
+        try {
+            // Fetch faculty data
+            $facultyStmt = $this->db->prepare("
+            SELECT 
+                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', 
+                       COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
+                       COALESCE(u.suffix, '')) AS faculty_name,
+                d.department_name,
+                c.college_name,
+                f.academic_rank,
+                f.employment_type
+            FROM faculty f 
+            JOIN users u ON f.user_id = u.user_id 
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN colleges c ON d.college_id = c.college_id
+            WHERE f.faculty_id = ?
+        ");
+            $facultyStmt->execute([$facultyId]);
+            $faculty = $facultyStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Fetch specializations
+            $specializationStmt = $this->db->prepare("
+            SELECT 
+                s.specialization_id,
+                c.course_code,
+                c.course_name,
+                c.units,
+                d.department_name,
+                s.expertise_level,
+                s.created_at,
+                s.updated_at
+            FROM specializations s
+            JOIN courses c ON s.course_id = c.course_id
+            JOIN departments d ON c.department_id = d.department_id
+            WHERE s.faculty_id = ?
+            ORDER BY c.course_code
+        ");
+            $specializationStmt->execute([$facultyId]);
+            $specializations = $specializationStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Generate PDF
+            $pdfService = new PdfService();
+
+            if ($format === 'pdf') {
+                $pdfContent = $this->generateSpecializationPdf($faculty, $specializations);
+                $filename = "specializations_{$faculty['faculty_name']}_" . date('Y-m-d') . ".pdf";
+                $pdfService->sendAsDownload($pdfContent, $filename);
+            } elseif ($format === 'excel') {
+                $this->generateSpecializationExcel($faculty, $specializations);
+            }
+        } catch (Exception $e) {
+            error_log("downloadSpecializationReport: Error - " . $e->getMessage());
+            http_response_code(500);
+            echo "Failed to generate specialization report: " . $e->getMessage();
+            exit;
+        }
+    }
+
+    /**
+     * Generate teaching load PDF using PdfService
+     */
+    private function generateTeachingLoadPdf($faculty, $teachingData, $semesterName, $totals)
+    {
+        $pdfService = new PdfService();
+
+        $html = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: DejaVu Sans, Helvetica, Arial, sans-serif; margin: 20px; font-size: 12px; line-height: 1.4; }
+            .header { text-align: center; border-bottom: 3px solid #2c3e50; padding-bottom: 15px; margin-bottom: 20px; }
+            .university-name { font-size: 20px; font-weight: bold; color: #2c3e50; margin-bottom: 5px; }
+            .report-title { font-size: 16px; color: #34495e; margin-bottom: 10px; }
+            .faculty-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+            .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+            .summary-item { text-align: center; padding: 10px; background: white; border-radius: 3px; border: 1px solid #ddd; }
+            .summary-number { font-size: 16px; font-weight: bold; color: #2c3e50; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            .table th { background: #34495e; color: white; padding: 8px; text-align: left; }
+            .table td { padding: 8px; border-bottom: 1px solid #ddd; }
+            .table tr:nth-child(even) { background: #f8f9fa; }
+            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #7f8c8d; }
+        </style>
+    </head>
+    <body>
+        <div class='header'>
+            <div class='university-name'>ACADEMIC SCHEDULING SYSTEM</div>
+            <div class='report-title'>TEACHING LOAD REPORT</div>
+            <div>Semester: {$semesterName}</div>
+            <div>Generated on: " . date('F j, Y') . "</div>
+        </div>
+
+        <div class='faculty-info'>
+            <strong>Faculty:</strong> {$faculty['faculty_name']}<br>
+            <strong>Department:</strong> {$faculty['department_name']}<br>
+            <strong>Academic Rank:</strong> {$faculty['academic_rank']}
+        </div>
+
+        <div class='summary-grid'>
+            <div class='summary-item'>
+                <div class='summary-number'>{$totals['total_hours']}</div>
+                <div>Total Hours</div>
+            </div>
+            <div class='summary-item'>
+                <div class='summary-number'>{$totals['course_count']}</div>
+                <div>Courses</div>
+            </div>
+            <div class='summary-item'>
+                <div class='summary-number'>{$totals['lecture_hours']}</div>
+                <div>Lecture Hours</div>
+            </div>
+            <div class='summary-item'>
+                <div class='summary-number'>{$totals['lab_hours']}</div>
+                <div>Lab Hours</div>
+            </div>
+        </div>
+
+        <table class='table'>
+            <thead>
+                <tr>
+                    <th>Course Code</th>
+                    <th>Course Name</th>
+                    <th>Schedule Type</th>
+                    <th>Day</th>
+                    <th>Time</th>
+                    <th>Room</th>
+                    <th>Section</th>
+                    <th>Hours</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        foreach ($teachingData as $row) {
+            $html .= "
+                <tr>
+                    <td>{$row['course_code']}</td>
+                    <td>{$row['course_name']}</td>
+                    <td>{$row['schedule_type']}</td>
+                    <td>{$row['day_of_week']}</td>
+                    <td>" . date('g:i A', strtotime($row['start_time'])) . " - " . date('g:i A', strtotime($row['end_time'])) . "</td>
+                    <td>{$row['room_name']}</td>
+                    <td>{$row['section_name']}</td>
+                    <td>{$row['duration_hours']}</td>
+                </tr>";
+        }
+
+        $html .= "
+            </tbody>
+        </table>
+
+        <div class='footer'>
+            <p>Confidential Teaching Load Report - Generated by Academic Scheduling System</p>
+        </div>
+    </body>
+    </html>";
+
+        return $pdfService->generateFromHtml($html);
+    }
+
+    /**
+     * Generate schedule PDF
+     */
+    private function generateSchedulePdf($faculty, $scheduleData, $semesterName)
+    {
+        $pdfService = new PdfService();
+
+        // Group by day
+        $scheduleByDay = [];
+        foreach ($scheduleData as $class) {
+            $day = $class['day_of_week'];
+            if (!isset($scheduleByDay[$day])) {
+                $scheduleByDay[$day] = [];
+            }
+            $scheduleByDay[$day][] = $class;
+        }
+
+        $html = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: DejaVu Sans, Helvetica, Arial, sans-serif; margin: 20px; font-size: 11px; line-height: 1.4; }
+            .header { text-align: center; border-bottom: 3px solid #2c3e50; padding-bottom: 15px; margin-bottom: 20px; }
+            .university-name { font-size: 20px; font-weight: bold; color: #2c3e50; }
+            .faculty-info { margin-bottom: 20px; text-align: center; }
+            .day-section { margin-bottom: 25px; page-break-inside: avoid; }
+            .day-header { background: #34495e; color: white; padding: 8px 12px; font-weight: bold; margin-bottom: 10px; }
+            .class-item { background: #f8f9fa; padding: 10px; margin-bottom: 8px; border-left: 4px solid #3498db; }
+            .class-time { font-weight: bold; color: #2c3e50; }
+            .class-details { margin-top: 5px; }
+            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #7f8c8d; }
+        </style>
+    </head>
+    <body>
+        <div class='header'>
+            <div class='university-name'>ACADEMIC SCHEDULING SYSTEM</div>
+            <div>WEEKLY SCHEDULE REPORT</div>
+            <div>Semester: {$semesterName}</div>
+        </div>
+
+        <div class='faculty-info'>
+            <strong>Faculty:</strong> {$faculty['faculty_name']} | 
+            <strong>Department:</strong> {$faculty['department_name']} | 
+            <strong>Generated on:</strong> " . date('F j, Y') . "
+        </div>";
+
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        foreach ($days as $day) {
+            if (isset($scheduleByDay[$day])) {
+                $html .= "
+            <div class='day-section'>
+                <div class='day-header'>{$day}</div>";
+
+                foreach ($scheduleByDay[$day] as $class) {
+                    $html .= "
+                <div class='class-item'>
+                    <div class='class-time'>
+                        " . date('g:i A', strtotime($class['start_time'])) . " - " . date('g:i A', strtotime($class['end_time'])) . "
+                        <span style='float: right; background: " . ($class['schedule_type'] === 'Laboratory' ? '#10B981' : '#3B82F6') . "; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px;'>
+                            {$class['schedule_type']}
+                        </span>
+                    </div>
+                    <div class='class-details'>
+                        <strong>{$class['course_code']} - {$class['course_name']}</strong><br>
+                        Room: {$class['room_name']} | Section: {$class['section_name']} | Students: {$class['current_students']}
+                    </div>
+                </div>";
+                }
+
+                $html .= "
+            </div>";
+            }
+        }
+
+        $html .= "
+        <div class='footer'>
+            <p>Weekly Schedule Report - Academic Scheduling System</p>
+        </div>
+    </body>
+    </html>";
+
+        return $pdfService->generateFromHtml($html);
+    }
+
+    /**
+     * Generate specialization PDF
+     */
+    private function generateSpecializationPdf($faculty, $specializations)
+    {
+        $pdfService = new PdfService();
+
+        $html = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: DejaVu Sans, Helvetica, Arial, sans-serif; margin: 20px; font-size: 12px; line-height: 1.4; }
+            .header { text-align: center; border-bottom: 3px solid #2c3e50; padding-bottom: 15px; margin-bottom: 20px; }
+            .university-name { font-size: 20px; font-weight: bold; color: #2c3e50; }
+            .faculty-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            .table th { background: #34495e; color: white; padding: 8px; text-align: left; }
+            .table td { padding: 8px; border-bottom: 1px solid #ddd; }
+            .expertise-badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+            .expertise-beginner { background: #dbeafe; color: #1e40af; }
+            .expertise-intermediate { background: #fef3c7; color: #d97706; }
+            .expertise-expert { background: #dcfce7; color: #16a34a; }
+            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #7f8c8d; }
+        </style>
+    </head>
+    <body>
+        <div class='header'>
+            <div class='university-name'>ACADEMIC SCHEDULING SYSTEM</div>
+            <div>SUBJECT SPECIALIZATION REPORT</div>
+            <div>Generated on: " . date('F j, Y') . "</div>
+        </div>
+
+        <div class='faculty-info'>
+            <strong>Faculty:</strong> {$faculty['faculty_name']}<br>
+            <strong>Department:</strong> {$faculty['department_name']}<br>
+            <strong>Academic Rank:</strong> {$faculty['academic_rank']}<br>
+            <strong>Employment Type:</strong> {$faculty['employment_type']}
+        </div>
+
+        <table class='table'>
+            <thead>
+                <tr>
+                    <th>Course Code</th>
+                    <th>Course Name</th>
+                    <th>Units</th>
+                    <th>Department</th>
+                    <th>Expertise Level</th>
+                    <th>Date Added</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        foreach ($specializations as $spec) {
+            $expertiseClass = 'expertise-' . strtolower($spec['expertise_level']);
+            $html .= "
+                <tr>
+                    <td>{$spec['course_code']}</td>
+                    <td>{$spec['course_name']}</td>
+                    <td>{$spec['units']}</td>
+                    <td>{$spec['department_name']}</td>
+                    <td><span class='expertise-badge {$expertiseClass}'>{$spec['expertise_level']}</span></td>
+                    <td>" . date('M j, Y', strtotime($spec['created_at'])) . "</td>
+                </tr>";
+        }
+
+        $html .= "
+            </tbody>
+        </table>
+
+        <div class='summary' style='margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;'>
+            <strong>Summary:</strong> Total " . count($specializations) . " specializations recorded
+        </div>
+
+        <div class='footer'>
+            <p>Specialization Report - Academic Scheduling System</p>
+        </div>
+    </body>
+    </html>";
+
+        return $pdfService->generateFromHtml($html);
+    }
+
+    /**
+     * Simple Excel/CSV generation methods (basic implementation)
+     */
+    private function generateTeachingLoadExcel($faculty, $teachingData, $semesterName, $totals)
+    {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="teaching_load_' . $faculty['faculty_name'] . '_' . date('Y-m-d') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+
+        // Headers
+        fputcsv($output, ['Teaching Load Report - ' . $semesterName]);
+        fputcsv($output, ['Faculty: ' . $faculty['faculty_name']]);
+        fputcsv($output, ['Department: ' . $faculty['department_name']]);
+        fputcsv($output, ['Generated: ' . date('F j, Y')]);
+        fputcsv($output, []); // Empty row
+
+        // Column headers
+        fputcsv($output, ['Course Code', 'Course Name', 'Schedule Type', 'Day', 'Start Time', 'End Time', 'Room', 'Section', 'Hours']);
+
+        // Data
+        foreach ($teachingData as $row) {
+            fputcsv($output, [
+                $row['course_code'],
+                $row['course_name'],
+                $row['schedule_type'],
+                $row['day_of_week'],
+                $row['start_time'],
+                $row['end_time'],
+                $row['room_name'],
+                $row['section_name'],
+                $row['duration_hours']
+            ]);
+        }
+
+        fputcsv($output, []); // Empty row
+        fputcsv($output, ['Total Hours:', $totals['total_hours']]);
+        fputcsv($output, ['Total Courses:', $totals['course_count']]);
+
+        fclose($output);
+        exit;
+    }
+
+
+    /**
+     * Generate Schedule Excel/CSV
+     */
+    private function generateScheduleExcel($faculty, $scheduleData, $semesterName)
+    {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="schedule_' . preg_replace('/[^a-zA-Z0-9]/', '_', $faculty['faculty_name']) . '_' . date('Y-m-d') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+
+        // Headers and metadata
+        fputcsv($output, ['WEEKLY SCHEDULE REPORT - ' . strtoupper($semesterName)]);
+        fputcsv($output, ['Faculty: ' . $faculty['faculty_name']]);
+        fputcsv($output, ['Department: ' . $faculty['department_name']]);
+        fputcsv($output, ['Academic Rank: ' . $faculty['academic_rank']]);
+        fputcsv($output, ['Generated: ' . date('F j, Y g:i A')]);
+        fputcsv($output, []); // Empty row
+
+        // Group by day for better organization
+        $scheduleByDay = [];
+        foreach ($scheduleData as $class) {
+            $day = $class['day_of_week'];
+            if (!isset($scheduleByDay[$day])) {
+                $scheduleByDay[$day] = [];
+            }
+            $scheduleByDay[$day][] = $class;
+        }
+
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+        foreach ($days as $day) {
+            if (isset($scheduleByDay[$day]) && !empty($scheduleByDay[$day])) {
+                fputcsv($output, [strtoupper($day)]);
+                fputcsv($output, ['Time', 'Course Code', 'Course Name', 'Schedule Type', 'Room', 'Section', 'Year Level', 'Students', 'Duration']);
+
+                foreach ($scheduleByDay[$day] as $class) {
+                    $startTime = date('g:i A', strtotime($class['start_time']));
+                    $endTime = date('g:i A', strtotime($class['end_time']));
+                    $duration = number_format($class['duration_hours'], 1) . ' hrs';
+
+                    fputcsv($output, [
+                        $startTime . ' - ' . $endTime,
+                        $class['course_code'],
+                        $class['course_name'],
+                        $class['schedule_type'],
+                        $class['room_name'],
+                        $class['section_name'],
+                        $class['year_level'] ?? 'N/A',
+                        $class['current_students'] ?? '0',
+                        $duration
+                    ]);
+                }
+                fputcsv($output, []); // Empty row between days
+            }
+        }
+
+        // Summary section
+        fputcsv($output, ['SCHEDULE SUMMARY']);
+        fputcsv($output, ['Total Classes:', count($scheduleData)]);
+
+        $totalHours = array_sum(array_column($scheduleData, 'duration_hours'));
+        fputcsv($output, ['Total Hours:', number_format($totalHours, 1)]);
+
+        $lectureHours = array_sum(array_map(function ($class) {
+            return $class['schedule_type'] === 'Lecture' ? $class['duration_hours'] : 0;
+        }, $scheduleData));
+        fputcsv($output, ['Lecture Hours:', number_format($lectureHours, 1)]);
+
+        $labHours = array_sum(array_map(function ($class) {
+            return $class['schedule_type'] === 'Laboratory' ? $class['duration_hours'] : 0;
+        }, $scheduleData));
+        fputcsv($output, ['Laboratory Hours:', number_format($labHours, 1)]);
+
+        // Unique courses
+        $uniqueCourses = array_unique(array_column($scheduleData, 'course_code'));
+        fputcsv($output, ['Unique Courses:', count($uniqueCourses)]);
+
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Generate Specialization Excel/CSV
+     */
+    private function generateSpecializationExcel($faculty, $specializations)
+    {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="specializations_' . preg_replace('/[^a-zA-Z0-9]/', '_', $faculty['faculty_name']) . '_' . date('Y-m-d') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+
+        // Headers and metadata
+        fputcsv($output, ['SUBJECT SPECIALIZATION REPORT']);
+        fputcsv($output, ['Faculty: ' . $faculty['faculty_name']]);
+        fputcsv($output, ['Department: ' . $faculty['department_name']]);
+        fputcsv($output, ['Academic Rank: ' . $faculty['academic_rank']]);
+        fputcsv($output, ['Employment Type: ' . $faculty['employment_type']]);
+        fputcsv($output, ['Generated: ' . date('F j, Y g:i A')]);
+        fputcsv($output, []); // Empty row
+
+        // Column headers
+        fputcsv($output, ['Course Code', 'Course Name', 'Units', 'Department', 'Expertise Level', 'Date Added', 'Last Updated']);
+
+        // Data rows
+        foreach ($specializations as $spec) {
+            fputcsv($output, [
+                $spec['course_code'],
+                $spec['course_name'],
+                $spec['units'],
+                $spec['department_name'],
+                $spec['expertise_level'],
+                date('M j, Y', strtotime($spec['created_at'])),
+                $spec['updated_at'] ? date('M j, Y', strtotime($spec['updated_at'])) : 'Never'
+            ]);
+        }
+
+        fputcsv($output, []); // Empty row
+
+        // Summary and statistics
+        fputcsv($output, ['SPECIALIZATION SUMMARY']);
+        fputcsv($output, ['Total Specializations:', count($specializations)]);
+
+        // Count by expertise level
+        $expertiseCounts = [];
+        foreach ($specializations as $spec) {
+            $level = $spec['expertise_level'];
+            if (!isset($expertiseCounts[$level])) {
+                $expertiseCounts[$level] = 0;
+            }
+            $expertiseCounts[$level]++;
+        }
+
+        foreach ($expertiseCounts as $level => $count) {
+            fputcsv($output, [$level . ' Level Specializations:', $count]);
+        }
+
+        // Department distribution
+        $departmentCounts = [];
+        foreach ($specializations as $spec) {
+            $dept = $spec['department_name'];
+            if (!isset($departmentCounts[$dept])) {
+                $departmentCounts[$dept] = 0;
+            }
+            $departmentCounts[$dept]++;
+        }
+
+        fputcsv($output, []); // Empty row
+        fputcsv($output, ['DEPARTMENT DISTRIBUTION']);
+        foreach ($departmentCounts as $dept => $count) {
+            fputcsv($output, [$dept . ':', $count]);
+        }
+
+        // Units summary
+        $totalUnits = array_sum(array_column($specializations, 'units'));
+        fputcsv($output, []); // Empty row
+        fputcsv($output, ['Total Units Across All Specializations:', $totalUnits]);
+
+        $averageUnits = count($specializations) > 0 ? $totalUnits / count($specializations) : 0;
+        fputcsv($output, ['Average Units Per Course:', number_format($averageUnits, 1)]);
+
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Enhanced Excel generation with multiple format options
+     */
+    private function generateEnhancedScheduleExcel($faculty, $scheduleData, $semesterName, $format = 'csv')
+    {
+        if ($format === 'csv') {
+            $this->generateScheduleExcel($faculty, $scheduleData, $semesterName);
+            return;
+        }
+
+        // For actual Excel format (if you want to implement PHPExcel or PhpSpreadsheet later)
+        // This is a placeholder for future enhancement
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment; filename="schedule_' . preg_replace('/[^a-zA-Z0-9]/', '_', $faculty['faculty_name']) . '_' . date('Y-m-d') . '.xls"');
+
+        // Simple HTML table that Excel can open
+        echo "<table border='1'>";
+        echo "<tr><th colspan='9'>WEEKLY SCHEDULE REPORT - " . strtoupper($semesterName) . "</th></tr>";
+        echo "<tr><td colspan='9'><strong>Faculty:</strong> " . $faculty['faculty_name'] . " | <strong>Department:</strong> " . $faculty['department_name'] . "</td></tr>";
+        echo "<tr><td colspan='9'><strong>Generated:</strong> " . date('F j, Y g:i A') . "</td></tr>";
+        echo "<tr><td colspan='9'></td></tr>";
+
+        $scheduleByDay = [];
+        foreach ($scheduleData as $class) {
+            $day = $class['day_of_week'];
+            if (!isset($scheduleByDay[$day])) {
+                $scheduleByDay[$day] = [];
+            }
+            $scheduleByDay[$day][] = $class;
+        }
+
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+        foreach ($days as $day) {
+            if (isset($scheduleByDay[$day]) && !empty($scheduleByDay[$day])) {
+                echo "<tr><td colspan='9' style='background:#34495e;color:white;font-weight:bold;'>" . strtoupper($day) . "</td></tr>";
+                echo "<tr style='background:#f8f9fa;font-weight:bold;'>";
+                echo "<td>Time</td><td>Course Code</td><td>Course Name</td><td>Type</td><td>Room</td><td>Section</td><td>Year Level</td><td>Students</td><td>Duration</td>";
+                echo "</tr>";
+
+                foreach ($scheduleByDay[$day] as $class) {
+                    $startTime = date('g:i A', strtotime($class['start_time']));
+                    $endTime = date('g:i A', strtotime($class['end_time']));
+                    $duration = number_format($class['duration_hours'], 1) . ' hrs';
+
+                    echo "<tr>";
+                    echo "<td>" . $startTime . ' - ' . $endTime . "</td>";
+                    echo "<td>" . $class['course_code'] . "</td>";
+                    echo "<td>" . $class['course_name'] . "</td>";
+                    echo "<td>" . $class['schedule_type'] . "</td>";
+                    echo "<td>" . $class['room_name'] . "</td>";
+                    echo "<td>" . $class['section_name'] . "</td>";
+                    echo "<td>" . ($class['year_level'] ?? 'N/A') . "</td>";
+                    echo "<td>" . ($class['current_students'] ?? '0') . "</td>";
+                    echo "<td>" . $duration . "</td>";
+                    echo "</tr>";
+                }
+                echo "<tr><td colspan='9'></td></tr>";
+            }
+        }
+
+        echo "</table>";
+        exit;
+    }
+
+    /**
+     * Enhanced Specialization Excel with multiple format options
+     */
+    private function generateEnhancedSpecializationExcel($faculty, $specializations, $format = 'csv')
+    {
+        if ($format === 'csv') {
+            $this->generateSpecializationExcel($faculty, $specializations);
+            return;
+        }
+
+        // For actual Excel format
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment; filename="specializations_' . preg_replace('/[^a-zA-Z0-9]/', '_', $faculty['faculty_name']) . '_' . date('Y-m-d') . '.xls"');
+
+        echo "<table border='1'>";
+        echo "<tr><th colspan='7'>SUBJECT SPECIALIZATION REPORT</th></tr>";
+        echo "<tr><td colspan='7'><strong>Faculty:</strong> " . $faculty['faculty_name'] . " | <strong>Department:</strong> " . $faculty['department_name'] . "</td></tr>";
+        echo "<tr><td colspan='7'><strong>Academic Rank:</strong> " . $faculty['academic_rank'] . " | <strong>Employment Type:</strong> " . $faculty['employment_type'] . "</td></tr>";
+        echo "<tr><td colspan='7'><strong>Generated:</strong> " . date('F j, Y g:i A') . "</td></tr>";
+        echo "<tr><td colspan='7'></td></tr>";
+
+        // Headers
+        echo "<tr style='background:#34495e;color:white;font-weight:bold;'>";
+        echo "<td>Course Code</td><td>Course Name</td><td>Units</td><td>Department</td><td>Expertise Level</td><td>Date Added</td><td>Last Updated</td>";
+        echo "</tr>";
+
+        // Data
+        foreach ($specializations as $spec) {
+            $expertiseStyle = '';
+            switch (strtolower($spec['expertise_level'])) {
+                case 'beginner':
+                    $expertiseStyle = 'background:#dbeafe;';
+                    break;
+                case 'intermediate':
+                    $expertiseStyle = 'background:#fef3c7;';
+                    break;
+                case 'expert':
+                    $expertiseStyle = 'background:#dcfce7;';
+                    break;
+            }
+
+            echo "<tr>";
+            echo "<td>" . $spec['course_code'] . "</td>";
+            echo "<td>" . $spec['course_name'] . "</td>";
+            echo "<td>" . $spec['units'] . "</td>";
+            echo "<td>" . $spec['department_name'] . "</td>";
+            echo "<td style='" . $expertiseStyle . "'>" . $spec['expertise_level'] . "</td>";
+            echo "<td>" . date('M j, Y', strtotime($spec['created_at'])) . "</td>";
+            echo "<td>" . ($spec['updated_at'] ? date('M j, Y', strtotime($spec['updated_at'])) : 'Never') . "</td>";
+            echo "</tr>";
+        }
+
+        echo "</table>";
+        exit;
+    }
+
+    /**
+     * Get report data for AJAX requests
+     */
+    public function getReportData()
+    {
+        try {
+            if (!$this->authService->isLoggedIn()) {
+                http_response_code(401);
+                echo json_encode(['error' => 'Unauthorized']);
+                exit;
+            }
+
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+            $reportType = $_GET['report_type'] ?? '';
+
+            if (!$facultyId) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Faculty profile not found']);
+                exit;
+            }
+
+            switch ($reportType) {
+                case 'teaching_stats':
+                    echo json_encode($this->getTeachingStats($facultyId));
+                    break;
+                case 'schedule_summary':
+                    echo json_encode($this->getScheduleSummary($facultyId));
+                    break;
+                default:
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Invalid report type']);
+            }
+        } catch (Exception $e) {
+            error_log("getReportData: Error - " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to fetch report data']);
+        }
+        exit;
+    }
+
+    /**
+     * Get teaching statistics for charts
+     */
+    private function getTeachingStats($facultyId)
+    {
+        $statsStmt = $this->db->prepare("
+        SELECT 
+            s.schedule_type,
+            COUNT(*) as class_count,
+            SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours,
+            AVG(sec.current_students) as avg_students
+        FROM schedules s
+        LEFT JOIN sections sec ON s.section_id = sec.section_id
+        WHERE s.faculty_id = ? AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1)
+        GROUP BY s.schedule_type
+    ");
+        $statsStmt->execute([$facultyId]);
+        return $statsStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get schedule summary for dashboard
+     */
+    private function getScheduleSummary($facultyId)
+    {
+        $summaryStmt = $this->db->prepare("
+            SELECT 
+                s.day_of_week,
+                COUNT(*) as class_count,
+                SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours
+            FROM schedules s
+            WHERE s.faculty_id = ? AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1)
+            GROUP BY s.day_of_week
+            ORDER BY FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')
+        ");
+        $summaryStmt->execute([$facultyId]);
+        return $summaryStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Display reports dashboard
+     */
+    public function reports()
+    {
+        try {
+            $userId = $_SESSION['user_id'];
+            $facultyId = $this->getFacultyId($userId);
+
+            if (!$facultyId) {
+                $_SESSION['flash'] = ['type' => 'error', 'message' => 'No faculty profile found'];
+                header('Location: /faculty/dashboard');
+                exit;
+            }
+
+            // Get current semester
+            $semesterStmt = $this->db->query("SELECT semester_name, academic_year FROM semesters WHERE is_current = 1");
+            $currentSemester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+            $currentSemester = $currentSemester ? "{$currentSemester['semester_name']} {$currentSemester['academic_year']}" : 'Current Semester';
+
+            // Get today's schedule
+            $today = date('l');
+            $todayScheduleStmt = $this->db->prepare("
+            SELECT 
+                c.course_code,
+                c.course_name,
+                s.start_time,
+                s.end_time,
+                s.schedule_type,
+                r.room_name,
+                sec.section_name
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = ? AND s.day_of_week = ?
+            ORDER BY s.start_time
+        ");
+            $todayScheduleStmt->execute([$facultyId, $today]);
+            $todaySchedule = $todayScheduleStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get teaching statistics
+            $statsStmt = $this->db->prepare("
+            SELECT 
+                COUNT(DISTINCT s.course_id) as course_count,
+                COUNT(DISTINCT s.schedule_id) as class_count,
+                SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60) as total_hours,
+                (SELECT COUNT(*) FROM specializations WHERE faculty_id = ?) as specializations_count,
+                (SELECT SUM(sec.current_students) 
+                 FROM schedules s2 
+                 LEFT JOIN sections sec ON s2.section_id = sec.section_id 
+                 WHERE s2.faculty_id = ?) as total_students
+            FROM schedules s
+            WHERE s.faculty_id = ? AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1)
+        ");
+            $statsStmt->execute([$facultyId, $facultyId, $facultyId]);
+            $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Pass data to view
+            $totalHours = $stats['total_hours'] ?? 0;
+            $courseCount = $stats['course_count'] ?? 0;
+            $specializationsCount = $stats['specializations_count'] ?? 0;
+            $totalStudents = $stats['total_students'] ?? 0;
+
+            require_once __DIR__ . '/../views/faculty/reports.php';
+        } catch (Exception $e) {
+            error_log("reports: Error - " . $e->getMessage());
+            $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load reports dashboard'];
+            header('Location: /faculty/dashboard');
+            exit;
+        }
+    }
 }

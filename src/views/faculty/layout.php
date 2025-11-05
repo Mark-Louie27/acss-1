@@ -774,6 +774,12 @@ $facultyController = new FacultyController();
                 <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/faculty/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Settings</span>
             </a>
+
+            <!-- Report Link -->
+            <a href="/faculty/reports" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/faculty/reports') !== false ? 'active-nav bg-gray-800 text-yellow-400' : '' ?>">
+                <i class="fas fa-chart-bar w-5 mr-3 <?= strpos($currentUri, '/faculty/reports') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Reports</span>
+            </a>
         </nav>
 
         <!-- Sidebar Footer -->

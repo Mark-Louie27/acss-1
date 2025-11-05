@@ -112,85 +112,12 @@ class DirectorController
             $facultyId = $this->getFacultyId($userData['user_id']);
             $schedules = $facultyId ? $this->getSchedules($facultyId) : [];
 
-            // Fetch schedule statistics for charts - FIXED QUERY
-            $scheduleStatsStmt = $this->db->prepare("
-            SELECT 
-                COUNT(*) as total_schedules,
-                SUM(CASE WHEN status = 'approved' OR status = 'Dean_Approved' THEN 1 ELSE 0 END) as approved_schedules,
-                SUM(CASE WHEN status = 'pending' OR status = 'Dean_Approved' THEN 1 ELSE 0 END) as pending_schedules,
-                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_schedules
-            FROM schedules 
-            WHERE department_id = :department_id 
-            AND semester_id = :semester_id
-        ");
-            $scheduleStatsStmt->execute([
-                ':department_id' => $departmentId,
-                ':semester_id' => $semester['semester_id']
-            ]);
-            $scheduleStats = $scheduleStatsStmt->fetch(PDO::FETCH_ASSOC);
-
-            // Fetch schedule distribution by day
+            // Fetch schedule distribution by day - ALL DEPARTMENTS
             $dayDistributionStmt = $this->db->prepare("
-            SELECT day_of_week, COUNT(*) as count
-            FROM schedules 
-            WHERE department_id = :department_id 
-            AND semester_id = :semester_id
-            GROUP BY day_of_week
-            ORDER BY 
-                CASE day_of_week
-                    WHEN 'Monday' THEN 1
-                    WHEN 'Tuesday' THEN 2
-                    WHEN 'Wednesday' THEN 3
-                    WHEN 'Thursday' THEN 4
-                    WHEN 'Friday' THEN 5
-                    WHEN 'Saturday' THEN 6
-                    WHEN 'Sunday' THEN 7
-                END
-        ");
-            $dayDistributionStmt->execute([
-                ':department_id' => $departmentId,
-                ':semester_id' => $semester['semester_id']
-            ]);
-            $dayDistribution = $dayDistributionStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Fetch time distribution (hours per day) - FIXED QUERY using start_time and end_time
-            $timeDistributionStmt = $this->db->prepare("
-            SELECT 
-                day_of_week,
-                COUNT(*) as schedule_count,
-                AVG(TIMESTAMPDIFF(HOUR, start_time, end_time)) as avg_hours_per_schedule
-            FROM schedules 
-            WHERE department_id = :department_id 
-            AND semester_id = :semester_id
-            AND start_time IS NOT NULL 
-            AND end_time IS NOT NULL
-            GROUP BY day_of_week
-            ORDER BY 
-                CASE day_of_week
-                    WHEN 'Monday' THEN 1
-                    WHEN 'Tuesday' THEN 2
-                    WHEN 'Wednesday' THEN 3
-                    WHEN 'Thursday' THEN 4
-                    WHEN 'Friday' THEN 5
-                    WHEN 'Saturday' THEN 6
-                    WHEN 'Sunday' THEN 7
-                END
-        ");
-            $timeDistributionStmt->execute([
-                ':department_id' => $departmentId,
-                ':semester_id' => $semester['semester_id']
-            ]);
-            $timeDistribution = $timeDistributionStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Alternative: If TIMESTAMPDIFF doesn't work, use this simpler version
-            if (empty($timeDistribution)) {
-                $timeDistributionStmt = $this->db->prepare("
-                SELECT 
-                    day_of_week,
-                    COUNT(*) as schedule_count
+                SELECT day_of_week, COUNT(*) as count
                 FROM schedules 
-                WHERE department_id = :department_id 
-                AND semester_id = :semester_id
+                WHERE semester_id = :semester_id
+                AND day_of_week IS NOT NULL
                 GROUP BY day_of_week
                 ORDER BY 
                     CASE day_of_week
@@ -203,31 +130,100 @@ class DirectorController
                         WHEN 'Sunday' THEN 7
                     END
             ");
-                $timeDistributionStmt->execute([
-                    ':department_id' => $departmentId,
-                    ':semester_id' => $semester['semester_id']
-                ]);
-                $timeDistribution = $timeDistributionStmt->fetchAll(PDO::FETCH_ASSOC);
-            }
+            $dayDistributionStmt->execute([
+                ':semester_id' => $semester['semester_id']
+            ]);
+            $dayDistribution = $dayDistributionStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Fetch recent activity
+            // Fetch time distribution - ALL DEPARTMENTS
+            $timeDistributionStmt = $this->db->prepare("
+                SELECT 
+                    day_of_week,
+                    COUNT(*) as count
+                FROM schedules 
+                WHERE semester_id = :semester_id
+                AND day_of_week IS NOT NULL
+                GROUP BY day_of_week
+                ORDER BY 
+                    CASE day_of_week
+                        WHEN 'Monday' THEN 1
+                        WHEN 'Tuesday' THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday' THEN 4
+                        WHEN 'Friday' THEN 5
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 7
+                    END
+            ");
+            $timeDistributionStmt->execute([
+                ':semester_id' => $semester['semester_id']
+            ]);
+            $timeDistribution = $timeDistributionStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch schedule statistics - ALL DEPARTMENTS
+            $scheduleStatsStmt = $this->db->prepare("
+                SELECT 
+                    COUNT(*) as total_schedules,
+                    SUM(CASE WHEN status = 'approved' OR status = 'Dean_Approved' THEN 1 ELSE 0 END) as approved_schedules,
+                    SUM(CASE WHEN status = 'pending' OR status = 'Dean_Approved' THEN 1 ELSE 0 END) as pending_schedules,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_schedules
+                FROM schedules 
+                WHERE semester_id = :semester_id
+            ");
+            $scheduleStatsStmt->execute([
+                ':semester_id' => $semester['semester_id']
+            ]);
+            $scheduleStats = $scheduleStatsStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Fetch pending schedule approvals - ALL DEPARTMENTS
+            $scheduleStmt = $this->db->prepare("
+                SELECT COUNT(*) as pending_count
+                FROM schedules s
+                WHERE s.status = 'Dean_Approved'
+                AND s.semester_id = :semester_id
+            ");
+            $scheduleStmt->execute([
+                ':semester_id' => $semester['semester_id']
+            ]);
+            $pendingCount = $scheduleStmt->fetchColumn() ?: 0;
+
+            // Fetch recent activity - ALL DEPARTMENTS
             $activityStmt = $this->db->prepare("
-            SELECT al.action_type, al.action_description, al.created_at, 
-                   u.first_name, u.last_name, u.role_id
-            FROM activity_logs al
-            JOIN users u ON al.user_id = u.user_id
-            WHERE al.department_id = :department_id
-            ORDER BY al.created_at DESC
-            LIMIT 6
-        ");
-            $activityStmt->execute([':department_id' => $departmentId]);
+                SELECT al.action_type, al.action_description, al.created_at, 
+                    u.first_name, u.last_name, u.role_id,
+                    d.department_name
+                FROM activity_logs al
+                JOIN users u ON al.user_id = u.user_id
+                LEFT JOIN departments d ON al.department_id = d.department_id
+                ORDER BY al.created_at DESC
+                LIMIT 6
+            ");
+            $activityStmt->execute();
             $recentActivity = $activityStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fetch schedules by department - NEW
+            $deptSchedulesStmt = $this->db->prepare("
+                SELECT 
+                    d.department_name,
+                    COUNT(*) as schedule_count
+                FROM schedules s
+                JOIN departments d ON s.department_id = d.department_id
+                WHERE s.semester_id = :semester_id
+                GROUP BY d.department_name
+                ORDER BY schedule_count DESC
+                LIMIT 10
+            ");
+            $deptSchedulesStmt->execute([
+                ':semester_id' => $semester['semester_id']
+            ]);
+            $departmentSchedules = $deptSchedulesStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Prepare data for view
             $data = [
                 'user' => $userData,
                 'department_name' => $departmentName,
                 'pending_approvals' => $pendingCount,
+                'department_schedules' => $departmentSchedules,
                 'deadline' => $deadline ? date('Y-m-d H:i:s', strtotime($deadline)) : null,
                 'semester' => $semester,
                 'schedules' => $schedules,

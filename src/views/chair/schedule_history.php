@@ -38,7 +38,7 @@ ob_start();
                 <h2 class="text-xl font-bold text-gray-900">Filter Schedules</h2>
             </div>
 
-            <form method="POST" action="/chair/schedule_history" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <form method="POST" action="/chair/schedule_history" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
                 <input type="hidden" name="tab" value="history">
 
                 <!-- Semester Dropdown -->
@@ -55,23 +55,7 @@ ob_start();
                     </select>
                 </div>
 
-                <!-- Academic Year Dropdown -->
-                <div class="space-y-2">
-                    <label for="academic_year" class="block text-sm font-medium text-gray-700">Academic Year</label>
-                    <select name="academic_year" id="academic_year" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white text-sm transition-all duration-200 hover:border-yellow-400" onchange="this.form.submit()">
-                        <option value="">All Years</option>
-                        <?php
-                        $years = array_unique(array_column($allSemesters, 'academic_year'));
-                        rsort($years);
-                        foreach ($years as $year): ?>
-                            <option value="<?php echo htmlspecialchars($year); ?>"
-                                <?php echo (isset($_POST['academic_year']) && $_POST['academic_year'] == $year) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($year); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
+                
                 <!-- View Button -->
                 <div>
                     <button type="submit" class="w-full bg-gradient-to-r from-yellow-600 to-yellow-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:from-yellow-700 hover:to-yellow-800 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2">

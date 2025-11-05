@@ -10,7 +10,6 @@ ob_start();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($data['title']); ?></title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary-yellow: #F4C029;
@@ -279,20 +278,22 @@ ob_start();
                 </a>
             </div>
 
-            <!-- Department Overview -->
+            <!-- Department Overview - Updated -->
             <div class="stats-card p-6 animate-slide-up">
                 <div class="flex items-center justify-between mb-4">
                     <div class="stats-icon icon-schedule">
-                        <i class="fas fa-users"></i>
+                        <i class="fas fa-building"></i>
                     </div>
                     <div class="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
-                        OVERVIEW
+                        ALL COLLEGES
                     </div>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-gray-600 mb-2">Department Stats</p>
-                    <p class="text-xl font-bold text-gray-900 mb-2">Active</p>
-                    <p class="text-xs text-gray-500">View department analytics</p>
+                    <p class="text-sm font-semibold text-gray-600 mb-2">Total Schedules</p>
+                    <p class="text-xl font-bold text-gray-900 mb-2">
+                        <?php echo htmlspecialchars($data['schedule_stats']['total_schedules'] ?? '0'); ?>
+                    </p>
+                    <p class="text-xs text-gray-500">Across all departments</p>
                 </div>
             </div>
         </div>
@@ -334,14 +335,14 @@ ob_start();
                 </div>
             </div>
 
-            <!-- Quick Actions Section - Updated with CSS classes -->
+            <!-- Quick Actions Section - Fixed Icons -->
             <div class="space-y-4 animate-slide-up">
                 <a href="/director/pending-approvals" class="block quick-action-card">
                     <div class="flex items-center justify-between mb-2">
                         <div class="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                            <span class="fas fa-check-circle text-xl"></span>
+                            <i class="fas fa-check-circle text-xl"></i>
                         </div>
-                        <span class="fas fa-arrow-right"></span>
+                        <i class="fas fa-arrow-right"></i>
                     </div>
                     <h4 class="font-bold mb-1">Review Schedules</h4>
                     <p class="text-sm text-gray-200 opacity-90">Approve pending submissions</p>
@@ -350,9 +351,9 @@ ob_start();
                 <a href="/director/schedule_deadline" class="block quick-action-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                     <div class="flex items-center justify-between mb-2">
                         <div class="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                            <span class="fas fa-clock text-xl"></span>
+                            <i class="fas fa-clock text-xl"></i>
                         </div>
-                        <span class="fas fa-arrow-right"></span>
+                        <i class="fas fa-arrow-right"></i>
                     </div>
                     <h4 class="font-bold mb-1">Set Deadline</h4>
                     <p class="text-sm text-gray-200 opacity-90">Manage submission dates</p>
@@ -361,9 +362,9 @@ ob_start();
                 <a href="/director/schedule" class="block quick-action-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                     <div class="flex items-center justify-between mb-2">
                         <div class="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                            <span class="fas fa-calendar-alt text-xl"></span>
+                            <i class="fas fa-calendar-alt text-xl"></i>
                         </div>
-                        <span class="fas fa-arrow-right"></span>
+                        <i class="fas fa-arrow-right"></i>
                     </div>
                     <h4 class="font-bold mb-1">View Schedule</h4>
                     <p class="text-sm text-gray-200 opacity-90">See full calendar</p>
@@ -429,9 +430,11 @@ ob_start();
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Schedule Distribution Chart
-            const dayDistribution = <?php echo json_encode($data['day_distribution']); ?>;
+            // Get data from PHP
+            const dayDistribution = <?php echo json_encode($data['day_distribution'] ?? []); ?>;
+            const timeDistribution = <?php echo json_encode($data['time_distribution'] ?? []); ?>;
 
+            // Schedule Distribution Chart (Doughnut)
             if (dayDistribution && dayDistribution.length > 0) {
                 const scheduleCtx = document.getElementById('scheduleDistributionChart').getContext('2d');
                 new Chart(scheduleCtx, {
@@ -450,15 +453,22 @@ ob_start();
                         maintainAspectRatio: false,
                         plugins: {
                             legend: {
-                                position: 'bottom'
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    font: {
+                                        size: 12
+                                    }
+                                }
                             }
                         }
                     }
                 });
+            } else {
+                console.warn('No day distribution data available');
             }
 
-            // Time Distribution Chart
-            const timeDistribution = <?php echo json_encode($data['time_distribution']); ?>;
+            // Time Distribution Chart (Bar)
             const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
             const timeCtx = document.getElementById('timeDistributionChart').getContext('2d');
@@ -469,8 +479,8 @@ ob_start();
                     datasets: [{
                         label: 'Schedules',
                         data: daysOfWeek.map(day => {
-                            const dayData = timeDistribution?.find(item => item.day_of_week === day);
-                            return dayData ? parseInt(dayData.schedule_count || dayData.count || 0) : 0;
+                            const dayData = timeDistribution.find(item => item.day_of_week === day);
+                            return dayData ? parseInt(dayData.count) : 0;
                         }),
                         backgroundColor: 'rgba(244, 192, 41, 0.8)',
                         borderColor: '#F4C029',
@@ -488,7 +498,10 @@ ob_start();
                     },
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
                         }
                     }
                 }

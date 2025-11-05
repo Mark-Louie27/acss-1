@@ -4,6 +4,7 @@ require_once __DIR__ . '/../services/AuthService.php';
 require_once __DIR__ . '/../services/EmailService.php';
 require_once __DIR__ . '/../services/PdfService.php';
 require_once __DIR__ . '/../models/UserModel.php';
+require_once __DIR__ . '/../services/SchedulingService.php';
 
 use App\Services\BackupSchedulerService;
 
@@ -15,6 +16,7 @@ class AdminController
     private $pdfService;
     private $UserModel;
     private $backupScheduler;
+    private $schedulingService;
 
     public function __construct()  // Remove the $db parameter since we're not using it
     {
@@ -30,6 +32,7 @@ class AdminController
         $this->UserModel = new UserModel($this->db);
         $this->pdfService = new PdfService();
         $this->backupScheduler = new BackupSchedulerService();
+        $this->schedulingService = new SchedulingService($this->db);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
@@ -48,6 +51,9 @@ class AdminController
     public function dashboard()
     {
         try {
+            // Log dashboard access
+            $this->logActivity('view', 'Admin viewed dashboard', 'dashboard', null);
+
             // Fetch stats (your existing code)
             $userCount = $this->db->query("SELECT COUNT(*) FROM users")->fetchColumn();
             $collegeCount = $this->db->query("SELECT COUNT(*) FROM colleges")->fetchColumn();
@@ -55,20 +61,20 @@ class AdminController
             $scheduleCount = $this->db->query("SELECT COUNT(*) FROM schedules")->fetchColumn();
 
             // Get user role distribution
-            $roleStmt = $this->db->query("
-        SELECT r.role_name, COUNT(u.user_id) as count 
-        FROM users u 
-        JOIN roles r ON u.role_id = r.role_id 
-        GROUP BY r.role_name
-        ");
+                $roleStmt = $this->db->query("
+            SELECT r.role_name, COUNT(u.user_id) as count 
+            FROM users u 
+            JOIN roles r ON u.role_id = r.role_id 
+            GROUP BY r.role_name
+            ");
             $roleDistribution = $roleStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Get schedule status distribution
             $scheduleStmt = $this->db->query("
-        SELECT status, COUNT(*) as count 
-        FROM schedules 
-        GROUP BY status
-        ");
+            SELECT status, COUNT(*) as count 
+            FROM schedules 
+            GROUP BY status
+            ");
             $scheduleDistribution = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Fetch current semester (your existing code)
@@ -111,6 +117,15 @@ class AdminController
                             ':end_date' => $endDate
                         ]);
                     }
+
+                    // Log semester change
+                    $this->logActivity(
+                        'update',
+                        "Admin set current semester to {$semesterName} Semester, A.Y {$academicYear}",
+                        'semester',
+                        $existingSemester['semester_id'] ?? $this->db->lastInsertId()
+                    );
+
                     $_SESSION['success'] = 'Semester updated successfully.';
                     header('Location: /admin/dashboard');
                     exit;
@@ -130,6 +145,9 @@ class AdminController
     public function activityLogs()
     {
         try {
+            // Log viewing activity logs
+            $this->logActivity('view', 'Admin viewed activity logs', 'activity_logs', null);
+
             // Get current semester information
             $currentSemester = $this->UserModel->getCurrentSemester();
             $currentSemesterDisplay = $currentSemester ?
@@ -392,6 +410,7 @@ class AdminController
     // In AdminController.php
     public function generateActivityPDF()
     {
+        $this->logActivity('export', 'Admin generated activity report PDF', 'activity_report', null);
         // Get activities data (use your existing method)
         $activities = $this->getActivitiesData();
         $filters = $this->getFiltersFromRequest();
@@ -429,6 +448,9 @@ class AdminController
         try {
             $adminId = $_SESSION['user_id'];
             error_log("mySchedule: Starting mySchedule method for user_id: $adminId");
+
+            // Log schedule view
+            $this->logActivity('view', 'Admin viewed their schedule', 'schedule', null);
 
             // Fetch faculty ID and name with join to users table
             $facultyStmt = $this->db->prepare("
@@ -548,6 +570,9 @@ class AdminController
         }
 
         try {
+
+            // Log user management page access
+            $this->logActivity('view', 'Admin accessed user management page', 'users', null);
 
             // For GET requests, show the HTML page
             $action = $_GET['action'] ?? 'list';
@@ -672,8 +697,6 @@ class AdminController
     private function addNewUser($data)
     {
         try {
-            error_log("=== ADD NEW USER DEBUG ===");
-            error_log("Input data: " . json_encode($data));
 
             // Validate required fields
             $required = ['employee_id', 'username', 'email', 'first_name', 'last_name', 'role_id'];
@@ -698,7 +721,7 @@ class AdminController
             $checkStmt = $this->db->prepare("
             SELECT user_id FROM users 
             WHERE username = :username OR email = :email OR employee_id = :employee_id
-        ");
+            ");
             $checkStmt->execute([
                 ':username' => $data['username'],
                 ':email' => $data['email'],
@@ -763,14 +786,14 @@ class AdminController
 
             // Insert user
             $stmt = $this->db->prepare("
-            INSERT INTO users (
-                employee_id, username, password_hash, email, phone, title, first_name, middle_name, 
-                last_name, suffix, role_id, college_id, department_id, is_active, created_at, updated_at
-            ) VALUES (
-                :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
-                :last_name, :suffix, :role_id, :college_id, :department_id, :is_active, NOW(), NOW()
-            )
-        ");
+                INSERT INTO users (
+                    employee_id, username, password_hash, email, phone, title, first_name, middle_name, 
+                    last_name, suffix, role_id, college_id, department_id, is_active, created_at, updated_at
+                ) VALUES (
+                    :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
+                    :last_name, :suffix, :role_id, :college_id, :department_id, :is_active, NOW(), NOW()
+                )
+            ");
 
             // Determine if user should be auto-activated
             $isActive = in_array($roleId, [1, 2, 4, 5]) ? 1 : 0; // Admin, Super Admin, Dean, Dept Chair = auto-active
@@ -801,9 +824,9 @@ class AdminController
 
             // ✅ INSERT INTO USER_ROLES TABLE
             $userRoleStmt = $this->db->prepare("
-            INSERT INTO user_roles (user_id, role_id) 
-            VALUES (:user_id, :role_id)
-        ");
+                INSERT INTO user_roles (user_id, role_id) 
+                VALUES (:user_id, :role_id)
+            ");
             $userRoleStmt->execute([
                 ':user_id' => $newUserId,
                 ':role_id' => $roleId
@@ -812,22 +835,22 @@ class AdminController
 
             // Insert into faculty table for ALL user roles
             $facultyStmt = $this->db->prepare("
-            INSERT INTO faculty (
-                user_id, employee_id, academic_rank, employment_type, classification, max_hours,
-                bachelor_degree, master_degree, doctorate_degree, post_doctorate_degree,
-                designation, equiv_teaching_load, total_lecture_hours, total_laboratory_hours,
-                total_laboratory_hours_x075, no_of_preparation, advisory_class,
-                equiv_units_no_of_prep, actual_teaching_loads, total_working_load, excess_hours,
-                primary_program_id, secondary_program_id, created_at, updated_at
-            ) VALUES (
-                :user_id, :employee_id, :academic_rank, :employment_type, :classification, :max_hours,
-                :bachelor_degree, :master_degree, :doctorate_degree, :post_doctorate_degree,
-                :designation, :equiv_teaching_load, :total_lecture_hours, :total_laboratory_hours,
-                :total_laboratory_hours_x075, :no_of_preparation, :advisory_class,
-                :equiv_units_no_of_prep, :actual_teaching_loads, :total_working_load, :excess_hours,
-                :primary_program_id, :secondary_program_id, NOW(), NOW()
-            )
-        ");
+                INSERT INTO faculty (
+                    user_id, employee_id, academic_rank, employment_type, classification, max_hours,
+                    bachelor_degree, master_degree, doctorate_degree, post_doctorate_degree,
+                    designation, equiv_teaching_load, total_lecture_hours, total_laboratory_hours,
+                    total_laboratory_hours_x075, no_of_preparation, advisory_class,
+                    equiv_units_no_of_prep, actual_teaching_loads, total_working_load, excess_hours,
+                    primary_program_id, secondary_program_id, created_at, updated_at
+                ) VALUES (
+                    :user_id, :employee_id, :academic_rank, :employment_type, :classification, :max_hours,
+                    :bachelor_degree, :master_degree, :doctorate_degree, :post_doctorate_degree,
+                    :designation, :equiv_teaching_load, :total_lecture_hours, :total_laboratory_hours,
+                    :total_laboratory_hours_x075, :no_of_preparation, :advisory_class,
+                    :equiv_units_no_of_prep, :actual_teaching_loads, :total_working_load, :excess_hours,
+                    :primary_program_id, :secondary_program_id, NOW(), NOW()
+                )
+            ");
 
             $facultyData = [
                 ':user_id' => $newUserId,
@@ -877,12 +900,6 @@ class AdminController
                 $data['temporary_password']  // 4. Temporary password
             );
 
-            if ($emailSent) {
-                error_log("✅ SUCCESS: Welcome email sent to " . $data['email']);
-            } else {
-                error_log("⚠️ WARNING: Welcome email failed to send to " . $data['email']);
-            }
-
             return [
                 'success' => true,
                 'message' => 'User added successfully',
@@ -890,6 +907,18 @@ class AdminController
                 'temporary_password' => $data['temporary_password'],
                 'username' => $data['username']
             ];
+
+            if ($result['success']) {
+                // Log user creation
+                $this->logActivity(
+                    'create',
+                    "Admin created new user: {$data['first_name']} {$data['last_name']} ({$data['username']}) with role_id {$roleId}",
+                    'user',
+                    $newUserId
+                );
+            }
+
+            return $result;
         } catch (Exception $e) {
             // Don't rollback here - let handleUserApiRequest() handle it
             error_log("addNewUser error: " . $e->getMessage());
@@ -1120,6 +1149,18 @@ class AdminController
                 'employee_id' => $user['employee_id'], // Add this for debugging
                 'temporary_password' => $temporaryPassword
             ];
+
+            if ($result['success']) {
+                // Log password reset
+                $this->logActivity(
+                    'update',
+                    "Admin reset password for user: {$user['username']} (Employee ID: {$user['employee_id']})",
+                    'user',
+                    $userId
+                );
+            }
+
+            return $result;
         } catch (Exception $e) {
             error_log("resetUserPassword error: " . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to reset password'];
@@ -1274,11 +1315,28 @@ class AdminController
                 $query = "UPDATE users SET is_active = 0 WHERE user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId]);
+
+                // Log deactivation
+                $this->logActivity(
+                    'update',
+                    "Admin deactivated user: {$user['first_name']} {$user['last_name']} (ID: {$userId})",
+                    'user',
+                    $userId
+                );
+
                 $message = 'User account deactivated successfully';
             } elseif ($action === 'activate') {
                 $query = "UPDATE users SET is_active = 1 WHERE user_id = :user_id";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([':user_id' => $userId]);
+
+                // Log activation
+                $this->logActivity(
+                    'update',
+                    "Admin activated user: {$user['first_name']} {$user['last_name']} (ID: {$userId})",
+                    'user',
+                    $userId
+                );
 
                 // Fetch role name for email
                 $roleStmt = $this->db->prepare("SELECT role_name FROM roles WHERE role_id = :role_id");
@@ -1587,13 +1645,19 @@ class AdminController
                 );
             }
 
-            $this->db->commit();
-            error_log("approveAdmission: Successfully approved admission_id=$admissionId, created user_id=$userId");
+            if ($userId) {
+                // Log admission approval
+                $this->logActivity(
+                    'create',
+                    "Admin approved admission for: {$admission['first_name']} {$admission['last_name']} ({$admission['email']})",
+                    'admission',
+                    $admissionId,
+                    $userId
+                );
+            }
 
-            return [
-                'success' => true,
-                'message' => 'Admission approved successfully. User account created.'
-            ];
+            $this->db->commit();
+            return ['success' => true, 'message' => 'Admission approved successfully. User account created.'];
         } catch (Exception $e) {
             $this->db->rollBack();
             error_log("approveAdmission: Error - " . $e->getMessage());
@@ -1641,10 +1705,15 @@ class AdminController
                 );
             }
 
-            return [
-                'success' => true,
-                'message' => 'Admission rejected successfully.'
-            ];
+            $this->logActivity(
+                'update',
+                "Admin rejected admission for: {$admission['first_name']} {$admission['last_name']} - Reason: {$reason}",
+                'admission',
+                $admissionId
+            );
+
+            $this->db->commit();
+            return ['success' => true, 'message' => 'Admission rejected successfully.'];
         } catch (Exception $e) {
             $this->db->rollBack();
             error_log("rejectAdmission: Error - " . $e->getMessage());
@@ -1659,6 +1728,11 @@ class AdminController
             $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
             if ($isAjax) {
                 header('Content-Type: application/json; charset=utf-8');
+            }
+
+            // Log classroom page access (only for non-AJAX requests)
+            if (!$isAjax && $_SERVER['REQUEST_METHOD'] === 'GET') {
+                $this->logActivity('view', 'Admin viewed classroom management page', 'classrooms', null);
             }
 
             // Handle AJAX request for classroom schedule
@@ -1881,6 +1955,7 @@ class AdminController
     public function collegesDepartments()
     {
         try {
+            $this->logActivity('view', 'Admin viewed colleges and departments page', 'colleges_departments', null);
             $collegesStmt = $this->db->query("SELECT college_id, college_name, college_code FROM colleges");
             $colleges = $collegesStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1912,6 +1987,8 @@ class AdminController
         $departments = [];
 
         try {
+            // Log page access
+            $this->logActivity('view', 'Admin viewed schedule history', 'schedule_history', null);
             // Get all colleges and departments
             $collegeStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
             $colleges = $collegeStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1930,6 +2007,14 @@ class AdminController
 
                 if ($semesterId || $academicYear) {
                     $historicalSchedules = $this->getAllHistoricalSchedules($semesterId, $academicYear, $collegeId, $departmentId);
+                    $filterDesc = $semesterId ? "Semester ID: {$semesterId}" : "Academic Year: {$academicYear}";
+                    $this->logActivity(
+                        'filter',
+                        "Admin filtered schedule history by {$filterDesc}",
+                        'schedule_history',
+                        null
+                    );
+
                     $success = "Schedules retrieved: " . count($historicalSchedules) . " schedules found";
                 } else {
                     $error = "Please select a semester or academic year.";
@@ -2148,13 +2233,20 @@ class AdminController
                 }
 
                 $stmt = $this->db->prepare("
-            INSERT INTO colleges (college_name, college_code)
-            VALUES (:college_name, :college_code)
-        ");
+                    INSERT INTO colleges (college_name, college_code)
+                    VALUES (:college_name, :college_code)
+                ");
                 $stmt->execute([
                     ':college_name' => $college_name,
                     ':college_code' => $college_code
                 ]);
+
+                // Log college creation
+                $this->logActivity(
+                    'create',
+                    "Admin created college: {$college_name} ({$college_code})",
+                    'college'
+                );
 
                 $_SESSION['success'] = "College created successfully";
             } elseif ($type === 'department') {
@@ -2216,6 +2308,13 @@ class AdminController
 
                 $this->db->commit();
 
+                $this->logActivity(
+                    'create',
+                    "Admin created department: {$department_name} with program: {$program_name} ({$program_code})",
+                    'department',
+                    $departmentId
+                );
+
                 $_SESSION['success'] = "Department and associated program created successfully";
             } else {
                 $_SESSION['error'] = "Invalid request type";
@@ -2264,6 +2363,14 @@ class AdminController
 
                 $stmt = $this->db->prepare("UPDATE colleges SET college_name = :college_name, college_code = :college_code WHERE college_id = :id");
                 $stmt->execute([':college_name' => $college_name, ':college_code' => $college_code, ':id' => $id]);
+                // Log college update
+                $this->logActivity(
+                    'update',
+                    "Admin updated college: {$college_name} ({$college_code})",
+                    'college',
+                    $id
+                );
+
                 $_SESSION['success'] = "College updated successfully";
             } elseif ($type === 'department') {
                 $department_name = trim($_POST['department_name'] ?? '');
@@ -2296,6 +2403,13 @@ class AdminController
                 }
 
                 $this->db->commit();
+                $this->logActivity(
+                    'update',
+                    "Admin updated department: {$department_name} with program: {$program_name}",
+                    'department',
+                    $id
+                );
+
                 $_SESSION['success'] = "Department and program updated successfully";
             }
 
@@ -2731,6 +2845,9 @@ class AdminController
             $currentSemester = $user['currentSemester'] ?? '2nd';
             $lastLogin = $user['lastLogin'] ?? 'N/A';
 
+            // Log profile view (GET request)
+            $this->logActivity('view', 'Admin viewed their profile', 'profile', $_SESSION['user_id']);
+
             require_once __DIR__ . '/../views/admin/profile.php';
         } catch (Exception $e) {
             if (isset($this->db) && $this->db->inTransaction()) {
@@ -2826,6 +2943,8 @@ class AdminController
     public function settings()
     {
         try {
+            // Log settings page access
+            $this->logActivity('view', 'Admin viewed system settings', 'settings', null);
             // Get system settings from database
             $settingsStmt = $this->db->prepare("
             SELECT setting_key, setting_value 
@@ -2924,6 +3043,24 @@ class AdminController
             $this->updateSystemSetting('system_name', $systemName);
             $this->updateSystemSetting('primary_color', $primaryColor);
 
+            // Log settings update
+            $updatedSettings = [];
+            if (!empty($systemName)) $updatedSettings[] = "system_name";
+            if (!empty($primaryColor)) $updatedSettings[] = "primary_color";
+            if (isset($_FILES['system_logo']) && $_FILES['system_logo']['error'] === UPLOAD_ERR_OK) {
+                $updatedSettings[] = "system_logo";
+            }
+            if (isset($_FILES['background_image']) && $_FILES['background_image']['error'] === UPLOAD_ERR_OK) {
+                $updatedSettings[] = "background_image";
+            }
+
+            $this->logActivity(
+                'update',
+                "Admin updated system settings: " . implode(', ', $updatedSettings),
+                'system_settings',
+                null
+            );
+
             $_SESSION['success'] = "System settings updated successfully";
             header('Location: /admin/settings');
             exit;
@@ -2944,7 +3081,7 @@ class AdminController
         INSERT INTO system_settings (setting_key, setting_value) 
         VALUES (:key, :value)
         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
-    ");
+        ");
         return $stmt->execute([':key' => $key, ':value' => $value]);
     }
 
@@ -3403,5 +3540,64 @@ class AdminController
         $pow = min($pow, count($units) - 1);
         $bytes /= pow(1024, $pow);
         return round($bytes, $precision) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Get department ID for current user
+     */
+    private function getCurrentUserDepartmentId()
+    {
+        try {
+            $stmt = $this->db->prepare("SELECT department_id FROM users WHERE user_id = :user_id");
+            $stmt->execute([':user_id' => $_SESSION['user_id']]);
+            $departmentId = $stmt->fetchColumn();
+            return $departmentId ?: null;
+        } catch (PDOException $e) {
+            error_log("getCurrentUserDepartmentId error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Log activity with automatic user/department detection
+     */
+    private function logActivity($actionType, $actionDescription, $entityType = null, $entityId = null, $metadataId = null)
+    {
+        try {
+            $userId = $_SESSION['user_id'] ?? null;
+            if (!$userId) {
+                error_log("logActivity: No user_id in session");
+                return;
+            }
+
+            $departmentId = $this->getCurrentUserDepartmentId();
+
+            // Get user's complete name
+            $userName = $this->schedulingService->getUserCompleteName($userId);
+
+            // Format description with user name
+            $formattedDescription = $this->schedulingService->formatActionDescription($actionDescription, $userId, $userName);
+
+            $stmt = $this->db->prepare("
+            INSERT INTO activity_logs 
+            (user_id, department_id, action_type, action_description, entity_type, entity_id, metadata_id, created_at) 
+            VALUES (:user_id, :department_id, :action_type, :action_description, :entity_type, :entity_id, :metadata_id, NOW())
+        ");
+
+            $params = [
+                ':user_id' => $userId,
+                ':department_id' => $departmentId,
+                ':action_type' => $actionType,
+                ':action_description' => $formattedDescription,
+                ':entity_type' => $entityType,
+                ':entity_id' => $entityId,
+                ':metadata_id' => $metadataId
+            ];
+
+            $stmt->execute($params);
+            error_log("Activity logged: " . $actionType . " - " . $formattedDescription);
+        } catch (PDOException $e) {
+            error_log("logActivity: Failed to log activity - " . $e->getMessage());
+        }
     }
 }

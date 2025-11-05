@@ -432,17 +432,45 @@ function handleFacultyRoutes($path)
             }
             exit;
         case '/faculty/profile/search_courses':
-            error_log("Routing to FacultyController::profile");
+            error_log("Routing to FacultyController::searchCourses");
             $controller->searchCourses();
+            exit;
+
+            // ===== REPORT ROUTES =====
+        case '/faculty/reports':
+            error_log("Routing to FacultyController::reports"); // Fixed typo
+            $controller->reports();
+            exit;
+        case '/faculty/reports/teaching-load':
+            error_log("Routing to FacultyController::teachingLoadReport");
+            $controller->teachingLoadReport();
+            exit;
+        case '/faculty/reports/schedule':
+            error_log("Routing to FacultyController::scheduleReport");
+            $controller->scheduleReport();
+            exit;
+        case '/faculty/reports/specializations':
+            error_log("Routing to FacultyController::specializationsReport");
+            $controller->specializationsReport();
+            exit;
+        case '/faculty/reports/download':
+            error_log("Routing to FacultyController::downloadReport");
+            $controller->downloadReport();
+            exit;
+        case '/faculty/reports/data':
+            error_log("Routing to FacultyController::getReportData");
+            $controller->getReportData();
+            exit;
+
+        case '/faculty/settings':
+            $controller->settings();
             exit;
         case '/faculty/logout':
             error_log("Routing to AuthController::logout");
             require_once __DIR__ . '/../src/controllers/AuthController.php';
             (new AuthController())->logout();
             exit;
-        case '/faculty/settings':
-            $controller->settings();
-            exit;
+
         default:
             error_log("No matching faculty route for: $normalizedPath");
             http_response_code(404);
