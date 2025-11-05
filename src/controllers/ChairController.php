@@ -2766,7 +2766,7 @@ class ChairController extends BaseController
                     break;
                 }
             }
-            
+
             foreach ($facultyAssignments as $facultyId => $assignments) {
                 if (is_array($assignments)) {
                     $totalUnits = array_sum(array_column($assignments, 'units'));
@@ -3827,7 +3827,7 @@ class ChairController extends BaseController
         $subjectType = $courseDetails['subject_type'] ?? 'General Education';
         $courseUnits = $courseDetails['units'] ?? 3;
 
-        
+
 
         // Log faculty specializations for debugging
         $facultyWithSpecialization = 0;
@@ -4261,7 +4261,6 @@ class ChairController extends BaseController
                 }
             }
         }
-
     }
 
     private function analyzeWorkloadDistribution($facultyAssignments, $facultySpecializations)
@@ -6717,7 +6716,7 @@ class ChairController extends BaseController
                         echo json_encode($response);
                         exit;
                         break;
-                        
+
                     case 'add':
                         try {
                             if (!$departmentId) {
@@ -8512,7 +8511,7 @@ class ChairController extends BaseController
                     AND department_id = ?
                 ");
                     $toggleParams = [$courseId, $departmentId];
-                   
+
                     $toggleStmt->execute($toggleParams);
                     if ($toggleStmt->rowCount() > 0) {
                         $newStatus = !$currentStatus;
@@ -8539,7 +8538,7 @@ class ChairController extends BaseController
                     AND c.department_id = ?
                 ");
                     $editParams = [$courseId, $departmentId];
-                  
+
                     $editStmt->execute($editParams);
                     $editCourse = $editStmt->fetch(PDO::FETCH_ASSOC);
                     if (!$editCourse) {
@@ -8562,13 +8561,11 @@ class ChairController extends BaseController
                 }
 
                 $totalStmt = $this->db->prepare($totalQuery);
-               
+
                 $totalStmt->execute($totalParams);
                 $result = $totalStmt->fetch(PDO::FETCH_ASSOC);
                 $totalCourses = $result['total'] ?? 0;
                 $totalPages = max(1, ceil($totalCourses / $perPage));
-
-               
             } catch (PDOException $e) {
                 error_log("Error counting courses: " . $e->getMessage());
                 $error = "Failed to count courses: " . $e->getMessage();
@@ -8695,7 +8692,7 @@ class ChairController extends BaseController
                 echo json_encode(['error' => 'No department assigned']);
                 exit;
             }
-    
+
             $collegeStmt = $this->db->prepare("SELECT college_id FROM departments WHERE department_id = :department_id");
             $collegeStmt->execute([':department_id' => $departmentId]);
             $collegeId = $collegeStmt->fetchColumn();
@@ -8706,10 +8703,10 @@ class ChairController extends BaseController
                 echo json_encode(['error' => 'No college assigned']);
                 exit;
             }
-           
+
 
             $name = isset($_POST['name']) ? trim($_POST['name']) : '';
-           
+
             if (empty($name)) {
                 error_log("search: No name provided");
                 header('Content-Type: application/json');
@@ -8760,7 +8757,7 @@ class ChairController extends BaseController
                 ':name3' => "%$name%"
             ];
 
-           
+
             $stmt = $this->db->prepare($query);
             if (!$stmt) {
                 $errorInfo = $this->db->errorInfo();
@@ -8822,16 +8819,16 @@ class ChairController extends BaseController
                 ':name3' => "%$name%"
             ];
 
-           
+
             $includableStmt = $this->db->prepare($includableQuery);
             if (!$includableStmt) {
                 $errorInfo = $this->db->errorInfo();
-                
+
                 throw new Exception("Failed to prepare includable statement: " . $errorInfo[2]);
             }
             $includableStmt->execute($includableParams);
             $includableResults = $includableStmt->fetchAll(PDO::FETCH_ASSOC);
-       
+
             header('Content-Type: application/json');
             echo json_encode(['results' => $results, 'includable' => $includableResults]);
             exit;

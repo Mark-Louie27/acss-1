@@ -25,11 +25,87 @@ if ($userDepartmentId) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <link rel="stylesheet" href="/css/custom.css">
 
+<style>
+    /* Fix for search input overflow */
+    .search-container {
+        position: relative;
+        width: 100%;
+    }
 
+    .search-container input {
+        padding-left: 2.5rem !important;
+        padding-right: 1rem !important;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6b7280;
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    /* Fix button colors and styles */
+    .btn-primary {
+        background-color: #d97706 !important;
+        border-color: #d97706 !important;
+        color: white !important;
+    }
+
+    .btn-primary:hover {
+        background-color: #b45309 !important;
+        border-color: #b45309 !important;
+    }
+
+    .btn-outline {
+        border: 1px solid #d1d5db !important;
+        color: #374151 !important;
+        background-color: white !important;
+    }
+
+    .btn-outline:hover {
+        background-color: #f9fafb !important;
+    }
+
+    /* Status badge fixes */
+    .status-active {
+        background-color: #dcfce7 !important;
+        color: #166534 !important;
+    }
+
+    .status-draft {
+        background-color: #f3f4f6 !important;
+        color: #6b7280 !important;
+    }
+
+    /* Modal background fixes */
+    .modal-overlay {
+        background-color: rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(4px);
+    }
+
+    /* Card hover effects */
+    .card {
+        transition: all 0.2s ease-in-out;
+        border: 1px solid #e5e7eb;
+    }
+
+    .card:hover {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transform: translateY(-1px);
+    }
+
+    /* Table row hover */
+    .table-row:hover {
+        background-color: #f9fafb !important;
+    }
+</style>
 
 <!-- Display success/error messages -->
 <?php if (isset($success)): ?>
-    <div class="lg:max-w-4xl mx-auto mb-6 p-4 bg-[var(--solid-green)] text-green-800 rounded-lg flex items-center shadow-sm border-l-4 border-green-500 transition-all">
+    <div class="lg:max-w-4xl mx-auto mb-6 p-4 bg-green-50 text-green-800 rounded-lg flex items-center shadow-sm border-l-4 border-green-500 transition-all">
         <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
         </svg>
@@ -37,7 +113,7 @@ if ($userDepartmentId) {
     </div>
 <?php endif; ?>
 <?php if (isset($error)): ?>
-    <div class="lg:max-w-4xl mx-auto mb-6 p-4 bg-[var(--solid-red)] text-red-800 rounded-lg flex items-center shadow-sm border-l-4 border-red-500 transition-all">
+    <div class="lg:max-w-4xl mx-auto mb-6 p-4 bg-red-50 text-red-800 rounded-lg flex items-center shadow-sm border-l-4 border-red-500 transition-all">
         <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
         </svg>
@@ -50,28 +126,34 @@ if ($userDepartmentId) {
     <!-- Page Header -->
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 sm:mb-8">
         <div class="mb-4 lg:mb-0">
-            <h2 class="text-xl sm:text-2xl md:text-3xl font-heading text-prmsu-gray-dark">Curriculum Management</h2>
-            <p class="text-prmsu-gray text-xs sm:text-sm mt-1">Organize and manage academic curricula with ease</p>
+            <h2 class="text-xl sm:text-2xl md:text-3xl font-heading text-gray-800">Curriculum Management</h2>
+            <p class="text-gray-600 text-xs sm:text-sm mt-1">Organize and manage academic curricula with ease</p>
         </div>
         <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
-            <button onclick="openModal('addCurriculumCourseModal')" class="bg-yellow-600 border-r-2 flex items-center justify-center space-x-2 w-full sm:w-auto px-4 py-2 text-sm sm:text-base">
+            <button onclick="openModal('addCurriculumCourseModal')"
+                class="btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto px-4 py-2 text-sm sm:text-base rounded-lg transition-colors">
                 <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                 </svg>
-                <span>Add New</span>
+                <span>Add New Curriculum</span>
             </button>
         </div>
     </div>
 
     <!-- Search and Filter Bar -->
     <div class="mb-4 sm:mb-6 flex flex-col lg:flex-row items-stretch lg:items-center space-y-3 lg:space-y-0 lg:space-x-4">
-        <div class="relative flex-1 w-full">
+        <div class="search-container flex-1 w-full">
+            <div class="search-icon">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
             <input type="text" placeholder="Search curricula..." id="searchInput"
-                class="w-full pl-8 sm:pl-10 pr-4 py-2 sm:py-3 text-sm sm:text-base border border-prmsu-gray rounded-lg focus-gold bg-prmsu-white shadow-sm">
+                class="w-full pl-10 pr-4 py-2 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white shadow-sm">
         </div>
 
         <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
-            <select id="statusFilter" class="border border-prmsu-gray rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base focus-gold bg-prmsu-white text-prmsu-gray-dark w-full sm:w-auto shadow-sm">
+            <select id="statusFilter" class="border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-gray-800 w-full sm:w-auto shadow-sm">
                 <option value="">All Statuses</option>
                 <option value="active">Active</option>
                 <option value="draft">Draft</option>
@@ -107,28 +189,28 @@ if ($userDepartmentId) {
             $coursesStmt->execute([':curriculum_id' => $curriculum['curriculum_id']]);
             $curriculum_courses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
             ?>
-            <div class="card p-4 space-y-3" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
+            <div class="card p-4 space-y-3 bg-white rounded-lg shadow-sm" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
                 <!-- Header -->
                 <div class="flex justify-between items-start">
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-base sm:text-lg font-medium text-prmsu-gray-dark truncate"><?= htmlspecialchars($curriculum['curriculum_name']) ?></h3>
-                        <p class="text-xs sm:text-sm text-prmsu-gray mt-1"><?= htmlspecialchars($course_count) ?> Courses • <?= htmlspecialchars($curriculum['total_units']) ?> Units</p>
+                        <h3 class="text-base sm:text-lg font-medium text-gray-800 truncate"><?= htmlspecialchars($curriculum['curriculum_name']) ?></h3>
+                        <p class="text-xs sm:text-sm text-gray-600 mt-1"><?= htmlspecialchars($course_count) ?> Courses • <?= htmlspecialchars($curriculum['total_units']) ?> Units</p>
                     </div>
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-2 <?= $curriculum['status'] === 'Active' ? 'bg-[var(--solid-green)] text-green-700' : 'bg-prmsu-gray-light text-prmsu-gray' ?>">
-                        <span class="w-2 h-2 mr-1 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-prmsu-gray' ?>"></span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ml-2 <?= $curriculum['status'] === 'Active' ? 'status-active' : 'status-draft' ?>">
+                        <span class="w-2 h-2 mr-1 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-gray-500' ?>"></span>
                         <?= htmlspecialchars($curriculum['status']) ?>
                     </span>
                 </div>
 
                 <!-- Last Updated -->
-                <div class="text-xs text-prmsu-gray">
+                <div class="text-xs text-gray-500">
                     Last updated: <?= htmlspecialchars($curriculum['updated_at']) ?>
                 </div>
 
                 <!-- Actions -->
                 <div class="flex flex-wrap gap-2 pt-2">
                     <button onclick='openViewCoursesModal(<?= json_encode($curriculum_courses) ?>, "<?= htmlspecialchars($curriculum['curriculum_name']) ?>", <?= $curriculum['curriculum_id'] ?>)'
-                        class="flex items-center space-x-1 text-blue-600 hover:text-blue-800 transition-all bg-blue-50 px-2 py-1 rounded text-xs">
+                        class="flex items-center space-x-1 text-blue-600 hover:text-blue-800 transition-all bg-blue-50 px-3 py-2 rounded text-xs border border-blue-100">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -136,14 +218,14 @@ if ($userDepartmentId) {
                         <span>View</span>
                     </button>
                     <button onclick="openManageCoursesModal(<?= $curriculum['curriculum_id'] ?>, '<?= htmlspecialchars($curriculum['curriculum_name']) ?>')"
-                        class="flex items-center space-x-1 text-green-600 hover:text-green-800 transition-all bg-green-50 px-2 py-1 rounded text-xs">
+                        class="flex items-center space-x-1 text-green-600 hover:text-green-800 transition-all bg-green-50 px-3 py-2 rounded text-xs border border-green-100">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                         </svg>
                         <span>Manage</span>
                     </button>
                     <button onclick="openEditCurriculumModal(<?= $curriculum['curriculum_id'] ?>)"
-                        class="flex items-center space-x-1 text-green-600 hover:text-green-800 transition-all bg-green-50 px-2 py-1 rounded text-xs">
+                        class="flex items-center space-x-1 text-amber-600 hover:text-amber-800 transition-all bg-amber-50 px-3 py-2 rounded text-xs border border-amber-100">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
@@ -154,7 +236,7 @@ if ($userDepartmentId) {
                         <input type="hidden" name="curriculum_id" value="<?= $curriculum['curriculum_id'] ?>">
                         <input type="hidden" name="status" value="<?= $curriculum['status'] ?>">
                         <button type="submit"
-                            class="flex items-center space-x-1 text-prmsu-gray hover:text-prmsu-gray-dark transition-all bg-gray-50 px-2 py-1 rounded text-xs"
+                            class="flex items-center space-x-1 text-gray-600 hover:text-gray-800 transition-all bg-gray-50 px-3 py-2 rounded text-xs border border-gray-100"
                             title="<?= $curriculum['status'] === 'Active' ? 'Deactivate Curriculum' : 'Activate Curriculum' ?>">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $curriculum['status'] === 'Active' ? 'M10 9v6m4-6v6m-7-3h10' : 'M9 12h6m-3-3v6' ?>" />
@@ -167,33 +249,33 @@ if ($userDepartmentId) {
         <?php endforeach; ?>
 
         <?php if (empty($curricula)): ?>
-            <div class="card p-8 text-center">
+            <div class="card p-8 text-center bg-white rounded-lg shadow-sm">
                 <div class="flex flex-col items-center justify-center">
-                    <svg class="w-12 h-12 sm:w-16 sm:h-16 text-prmsu-gray-light mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
-                    <p class="text-base sm:text-lg font-medium mb-2">No curricula found</p>
-                    <p class="text-sm">Start by adding a new curriculum</p>
+                    <p class="text-base sm:text-lg font-medium text-gray-600 mb-2">No curricula found</p>
+                    <p class="text-sm text-gray-500">Start by adding a new curriculum</p>
                 </div>
             </div>
         <?php endif; ?>
     </div>
 
     <!-- Desktop Table View (hidden on small screens) -->
-    <div class="card overflow-hidden hidden lg:block">
+    <div class="card overflow-hidden hidden lg:block bg-white rounded-lg shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full table-auto border-collapse min-w-full">
                 <thead>
-                    <tr class="table-header">
-                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Curriculum Name</th>
-                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Courses</th>
-                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Total Units</th>
-                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Last Updated</th>
-                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Status</th>
-                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium">Actions</th>
+                    <tr class="bg-gray-50">
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium text-gray-700">Curriculum Name</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium text-gray-700">Courses</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium text-gray-700">Total Units</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium text-gray-700">Last Updated</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium text-gray-700">Status</th>
+                        <th class="px-4 xl:px-6 py-3 xl:py-4 text-left text-xs xl:text-sm font-medium text-gray-700">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="curriculaTableBody" class="divide-y divide-prmsu-gray-light">
+                <tbody id="curriculaTableBody" class="divide-y divide-gray-200">
                     <?php foreach ($curricula as $curriculum): ?>
                         <?php
                         $courseCountStmt = $db->prepare("SELECT COUNT(*) FROM curriculum_courses WHERE curriculum_id = :curriculum_id");
@@ -222,29 +304,29 @@ if ($userDepartmentId) {
                         ?>
                         <tr class="table-row hover:bg-gray-50 transition-colors" data-curriculum-id="<?= htmlspecialchars($curriculum['curriculum_id']) ?>" data-name="<?= htmlspecialchars($curriculum['curriculum_name']) ?>" data-year="<?= $curriculum['effective_year'] ?>" data-status="<?= strtolower($curriculum['status']) ?>">
                             <td class="px-4 xl:px-6 py-3 xl:py-4">
-                                <div class="text-sm xl:text-base font-medium text-prmsu-gray-dark truncate max-w-xs" title="<?= htmlspecialchars($curriculum['curriculum_name']) ?>">
+                                <div class="text-sm xl:text-base font-medium text-gray-800 truncate max-w-xs" title="<?= htmlspecialchars($curriculum['curriculum_name']) ?>">
                                     <?= htmlspecialchars($curriculum['curriculum_name']) ?>
                                 </div>
                             </td>
-                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-prmsu-gray whitespace-nowrap">
+                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-600 whitespace-nowrap">
                                 <?= htmlspecialchars($course_count) ?> Courses
                             </td>
-                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-prmsu-gray total-units whitespace-nowrap">
+                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-600 total-units whitespace-nowrap">
                                 <?= htmlspecialchars($curriculum['total_units']) ?> Units
                             </td>
-                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-prmsu-gray whitespace-nowrap">
+                            <td class="px-4 xl:px-6 py-3 xl:py-4 text-xs xl:text-sm text-gray-600 whitespace-nowrap">
                                 <?= htmlspecialchars($curriculum['updated_at']) ?>
                             </td>
                             <td class="px-4 xl:px-6 py-3 xl:py-4">
-                                <span class="inline-flex items-center px-2 xl:px-3 py-1 rounded-full text-xs font-medium <?= $curriculum['status'] === 'Active' ? 'bg-[var(--solid-green)] text-green-700' : 'bg-prmsu-gray-light text-prmsu-gray' ?>">
-                                    <span class="w-2 h-2 mr-1 xl:mr-2 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-prmsu-gray' ?>"></span>
+                                <span class="inline-flex items-center px-2 xl:px-3 py-1 rounded-full text-xs font-medium <?= $curriculum['status'] === 'Active' ? 'status-active' : 'status-draft' ?>">
+                                    <span class="w-2 h-2 mr-1 xl:mr-2 rounded-full <?= $curriculum['status'] === 'Active' ? 'bg-green-500' : 'bg-gray-500' ?>"></span>
                                     <?= htmlspecialchars($curriculum['status']) ?>
                                 </span>
                             </td>
                             <td class="px-4 xl:px-6 py-3 xl:py-4">
                                 <div class="flex space-x-2 xl:space-x-3">
                                     <button onclick='openViewCoursesModal(<?= json_encode($curriculum_courses) ?>, "<?= htmlspecialchars($curriculum['curriculum_name']) ?>", <?= $curriculum['curriculum_id'] ?>)'
-                                        class="text-blue-600 hover:text-blue-800 transition-all p-1"
+                                        class="text-blue-600 hover:text-blue-800 transition-all p-1 hover:bg-blue-50 rounded"
                                         title="View Courses">
                                         <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -252,14 +334,14 @@ if ($userDepartmentId) {
                                         </svg>
                                     </button>
                                     <button onclick="openManageCoursesModal(<?= $curriculum['curriculum_id'] ?>, '<?= htmlspecialchars($curriculum['curriculum_name']) ?>')"
-                                        class="text-green-600 hover:text-green-800 transition-all p-1"
+                                        class="text-green-600 hover:text-green-800 transition-all p-1 hover:bg-green-50 rounded"
                                         title="Manage Courses">
                                         <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                                         </svg>
                                     </button>
                                     <button onclick="openEditCurriculumModal(<?= $curriculum['curriculum_id'] ?>)"
-                                        class="text-green-600 hover:text-green-800 transition-all p-1"
+                                        class="text-amber-600 hover:text-amber-800 transition-all p-1 hover:bg-amber-50 rounded"
                                         title="Edit Curriculum">
                                         <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -270,7 +352,7 @@ if ($userDepartmentId) {
                                         <input type="hidden" name="curriculum_id" value="<?= $curriculum['curriculum_id'] ?>">
                                         <input type="hidden" name="status" value="<?= $curriculum['status'] ?>">
                                         <button type="submit"
-                                            class="text-prmsu-gray hover:text-prmsu-gray-dark transition-all p-1"
+                                            class="text-gray-600 hover:text-gray-800 transition-all p-1 hover:bg-gray-50 rounded"
                                             title="<?= $curriculum['status'] === 'Active' ? 'Deactivate Curriculum' : 'Activate Curriculum' ?>">
                                             <svg class="w-4 h-4 xl:w-5 xl:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $curriculum['status'] === 'Active' ? 'M10 9v6m4-6v6m-7-3h10' : 'M9 12h6m-3-3v6' ?>" />
@@ -284,13 +366,13 @@ if ($userDepartmentId) {
 
                     <?php if (empty($curricula)): ?>
                         <tr>
-                            <td colspan="6" class="px-4 xl:px-6 py-8 xl:py-12 text-center text-prmsu-gray">
+                            <td colspan="6" class="px-4 xl:px-6 py-8 xl:py-12 text-center text-gray-500">
                                 <div class="flex flex-col items-center justify-center">
-                                    <svg class="w-12 h-12 xl:w-16 xl:h-16 text-prmsu-gray-light mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-12 h-12 xl:w-16 xl:h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                     </svg>
-                                    <p class="text-base xl:text-lg font-medium mb-2">No curricula found</p>
-                                    <p class="text-sm">Start by adding a new curriculum</p>
+                                    <p class="text-base xl:text-lg font-medium text-gray-600 mb-2">No curricula found</p>
+                                    <p class="text-sm text-gray-500">Start by adding a new curriculum</p>
                                 </div>
                             </td>
                         </tr>
@@ -302,8 +384,8 @@ if ($userDepartmentId) {
 
     <!-- Add Curriculum Modal -->
     <div id="addCurriculumCourseModal" class="fixed inset-0 hidden z-50">
-        <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4 bg-opacity-50 backdrop-blur-sm opacity-0 transition-opacity duration-300">
-            <div class="modal-content bg-white rounded-xl shadow-2xl max-w-lg w-full transform translate-y-8 transition-transform duration-300 ease-out">
+        <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
+            <div class="modal-content bg-white rounded-xl shadow-2xl max-w-lg w-full">
                 <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-amber-50 to-white rounded-t-xl">
                     <h3 class="text-xl font-bold text-gray-800 flex items-center">
                         <svg class="w-6 h-6 mr-3 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,11 +427,11 @@ if ($userDepartmentId) {
                         </div>
                         <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
                             <button type="button" onclick="closeModal('addCurriculumCourseModal')"
-                                class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                                class="btn-outline px-5 py-2 rounded-lg transition-colors">
                                 Cancel
                             </button>
                             <button type="submit"
-                                class="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                                class="btn-primary px-5 py-2 rounded-lg transition-colors">
                                 Create Curriculum
                             </button>
                         </div>
@@ -418,11 +500,11 @@ if ($userDepartmentId) {
 
                         <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
                             <button type="button" onclick="closeModal('editCurriculumModal')"
-                                class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                                class="btn-outline px-5 py-2 rounded-lg transition-colors">
                                 Cancel
                             </button>
                             <button type="submit" id="editSubmitBtn"
-                                class="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 flex items-center">
+                                class="btn-primary px-5 py-2 rounded-lg transition-colors flex items-center">
                                 <span id="editSubmitText">Update Curriculum</span>
                                 <div id="editSubmitSpinner" class="loading-spinner hidden ml-2"></div>
                             </button>
@@ -437,23 +519,23 @@ if ($userDepartmentId) {
     <div id="manageCoursesModal" class="fixed inset-0 hidden z-50">
         <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
             <div class="modal-content bg-white rounded-xl shadow-2xl max-w-2xl w-full">
-                <div class="p-6 border-b border-prmsu-gray-light flex justify-between items-center">
-                    <h3 class="text-xl font-heading text-prmsu-gray-dark flex items-center" id="manageCoursesTitle">
+                <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-green-50 to-white rounded-t-xl">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center" id="manageCoursesTitle">
                         <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                         </svg>
                         Manage Courses
                     </h3>
-                    <button onclick="closeModal('manageCoursesModal')" class="text-prmsu-gray hover:text-prmsu-gray-dark transition-all">
+                    <button onclick="closeModal('manageCoursesModal')" class="text-gray-500 hover:text-gray-700 transition-all transform hover:scale-110 focus:outline-none">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
                     </button>
                 </div>
                 <div class="p-6">
-                    <div class="relative mb-4">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="w-5 h-5 text-prmsu-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="search-container mb-4">
+                        <div class="search-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
                         </div>
@@ -461,7 +543,7 @@ if ($userDepartmentId) {
                             class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors">
                     </div>
 
-                    <div id="courseExistsNotification" class="hidden mb-4 p-3 rounded-lg bg-red-100 text-red-800 flex items-center">
+                    <div id="courseExistsNotification" class="hidden mb-4 p-3 rounded-lg bg-red-100 text-red-800 flex items-center border border-red-200">
                         <div id="courseCheckingLoader" class="hidden loading-spinner mr-2"></div>
                         <span id="courseExistsMessage">This course already exists in this curriculum.</span>
                     </div>
@@ -471,8 +553,8 @@ if ($userDepartmentId) {
                         <input type="hidden" name="curriculum_id" id="curriculumIdInput">
 
                         <div>
-                            <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Select Course</label>
-                            <select name="course_id" id="courseSelect" class="focus-gold" required>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Select Course</label>
+                            <select name="course_id" id="courseSelect" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                                 <option value="">-- Select Course --</option>
                                 <?php
                                 // Ensure $courses is set
@@ -498,8 +580,8 @@ if ($userDepartmentId) {
                         </div>
                         <div class="grid grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Year Level</label>
-                                <select name="year_level" class="focus-gold" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                                <select name="year_level" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                                     <option value="">--- Please Select Year Level ---</option>
                                     <option value="1st Year">1st Year</option>
                                     <option value="2nd Year">2nd Year</option>
@@ -508,8 +590,8 @@ if ($userDepartmentId) {
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Semester</label>
-                                <select name="semester" class="focus-gold" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                                <select name="semester" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                                     <option value="">--- Please Select Semester ---</option>
                                     <option value="1st">1st Semester</option>
                                     <option value="2nd">2nd Semester</option>
@@ -517,8 +599,8 @@ if ($userDepartmentId) {
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-prmsu-gray-dark mb-1">Subject Type</label>
-                                <select name="subject_type" id="subjectTypeSelect" class="focus-gold" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Subject Type</label>
+                                <select name="subject_type" id="subjectTypeSelect" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors" required>
                                     <option value="">-- Select Subject Type --</option>
                                     <?php
                                     // Dynamically generate options from courses table
@@ -533,9 +615,9 @@ if ($userDepartmentId) {
                                 </select>
                             </div>
                         </div>
-                        <div class="mt-6 pt-5 border-t border-prmsu-gray-light flex justify-end space-x-3">
-                            <button type="button" onclick="closeModal('manageCoursesModal')" class="btn-outline">Cancel</button>
-                            <button type="submit" class="btn-gold" id="addCourseButton">Add Course</button>
+                        <div class="mt-6 pt-5 border-t border-gray-200 flex justify-end space-x-3">
+                            <button type="button" onclick="closeModal('manageCoursesModal')" class="btn-outline px-5 py-2 rounded-lg transition-colors">Cancel</button>
+                            <button type="submit" class="btn-primary px-5 py-2 rounded-lg transition-colors" id="addCourseButton">Add Course</button>
                         </div>
                     </form>
                 </div>
@@ -547,15 +629,15 @@ if ($userDepartmentId) {
     <div id="viewCoursesModal" class="fixed inset-0 hidden z-50">
         <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
             <div class="modal-content bg-white rounded-xl shadow-2xl max-w-4xl w-full">
-                <div class="p-6 border-b border-prmsu-gray-light flex justify-between items-center">
-                    <h3 class="text-xl font-heading text-prmsu-gray-dark flex items-center" id="viewCoursesTitle">
+                <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white rounded-t-xl">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center" id="viewCoursesTitle">
                         <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                         View Courses
                     </h3>
-                    <button onclick="closeModal('viewCoursesModal')" class="text-prmsu-gray hover:text-prmsu-gray-dark transition-all">
+                    <button onclick="closeModal('viewCoursesModal')" class="text-gray-500 hover:text-gray-700 transition-all transform hover:scale-110 focus:outline-none">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
@@ -565,18 +647,18 @@ if ($userDepartmentId) {
                     <div id="coursesContainer">
                         <!-- Courses will be populated dynamically via JavaScript -->
                     </div>
-                    <div id="noCoursesMessage" class="hidden text-center text-prmsu-gray py-8">
-                        <svg class="w-16 h-16 text-prmsu-gray-light mb-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div id="noCoursesMessage" class="hidden text-center text-gray-500 py-8">
+                        <svg class="w-16 h-16 text-gray-300 mb-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        <p class="text-lg font-medium mb-2">No courses found</p>
-                        <p class="text-sm">Add courses to this curriculum using the "Manage Courses" option.</p>
+                        <p class="text-lg font-medium text-gray-600 mb-2">No courses found</p>
+                        <p class="text-sm text-gray-500">Add courses to this curriculum using the "Manage Courses" option.</p>
                     </div>
                 </div>
-                <div class="p-6 border-t border-prmsu-gray-light flex justify-end">
-                    <button onclick="printCourses()" class="btn-outline">
-                        <i class="fa-solid fa-print"></i>
-                        Print
+                <div class="p-6 border-t border-gray-200 flex justify-end">
+                    <button onclick="printCourses()" class="btn-outline flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-print"></i>
+                        <span>Print</span>
                     </button>
                 </div>
             </div>
@@ -585,7 +667,7 @@ if ($userDepartmentId) {
 
     <!-- Remove Course Confirmation Modal -->
     <div id="removeCourseConfirmModal" class="fixed inset-0 hidden z-50">
-        <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4 bg-opacity-50 backdrop-blur-sm">
+        <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
             <div class="modal-content bg-white rounded-xl shadow-2xl max-w-md w-full">
                 <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-red-50 to-white rounded-t-xl">
                     <h3 class="text-xl font-bold text-gray-800 flex items-center">
@@ -604,11 +686,11 @@ if ($userDepartmentId) {
                     <p id="removeConfirmMessage" class="text-gray-700"></p>
                     <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
                         <button type="button" onclick="closeModal('removeCourseConfirmModal')"
-                            class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            class="btn-outline px-5 py-2 rounded-lg transition-colors">
                             Cancel
                         </button>
                         <button id="removeConfirmButton" data-course-id="" data-curriculum-id="" data-course-name="" data-course-code=""
-                            class="px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 flex items-center">
+                            class="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-lg transition-colors flex items-center">
                             Remove Course
                         </button>
                     </div>
@@ -619,7 +701,7 @@ if ($userDepartmentId) {
 
     <!-- Error Modal -->
     <div id="errorModal" class="fixed inset-0 hidden z-50">
-        <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4 bg-opacity-50 backdrop-blur-sm">
+        <div class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
             <div class="modal-content bg-white rounded-xl shadow-2xl max-w-md w-full">
                 <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-red-50 to-white rounded-t-xl">
                     <h3 class="text-xl font-bold text-gray-800 flex items-center">
@@ -638,7 +720,7 @@ if ($userDepartmentId) {
                     <p id="errorModalMessage" class="text-gray-700"></p>
                     <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end">
                         <button type="button" onclick="closeModal('errorModal')"
-                            class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            class="btn-outline px-5 py-2 rounded-lg transition-colors">
                             Close
                         </button>
                     </div>
@@ -830,8 +912,6 @@ if ($userDepartmentId) {
 </script>
 
 <script src="/assets/js/curriculum.js"></script>
-
-
 
 <?php
 $content = ob_get_clean();
