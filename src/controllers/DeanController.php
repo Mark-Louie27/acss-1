@@ -2226,23 +2226,24 @@ class DeanController extends BaseController
             $programChairs = $stmtChairs->fetchAll(PDO::FETCH_ASSOC);
             error_log("faculty: Fetched " . count($programChairs) . " program chairs");
 
-            // Fetch Faculty using user_roles
+            // Fetch Faculty using user_roles - FIXED DEPARTMENT JOIN
             $queryFaculty = "
-            SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
-                u.profile_picture, u.is_active, 
-                f.academic_rank, f.employment_type, COALESCE(d.department_name, 'No Department') AS department_name, 
-                COALESCE(d.department_id, 0) AS department_id, c.college_name,
-                co.course_name AS specialization, s.expertise_level
-            FROM users u
-            JOIN colleges c ON u.college_id = c.college_id
-            JOIN faculty f ON u.user_id = f.user_id
-            JOIN user_roles ur ON u.user_id = ur.user_id
-            LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id AND fd.is_primary = 1
-            LEFT JOIN departments d ON fd.department_id = d.department_id
-            LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
-            LEFT JOIN courses co ON s.course_id = co.course_id
-            WHERE ur.role_id = 6 AND u.college_id = :college_id
-            ORDER BY u.last_name, u.first_name";
+                SELECT u.user_id, u.employee_id, u.email, u.title, u.first_name, u.middle_name, u.last_name, u.suffix, 
+                    u.profile_picture, u.is_active, 
+                    f.academic_rank, f.employment_type, 
+                    COALESCE(d.department_name, 'No Department') AS department_name, 
+                    COALESCE(d.department_id, 0) AS department_id, 
+                    c.college_name,
+                    co.course_name AS specialization, s.expertise_level
+                FROM users u
+                JOIN colleges c ON u.college_id = c.college_id
+                JOIN faculty f ON u.user_id = f.user_id
+                JOIN user_roles ur ON u.user_id = ur.user_id
+                LEFT JOIN departments d ON u.department_id = d.department_id  -- ← FIXED: Join directly from users.department_id
+                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
+                LEFT JOIN courses co ON s.course_id = co.course_id
+                WHERE ur.role_id = 6 AND u.college_id = :college_id
+                ORDER BY u.last_name, u.first_name";
 
             $stmtFaculty = $this->db->prepare($queryFaculty);
             if (!$stmtFaculty) {

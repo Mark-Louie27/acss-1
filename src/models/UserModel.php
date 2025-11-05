@@ -760,13 +760,13 @@ class UserModel
 
             // Check for existing current program chair in the department
             $query = "
-            SELECT CONCAT(u.first_name, ' ', u.last_name) AS chair_name
-            FROM program_chairs pc
-            JOIN users u ON pc.user_id = u.user_id
-            JOIN programs p ON pc.program_id = p.program_id
-            WHERE p.department_id = :department_id AND pc.is_current = 1
-            LIMIT 1
-        ";
+        SELECT CONCAT(u.first_name, ' ', u.last_name) AS chair_name
+        FROM program_chairs pc
+        JOIN users u ON pc.user_id = u.user_id
+        JOIN programs p ON pc.program_id = p.program_id
+        WHERE p.department_id = :department_id AND pc.is_current = 1
+        LIMIT 1
+    ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':department_id' => $departmentId]);
             $existingChair = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -788,6 +788,45 @@ class UserModel
                 return ['success' => false, 'error' => 'Faculty record not found for the user'];
             }
 
+            // Start transaction
+            $this->db->beginTransaction();
+
+            // Update user role to Program Chair (role_id = 5) in users table
+            $query = "UPDATE users SET role_id = 5 WHERE user_id = :user_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([':user_id' => $userId]);
+            error_log("promoteToProgramChair: Updated users.role_id to 5 for user_id=$userId");
+
+            // ✅ CRITICAL: UPDATE USER_ROLES TABLE
+            // Check if user already has a role in user_roles
+            $checkRoleQuery = "SELECT COUNT(*) FROM user_roles WHERE user_id = :user_id";
+            $stmt = $this->db->prepare($checkRoleQuery);
+            $stmt->execute([':user_id' => $userId]);
+            $hasRole = $stmt->fetchColumn() > 0;
+
+            if ($hasRole) {
+                // Update existing role to Program Chair (role_id = 5)
+                $updateRoleQuery = "UPDATE user_roles SET role_id = 5 WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($updateRoleQuery);
+                $stmt->execute([':user_id' => $userId]);
+                error_log("promoteToProgramChair: Updated user_roles.role_id to 5 for user_id=$userId");
+            } else {
+                // Insert new role as Program Chair
+                $insertRoleQuery = "INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, 5)";
+                $stmt = $this->db->prepare($insertRoleQuery);
+                $stmt->execute([':user_id' => $userId]);
+                error_log("promoteToProgramChair: Inserted Program Chair role in user_roles for user_id=$userId");
+            }
+
+            // Ensure the user has the department set in users table
+            $updateUserDeptQuery = "UPDATE users SET department_id = :department_id WHERE user_id = :user_id";
+            $stmt = $this->db->prepare($updateUserDeptQuery);
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':user_id' => $userId
+            ]);
+            error_log("promoteToProgramChair: Set users.department_id to $departmentId for user_id=$userId");
+
             // Fetch all programs in the department
             $query = "SELECT program_id FROM programs WHERE department_id = :department_id";
             $stmt = $this->db->prepare($query);
@@ -795,13 +834,9 @@ class UserModel
             $allPrograms = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
             if (empty($allPrograms)) {
+                $this->db->rollBack();
                 return ['success' => false, 'error' => 'No programs found in the department'];
             }
-
-            // Update user role to Program Chair (role_id = 5)
-            $query = "UPDATE users SET role_id = 5 WHERE user_id = :user_id";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([':user_id' => $userId]);
 
             // Deactivate any previous program chair assignments for this user
             $query = "UPDATE program_chairs SET is_current = 0 WHERE user_id = :user_id";
@@ -810,7 +845,7 @@ class UserModel
 
             // Add to program_chairs table for all programs in the department, including faculty_id
             $query = "INSERT INTO program_chairs (user_id, faculty_id, program_id, is_current, created_at) 
-                      VALUES (:user_id, :faculty_id, :program_id, 1, NOW())";
+                  VALUES (:user_id, :faculty_id, :program_id, 1, NOW())";
             $stmt = $this->db->prepare($query);
             $insertedCount = 0;
             foreach ($allPrograms as $progId) {
@@ -824,10 +859,13 @@ class UserModel
                 }
             }
 
+            $this->db->commit();
+
             error_log("promoteToProgramChair: Promoted user_id=$userId (faculty_id=$facultyId) to chair for $insertedCount programs in department $departmentId");
 
             return ['success' => true, 'message' => "Promoted to Program Chair for $insertedCount programs in the department."];
         } catch (PDOException $e) {
+            $this->db->rollBack();
             error_log("promoteToProgramChair: PDO Error - " . $e->getMessage());
             return ['success' => false, 'error' => 'Database error: ' . $e->getMessage()];
         }
@@ -836,21 +874,37 @@ class UserModel
     public function demoteProgramChair($userId)
     {
         try {
-            // Verify user is a program chair and get department_id for reference
-            $query = "SELECT u.role_id, p.department_id, pc.program_id 
+            // Verify user is a program chair and get their department and college info
+            $query = "SELECT u.role_id, u.college_id, u.department_id, f.faculty_id,
+                         p.department_id as program_department_id
                   FROM users u 
+                  JOIN faculty f ON u.user_id = f.user_id
                   JOIN program_chairs pc ON u.user_id = pc.user_id 
                   JOIN programs p ON pc.program_id = p.program_id 
-                  WHERE u.user_id = :user_id AND pc.is_current = 1";
+                  WHERE u.user_id = :user_id AND pc.is_current = 1
+                  LIMIT 1";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':user_id' => $userId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
             if (!$user || $user['role_id'] != 5) {
                 error_log("demoteProgramChair: User is not a program chair, user_id=$userId");
                 return ['success' => false, 'error' => 'User is not a program chair'];
             }
 
-            $deptId = $user['department_id'];
+            $departmentId = $user['program_department_id'];
+
+            // If user doesn't have a department_id set, use the program's department
+            if (empty($user['department_id']) && !empty($departmentId)) {
+                // Update users table with the department from their program chair assignment
+                $updateUserDeptQuery = "UPDATE users SET department_id = :department_id WHERE user_id = :user_id";
+                $stmt = $this->db->prepare($updateUserDeptQuery);
+                $stmt->execute([
+                    ':department_id' => $departmentId,
+                    ':user_id' => $userId
+                ]);
+                error_log("demoteProgramChair: Updated users.department_id to $departmentId for user_id=$userId");
+            }
 
             $this->db->beginTransaction();
 
@@ -860,52 +914,49 @@ class UserModel
             $stmt->execute([':user_id' => $userId]);
             error_log("demoteProgramChair: Updated role to Faculty in users table for user_id=$userId");
 
-            // Check if user already has faculty role in user_roles table
+            // Update user_roles table
             $checkRoleQuery = "SELECT COUNT(*) FROM user_roles WHERE user_id = :user_id AND role_id = 6";
             $stmt = $this->db->prepare($checkRoleQuery);
             $stmt->execute([':user_id' => $userId]);
             $hasFacultyRole = $stmt->fetchColumn() > 0;
 
             if (!$hasFacultyRole) {
-                // User doesn't have faculty role, so update their existing role to faculty
+                // Update existing role to faculty or insert if doesn't exist
                 $updateRoleQuery = "UPDATE user_roles SET role_id = 6 WHERE user_id = :user_id";
                 $stmt = $this->db->prepare($updateRoleQuery);
                 $stmt->execute([':user_id' => $userId]);
                 $affectedRoles = $stmt->rowCount();
-                error_log("demoteProgramChair: Updated user_roles to Faculty for user_id=$userId, affected rows: $affectedRoles");
 
-                // If no rows were updated (user had no entry in user_roles), insert the faculty role
                 if ($affectedRoles === 0) {
                     $insertQuery = "INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, 6)";
                     $stmt = $this->db->prepare($insertQuery);
                     $stmt->execute([':user_id' => $userId]);
                     error_log("demoteProgramChair: Inserted faculty role in user_roles for user_id=$userId");
+                } else {
+                    error_log("demoteProgramChair: Updated user_roles to Faculty for user_id=$userId");
                 }
             } else {
                 error_log("demoteProgramChair: User already has faculty role in user_roles, no update needed for user_id=$userId");
             }
 
-            // Fetch all program_chairs entries for this user
+            // Handle program_chairs table - mark all as not current
             $query = "SELECT program_id FROM program_chairs WHERE user_id = :user_id AND is_current = 1";
             $stmt = $this->db->prepare($query);
             $stmt->execute([':user_id' => $userId]);
             $programIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-            if (empty($programIds)) {
-                error_log("demoteProgramChair: No active program chair entries found for user_id=$userId");
-            } else {
-                // For each program_id, check for existing is_current = 0 entries
+            if (!empty($programIds)) {
+                // For each program_id, clean up any existing is_current = 0 entries
                 foreach ($programIds as $programId) {
                     $checkQuery = "SELECT COUNT(*) FROM program_chairs 
-                               WHERE program_id = :program_id AND is_current = 0";
+                           WHERE program_id = :program_id AND is_current = 0";
                     $stmt = $this->db->prepare($checkQuery);
                     $stmt->execute([':program_id' => $programId]);
                     $existingCount = $stmt->fetchColumn();
 
                     if ($existingCount > 0) {
-                        // Delete existing is_current = 0 entries for this program_id
                         $deleteQuery = "DELETE FROM program_chairs 
-                                    WHERE program_id = :program_id AND is_current = 0";
+                                WHERE program_id = :program_id AND is_current = 0";
                         $stmt = $this->db->prepare($deleteQuery);
                         $stmt->execute([':program_id' => $programId]);
                         error_log("demoteProgramChair: Deleted $existingCount is_current=0 entries for program_id=$programId");
@@ -918,10 +969,9 @@ class UserModel
                 $stmt->execute([':user_id' => $userId]);
                 $affectedRows = $stmt->rowCount();
                 error_log("demoteProgramChair: Updated $affectedRows program_chairs entries for user_id=$userId");
+            } else {
+                error_log("demoteProgramChair: No active program chair entries found for user_id=$userId");
             }
-
-            // Note: No need to insert into faculty_departments as the user already has department assignments
-            error_log("demoteProgramChair: User demoted successfully, no faculty_departments changes needed for user_id=$userId");
 
             $this->db->commit();
             return ['success' => true, 'message' => 'User demoted to Faculty successfully'];
