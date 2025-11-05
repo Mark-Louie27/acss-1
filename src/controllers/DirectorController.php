@@ -1061,34 +1061,47 @@ class DirectorController
             $userId = $_SESSION['user_id'];
             $facultyId = $_POST['faculty_id'] ?? null;
             $semesterId = $_POST['semester_id'] ?? null;
-            $notes = $_POST['notes'] ?? '';
 
             if (!$facultyId || !$semesterId) {
                 echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
                 exit;
             }
 
-            // NO COLLEGE VERIFICATION - Director can approve ANY faculty
+            // Check if Dean has approved → set is_public = 1
+            $checkDean = $this->db->prepare("
+            SELECT COUNT(*) 
+            FROM schedules 
+            WHERE faculty_id = ? 
+              AND semester_id = ? 
+              AND approved_by_dean IS NOT NULL
+        ");
+            $checkDean->execute([$facultyId, $semesterId]);
+            $isPublic = ($checkDean->fetchColumn() > 0) ? 1 : 0;
 
-            // Update all schedules for this faculty in the current semester to Di_Approved
             $updateStmt = $this->db->prepare("
             UPDATE schedules 
-            SET status = 'Di_Approved', 
+            SET 
+                status = 'Di_Approved', 
                 approved_by_di = ?,
                 approval_date_di = NOW(),
+                is_public = ?,
                 updated_at = NOW()
             WHERE faculty_id = ? 
-            AND semester_id = ?
-            AND status IN ('Pending', 'Dean_Approved') -- Only update pending or dean approved schedules
+              AND semester_id = ?
+              AND status IN ('Pending', 'Dean_Approved')
         ");
 
-            $updateStmt->execute([$userId, $facultyId, $semesterId]);
+            // 4 placeholders → 4 values
+            $updateStmt->execute([$userId, $isPublic, $facultyId, $semesterId]);
             $affectedRows = $updateStmt->rowCount();
 
             echo json_encode([
                 'success' => true,
-                'message' => "Teaching load approved successfully. {$affectedRows} schedules updated.",
-                'affected_rows' => $affectedRows
+                'message' => $affectedRows > 0
+                    ? "Approved. " . ($isPublic ? "Now PUBLIC." : "Awaiting Dean approval.")
+                    : "No schedules updated.",
+                'affected_rows' => $affectedRows,
+                'is_public' => $isPublic
             ]);
         } catch (Exception $e) {
             error_log("approveTeachingLoadDirector error: " . $e->getMessage());

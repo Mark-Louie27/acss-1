@@ -1118,7 +1118,7 @@ function getSettingsImagePath($path)
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-500">
                             <span class="px-2 py-1 rounded-full bg-gold-light text-gold-dark text-xs">
-                                ${schedule.day_of_week} ${schedule.start_time} - ${schedule.end_time}
+                                ${schedule.formatted_days} ${schedule.start_time} - ${schedule.end_time}
                             </span>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-500">

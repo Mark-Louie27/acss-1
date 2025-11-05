@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../services/SchedulingService.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../../vendor/autoload.php'; // For TCPDF or LaTeX rendering
 
@@ -7,6 +8,7 @@ use setasign\Fpdi\Tcpdf\Fpdi;
 class PublicController
 {
     private $db;
+    private $schedulingService;
 
     public function __construct()
     {
@@ -16,6 +18,8 @@ class PublicController
             error_log("Failed to connect to the database in Public Controller");
             die("Database connection failed. Please try again later.");
         }
+
+        $this->schedulingService = new SchedulingService($this->db);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
@@ -143,39 +147,39 @@ class PublicController
         $search = isset($_POST['search']) ? trim($_POST['search']) : '';
 
         $query = "
-        SELECT 
-            s.schedule_id, 
-            c.course_code, 
-            c.course_name, 
-            sec.section_name,
-            sec.year_level,
-            r.room_name, 
-            r.building, 
-            s.day_of_week, 
-            s.start_time, 
-            s.end_time, 
-            s.schedule_type, 
-            TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,  -- FIXED: COALESCE + TRIM for null titles
-            d.department_name,
-            col.college_name
-        FROM schedules s
-        JOIN courses c ON s.course_id = c.course_id
-        JOIN sections sec ON s.section_id = sec.section_id
-        JOIN semesters sem ON s.semester_id = sem.semester_id
-        LEFT JOIN classrooms r ON s.room_id = r.room_id
-        JOIN faculty f ON s.faculty_id = f.faculty_id
-        JOIN users u ON f.user_id = u.user_id
-        JOIN departments d ON sec.department_id = d.department_id
-        JOIN colleges col ON d.college_id = col.college_id
-        WHERE s.is_public = 1
-        AND sem.semester_id = ?
-        AND (? = 0 OR col.college_id = ?)
-        AND (? = 0 OR d.department_id = ?)
-        AND (? = '' OR sec.year_level = ?)
-        AND (? = 0 OR sec.section_id = ?)
-        AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
-        ORDER BY s.day_of_week, s.start_time
-    ";
+                SELECT 
+                    s.schedule_id, 
+                    c.course_code, 
+                    c.course_name, 
+                    sec.section_name,
+                    sec.year_level,
+                    COALESCE(r.room_name, 'Online') AS room_name, 
+                    r.building, 
+                    s.day_of_week, 
+                    s.start_time, 
+                    s.end_time, 
+                    s.schedule_type, 
+                    TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,
+                    d.department_name,
+                    col.college_name
+                FROM schedules s
+                JOIN courses c ON s.course_id = c.course_id
+                JOIN sections sec ON s.section_id = sec.section_id
+                JOIN semesters sem ON s.semester_id = sem.semester_id
+                LEFT JOIN classrooms r ON s.room_id = r.room_id
+                JOIN faculty f ON s.faculty_id = f.faculty_id
+                JOIN users u ON f.user_id = u.user_id
+                JOIN departments d ON sec.department_id = d.department_id
+                JOIN colleges col ON d.college_id = col.college_id
+                WHERE s.is_public = 1
+                AND sem.semester_id = ?
+                AND (? = 0 OR col.college_id = ?)
+                AND (? = 0 OR d.department_id = ?)
+                AND (? = '' OR sec.year_level = ?)
+                AND (? = 0 OR sec.section_id = ?)
+                AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
+                ORDER BY c.course_code, sec.section_name, s.start_time, FIELD(s.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
+            ";
 
         try {
             $stmt = $this->db->prepare($query);
@@ -196,21 +200,50 @@ class PublicController
                 $searchPattern
             ]);
 
-            $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $rawSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // UPDATED: Log with filters (helps debug why only Monday)
-            $dayCounts = [];
-            foreach ($schedules as $sch) {
-                $day = $sch['day_of_week'];
-                $dayCounts[$day] = ($dayCounts[$day] ?? 0) + 1;
+            // GROUP BY: course + section + time + room → collect days
+            $grouped = [];
+            foreach ($rawSchedules as $sch) {
+                $key = $sch['course_code'] . '|' .
+                    $sch['section_name'] . '|' .
+                    $sch['start_time'] . '|' .
+                    $sch['end_time'] . '|' .
+                    $sch['room_name'] . '|' .
+                    $sch['instructor_name'];
+
+                if (!isset($grouped[$key])) {
+                    $grouped[$key] = $sch;
+                    $grouped[$key]['days'] = [];
+                }
+                $grouped[$key]['days'][] = $sch['day_of_week'];
             }
-            error_log("SearchSchedules DEBUG: Total: " . count($schedules) . ", Filters: college=$college_id, dept=$department_id, year='$year_level', section=$section_id, search='$search' | By Day: " . json_encode($dayCounts));
 
-            $total = count($schedules);
+            // FORMAT DAYS using SchedulingService
+            $formattedSchedules = [];
+            foreach ($grouped as $item) {
+                $dayString = implode(', ', $item['days']);
+                $item['formatted_days'] = $this->schedulingService->formatScheduleDays($dayString);
+                unset($item['days'], $item['day_of_week']); // Remove raw
+                $formattedSchedules[] = $item;
+            }
+
+            // Sort by formatted days + time
+            usort($formattedSchedules, function ($a, $b) {
+                $daysOrder = ['MWF' => 1, 'TTH' => 2, 'MW' => 3, 'THF' => 4, 'MTHF' => 5, 'TWTHF' => 6];
+                $aKey = $a['formatted_days'];
+                $bKey = $b['formatted_days'];
+                $aOrder = $daysOrder[$aKey] ?? 99;
+                $bOrder = $daysOrder[$bKey] ?? 99;
+                if ($aOrder !== $bOrder) return $aOrder <=> $bOrder;
+                return $a['start_time'] <=> $b['start_time'];
+            });
+
+            $total = count($formattedSchedules);
             $perPage = 10;
-            $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
+            $page = isset($_POST['page']) ? max(1, (int)$_POST['page']) : 1;
             $offset = ($page - 1) * $perPage;
-            $pagedSchedules = array_slice($schedules, $offset, $perPage);
+            $pagedSchedules = array_slice($formattedSchedules, $offset, $perPage);
 
             header('Content-Type: application/json');
             echo json_encode([
@@ -218,12 +251,15 @@ class PublicController
                 'total' => $total,
                 'page' => $page,
                 'per_page' => $perPage,
-                'debug_days' => $dayCounts  // For JS console
+                'debug' => [
+                    'raw_count' => count($rawSchedules),
+                    'grouped_count' => count($formattedSchedules)
+                ]
             ]);
         } catch (PDOException $e) {
             error_log("Search Schedules Error: " . $e->getMessage());
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'An error occurred while fetching schedules.']);
+            echo json_encode(['error' => 'Database error.']);
         }
         exit;
     }
