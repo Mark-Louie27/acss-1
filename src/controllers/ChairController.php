@@ -2370,7 +2370,8 @@ class ChairController extends BaseController
                 fn($c) => $c['curriculum_semester'] === $currentSemester['semester_name'] && in_array($c['curriculum_year'], $yearLevels)
             );
             $relevantCourses = array_values($relevantCourses);
-            error_log("generateSchedules: Found " . count($relevantCourses) . " relevant courses");
+
+            
 
             if (empty($matchingSections) || empty($relevantCourses)) {
                 error_log("generateSchedules: No sections or courses found for curriculum $curriculumId, semester {$currentSemester['semester_name']}");
@@ -2393,18 +2394,7 @@ class ChairController extends BaseController
             $facultySpecializations = $this->getFacultySpecializations($departmentId, $collegeId, $semesterType);
             error_log("generateSchedules: Faculty specializations count: " . count($facultySpecializations));
 
-            if (!empty($facultySpecializations)) {
-                error_log("DEBUG: First faculty structure: " . print_r($facultySpecializations[0], true));
-            } else {
-                error_log("DEBUG: facultySpecializations is empty - checking why");
-
-                try {
-                    $testResult = $this->getFacultySpecializations($departmentId, $collegeId, $semesterType);
-                    error_log("DEBUG: Direct call returned: " . count($testResult) . " results");
-                } catch (Exception $e) {
-                    error_log("DEBUG: getFacultySpecializations threw exception: " . $e->getMessage());
-                }
-            }
+            $relevantCourses = $this->sortCoursesBySpecializationPriority($relevantCourses, $facultySpecializations);
 
             // Initialize tracking arrays
             $facultyAssignments = [];
@@ -3512,21 +3502,6 @@ class ChairController extends BaseController
         return false;
     }
 
-    // Helper method to check online slot availability
-    private function isOnlineSlotAvailable($days, $startTime, $endTime, $onlineSlotTracker, $sectionSize)
-    {
-        $maxOnlineCapacity = 150; // Adjust based on your system's capacity
-
-        foreach ($days as $day) {
-            $slotKey = $day . '_' . $startTime . '_' . $endTime;
-            $currentLoad = $onlineSlotTracker[$slotKey] ?? 0;
-            if ($currentLoad + $sectionSize > $maxOnlineCapacity) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     // Helper method to update section schedule tracker
     private function updateSectionScheduleTracker(&$tracker, $sectionId, $day, $startTime, $endTime)
     {
@@ -3545,13 +3520,6 @@ class ChairController extends BaseController
     {
         $roomKey = $roomId . '_' . $day . '_' . $startTime . '_' . $endTime;
         $assignments[$roomKey] = true;
-    }
-
-    // Helper method to update online slot tracker
-    private function updateOnlineSlotTracker(&$tracker, $day, $startTime, $endTime, $sectionSize)
-    {
-        $slotKey = $day . '_' . $startTime . '_' . $endTime;
-        $tracker[$slotKey] = ($tracker[$slotKey] ?? 0) + $sectionSize;
     }
 
     // Helper method to update used time slots globally
@@ -3806,6 +3774,76 @@ class ChairController extends BaseController
         }
 
         return $slots;
+    }
+
+    private function sortCoursesBySpecializationPriority($courses, $facultySpecializations)
+    {
+        $coursesWithPriority = [];
+
+        foreach ($courses as $course) {
+            $courseId = $course['course_id'];
+            $courseCode = $course['course_code'];
+
+            // Count how many faculty have specialization in this course
+            $specializedFacultyCount = 0;
+            foreach ($facultySpecializations as $faculty) {
+                $specs = $faculty['specializations'] ?? [];
+                if (in_array($courseId, $specs)) {
+                    $specializedFacultyCount++;
+                }
+            }
+
+            $courseDetails = $this->getCourseDetails($courseId);
+            $isProfessional = ($courseDetails['subject_type'] ?? '') === 'Professional Course';
+
+            $coursesWithPriority[] = [
+                'course' => $course,
+                'specialized_count' => $specializedFacultyCount,
+                'is_professional' => $isProfessional,
+                'course_code' => $courseCode
+            ];
+
+            $status = $specializedFacultyCount > 0 ? "✅ SPECIALIZED ($specializedFacultyCount faculty)" : "⚪ NO SPECIALIZATION";
+            error_log("  $courseCode: $status");
+        }
+
+        // Sort: Specialized courses FIRST (fewer specialized faculty = higher priority)
+        usort($coursesWithPriority, function ($a, $b) {
+            // Priority 1: Courses WITH specialization before courses WITHOUT
+            $hasSpecA = $a['specialized_count'] > 0;
+            $hasSpecB = $b['specialized_count'] > 0;
+
+            if ($hasSpecA && !$hasSpecB) return -1;
+            if (!$hasSpecA && $hasSpecB) return 1;
+
+            // Both have specialization: Fewer specialists = higher priority (more constrained)
+            if ($hasSpecA && $hasSpecB) {
+                if ($a['specialized_count'] !== $b['specialized_count']) {
+                    return $a['specialized_count'] <=> $b['specialized_count'];
+                }
+            }
+
+            // Priority 2: Professional courses before General Ed
+            if ($a['is_professional'] && !$b['is_professional']) return -1;
+            if (!$a['is_professional'] && $b['is_professional']) return 1;
+
+            // Priority 3: Alphabetical
+            return $a['course_code'] <=> $b['course_code'];
+        });
+
+        // Extract sorted courses
+        $sortedCourses = array_map(fn($item) => $item['course'], $coursesWithPriority);
+
+        error_log("\n📋 FINAL SCHEDULING ORDER:");
+        foreach ($coursesWithPriority as $idx => $item) {
+            $type = $item['is_professional'] ? 'Professional' : 'General Ed';
+            $priority = $item['specialized_count'] > 0
+                ? "SPECIALIZED ({$item['specialized_count']} faculty)"
+                : "RANDOM";
+            error_log("  " . ($idx + 1) . ". {$item['course_code']} - $priority ($type)");
+        }
+
+        return $sortedCourses;
     }
 
     private function findBestFaculty(
@@ -4878,50 +4916,6 @@ class ChairController extends BaseController
         return $selected['faculty_id'];
     }
 
-    // Add this method to pre-sort courses before the main loop
-    private function sortCoursesBySpecializationPriority($courses, $facultySpecializations)
-    {
-        $courseSpecializationCount = [];
-
-        foreach ($courses as $course) {
-            $courseId = $course['course_id'];
-            $specializedFacultyCount = 0;
-
-            foreach ($facultySpecializations as $faculty) {
-                if (in_array($courseId, $faculty['specializations'] ?? [])) {
-                    $specializedFacultyCount++;
-                }
-            }
-
-            $courseSpecializationCount[$courseId] = $specializedFacultyCount;
-        }
-
-        // Sort courses: fewer specialized faculty = higher priority
-        usort($courses, function ($a, $b) use ($courseSpecializationCount) {
-            $countA = $courseSpecializationCount[$a['course_id']] ?? 999;
-            $countB = $courseSpecializationCount[$b['course_id']] ?? 999;
-
-            // Courses with fewer specialized faculty get scheduled first
-            if ($countA != $countB) {
-                return $countA <=> $countB;
-            }
-
-            // Tie-breaker: Professional courses first
-            $courseDetailsA = $this->getCourseDetails($a['course_id']);
-            $courseDetailsB = $this->getCourseDetails($b['course_id']);
-
-            $isProfA = ($courseDetailsA['subject_type'] ?? '') === 'Professional Course';
-            $isProfB = ($courseDetailsB['subject_type'] ?? '') === 'Professional Course';
-
-            if ($isProfA && !$isProfB) return -1;
-            if (!$isProfA && $isProfB) return 1;
-
-            return 0;
-        });
-
-        return $courses;
-    }
-
     private function isExpertInCourse($facultyId, $courseId, $facultySpecializations)
     {
         foreach ($facultySpecializations as $faculty) {
@@ -5029,69 +5023,6 @@ class ChairController extends BaseController
             }
         }
         return true;
-    }
-
-    // Helper method to reschedule a conflicting course to different time
-    private function rescheduleConflictingCourse($assignment, &$facultyAssignments, &$schedules, $departmentId, $roomAssignments)
-    {
-        error_log("⏰ Attempting to reschedule course {$assignment['course_id']} to different time");
-
-        // Get available time slots (you might need to adjust this based on your time slot generation)
-        $alternativeTimeSlots = $this->getAlternativeTimeSlots($assignment['day_of_week']);
-
-        foreach ($alternativeTimeSlots as $timeSlot) {
-            $newStartTime = $timeSlot['start'];
-            $newEndTime = $timeSlot['end'];
-
-            // Check if faculty is available at new time
-            if ($this->isFacultyAvailable($assignment['faculty_id'], $assignment['day_of_week'], $newStartTime, $newEndTime, $facultyAssignments)) {
-                // Check if room is available at new time
-                $roomAvailable = $this->isRoomAvailable($assignment['room_id'], $assignment['day_of_week'], $newStartTime, $newEndTime, $schedules, $roomAssignments);
-
-                if ($roomAvailable) {
-                    // Update the schedule
-                    if ($this->updateScheduleTime($assignment['schedule_id'], $newStartTime, $newEndTime)) {
-                        // Update in-memory arrays
-                        foreach ($facultyAssignments as &$fa) {
-                            if ($fa['schedule_id'] == $assignment['schedule_id']) {
-                                $fa['start_time'] = $newStartTime;
-                                $fa['end_time'] = $newEndTime;
-                                break;
-                            }
-                        }
-
-                        foreach ($schedules as &$schedule) {
-                            if ($schedule['schedule_id'] == $assignment['schedule_id']) {
-                                $schedule['start_time'] = $newStartTime;
-                                $schedule['end_time'] = $newEndTime;
-                                break;
-                            }
-                        }
-
-                        error_log("✅ Successfully rescheduled course {$assignment['course_id']} to $newStartTime-$newEndTime");
-                        return true;
-                    }
-                }
-            }
-        }
-
-        error_log("❌ Could not find alternative time slot for course {$assignment['course_id']}");
-        return false;
-    }
-
-    // Get alternative time slots for rescheduling
-    private function getAlternativeTimeSlots($currentDays)
-    {
-        // Return common alternative time slots
-        return [
-            ['start' => '07:30:00', 'end' => '09:00:00'],
-            ['start' => '09:00:00', 'end' => '10:30:00'],
-            ['start' => '10:30:00', 'end' => '12:00:00'],
-            ['start' => '13:00:00', 'end' => '14:30:00'],
-            ['start' => '14:30:00', 'end' => '16:00:00'],
-            ['start' => '16:00:00', 'end' => '17:30:00'],
-            ['start' => '17:30:00', 'end' => '19:00:00']
-        ];
     }
 
     private function getAvailableRoom($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $forceF2F = false)
@@ -5202,27 +5133,6 @@ class ChairController extends BaseController
 
         error_log("No available room found for department $departmentId, day $day at $startTime-$endTime with capacity >= $maxStudents");
         return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
-    }
-
-    // Update schedule time in database
-    private function updateScheduleTime($scheduleId, $newStartTime, $newEndTime)
-    {
-        try {
-            $stmt = $this->db->prepare("
-            UPDATE schedules 
-            SET start_time = :start_time, end_time = :end_time 
-            WHERE schedule_id = :schedule_id
-        ");
-
-            return $stmt->execute([
-                ':start_time' => $newStartTime,
-                ':end_time' => $newEndTime,
-                ':schedule_id' => $scheduleId
-            ]);
-        } catch (Exception $e) {
-            error_log("❌ Error updating schedule time: " . $e->getMessage());
-            return false;
-        }
     }
 
     // Enhanced hasTimeConflict method with logging
