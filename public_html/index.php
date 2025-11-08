@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../src/Services/BackupSchedulerService.php';
+require_once __DIR__ . '/../src/services/BackupSchedulerService.php';
+
 // Include middleware
 require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 

@@ -199,7 +199,9 @@ function getSettingsImagePath($path)
                             <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded" value="1">
                             <label for="remember-me" class="ml-2 block text-xs md:text-sm text-gray-900">Remember me</label>
                         </div>
-                        <a id="forgot-password-link" class="text-xs md:text-sm text-yellow-600 hover:text-yellow-500">Forgot password?</a>
+                        <div class="w-full md:w-auto text-left md:text-right">
+                            <a id="forgot-password-link" class="text-xs md:text-sm text-yellow-600 hover:text-yellow-500">Forgot password?</a>
+                        </div>
                     </div>
                     <button type="submit" class="w-full bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-150 ease-in-out text-sm md:text-base">
                         Sign In

@@ -97,13 +97,13 @@ class EmailService
 
                             <!-- CTA Section -->
                             <div style='text-align: center; margin: 40px 0;'>
-                                <a href='http://localhost:8000/login' 
+                                <a href='https://prmsu-acss.online/login' 
                                 style='display: inline-block; background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: #ffffff; padding: 18px 40px; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 17px; box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4); transition: all 0.3s ease; border: none; cursor: pointer; letter-spacing: 0.3px;'>
                                     🚀 Access Your Account Now
                                 </a>
                                 <p style='margin: 20px 0 0 0; color: #9ca3af; font-size: 14px; font-weight: 400;'>
                                     Or copy this link:<br>
-                                    <span style='background-color: #f3f4f6; padding: 8px 16px; border-radius: 8px; font-family: \"Courier New\", monospace; font-size: 13px; color: #4b5563; border: 1px solid #e5e7eb; display: inline-block; margin-top: 8px;'>http://localhost:8000/login</span>
+                                    <span style='background-color: #f3f4f6; padding: 8px 16px; border-radius: 8px; font-family: \"Courier New\", monospace; font-size: 13px; color: #4b5563; border: 1px solid #e5e7eb; display: inline-block; margin-top: 8px;'>https://prmsu-acss.online/login</span>
                                 </p>
                             </div>
 
@@ -193,7 +193,7 @@ class EmailService
                 Great news! Your account for the role of $role has been successfully approved.
 
                 🚀 GET STARTED:
-                Access your account now: http://localhost:8000/login
+                Access your account now: https://prmsu-acss.online/login
 
                 📋 WHAT'S NEXT:
                 1. Complete your profile setup
@@ -488,7 +488,7 @@ class EmailService
                             <div style='background-color: #fffaf0; border: 1px solid #fbd38d; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;'>
                                 <p style='margin: 0 0 10px 0; color: #744210; font-weight: 500;'>Need to take action?</p>
                                 <p style='margin: 0; color: #975a16; font-size: 14px;'>
-                                    Log in to the admin panel at <a href='http://localhost:8000/admin/users' style='color: #c05621; text-decoration: none; font-weight: 500;'>http://localhost:8000/admin/users</a>
+                                    Log in to the admin panel at <a href='https://prmsu-acss.online/admin/users' style='color: #c05621; text-decoration: none; font-weight: 500;'>https://prmsu-acss.online/admin/users</a>
                                 </p>
                             </div>
                         </div>
@@ -525,7 +525,7 @@ class EmailService
                     A new action requires your attention:
                     $message
 
-                    Need to take action? Log in to the admin panel at: http://localhost:8000/admin/users
+                    Need to take action? Log in to the admin panel at: https://prmsu-acss.online/admin/users
 
                     Best regards,
                     The ACSS Team
