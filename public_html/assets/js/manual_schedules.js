@@ -1,161 +1,61 @@
-// Manual Schedule Management - CLEANED VERSION
-let draggedElement = null;
 let currentEditingId = null;
 let currentSemesterCourses = {};
 let validationTimeout;
+let currentDeleteScheduleId = null;
 const DEBOUNCE_DELAY = 300;
 
-// Enhanced real-time validation with debouncing and comprehensive checks
-function validateFieldRealTime(fieldType, value, relatedFields = {}) {
-  clearTimeout(validationTimeout);
-  validationTimeout = setTimeout(() => {
-    const form = document.getElementById("schedule-form");
-    if (!form) return;
+// Enhanced Drag and Drop with Conflict Detection
+let draggedElement = null;
+let originalPosition = null;
 
-    const formData = new FormData(form);
-    const currentScheduleId = formData.get("schedule_id") || "";
-
-    // Build comprehensive validation data
-    const validationData = {
-      action: "validate_partial",
-      semester_id: window.currentSemester?.semester_id,
-      department_id: window.departmentId,
-      [fieldType]: value,
-      schedule_id: currentScheduleId, // Important for update scenarios
-      ...relatedFields,
-    };
-
-    // Add all relevant fields for comprehensive conflict checking
-    const relevantFields = [
-      "course_code",
-      "section_name",
-      "faculty_name",
-      "room_name",
-      "day_of_week",
-      "start_time",
-      "end_time",
-    ];
-
-    relevantFields.forEach((field) => {
-      const fieldValue = formData.get(field)?.trim() || "";
-      if (fieldValue) {
-        validationData[field] = fieldValue;
-      }
-    });
-
-    console.log(`Validating ${fieldType}:`, validationData);
-
-    fetch("/chair/generate-schedules", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(validationData),
-    })
-      .then((response) => response.json())
-      .then((result) => {
-        console.log("Validation response:", result);
-        handleValidationResponse(fieldType, result, value);
-      })
-      .catch((error) => {
-        console.error("Real-time validation error:", error);
-        displayConflictWarning(
-          fieldType.replace("_", "-"),
-          "🔧 Validation service temporarily unavailable",
-          "warning"
-        );
-      });
-  }, DEBOUNCE_DELAY);
-}
-
-// Enhanced validation response handler
-function handleValidationResponse(fieldType, result, originalValue) {
-  const fieldId = fieldType.replace("_", "-");
-
-  // Clear previous warnings
-  removeConflictWarning(fieldId);
-
-  if (!result.success) {
-    displayConflictWarning(
-      fieldId,
-      result.message || "Validation failed",
-      "error"
-    );
-    return;
-  }
-
-  if (result.conflicts && result.conflicts.length > 0) {
-    const conflictMessages = result.conflicts.map((conflict) => {
-      // Format conflict messages for better readability
-      if (conflict.includes("Section")) {
-        return `👥 ${conflict}`;
-      } else if (conflict.includes("Faculty")) {
-        return `👨‍🏫 ${conflict}`;
-      } else if (conflict.includes("Room")) {
-        return `🏫 ${conflict}`;
-      } else if (conflict.includes("time")) {
-        return `⏰ ${conflict}`;
-      }
-      return `⚠️ ${conflict}`;
-    });
-
-    const uniqueMessages = [...new Set(conflictMessages)];
-    const displayMessage = uniqueMessages.join("\n");
-
-    displayConflictWarning(fieldId, displayMessage, "error");
-
-    // Also highlight related fields if needed
-    if (fieldType === "start_time" || fieldType === "end_time") {
-      const otherTimeField =
-        fieldType === "start_time" ? "end-time" : "start-time";
-      displayConflictWarning(otherTimeField, "Time conflict detected", "error");
-    }
-  } else {
-    // No conflicts - show success for important fields
-    if (
-      ["faculty_name", "room_name", "section_name"].includes(fieldType) &&
-      originalValue
-    ) {
-      displayConflictWarning(fieldId, "✅ No conflicts detected", "success");
-    }
-  }
-}
-
-// Enhanced drag and drop that works for all schedule cards
 function handleDragStart(e) {
-  // Allow dragging from ANY schedule card, including continuation ones
   draggedElement = e.target.closest(".schedule-card");
   if (!draggedElement) return;
 
+  // Store original position for revert if needed
+  originalPosition = {
+    day: draggedElement.closest(".drop-zone").dataset.day,
+    startTime: draggedElement.closest(".drop-zone").dataset.startTime,
+    endTime: draggedElement.closest(".drop-zone").dataset.endTime,
+    element: draggedElement,
+  };
+
   e.dataTransfer.setData("text/plain", draggedElement.dataset.scheduleId);
   e.dataTransfer.effectAllowed = "move";
-  draggedElement.classList.add("dragging");
+  draggedElement.classList.add("dragging", "opacity-50");
 
-  // Store original position data
-  draggedElement.dataset.originalDay =
-    draggedElement.closest(".schedule-cell").dataset.day;
-  draggedElement.dataset.originalSlotStart =
-    draggedElement.closest(".schedule-cell").dataset.slotStart;
-  draggedElement.dataset.originalSlotEnd =
-    draggedElement.closest(".schedule-cell").dataset.slotEnd;
-
-  setTimeout(() => {
-    draggedElement.style.opacity = "0.4";
-  }, 0);
+  console.log("🚀 Drag started:", {
+    scheduleId: draggedElement.dataset.scheduleId,
+    originalPosition: originalPosition,
+  });
 }
 
 function handleDragEnd(e) {
   if (draggedElement) {
-    draggedElement.style.opacity = "1";
-    draggedElement.classList.remove("dragging");
+    draggedElement.classList.remove("dragging", "opacity-50");
   }
   draggedElement = null;
+  originalPosition = null;
+
   document.querySelectorAll(".drop-zone.drag-over").forEach((zone) => {
     zone.classList.remove("drag-over");
   });
+
+  document.querySelectorAll(".drop-zone.conflict").forEach((zone) => {
+    zone.classList.remove("conflict");
+  });
+
+  console.log("🏁 Drag ended");
 }
 
 function handleDragEnter(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.target.classList.add("drag-over");
+  const dropZone = e.target.closest(".drop-zone");
+  if (dropZone && draggedElement) {
+    dropZone.classList.add("drag-over");
+
+    // Check for conflicts in real-time
+    checkDropZoneConflicts(dropZone);
+
     e.preventDefault();
   }
 }
@@ -170,100 +70,540 @@ function handleDragOver(e) {
 function handleDragLeave(e) {
   if (e.target.classList.contains("drop-zone")) {
     e.target.classList.remove("drag-over");
+    e.target.classList.remove("conflict");
   }
 }
 
-// Enhanced calculateEndTime that handles any time format
-function calculateEndTime(startTime, durationMinutes = 60) {
-  // Handle various time formats
-  let formattedStartTime = startTime;
+async function handleDrop(e) {
+  e.preventDefault();
+  const dropZone = e.target.closest(".drop-zone");
 
-  // If it's in HHMM format without colon, add colon
-  if (!formattedStartTime.includes(":") && formattedStartTime.length >= 3) {
-    const timeStr = formattedStartTime.padStart(4, "0");
-    formattedStartTime =
-      timeStr.substring(0, 2) + ":" + timeStr.substring(2, 4);
+  if (!dropZone || !draggedElement) {
+    console.log("❌ Invalid drop zone or no dragged element");
+    return;
   }
 
-  // Parse time
-  const [hours, minutes] = formattedStartTime.split(":").map(Number);
+  dropZone.classList.remove("drag-over", "conflict");
+
+  const scheduleId = e.dataTransfer.getData("text/plain");
+  const newDay = dropZone.dataset.day;
+  const newStartTime = dropZone.dataset.startTime;
+  const newEndTime = dropZone.dataset.endTime;
+
+  console.log("🎯 Drop detected:", {
+    scheduleId,
+    newDay,
+    newStartTime,
+    newEndTime,
+  });
+
+  // Check for conflicts using your PHP function
+  const conflicts = await checkScheduleConflicts(
+    scheduleId,
+    newDay,
+    newStartTime,
+    newEndTime
+  );
+
+  if (conflicts.length > 0) {
+    console.warn("❌ Conflicts detected:", conflicts);
+    showDropConflicts(conflicts);
+    revertDrag();
+    return;
+  }
+
+  // If no conflicts, proceed with the move
+  performScheduleMove(scheduleId, newDay, newStartTime, newEndTime, dropZone);
+}
+
+function checkScheduleConflicts(scheduleId, newDay, newStartTime, newEndTime) {
+  return new Promise((resolve) => {
+    const currentSchedule = window.scheduleData.find(
+      (s) => s.schedule_id == scheduleId
+    );
+
+    if (!currentSchedule) {
+      resolve([]);
+      return;
+    }
+
+    // Prepare data for PHP conflict check
+    const formData = new URLSearchParams({
+      action: "check_drag_conflicts",
+      schedule_id: scheduleId,
+      section_id: currentSchedule.section_id,
+      faculty_id: currentSchedule.faculty_id,
+      room_id: currentSchedule.room_id || "",
+      day_of_week: newDay,
+      start_time: newStartTime + ":00",
+      end_time: newEndTime + ":00",
+      semester_id: window.currentSemester?.semester_id || "",
+    });
+
+    fetch("/chair/generate-schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData,
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success && result.conflicts) {
+          resolve(result.conflicts);
+        } else {
+          resolve([]);
+        }
+      })
+      .catch((error) => {
+        console.error("Conflict check error:", error);
+        resolve([]); // Allow drop if check fails
+      });
+  });
+}
+
+// Get conflict type for better messaging
+function getConflictType(newStart, newEnd, existingStart, existingEnd) {
+  if (newStart >= existingStart && newEnd <= existingEnd)
+    return "completely_overlaps";
+  if (newStart < existingStart && newEnd > existingEnd)
+    return "completely_contains";
+  if (newStart < existingEnd && newEnd > existingEnd) return "overlaps_end";
+  if (newStart < existingStart && newEnd > existingStart)
+    return "overlaps_start";
+  return "partial_overlap";
+}
+
+function showDropZoneConflictTooltip(dropZone, conflicts) {
+  removeConflictTooltip(dropZone);
+
+  const tooltip = document.createElement("div");
+  tooltip.className =
+    "conflict-tooltip absolute bottom-full left-0 rounded p-2 text-xs z-50 whitespace-nowrap max-w-xs";
+
+  // Group conflicts by severity
+  const highConflicts = conflicts.filter((c) => c.severity === "high");
+  const mediumConflicts = conflicts.filter((c) => c.severity === "medium");
+  const lowConflicts = conflicts.filter((c) => c.severity === "low");
+
+  let tooltipContent =
+    '<div class="font-semibold mb-1">⚠️ Scheduling Conflicts:</div>';
+
+  // Show high severity conflicts first
+  if (highConflicts.length > 0) {
+    tooltipContent += '<div class="text-red-700 font-semibold">Critical:</div>';
+    highConflicts.slice(0, 2).forEach((conflict) => {
+      tooltipContent += `<div class="ml-2 text-red-600">• ${conflict.message}</div>`;
+    });
+  }
+
+  // Medium severity
+  if (mediumConflicts.length > 0) {
+    tooltipContent +=
+      '<div class="text-orange-600 font-medium mt-1">Important:</div>';
+    mediumConflicts.slice(0, 2).forEach((conflict) => {
+      tooltipContent += `<div class="ml-2 text-orange-600">• ${conflict.message}</div>`;
+    });
+  }
+
+  // Low severity
+  if (lowConflicts.length > 0) {
+    tooltipContent += '<div class="text-yellow-600 mt-1">Note:</div>';
+    lowConflicts.slice(0, 1).forEach((conflict) => {
+      tooltipContent += `<div class="ml-2 text-yellow-600">• ${conflict.message}</div>`;
+    });
+  }
+
+  // Show total count if there are more conflicts
+  const totalShown =
+    highConflicts.slice(0, 2).length +
+    mediumConflicts.slice(0, 2).length +
+    lowConflicts.slice(0, 1).length;
+  const totalConflicts = conflicts.length;
+
+  if (totalConflicts > totalShown) {
+    tooltipContent += `<div class="mt-1 text-gray-500">+ ${
+      totalConflicts - totalShown
+    } more conflicts</div>`;
+  }
+
+  tooltip.innerHTML = tooltipContent;
+
+  // Set background based on highest severity
+  if (highConflicts.length > 0) {
+    tooltip.classList.add("bg-red-100", "border-red-300", "text-red-800");
+    dropZone.classList.add("conflict-high");
+  } else if (mediumConflicts.length > 0) {
+    tooltip.classList.add(
+      "bg-orange-100",
+      "border-orange-300",
+      "text-orange-800"
+    );
+    dropZone.classList.add("conflict-medium");
+  } else {
+    tooltip.classList.add(
+      "bg-yellow-100",
+      "border-yellow-300",
+      "text-yellow-800"
+    );
+    dropZone.classList.add("conflict-low");
+  }
+
+  tooltip.classList.add("border");
+  dropZone.appendChild(tooltip);
+}
+
+function removeConflictTooltip(dropZone) {
+  const existingTooltip = dropZone.querySelector(".conflict-tooltip");
+  if (existingTooltip) {
+    existingTooltip.remove();
+  }
+}
+
+// Show drop conflicts to user
+function showDropConflicts(conflicts) {
+  const conflictMessages = conflicts.map((c) => c.message).join("\n• ");
+  showNotification(
+    `Cannot move schedule due to conflicts:\n• ${conflictMessages}`,
+    "error",
+    8000
+  );
+}
+
+// Revert drag to original position
+function revertDrag() {
+  if (originalPosition && originalPosition.element) {
+    originalPosition.element.classList.remove("opacity-50");
+    showNotification("Schedule reverted due to conflicts", "warning", 3000);
+  }
+}
+
+// Perform the actual schedule move
+function performScheduleMove(
+  scheduleId,
+  newDay,
+  newStartTime,
+  newEndTime,
+  dropZone
+) {
+  const scheduleIndex = window.scheduleData.findIndex(
+    (s) => s.schedule_id == scheduleId
+  );
+
+  if (scheduleIndex === -1) {
+    console.error("Schedule not found:", scheduleId);
+    showNotification("Error: Schedule not found", "error");
+    return;
+  }
+
+  const originalSchedule = window.scheduleData[scheduleIndex];
+
+  // Calculate new end time based on original duration
+  const originalStart = new Date(
+    `2000-01-01 ${originalSchedule.start_time.substring(0, 5)}`
+  );
+  const originalEnd = new Date(
+    `2000-01-01 ${originalSchedule.end_time.substring(0, 5)}`
+  );
+  const durationMs = originalEnd - originalStart;
+  const newEnd = new Date(`2000-01-01 ${newStartTime}`);
+  newEnd.setMinutes(newEnd.getMinutes() + durationMs / 60000);
+  const formattedEndTime = newEnd.toTimeString().substring(0, 5);
+
+  console.log("🔄 Moving schedule:", {
+    from: `${originalSchedule.day_of_week} ${originalSchedule.start_time}-${originalSchedule.end_time}`,
+    to: `${newDay} ${newStartTime}-${formattedEndTime}`,
+    duration: `${durationMs / 60000} minutes`,
+  });
+
+  // Update schedule data
+  window.scheduleData[scheduleIndex].day_of_week = newDay;
+  window.scheduleData[scheduleIndex].start_time = newStartTime + ":00";
+  window.scheduleData[scheduleIndex].end_time = formattedEndTime + ":00";
+
+  // Update display
+  safeUpdateScheduleDisplay(window.scheduleData);
+
+  // Save to server
+  saveScheduleMoveToServer(scheduleId, newDay, newStartTime, formattedEndTime);
+
+  showNotification(
+    `Schedule moved to ${newDay} ${newStartTime}-${formattedEndTime}`,
+    "success"
+  );
+}
+
+// Save schedule move to server
+function saveScheduleMoveToServer(
+  scheduleId,
+  newDay,
+  newStartTime,
+  newEndTime
+) {
+  const formData = new URLSearchParams({
+    action: "update_schedule_drag",
+    schedule_id: scheduleId,
+    day_of_week: newDay,
+    start_time: newStartTime + ":00",
+    end_time: newEndTime + ":00",
+  });
+
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData,
+  })
+    .then((response) => response.json())
+    .then((result) => {
+      if (!result.success) {
+        console.error("Failed to save schedule move:", result.message);
+        showNotification(
+          "Warning: Schedule move not saved to server",
+          "warning"
+        );
+      } else {
+        console.log("✅ Schedule move saved to server");
+      }
+    })
+    .catch((error) => {
+      console.error("Error saving schedule move:", error);
+      showNotification("Error: Failed to save schedule move", "error");
+    });
+}
+
+async function checkDropZoneConflicts(dropZone) {
+  if (!draggedElement) return;
+
+  const scheduleId = draggedElement.dataset.scheduleId;
+  const newDay = dropZone.dataset.day;
+  const newStartTime = dropZone.dataset.startTime;
+  const newEndTime = dropZone.dataset.endTime;
+
+  const conflicts = await checkScheduleConflicts(
+    scheduleId,
+    newDay,
+    newStartTime,
+    newEndTime
+  );
+
+  if (conflicts.length > 0) {
+    dropZone.classList.add("conflict");
+    showDropZoneConflictTooltip(dropZone, conflicts);
+  } else {
+    dropZone.classList.remove("conflict");
+    removeConflictTooltip(dropZone);
+  }
+}
+
+// Initialize enhanced drag and drop
+function initializeDragAndDrop() {
+  const dropZones = document.querySelectorAll(".drop-zone");
+  const draggables = document.querySelectorAll(".schedule-card.draggable");
+
+  console.log("🔄 Initializing drag and drop:", {
+    dropZones: dropZones.length,
+    draggables: draggables.length,
+  });
+
+  // Remove existing event listeners
+  dropZones.forEach((zone) => {
+    zone.removeEventListener("dragover", handleDragOver);
+    zone.removeEventListener("dragenter", handleDragEnter);
+    zone.removeEventListener("dragleave", handleDragLeave);
+    zone.removeEventListener("drop", handleDrop);
+  });
+
+  draggables.forEach((draggable) => {
+    draggable.removeEventListener("dragstart", handleDragStart);
+    draggable.removeEventListener("dragend", handleDragEnd);
+  });
+
+  // Add new event listeners
+  dropZones.forEach((zone) => {
+    zone.addEventListener("dragover", handleDragOver);
+    zone.addEventListener("dragenter", handleDragEnter);
+    zone.addEventListener("dragleave", handleDragLeave);
+    zone.addEventListener("drop", handleDrop);
+  });
+
+  draggables.forEach((draggable) => {
+    draggable.addEventListener("dragstart", handleDragStart);
+    draggable.addEventListener("dragend", handleDragEnd);
+  });
+}
+
+function validateFieldRealTime(fieldType, value, relatedFields = {}) {
+  clearTimeout(validationTimeout);
+  validationTimeout = setTimeout(() => {
+    const formData = new FormData(document.getElementById("schedule-form"));
+    const partialData = {
+      action: "validate_partial",
+      semester_id: window.currentSemester?.semester_id,
+      [fieldType]: value,
+      ...relatedFields,
+      course_code: formData.get("course_code")?.trim() || "",
+      section_name: formData.get("section_name")?.trim() || "",
+      faculty_name: formData.get("faculty_name")?.trim() || "",
+      room_name: formData.get("room_name")?.trim() || "Online",
+      day_of_week: formData.get("day_of_week") || "",
+      start_time: formData.get("start-time") || "",
+      end_time: formData.get("end-time") || "",
+    };
+    console.log(`Validating ${fieldType}:`, partialData);
+
+    fetch("/chair/generate-schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(partialData),
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        console.log("Validation response:", result);
+
+        // Clear previous warnings for this field type
+        const fieldId = fieldType.replace("_", "-");
+        removeConflictWarning(fieldId);
+
+        if (result.success && result.conflicts?.length > 0) {
+          result.conflicts.forEach((conflict) => {
+            let fieldId,
+              message,
+              warningLevel = "error";
+
+            switch (true) {
+              case conflict.includes("Section"):
+                fieldId = "section-name";
+                message = conflict.includes("schedule")
+                  ? `👥 ${conflict}`
+                  : "👥 This section has scheduling conflicts. Please check the section's existing schedules.";
+                break;
+              case conflict.includes("Faculty"):
+                fieldId = "faculty-name";
+                message = conflict.includes("schedule")
+                  ? `👨‍🏫 ${conflict}`
+                  : "👨‍🏫 Faculty member has overlapping schedules. Consider adjusting time or day.";
+                warningLevel = "error";
+                break;
+              case conflict.includes("Room"):
+                fieldId = "room-name";
+                message = conflict.includes("schedule")
+                  ? `🏫 ${conflict}`
+                  : "🏫 Room is already occupied during this time. Please select another room or time slot.";
+                warningLevel = "error";
+                break;
+              case conflict.includes("time"):
+                fieldId = "start-time";
+                const endFieldId = "end-time";
+                const timeMessage = conflict.includes("schedule")
+                  ? `⏰ ${conflict}`
+                  : "⏰ Time conflict detected. This time slot overlaps with existing schedules.";
+
+                displayConflictWarning(fieldId, timeMessage, "error");
+                displayConflictWarning(endFieldId, timeMessage, "error");
+                break;
+              default:
+                fieldId = fieldType.replace("_", "-");
+                message =
+                  result.message ||
+                  "⚠️ Validation issue detected. Please check your input.";
+                warningLevel = "warning";
+            }
+
+            if (fieldId && !conflict.includes("time")) {
+              displayConflictWarning(fieldId, message, warningLevel);
+            }
+          });
+        } else if (!result.success && result.message) {
+          displayConflictWarning(
+            fieldType.replace("_", "-"),
+            `⚠️ ${result.message}`,
+            "warning"
+          );
+        } else {
+          // No conflicts - show success message for important fields
+          const fieldId = fieldType.replace("_", "-");
+          if (
+            ["faculty-name", "room-name", "section-name"].includes(fieldId) &&
+            value
+          ) {
+            displayConflictWarning(
+              fieldId,
+              "✅ No conflicts detected for this selection.",
+              "success"
+            );
+          }
+        }
+      })
+      .catch((error) => {
+        console.error("Real-time validation error:", error);
+        const fieldId = fieldType.replace("_", "-");
+        displayConflictWarning(
+          fieldId,
+          "🔧 Validation service temporarily unavailable. Please check your inputs manually.",
+          "warning"
+        );
+      });
+  }, DEBOUNCE_DELAY);
+}
+
+function calculateEndTime(startTime, durationMinutes = 60) {
+  const [hours, minutes] = startTime.split(":").map(Number);
   const startDate = new Date(2000, 0, 1, hours, minutes);
   const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
-
-  // Format back to HH:MM
-  const endHours = endDate.getHours().toString().padStart(2, "0");
-  const endMinutes = endDate.getMinutes().toString().padStart(2, "0");
-
-  return `${endHours}:${endMinutes}`;
+  return endDate.toTimeString().substring(0, 5);
 }
 
-// Enhanced drop handler that understands schedule duration
 function handleDrop(e) {
   e.preventDefault();
   const dropZone = e.target.closest(".drop-zone");
   if (!dropZone || !draggedElement) return;
-
   dropZone.classList.remove("drag-over");
   const scheduleId = e.dataTransfer.getData("text/plain");
   const newDay = dropZone.dataset.day;
-  const newStartTime = dropZone.dataset.startTime; // This is the slot start time
-
+  const newStartTime = dropZone.dataset.startTime;
+  const newEndTime = dropZone.dataset.endTime;
   console.log(
     "Dropping schedule:",
     scheduleId,
     "to",
     newDay,
-    "at slot",
-    newStartTime
+    newStartTime,
+    newEndTime
   );
 
   const scheduleIndex = window.scheduleData.findIndex(
     (s) => s.schedule_id == scheduleId
   );
-
   if (scheduleIndex !== -1) {
     const originalSchedule = window.scheduleData[scheduleIndex];
-
-    // Calculate new times based on the original duration
-    const originalStart = new Date(`2000-01-01T${originalSchedule.start_time}`);
-    const originalEnd = new Date(`2000-01-01T${originalSchedule.end_time}`);
+    const originalStart = new Date(
+      `2000-01-01 ${originalSchedule.start_time.substring(0, 5)}`
+    );
+    const originalEnd = new Date(
+      `2000-01-01 ${originalSchedule.end_time.substring(0, 5)}`
+    );
     const durationMinutes = (originalEnd - originalStart) / (1000 * 60);
-
-    // Use the slot start time as the new start time
-    const newStart = new Date(`2000-01-01T${newStartTime}:00`);
-    const newEnd = new Date(newStart.getTime() + durationMinutes * 60000);
-
-    const formattedStartTime = newStart.toTimeString().substring(0, 8);
-    const formattedEndTime = newEnd.toTimeString().substring(0, 8);
+    const formattedEndTime = calculateEndTime(newStartTime, durationMinutes);
 
     console.log("Time update details:", {
-      original: `${originalSchedule.start_time} - ${originalSchedule.end_time}`,
-      new: `${formattedStartTime} - ${formattedEndTime}`,
-      duration: durationMinutes + " minutes",
+      originalDuration: durationMinutes + " minutes",
+      newStart: newStartTime,
+      newEnd: formattedEndTime,
     });
 
-    // Update the schedule
     window.scheduleData[scheduleIndex].day_of_week = newDay;
-    window.scheduleData[scheduleIndex].start_time = formattedStartTime;
-    window.scheduleData[scheduleIndex].end_time = formattedEndTime;
+    window.scheduleData[scheduleIndex].start_time = newStartTime + ":00";
+    window.scheduleData[scheduleIndex].end_time = formattedEndTime + ":00";
 
-    // Refresh display
     safeUpdateScheduleDisplay(window.scheduleData);
     showNotification(
-      `Schedule moved to ${newDay} ${formattedStartTime.substring(
-        0,
-        5
-      )}-${formattedEndTime.substring(0, 5)}`,
+      `Schedule moved to ${newDay} ${newStartTime}-${formattedEndTime}`,
       "success"
     );
   }
 }
 
-// Make sure ALL schedule cards are draggable and editable
 function initializeDragAndDrop() {
   const dropZones = document.querySelectorAll(".drop-zone");
-  const draggables = document.querySelectorAll(".schedule-card.draggable");
-
+  const draggables = document.querySelectorAll(".draggable");
   console.log("Initializing drag and drop:", {
     dropZones: dropZones.length,
     draggables: draggables.length,
@@ -287,50 +627,19 @@ function initializeDragAndDrop() {
 
     draggable.addEventListener("dragstart", handleDragStart);
     draggable.addEventListener("dragend", handleDragEnd);
-
-    // Ensure edit buttons work
-    const editBtn = draggable.querySelector(".edit-schedule-btn");
-    const deleteBtn = draggable.querySelector(".delete-schedule-btn");
-
-    if (editBtn) {
-      editBtn.onclick = (e) => {
-        e.stopPropagation();
-        const scheduleId = draggable.dataset.scheduleId;
-        editScheduleFromAnyCell(scheduleId);
-      };
-    }
-
-    if (deleteBtn) {
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        const scheduleId = draggable.dataset.scheduleId;
-        const schedule = window.scheduleData.find(
-          (s) => s.schedule_id == scheduleId
-        );
-        if (schedule) {
-          openDeleteSingleModal(
-            scheduleId,
-            schedule.course_code,
-            schedule.section_name,
-            schedule.day_of_week,
-            formatTime(schedule.start_time.substring(0, 5)),
-            formatTime(schedule.end_time.substring(0, 5))
-          );
-        }
-      };
-    }
   });
 }
 
-function openDeleteAllModal() {
-  console.log("Opening delete all modal...");
-  const modal = document.getElementById("delete-all-modal");
+// Open delete ALL schedules modal
+function deleteAllSchedules() {
+  console.log("Opening delete all schedules modal...");
+  const modal = document.getElementById("delete-confirmation-modal");
   if (modal) {
     modal.classList.remove("hidden");
     modal.classList.add("flex");
     console.log("Delete all modal opened successfully");
   } else {
-    console.error("Delete all modal element not found!");
+    console.error("Delete confirmation modal element not found!");
     if (
       confirm(
         "Are you sure you want to delete all schedules? This action cannot be undone."
@@ -341,9 +650,10 @@ function openDeleteAllModal() {
   }
 }
 
-function closeDeleteAllModal() {
+// Close delete all modal
+function closeDeleteModal() {
   console.log("Closing delete all modal...");
-  const modal = document.getElementById("delete-all-modal");
+  const modal = document.getElementById("delete-confirmation-modal");
   if (modal) {
     modal.classList.add("hidden");
     modal.classList.remove("flex");
@@ -353,92 +663,115 @@ function closeDeleteAllModal() {
 function confirmDeleteAllSchedules() {
   console.log("Confirming deletion of all schedules...");
 
-  const deleteButton = document.querySelector(
-    '#delete-confirmation-modal button[onclick="confirmDeleteAllSchedules()"]'
-  );
-  const originalText = deleteButton ? deleteButton.innerHTML : "";
-
-  if (deleteButton) {
-    deleteButton.innerHTML =
-      '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
-    deleteButton.disabled = true;
+  // Show loading overlay
+  const loadingOverlay = document.getElementById("loading-overlay");
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove("hidden");
+    const loadingText = loadingOverlay.querySelector("p");
+    if (loadingText) {
+      loadingText.textContent = "Deleting schedules...";
+    }
   }
 
-  // Debug: Log what we're sending
-  const requestData = {
-    action: "delete_schedules",
-    confirm: "true",
-    semester_id: window.currentSemester?.semester_id || "",
-    department_id: window.departmentId || "",
-  };
+  // Close modal immediately
+  closeDeleteModal();
 
-  console.log("Sending delete request:", requestData);
-
+  // FIX: Send 'true' as string, backend expects this
   fetch("/chair/generate-schedules", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(requestData),
+    body: new URLSearchParams({
+      action: "delete_schedules",
+      confirm: "true", // Changed from "1" to "true"
+    }),
   })
     .then((response) => {
       console.log("Delete all response status:", response.status);
-      console.log("Delete all response headers:", response.headers);
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
+      return response.text(); // Get text first to see raw response
     })
-    .then((data) => {
+    .then((text) => {
+      console.log("Delete all raw response:", text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("Failed to parse JSON:", e);
+        throw new Error("Invalid JSON response: " + text.substring(0, 200));
+      }
+
       console.log("Delete all response data:", data);
 
+      // Hide loading
+      if (loadingOverlay) {
+        loadingOverlay.classList.add("hidden");
+        const loadingText = loadingOverlay.querySelector("p");
+        if (loadingText) {
+          loadingText.textContent = "Generating schedules...";
+        }
+      }
+
       if (data.success) {
+        const deletedCount = data.deleted_count || 0;
         showNotification(
-          "All schedules deleted successfully! Deleted " +
-            (data.deleted_count || 0) +
-            " schedules.",
+          `Successfully deleted ${deletedCount} schedule(s)!`,
           "success"
         );
 
-        // Clear frontend data
+        // Clear schedule data
         window.scheduleData = [];
 
-        // Force refresh all views
+        // Update displays
         safeUpdateScheduleDisplay([]);
+
+        // Rebuild course mappings
         buildCurrentSemesterCourseMappings();
+
+        // Remove completion banner if exists
+        const banner = document.getElementById("schedule-completion-banner");
+        if (banner) {
+          banner.remove();
+        }
 
         // Hide generation results
         const generationResults = document.getElementById("generation-results");
-        if (generationResults) generationResults.classList.add("hidden");
+        if (generationResults) {
+          generationResults.classList.add("hidden");
+        }
 
-        // Force a page reload after successful deletion to ensure clean state
+        // Reload after short delay
         setTimeout(() => {
-          console.log("Reloading page to ensure clean state...");
           location.reload();
-        }, 1000);
+        }, 1500);
       } else {
         showNotification(
-          "Error: " + (data.message || "Failed to delete all schedules"),
+          "Error: " +
+            (data.message || "Failed to delete all schedules") +
+            (data.debug ? "\n\nDebug: " + JSON.stringify(data.debug) : ""),
           "error"
         );
       }
     })
     .catch((error) => {
+      // Hide loading on error
+      if (loadingOverlay) {
+        loadingOverlay.classList.add("hidden");
+        const loadingText = loadingOverlay.querySelector("p");
+        if (loadingText) {
+          loadingText.textContent = "Generating schedules...";
+        }
+      }
+
       console.error("Delete all error:", error);
       showNotification(
         "Error deleting all schedules: " + error.message,
         "error"
       );
-    })
-    .finally(() => {
-      if (deleteButton) {
-        deleteButton.innerHTML = originalText;
-        deleteButton.disabled = false;
-      }
-      closeDeleteModal();
-      closeDeleteAllModal();
     });
 }
 
-let currentDeleteScheduleId = null;
-
+// Open single delete modal
 function openDeleteSingleModal(
   scheduleId,
   courseCode,
@@ -447,49 +780,199 @@ function openDeleteSingleModal(
   startTime,
   endTime
 ) {
-  console.log("Opening single delete modal for schedule:", scheduleId);
-  currentDeleteScheduleId = scheduleId;
+  // Check if we're getting the event object instead of scheduleId
+  if (scheduleId && typeof scheduleId === "object" && scheduleId.target) {
+    return;
+  }
 
+  // Store the original values for debugging
+  window._deleteDebug = {
+    originalScheduleId: scheduleId,
+    originalType: typeof scheduleId,
+  };
+
+  // More robust validation
+  let finalScheduleId = scheduleId;
+
+  // Check for common null/undefined cases
+  if (
+    finalScheduleId == null ||
+    finalScheduleId === "null" ||
+    finalScheduleId === "undefined" ||
+    finalScheduleId === ""
+  ) {
+    console.warn("⚠️ Invalid scheduleId detected, attempting recovery...");
+
+    // Try to get from the event (if available)
+    if (window.event) {
+      const element = window.event.target.closest("button");
+      if (element) {
+        const onclick = element.getAttribute("onclick");
+        console.log("Button onclick attribute:", onclick);
+      }
+    }
+
+    // Try to find by course and section as last resort
+    if (courseCode && sectionName) {
+      const matchingSchedule = window.scheduleData.find(
+        (s) => s.course_code === courseCode && s.section_name === sectionName
+      );
+      if (matchingSchedule && matchingSchedule.schedule_id) {
+        finalScheduleId = matchingSchedule.schedule_id;
+        console.log("✅ Recovered scheduleId from data:", finalScheduleId);
+      }
+    }
+  }
+
+  // Final validation
+  if (
+    !finalScheduleId ||
+    finalScheduleId === "null" ||
+    finalScheduleId === "undefined"
+  ) {
+    showNotification(
+      "Error: Could not identify schedule. Please refresh and try again.",
+      "error"
+    );
+    return;
+  }
+
+  console.log(
+    "✅ Final scheduleId for deletion:",
+    finalScheduleId,
+    "type:",
+    typeof finalScheduleId
+  );
+  currentDeleteScheduleId = finalScheduleId;
+
+  // Update modal
   const detailsElement = document.getElementById("single-delete-details");
   if (detailsElement) {
-    detailsElement.innerHTML =
-      '<div class="text-sm">' +
-      '<div class="font-semibold">' +
-      courseCode +
-      " - " +
-      sectionName +
-      "</div>" +
-      '<div class="text-gray-600 mt-1">' +
-      day +
-      " • " +
-      startTime +
-      " to " +
-      endTime +
-      "</div>" +
-      "</div>";
+    detailsElement.innerHTML = `
+            <div class="text-sm">
+                <div class="font-semibold">${escapeHtml(
+                  courseCode
+                )} - ${escapeHtml(sectionName)}</div>
+                <div class="text-gray-600 mt-1">${escapeHtml(
+                  day
+                )} • ${escapeHtml(startTime)} to ${escapeHtml(endTime)}</div>
+                <div class="text-xs text-gray-500 mt-2">Schedule ID: ${finalScheduleId}</div>
+            </div>
+        `;
   }
 
   const modal = document.getElementById("delete-single-modal");
   if (modal) {
     modal.classList.remove("hidden");
     modal.classList.add("flex");
-    console.log("Single delete modal opened successfully");
-  } else {
-    console.error("Single delete modal element not found!");
-    if (
-      confirm(
-        "Are you sure you want to delete " +
-          courseCode +
-          " - " +
-          sectionName +
-          "?"
-      )
-    ) {
-      confirmDeleteSingleSchedule();
-    }
   }
+
+  console.log("🔍 OPEN DELETE MODAL - END");
 }
 
+// Enhanced confirmDeleteSingleSchedule with detailed logging
+function confirmDeleteSingleSchedule() {
+  if (
+    !currentDeleteScheduleId ||
+    currentDeleteScheduleId === "null" ||
+    currentDeleteScheduleId === "undefined"
+  ) {
+    console.error(
+      "❌ currentDeleteScheduleId is invalid:",
+      currentDeleteScheduleId
+    );
+    showNotification("Error: No schedule selected for deletion.", "error");
+    return;
+  }
+
+  // Convert to number to ensure it's not a string
+  const scheduleIdToDelete = parseInt(currentDeleteScheduleId);
+  if (isNaN(scheduleIdToDelete) || scheduleIdToDelete <= 0) {
+    console.error(
+      "❌ Invalid scheduleId after conversion:",
+      scheduleIdToDelete
+    );
+    showNotification("Error: Invalid schedule ID format.", "error");
+    return;
+  }
+
+  console.log("✅ Sending delete request for scheduleId:", scheduleIdToDelete);
+
+  // Show loading
+  const loadingOverlay = document.getElementById("loading-overlay");
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove("hidden");
+    loadingOverlay.querySelector("p").textContent = "Deleting schedule...";
+  }
+
+  closeDeleteSingleModal();
+
+  // Create form data with proper validation
+  const formData = new URLSearchParams();
+  formData.append("action", "delete_schedule");
+  formData.append("schedule_id", scheduleIdToDelete.toString());
+  formData.append("confirm", "true");
+
+  console.log("📤 Sending POST data:", {
+    action: "delete_schedule",
+    schedule_id: scheduleIdToDelete,
+    confirm: "true",
+  });
+
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: formData,
+  })
+    .then((response) => {
+      console.log("📥 Response status:", response.status);
+      return response.text();
+    })
+    .then((text) => {
+      console.log("📥 Raw response:", text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("❌ JSON parse error:", e);
+        throw new Error("Invalid JSON: " + text.substring(0, 200));
+      }
+      return data;
+    })
+    .then((data) => {
+      console.log("📥 Parsed response:", data);
+
+      if (loadingOverlay) loadingOverlay.classList.add("hidden");
+
+      if (data.success) {
+        showNotification("Schedule deleted successfully!", "success");
+
+        // Update UI
+        window.scheduleData = window.scheduleData.filter(
+          (s) => s.schedule_id != scheduleIdToDelete
+        );
+        safeUpdateScheduleDisplay(window.scheduleData);
+        setTimeout(initializeDragAndDrop, 100);
+        buildCurrentSemesterCourseMappings();
+      } else {
+        showNotification(data.message || "Failed to delete schedule", "error");
+      }
+    })
+    .catch((error) => {
+      console.error("❌ Fetch error:", error);
+      if (loadingOverlay) loadingOverlay.classList.add("hidden");
+      showNotification("Error: " + error.message, "error");
+    })
+    .finally(() => {
+      currentDeleteScheduleId = null;
+      console.log("🔍 CONFIRM DELETE - END");
+    });
+}
+
+// Close single delete modal
 function closeDeleteSingleModal() {
   console.log("Closing single delete modal...");
   const modal = document.getElementById("delete-single-modal");
@@ -500,66 +983,7 @@ function closeDeleteSingleModal() {
   currentDeleteScheduleId = null;
 }
 
-function confirmDeleteSingleSchedule() {
-  if (!currentDeleteScheduleId) {
-    console.error("No schedule ID set for deletion");
-    showNotification("Error: No schedule selected for deletion", "error");
-    return;
-  }
-
-  console.log("Confirming deletion of schedule:", currentDeleteScheduleId);
-  const deleteButton = document.querySelector(
-    '#delete-single-modal button[onclick="confirmDeleteSingleSchedule()"]'
-  );
-  const originalText = deleteButton ? deleteButton.innerHTML : "";
-
-  if (deleteButton) {
-    deleteButton.innerHTML =
-      '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
-    deleteButton.disabled = true;
-  }
-
-  fetch("/chair/generate-schedules", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      action: "delete_schedule",
-      schedule_id: currentDeleteScheduleId,
-    }),
-  })
-    .then((response) => {
-      console.log("Single delete response status:", response.status);
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
-    })
-    .then((data) => {
-      console.log("Single delete response data:", data);
-      if (data.success) {
-        showNotification("Schedule deleted successfully!", "success");
-        window.scheduleData = window.scheduleData.filter(
-          (s) => s.schedule_id != currentDeleteScheduleId
-        );
-        safeUpdateScheduleDisplay(window.scheduleData);
-        initializeDragAndDrop();
-        buildCurrentSemesterCourseMappings();
-      } else {
-        showNotification(data.message || "Failed to delete schedule.", "error");
-      }
-    })
-    .catch((error) => {
-      console.error("Single delete error:", error);
-      showNotification("Error deleting schedule: " + error.message, "error");
-    })
-    .finally(() => {
-      if (deleteButton) {
-        deleteButton.innerHTML = originalText;
-        deleteButton.disabled = false;
-      }
-      closeDeleteSingleModal();
-    });
-}
-
+// Helper function to delete schedule (calls openDeleteSingleModal)
 function deleteSchedule(scheduleId) {
   const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
   if (schedule) {
@@ -577,26 +1001,39 @@ function deleteSchedule(scheduleId) {
   }
 }
 
-// Enhanced time formatting that handles any time input
-function formatTime(timeString) {
-  if (!timeString) return "";
+// Helper function for escaping HTML (if not already defined)
+function escapeHtml(unsafe) {
+  if (!unsafe) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-  // Handle various time formats
-  let formattedTime = timeString;
-  if (!formattedTime.includes(":")) {
-    // If it's just numbers like "730", convert to "07:30"
-    const timeStr = formattedTime.padStart(4, "0");
-    formattedTime = timeStr.substring(0, 2) + ":" + timeStr.substring(2, 4);
+// Close modals on ESC key
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape") {
+    closeDeleteModal();
+    closeDeleteSingleModal();
+    closeModal(); // Your existing modal close function
+  }
+});
+
+// Close modals when clicking outside
+document.addEventListener("click", function (event) {
+  const deleteAllModal = document.getElementById("delete-confirmation-modal");
+  const deleteSingleModal = document.getElementById("delete-single-modal");
+
+  if (deleteAllModal && event.target === deleteAllModal) {
+    closeDeleteModal();
   }
 
-  const [hours, minutes] = formattedTime.split(":");
-  const date = new Date(2000, 0, 1, hours, minutes);
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
+  if (deleteSingleModal && event.target === deleteSingleModal) {
+    closeDeleteSingleModal();
+  }
+});
 
 function showNotification(message, type = "success", duration = 5000) {
   const existingNotification = document.getElementById("notification");
@@ -672,7 +1109,6 @@ function showNotification(message, type = "success", duration = 5000) {
 }
 
 // Enhanced autoFillCourseName with better messaging
-// Enhanced autoFillCourseName with time calculation based on course units
 function autoFillCourseName(courseCode) {
   const courseNameInput = document.getElementById("course-name");
   if (!courseCode || !courseNameInput) return;
@@ -691,21 +1127,6 @@ function autoFillCourseName(courseCode) {
     const course = currentSemesterCourses[enteredCode];
     courseNameInput.value = course.name;
     console.log("Found course:", course);
-
-    // Auto-calculate end time based on course units
-    if (course.units) {
-      const durationMinutes = course.units * 60; // 1 unit = 1 hour
-      setTimeout(() => {
-        calculateAutoEndTime();
-        showNotification(
-          `Course detected: ${course.units} unit${
-            course.units !== 1 ? "s" : ""
-          } (${durationMinutes} minutes)`,
-          "info",
-          3000
-        );
-      }, 100);
-    }
 
     // Show success message for valid course
     if (!conflict) {
@@ -821,32 +1242,16 @@ function resetSectionFilter() {
   optgroups.forEach((optgroup) => (optgroup.style.display = ""));
 }
 
-// Enhanced updateTimeFields for flexible time inputs
 function updateTimeFields() {
-  const startTimeInput = document.getElementById("start-time");
-  const endTimeInput = document.getElementById("end-time");
+  const startTimeSelect = document.getElementById("start-time");
+  const endTimeSelect = document.getElementById("end-time");
   const modalStartTime = document.getElementById("modal-start-time");
   const modalEndTime = document.getElementById("modal-end-time");
 
-  if (startTimeInput && modalStartTime) {
-    // Ensure time format includes seconds
-    let startTime = startTimeInput.value;
-    if (startTime && !startTime.includes(":")) {
-      // Convert HHMM to HH:MM
-      const timeStr = startTime.padStart(4, "0");
-      startTime = timeStr.substring(0, 2) + ":" + timeStr.substring(2, 4);
-    }
-    modalStartTime.value = startTime ? startTime + ":00" : "";
-  }
-
-  if (endTimeInput && modalEndTime) {
-    let endTime = endTimeInput.value;
-    if (endTime && !endTime.includes(":")) {
-      const timeStr = endTime.padStart(4, "0");
-      endTime = timeStr.substring(0, 2) + ":" + timeStr.substring(2, 4);
-    }
-    modalEndTime.value = endTime ? endTime + ":00" : "";
-  }
+  if (startTimeSelect && modalStartTime)
+    modalStartTime.value = startTimeSelect.value + ":00";
+  if (endTimeSelect && modalEndTime)
+    modalEndTime.value = endTimeSelect.value + ":00";
 }
 
 function updateDayField() {
@@ -855,20 +1260,10 @@ function updateDayField() {
   if (daySelect && modalDay) modalDay.value = daySelect.value;
 }
 
-// Enhanced form submission with time validation
 function handleScheduleSubmit(e) {
   e.preventDefault();
-  console.log("Submitting schedule form with enhanced validation...");
-
+  console.log("Submitting schedule form...");
   resetConflictStyles();
-
-  // Validate time formats
-  const startTimeInput = document.getElementById("start-time");
-  const endTimeInput = document.getElementById("end-time");
-
-  if (!validateTimeInput(startTimeInput) || !validateTimeInput(endTimeInput)) {
-    return;
-  }
 
   const currentSemesterId = window.currentSemester?.semester_id;
   if (!currentSemesterId) {
@@ -890,229 +1285,190 @@ function handleScheduleSubmit(e) {
     end_time: formData.get("end_time"),
     schedule_type: formData.get("schedule_type") || "f2f",
     semester_id: currentSemesterId,
-    department_id: window.departmentId,
   };
+  console.log("Form data:", data);
 
-  console.log("Enhanced form data:", data);
-
-  // Validate required fields
-  const requiredFields = [
-    { field: "course_code", name: "Course Code" },
-    { field: "course_name", name: "Course Name" },
-    { field: "section_name", name: "Section" },
-    { field: "faculty_name", name: "Faculty" },
-    { field: "day_of_week", name: "Day Pattern" },
-  ];
-
-  let hasEmptyFields = false;
-  requiredFields.forEach(({ field, name }) => {
-    if (!data[field]) {
-      highlightConflictField(field.replace("_", "-"), `${name} is required`);
-      hasEmptyFields = true;
-    }
-  });
-
-  if (hasEmptyFields) {
-    showNotification("Please fill out all required fields.", "error");
-    return;
+  // Check for course conflicts
+  const courseConflict = validateCourseConflict(
+    data.course_code,
+    data.course_name,
+    currentEditingId
+  );
+  if (courseConflict) {
+    highlightConflictField("course-code", courseConflict.message);
+    highlightConflictField("course-name", courseConflict.message);
   }
 
-  // Enhanced time validation
-  const startTime = data.start_time.substring(0, 5);
-  const endTime = data.end_time.substring(0, 5);
-
-  if (startTime >= endTime) {
-    highlightConflictField("start-time", "Start time must be before end time");
-    highlightConflictField("end-time", "End time must be after start time");
-    showNotification("End time must be after start time.", "error");
-    return;
-  }
-
-  // Check minimum class duration (at least 30 minutes)
-  const start = new Date(`2000-01-01T${startTime}:00`);
-  const end = new Date(`2000-01-01T${endTime}:00`);
-  const durationMinutes = (end - start) / (1000 * 60);
-
-  if (durationMinutes < 30) {
-    highlightConflictField("end-time", "Minimum class duration is 30 minutes");
-    showNotification("Class duration must be at least 30 minutes.", "error");
-    return;
-  }
-
-  // Check for conflicts before submission
-  performFinalConflictCheck(data)
-    .then((hasConflicts) => {
-      if (hasConflicts) {
-        showNotification(
-          "Please resolve all conflicts before submitting.",
-          "error"
-        );
-        return;
-      }
-      submitScheduleData(data);
-    })
-    .catch((error) => {
-      console.error("Final conflict check error:", error);
-      showNotification("Error checking conflicts: " + error.message, "error");
-    });
-}
-
-// Perform final comprehensive conflict check
-function performFinalConflictCheck(data) {
-  return new Promise((resolve) => {
-    const checkData = {
-      action: "validate_complete",
-      semester_id: data.semester_id,
-      department_id: data.department_id,
-      schedule_id: data.schedule_id || "",
-      course_code: data.course_code,
-      section_name: data.section_name,
-      faculty_name: data.faculty_name,
-      room_name: data.room_name,
+  const validatePromises = [
+    validateFieldRealTime("section_name", data.section_name),
+    validateFieldRealTime("faculty_name", data.faculty_name, {
       day_of_week: data.day_of_week,
       start_time: data.start_time,
       end_time: data.end_time,
-    };
+    }),
+    validateFieldRealTime("room_name", data.room_name, {
+      day_of_week: data.day_of_week,
+      start_time: data.start_time,
+      end_time: data.end_time,
+    }),
+    validateFieldRealTime("day_of_week", data.day_of_week, {
+      faculty_name: data.faculty_name,
+      room_name: data.room_name,
+      start_time: data.start_time,
+      end_time: data.end_time,
+    }),
+    validateFieldRealTime("start_time", data.start_time, {
+      day_of_week: data.day_of_week,
+      faculty_name: data.faculty_name,
+      room_name: data.room_name,
+    }),
+    validateFieldRealTime("end_time", data.end_time, {
+      day_of_week: data.day_of_week,
+      start_time: data.start_time,
+      faculty_name: data.faculty_name,
+      room_name: data.room_name,
+    }),
+  ];
+
+  Promise.all(validatePromises).then(() => {
+    let hasConflicts = document.querySelectorAll(".border-red-500").length > 0;
+    if (hasConflicts) {
+      showNotification(
+        "Please resolve the highlighted conflicts before submitting.",
+        "error"
+      );
+      return;
+    }
+
+    let hasEmptyFields = false;
+    const requiredFields = [
+      { id: "course-code", value: data.course_code, name: "Course Code" },
+      { id: "course-name", value: data.course_name, name: "Course Name" },
+      { id: "section-name", value: data.section_name, name: "Section" },
+      { id: "faculty-name", value: data.faculty_name, name: "Faculty" },
+      { id: "day-select", value: data.day_of_week, name: "Day Pattern" },
+    ];
+
+    requiredFields.forEach((field) => {
+      if (!field.value) {
+        highlightConflictField(field.id, field.name + " is required");
+        hasEmptyFields = true;
+      }
+    });
+
+    if (hasEmptyFields) {
+      showNotification("Please fill out all required fields.", "error");
+      return;
+    }
+
+    if (data.start_time >= data.end_time) {
+      highlightConflictField(
+        "start-time",
+        "Start time must be before end time"
+      );
+      highlightConflictField("end-time", "End time must be after start time");
+      showNotification("End time must be after start time.", "error");
+      return;
+    }
+
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    submitButton.innerHTML =
+      '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+    submitButton.disabled = true;
 
     fetch("/chair/generate-schedules", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(checkData),
+      body: new URLSearchParams(data),
     })
       .then((response) => response.json())
       .then((result) => {
-        if (result.success && result.conflicts && result.conflicts.length > 0) {
-          // Display all conflicts
-          result.conflicts.forEach((conflict) => {
-            if (conflict.includes("Section")) {
-              highlightConflictField("section-name", conflict);
-            } else if (conflict.includes("Faculty")) {
-              highlightConflictField("faculty-name", conflict);
-            } else if (conflict.includes("Room")) {
-              highlightConflictField("room-name", conflict);
-            } else if (conflict.includes("time")) {
-              highlightConflictField("start-time", conflict);
-              highlightConflictField("end-time", conflict);
+        console.log("Save response:", result);
+        if (result.success) {
+          closeModal();
+          resetConflictStyles();
+          let message =
+            result.message ||
+            (currentEditingId
+              ? "Schedule updated successfully!"
+              : "Schedule added successfully!");
+
+          if (result.schedules && result.schedules.length > 1) {
+            message =
+              "Schedules added successfully for " +
+              result.schedules.length +
+              " days!";
+            result.schedules.forEach((schedule) => {
+              window.scheduleData.push({
+                ...schedule,
+                semester_id: currentSemesterId,
+              });
+            });
+          } else if (result.schedules && result.schedules.length === 1) {
+            if (currentEditingId) {
+              const index = window.scheduleData.findIndex(
+                (s) => s.schedule_id == currentEditingId
+              );
+              if (index !== -1)
+                window.scheduleData[index] = {
+                  ...window.scheduleData[index],
+                  ...result.schedules[0],
+                  semester_id: currentSemesterId,
+                };
+            } else {
+              window.scheduleData.push({
+                ...result.schedules[0],
+                semester_id: currentSemesterId,
+              });
             }
-          });
-          resolve(true);
+          }
+
+          if (result.partial_success)
+            message += " (" + result.failed_days + " day(s) had conflicts)";
+          showNotification(message, "success");
+          safeUpdateScheduleDisplay(window.scheduleData);
+          initializeDragAndDrop();
+          buildCurrentSemesterCourseMappings();
         } else {
-          resolve(false);
+          resetConflictStyles();
+          if (result.conflicts && result.conflicts.length > 0) {
+            result.conflicts.forEach((conflict) => {
+              if (conflict.includes("faculty"))
+                highlightConflictField("faculty-name", conflict);
+              if (conflict.includes("room"))
+                highlightConflictField("room-name", conflict);
+              if (conflict.includes("section"))
+                highlightConflictField("section-name", conflict);
+              if (conflict.includes("time")) {
+                highlightConflictField("start-time", conflict);
+                highlightConflictField("end-time", conflict);
+              }
+            });
+            showNotification(
+              "Schedule conflicts detected:\n• " +
+                result.conflicts.join("\n• "),
+              "error",
+              10000
+            );
+          } else {
+            showNotification(
+              result.message || "Failed to save schedule.",
+              "error"
+            );
+          }
         }
       })
-      .catch(() => resolve(false));
+      .catch((error) => {
+        console.error("Error saving schedule:", error);
+        showNotification("Error saving schedule: " + error.message, "error");
+        resetConflictStyles();
+      })
+      .finally(() => {
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+      });
   });
-}
-
-// Submit schedule data after validation
-function submitScheduleData(data) {
-  const submitButton = document.querySelector(
-    '#schedule-form button[type="submit"]'
-  );
-  const originalText = submitButton.innerHTML;
-  submitButton.innerHTML =
-    '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
-  submitButton.disabled = true;
-
-  fetch("/chair/generate-schedules", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(data),
-  })
-    .then((response) => response.json())
-    .then((result) => {
-      console.log("Save response:", result);
-      handleSaveResponse(result, data);
-    })
-    .catch((error) => {
-      console.error("Error saving schedule:", error);
-      showNotification("Error saving schedule: " + error.message, "error");
-    })
-    .finally(() => {
-      submitButton.innerHTML = originalText;
-      submitButton.disabled = false;
-    });
-}
-
-// Handle save response
-function handleSaveResponse(result, originalData) {
-  if (result.success) {
-    closeModal();
-    resetConflictStyles();
-
-    let message =
-      result.message ||
-      (currentEditingId
-        ? "Schedule updated successfully!"
-        : "Schedule added successfully!");
-
-    if (result.schedules && result.schedules.length > 1) {
-      message =
-        "Schedules added successfully for " +
-        result.schedules.length +
-        " days!";
-      result.schedules.forEach((schedule) => {
-        window.scheduleData.push({
-          ...schedule,
-          semester_id: originalData.semester_id,
-        });
-      });
-    } else if (result.schedules && result.schedules.length === 1) {
-      if (currentEditingId) {
-        const index = window.scheduleData.findIndex(
-          (s) => s.schedule_id == currentEditingId
-        );
-        if (index !== -1)
-          window.scheduleData[index] = {
-            ...window.scheduleData[index],
-            ...result.schedules[0],
-            semester_id: originalData.semester_id,
-          };
-      } else {
-        window.scheduleData.push({
-          ...result.schedules[0],
-          semester_id: originalData.semester_id,
-        });
-      }
-    }
-
-    if (result.partial_success) {
-      message += " (" + result.failed_days + " day(s) had conflicts)";
-    }
-
-    showNotification(message, "success");
-    safeUpdateScheduleDisplay(window.scheduleData);
-    initializeDragAndDrop();
-    buildCurrentSemesterCourseMappings();
-  } else {
-    resetConflictStyles();
-    if (result.conflicts && result.conflicts.length > 0) {
-      const conflictDetails = result.conflicts
-        .map((conflict) => `• ${conflict}`)
-        .join("\n");
-      showNotification(
-        "Schedule conflicts detected:\n" + conflictDetails,
-        "error",
-        10000
-      );
-
-      // Highlight conflicting fields
-      result.conflicts.forEach((conflict) => {
-        if (conflict.includes("faculty"))
-          highlightConflictField("faculty-name", conflict);
-        if (conflict.includes("room"))
-          highlightConflictField("room-name", conflict);
-        if (conflict.includes("section"))
-          highlightConflictField("section-name", conflict);
-        if (conflict.includes("time")) {
-          highlightConflictField("start-time", conflict);
-          highlightConflictField("end-time", conflict);
-        }
-      });
-    } else {
-      showNotification(result.message || "Failed to save schedule.", "error");
-    }
-  }
 }
 
 function highlightConflictField(fieldId, message) {
@@ -1461,19 +1817,24 @@ function updateSectionDetails(selectedOption) {
 }
 
 function openAddModal() {
-  console.log(
-    "Opening add modal for current semester:",
-    window.currentSemester
-  );
+  console.log("=== OPEN ADD MODAL DEBUG ===");
+  console.log("Current semester:", window.currentSemester);
+  console.log("Department ID:", window.departmentId);
+  console.log("College ID:", window.jsData?.collegeId);
+  console.log("Faculty data available:", window.faculty);
+  console.log("Faculty count:", window.faculty?.length || 0);
+
   buildCurrentSemesterCourseMappings();
 
   const form = document.getElementById("schedule-form");
   if (form) form.reset();
 
-  // Reset conflict styles specifically for course fields
   resetConflictField("course-code");
   resetConflictField("course-name");
 
+  document.getElementById("start-time").value = "";
+  document.getElementById("end-time").innerHTML =
+    '<option value="">Select End Time</option>';
   document.getElementById("modal-title").textContent = "Add Schedule";
   document.getElementById("schedule-id").value = "";
   document.getElementById("modal-day").value = "Monday";
@@ -1481,7 +1842,6 @@ function openAddModal() {
   document.getElementById("modal-end-time").value = "08:30";
   document.getElementById("course-code").value = "";
   document.getElementById("course-name").value = "";
-  document.getElementById("faculty-name").value = "";
   document.getElementById("room-name").value = "Online";
   document.getElementById("section-name").value = "";
 
@@ -1490,6 +1850,54 @@ function openAddModal() {
   document.getElementById("end-time").value = "08:30";
   document.getElementById("schedule-type").value = "f2f";
 
+  // ✅ POPULATE FACULTY DROPDOWN
+  const facultySelect = document.getElementById("faculty-name");
+  if (facultySelect) {
+    facultySelect.innerHTML = '<option value="">Select Faculty</option>';
+
+    if (
+      window.faculty &&
+      Array.isArray(window.faculty) &&
+      window.faculty.length > 0
+    ) {
+      console.log(
+        "✅ Populating faculty dropdown with",
+        window.faculty.length,
+        "members"
+      );
+
+      window.faculty.forEach((fac) => {
+        const option = document.createElement("option");
+        option.value = fac.name;
+        option.textContent = fac.name;
+        option.setAttribute("data-faculty-id", fac.faculty_id);
+        option.setAttribute("data-department-id", fac.department_id);
+        facultySelect.appendChild(option);
+
+        console.log(
+          `Added faculty: ${fac.name} (ID: ${fac.faculty_id}, Dept: ${fac.department_id})`
+        );
+      });
+
+      console.log("✅ Faculty dropdown populated successfully");
+    } else {
+      console.error("❌ No faculty data available!");
+      console.log("window.faculty =", window.faculty);
+
+      facultySelect.innerHTML =
+        '<option value="">No faculty available</option>';
+
+      // Show warning to user
+      displayConflictWarning(
+        "faculty-name",
+        "⚠️ No faculty members found for this department. Please assign faculty to department first.",
+        "error"
+      );
+    }
+  } else {
+    console.error("❌ Faculty select element not found!");
+  }
+
   resetSectionFilter();
 
   const sectionDetails = document.getElementById("section-details");
@@ -1497,23 +1905,15 @@ function openAddModal() {
 
   currentEditingId = null;
   showModal();
-}
 
-function openAddModalForSlot(day, startTime, endTime) {
-  console.log("Opening add modal for slot:", day, startTime, endTime);
-  openAddModal();
-
-  document.getElementById("modal-day").value = day;
-  document.getElementById("modal-start-time").value = startTime;
-  document.getElementById("modal-end-time").value = endTime;
-
-  document.getElementById("day-select").value = day;
-  document.getElementById("start-time").value = startTime;
-  document.getElementById("end-time").value = endTime;
+  console.log("=== END OPEN ADD MODAL DEBUG ===");
 }
 
 function editSchedule(scheduleId) {
-  console.log("✏️ Editing schedule:", scheduleId);
+  console.log("=== EDIT SCHEDULE DEBUG ===");
+  console.log("Editing schedule:", scheduleId);
+  console.log("Faculty data available:", window.faculty?.length || 0);
+
   const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
   if (!schedule) {
     console.error("Schedule not found:", scheduleId);
@@ -1532,13 +1932,35 @@ function editSchedule(scheduleId) {
   }
 
   buildCurrentSemesterCourseMappings();
+
   document.getElementById("modal-title").textContent = "Edit Schedule";
   document.getElementById("schedule-id").value = schedule.schedule_id;
   document.getElementById("course-code").value = schedule.course_code || "";
   document.getElementById("course-name").value = schedule.course_name || "";
-  document.getElementById("faculty-name").value = schedule.faculty_name || "";
   document.getElementById("room-name").value = schedule.room_name || "";
   document.getElementById("section-name").value = schedule.section_name || "";
+
+  // ✅ POPULATE FACULTY DROPDOWN FOR EDIT
+  const facultySelect = document.getElementById("faculty-name");
+  if (facultySelect) {
+    facultySelect.innerHTML = '<option value="">Select Faculty</option>';
+
+    if (window.faculty && window.faculty.length > 0) {
+      window.faculty.forEach((fac) => {
+        const option = document.createElement("option");
+        option.value = fac.name;
+        option.textContent = fac.name;
+        option.setAttribute("data-faculty-id", fac.faculty_id);
+        facultySelect.appendChild(option);
+      });
+
+      // Set the current faculty value
+      facultySelect.value = schedule.faculty_name || "";
+      console.log("✅ Set faculty to:", schedule.faculty_name);
+    } else {
+      console.error("❌ No faculty available for editing");
+    }
+  }
 
   const day = schedule.day_of_week || "Monday";
   document.getElementById("modal-day").value = day;
@@ -1550,8 +1972,8 @@ function editSchedule(scheduleId) {
   const endTime = schedule.end_time
     ? schedule.end_time.substring(0, 5)
     : "08:30";
-  document.getElementById("modal-start-time").value = startTime + ":00";
-  document.getElementById("modal-end-time").value = endTime + ":00";
+  document.getElementById("modal-start-time").value = startTime;
+  document.getElementById("modal-end-time").value = endTime;
   document.getElementById("start-time").value = startTime;
   document.getElementById("end-time").value = endTime;
 
@@ -1622,72 +2044,166 @@ function saveAllChanges() {
     });
 }
 
-// Enhanced filter function for manual tab
-function filterSchedulesManual() {
-  const yearLevel = document.getElementById("filter-year-manual").value;
-  const section = document.getElementById("filter-section-manual").value;
-  const room = document.getElementById("filter-room-manual").value;
+function toggleViewMode() {
+  const gridView = document.getElementById("grid-view");
+  const listView = document.getElementById("list-view");
+  const toggleBtn = document.getElementById("toggle-view-btn");
 
-  const scheduleCards = document.querySelectorAll(
-    "#schedule-grid .schedule-card"
-  );
-  const dropZones = document.querySelectorAll("#schedule-grid .drop-zone");
-
-  console.log("Filtering with:", { yearLevel, section, room });
-
-  scheduleCards.forEach((card) => {
-    const cardYearLevel = card.getAttribute("data-year-level");
-    const cardSectionName = card.getAttribute("data-section-name");
-    const cardRoomName = card.getAttribute("data-room-name");
-
-    const matchesYear = !yearLevel || cardYearLevel === yearLevel;
-    const matchesSection = !section || cardSectionName === section;
-    const matchesRoom = !room || cardRoomName === room;
-
-    if (matchesYear && matchesSection && matchesRoom) {
-      card.style.display = "block";
-      card.parentElement.style.display = "block";
-    } else {
-      card.style.display = "none";
-    }
-  });
-
-  // Update add buttons visibility
-  dropZones.forEach((zone) => {
-    const card = zone.querySelector(".schedule-card");
-    const addButton = zone.querySelector(
-      'button[onclick*="openAddModalForSlot"]'
-    );
-
-    if (addButton) {
-      const hasVisibleCard = card && card.style.display !== "none";
-      addButton.style.display = hasVisibleCard ? "none" : "block";
-    }
-  });
-
-  // Also update list view filters
-  updateListViewWithFilters(yearLevel, section, room);
+  if (gridView.classList.contains("hidden")) {
+    gridView.classList.remove("hidden");
+    listView.classList.add("hidden");
+    toggleBtn.innerHTML =
+      '<i class="fas fa-list mr-1"></i><span>List View</span>';
+    console.log("Switched to GRID view");
+    filterSchedulesManual(); // Apply filters to grid view
+  } else {
+    gridView.classList.add("hidden");
+    listView.classList.remove("hidden");
+    toggleBtn.innerHTML =
+      '<i class="fas fa-th mr-1"></i><span>Grid View</span>';
+    console.log("Switched to LIST view");
+    filterSchedulesListView(); // Apply filters to list view
+  }
 }
 
-// Helper function to filter list view
-function updateListViewWithFilters(yearLevel, section, room) {
-  const rows = document.querySelectorAll("#list-view .schedule-row");
+function filterSchedulesListView() {
+  const yearLevel = document
+    .getElementById("filter-year-manual")
+    .value.toLowerCase()
+    .trim();
+  const section = document
+    .getElementById("filter-section-manual")
+    .value.toLowerCase()
+    .trim();
+  const room = document
+    .getElementById("filter-room-manual")
+    .value.toLowerCase()
+    .trim();
 
-  rows.forEach((row) => {
-    const scheduleId = row.dataset.scheduleId;
-    const schedule = window.scheduleData.find(
-      (s) => s.schedule_id == scheduleId
-    );
+  const tableRows = document.querySelectorAll(
+    "#list-view tbody tr.schedule-row"
+  );
 
-    if (schedule) {
-      const matchesYear = !yearLevel || schedule.year_level === yearLevel;
-      const matchesSection = !section || schedule.section_name === section;
-      const matchesRoom = !room || (schedule.room_name || "Online") === room;
+  let visibleCount = 0;
 
-      row.style.display =
-        matchesYear && matchesSection && matchesRoom ? "" : "none";
+  tableRows.forEach((row, index) => {
+    const rowYearLevel = (row.getAttribute("data-year-level") || "")
+      .toLowerCase()
+      .trim();
+    const rowSectionName = (row.getAttribute("data-section-name") || "")
+      .toLowerCase()
+      .trim();
+    const rowRoomName = (row.getAttribute("data-room-name") || "")
+      .toLowerCase()
+      .trim();
+
+    console.log(`Row ${index + 1}:`, {
+      rowYearLevel,
+      rowSectionName,
+      rowRoomName,
+    });
+
+    const matchesYear = !yearLevel || rowYearLevel === yearLevel;
+    const matchesSection = !section || rowSectionName === section;
+    const matchesRoom = !room || rowRoomName === room;
+
+    console.log(`Row ${index + 1} matches:`, {
+      matchesYear,
+      matchesSection,
+      matchesRoom,
+      shouldShow: matchesYear && matchesSection && matchesRoom,
+    });
+
+    if (matchesYear && matchesSection && matchesRoom) {
+      row.style.display = "";
+      visibleCount++;
+      console.log(`Row ${index + 1}: SHOWING`);
+    } else {
+      row.style.display = "none";
+      console.log(`Row ${index + 1}: HIDING`);
     }
   });
+
+  console.log("Visible rows after filter:", visibleCount);
+
+  const tbody = document.querySelector("#list-view tbody");
+  let noResultsRow = tbody.querySelector(".no-results-row");
+
+  if (visibleCount === 0 && tableRows.length > 0) {
+    console.log("No rows visible - showing no results message");
+    if (!noResultsRow) {
+      noResultsRow = document.createElement("tr");
+      noResultsRow.className = "no-results-row";
+      noResultsRow.innerHTML = `
+                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <i class="fas fa-search text-3xl mb-2"></i>
+                    <p class="mt-2">No schedules match the selected filters</p>
+                    <button onclick="clearFiltersManual()" class="mt-2 px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm">
+                        Clear Filters
+                    </button>
+                </td>
+            `;
+      tbody.appendChild(noResultsRow);
+    }
+  } else if (visibleCount > 0 && noResultsRow) {
+    noResultsRow.remove();
+  }
+}
+
+function filterSchedulesManual() {
+  const currentView = document
+    .getElementById("grid-view")
+    .classList.contains("hidden")
+    ? "list"
+    : "grid";
+  console.log("Current view:", currentView);
+
+  if (currentView === "list") {
+    filterSchedulesListView();
+  } else {
+    const yearLevel = document.getElementById("filter-year-manual").value;
+    const section = document.getElementById("filter-section-manual").value;
+    const room = document.getElementById("filter-room-manual").value;
+    console.log("Filtering by:", { yearLevel, section, room });
+
+    const scheduleCards = document.querySelectorAll(
+      "#schedule-grid .schedule-card"
+    );
+    const dropZones = document.querySelectorAll("#schedule-grid .drop-zone");
+
+    scheduleCards.forEach((card) => {
+      const cardYearLevel = card.getAttribute("data-year-level");
+      const cardSectionName = card.getAttribute("data-section-name");
+      const cardRoomName = card.getAttribute("data-room-name");
+
+      const matchesYear = !yearLevel || cardYearLevel === yearLevel;
+      const matchesSection = !section || cardSectionName === section;
+      const matchesRoom = !room || cardRoomName === room;
+
+      if (matchesYear && matchesSection && matchesRoom) {
+        card.style.display = "block";
+        card.parentElement.style.display = "block";
+      } else {
+        card.style.display = "none";
+      }
+    });
+
+    dropZones.forEach((zone) => {
+      const card = zone.querySelector(".schedule-card");
+      const addButton = zone.querySelector(
+        'button[onclick*="openAddModalForSlot"]'
+      );
+      if (addButton) {
+        if (card && card.style.display === "none") {
+          addButton.style.display = "block";
+        } else if (card && card.style.display === "block") {
+          addButton.style.display = "none";
+        } else {
+          addButton.style.display = "block";
+        }
+      }
+    });
+  }
 }
 
 function clearFiltersManual() {
@@ -1703,22 +2219,47 @@ function refreshManualView() {
 
 // Initialize event listeners
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("Enhanced manual schedules JS loaded");
   console.log("Manual schedules JS loaded");
   console.log("Current semester:", window.currentSemester);
   console.log("Schedule data count:", window.scheduleData?.length || 0);
-  console.log("🔄 Initializing Enhanced Manual Schedule System...");
 
-  // Force clear any corrupted schedule data
-  if (window.scheduleData && window.scheduleData.length > 100) {
-    console.log("Cleaning up potentially corrupted schedule data...");
-    window.scheduleData = window.scheduleData.filter((s) => s.schedule_id);
+  // ✅ CHECK IF FACULTY DATA IS PRESENT
+  if (!window.faculty || window.faculty.length === 0) {
+    console.error("❌ CRITICAL: No faculty data loaded!");
+    console.log("jsData:", window.jsData);
+    console.log("jsData.faculty:", window.jsData?.faculty);
+
+    // Try to get faculty from jsData
+    if (window.jsData && window.jsData.faculty) {
+      window.faculty = window.jsData.faculty;
+      console.log("✅ Recovered faculty from jsData:", window.faculty.length);
+    }
+  } else {
+    console.log(
+      "✅ Faculty data loaded successfully:",
+      window.faculty.length,
+      "members"
+    );
   }
 
   buildCurrentSemesterCourseMappings();
   initializeDragAndDrop();
-  initializeEnhancedDragAndDrop();
-  setupEnhancedEventListeners();
+
+  const filters = [
+    "filter-year-manual",
+    "filter-section-manual",
+    "filter-room-manual",
+  ];
+
+  filters.forEach((filterId) => {
+    const filter = document.getElementById(filterId);
+    if (filter) {
+      filter.addEventListener("change", function () {
+        console.log(`Filter changed: ${filterId} = ${this.value}`);
+        filterSchedulesManual(); // Trigger filtering based on current view
+      });
+    }
+  });
 
   // Modal click outside to close
   const modal = document.getElementById("schedule-modal");
@@ -1829,14 +2370,13 @@ document.addEventListener("DOMContentLoaded", function () {
   // Ensure scheduleData is always an array
   if (!Array.isArray(window.scheduleData)) window.scheduleData = [];
 
-  // Use the new refresh function
+  // Initialize with safe display
   setTimeout(() => {
-    refreshScheduleUI();
-  }, 1000);
+    safeUpdateScheduleDisplay(window.scheduleData);
+    setTimeout(() => initializeDragAndDrop(), 100);
+  }, 100);
 
   console.log("Manual schedules initialized successfully");
-
-  console.log("Enhanced manual schedules initialized successfully");
   console.log(
     "Available courses for current semester:",
     Object.keys(currentSemesterCourses).length
@@ -1921,7 +2461,6 @@ function resetConflictField(fieldId) {
 }
 
 // Enhanced conflict display with friendly messages
-// Enhanced conflict display with better formatting
 function displayConflictWarning(fieldId, message, warningLevel = "warning") {
   const field = document.getElementById(fieldId);
   if (!field) return;
@@ -1929,43 +2468,26 @@ function displayConflictWarning(fieldId, message, warningLevel = "warning") {
   // Remove existing warning
   removeConflictWarning(fieldId);
 
-  // Add appropriate styling
-  const styles = {
-    error: {
-      border: "border-red-500 bg-red-50",
-      text: "text-red-600",
-      icon: "fa-exclamation-circle",
-    },
-    warning: {
-      border: "border-yellow-500 bg-yellow-50",
-      text: "text-yellow-600",
-      icon: "fa-exclamation-triangle",
-    },
-    success: {
-      border: "border-green-500 bg-green-50",
-      text: "text-green-600",
-      icon: "fa-check-circle",
-    },
-  };
-
-  const style = styles[warningLevel] || styles.warning;
-
-  field.classList.add(...style.border.split(" "));
-  field.classList.remove(
-    "border-gray-300",
-    "bg-red-50",
-    "bg-yellow-50",
-    "bg-green-50"
-  );
+  // Add appropriate styling based on warning level
+  if (warningLevel === "error") {
+    field.classList.add("border-red-500", "bg-red-50");
+    field.classList.remove("border-gray-300", "bg-yellow-50");
+  } else {
+    field.classList.add("border-yellow-500", "bg-yellow-50");
+    field.classList.remove("border-gray-300", "border-red-500", "bg-red-50");
+  }
 
   // Create warning message element
   const warningDiv = document.createElement("div");
-  warningDiv.className = `conflict-warning ${style.text} text-xs mt-1 flex items-start space-x-1`;
+  warningDiv.className = `conflict-warning text-${
+    warningLevel === "error" ? "red" : "yellow"
+  }-600 text-xs mt-1 flex items-start space-x-1`;
   warningDiv.innerHTML = `
-        <i class="fas ${style.icon} mt-0.5 flex-shrink-0"></i>
-        <span class="flex-1 whitespace-pre-line">${message}</span>
+        <i class="fas fa-exclamation-triangle mt-0.5 flex-shrink-0"></i>
+        <span class="flex-1">${message}</span>
     `;
 
+  // Insert after the field
   field.parentNode.appendChild(warningDiv);
 }
 
@@ -1991,661 +2513,287 @@ function removeConflictWarning(fieldId) {
   field.style.backgroundColor = "";
 }
 
-// Delete All Schedules Functionality
-function deleteAllSchedules() {
-  console.log("Delete All button clicked");
-
-  // Check if there are any schedules to delete
-  const currentSemesterId = window.currentSemester?.semester_id;
-  const currentSemesterSchedules = window.scheduleData.filter(
-    (s) => s.semester_id == currentSemesterId
-  );
-
-  if (currentSemesterSchedules.length === 0) {
-    showNotification("No schedules found to delete.", "error");
-    return;
-  }
-
-  // Show confirmation modal
-  openDeleteModal();
-}
-
-function openDeleteModal() {
-  console.log("Opening delete confirmation modal...");
-  const modal = document.getElementById("delete-confirmation-modal");
-  if (modal) {
-    modal.classList.remove("hidden");
-    modal.classList.add("flex");
-    console.log("Delete confirmation modal opened successfully");
-  } else {
-    console.error("Delete confirmation modal element not found!");
-    // Fallback: use browser confirmation
-    if (
-      confirm(
-        "Are you sure you want to delete ALL schedules? This action cannot be undone."
-      )
-    ) {
-      confirmDeleteAllSchedules();
-    }
-  }
-}
-
-function closeDeleteModal() {
-  console.log("Closing delete modal...");
-  const modal = document.getElementById("delete-confirmation-modal");
-  if (modal) {
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
-  }
-}
-
-// Enhanced event listeners setup
-function setupEnhancedEventListeners() {
-  console.log("🔧 Setting up enhanced event listeners...");
-
-  // Modal event listeners
-  const modal = document.getElementById("schedule-modal");
-  if (modal) {
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) closeModal();
-    });
-  }
-
-  // Delete modal event listeners
-  const deleteModal = document.getElementById("delete-confirmation-modal");
-  if (deleteModal) {
-    deleteModal.addEventListener("click", function (e) {
-      if (e.target === deleteModal) closeDeleteModal();
-    });
-  }
-
-  // Real-time validation setup
-  const facultySelect = document.getElementById("faculty-name");
-  if (facultySelect) {
-    facultySelect.addEventListener("change", (e) => {
-      validateFieldRealTime("faculty_name", e.target.value, getRelatedFields());
-    });
-  }
-
-  const roomSelect = document.getElementById("room-name");
-  if (roomSelect) {
-    roomSelect.addEventListener("change", (e) => {
-      validateFieldRealTime("room_name", e.target.value, getRelatedFields());
-    });
-  }
-
-  const sectionSelect = document.getElementById("section-name");
-  if (sectionSelect) {
-    sectionSelect.addEventListener("change", (e) => {
-      validateFieldRealTime("section_name", e.target.value, getRelatedFields());
-      handleSectionChange();
-    });
-  }
-
-  const daySelect = document.getElementById("day-select");
-  if (daySelect) {
-    daySelect.addEventListener("change", (e) => {
-      updateDayField();
-      validateFieldRealTime("day_of_week", e.target.value, getRelatedFields());
-    });
-  }
-
+// Dynamic time selection functions
+function updateEndTimeOptions() {
   const startTimeSelect = document.getElementById("start-time");
-  if (startTimeSelect) {
-    startTimeSelect.addEventListener("change", (e) => {
-      updateTimeFields();
-      validateFieldRealTime(
-        "start_time",
-        e.target.value + ":00",
-        getRelatedFields()
-      );
-    });
-  }
-
   const endTimeSelect = document.getElementById("end-time");
-  if (endTimeSelect) {
-    endTimeSelect.addEventListener("change", (e) => {
-      updateTimeFields();
-      validateFieldRealTime(
-        "end_time",
-        e.target.value + ":00",
-        getRelatedFields()
-      );
-    });
-  }
+  const selectedStartTime = startTimeSelect.value;
 
-  // Course code validation
-  const courseCodeInput = document.getElementById("course-code");
-  if (courseCodeInput) {
-    courseCodeInput.addEventListener("blur", syncCourseName);
-    courseCodeInput.addEventListener("input", function () {
-      resetConflictField("course-code");
-      resetConflictField("course-name");
-    });
-  }
-
-  // Course name validation
-  const courseNameInput = document.getElementById("course-name");
-  if (courseNameInput) {
-    courseNameInput.addEventListener("blur", syncCourseCode);
-    courseNameInput.addEventListener("input", function () {
-      resetConflictField("course-code");
-      resetConflictField("course-name");
-    });
-  }
-}
-
-// Helper to get related fields for comprehensive validation
-function getRelatedFields() {
-  const form = document.getElementById("schedule-form");
-  if (!form) return {};
-
-  const formData = new FormData(form);
-  return {
-    day_of_week:
-      formData.get("day_of_week") ||
-      document.getElementById("day-select")?.value ||
-      "",
-    start_time: (document.getElementById("start-time")?.value || "") + ":00",
-    end_time: (document.getElementById("end-time")?.value || "") + ":00",
-    faculty_name: formData.get("faculty_name") || "",
-    room_name: formData.get("room_name") || "",
-    section_name: formData.get("section_name") || "",
-  };
-}
-
-// Enhanced time calculation for academic scheduling
-function calculateAutoEndTime() {
-  const startTimeInput = document.getElementById("start-time");
-  const endTimeInput = document.getElementById("end-time");
-
-  if (!startTimeInput || !startTimeInput.value) return;
-
-  const startTime = startTimeInput.value;
-  const [hours, minutes] = startTime.split(":").map(Number);
-
-  // Default to 1 hour duration
-  let durationMinutes = 60;
-
-  // Check if we have course info to determine duration
-  const courseCode = document.getElementById("course-code")?.value;
-  if (courseCode && window.currentSemesterCourses[courseCode.toUpperCase()]) {
-    const course = window.currentSemesterCourses[courseCode.toUpperCase()];
-    // Calculate duration based on course units (3 units = 3 hours)
-    if (course.units) {
-      durationMinutes = course.units * 60;
-    }
-  }
-
-  const endTime = calculateEndTime(startTime, durationMinutes);
-  endTimeInput.value = endTime;
-
-  // Update hidden fields
-  updateTimeFields();
-
-  // Show duration info
-  showDurationInfo(durationMinutes);
-}
-
-// Set specific duration
-function setDuration(minutes) {
-  const startTimeInput = document.getElementById("start-time");
-  const endTimeInput = document.getElementById("end-time");
-
-  if (!startTimeInput || !startTimeInput.value) {
-    showNotification("Please set a start time first", "warning");
+  if (!selectedStartTime) {
+    endTimeSelect.innerHTML = '<option value="">Select End Time</option>';
     return;
   }
 
-  const startTime = startTimeInput.value;
-  const endTime = calculateEndTime(startTime, minutes);
+  // Clear existing options
+  endTimeSelect.innerHTML = '<option value="">Select End Time</option>';
 
-  endTimeInput.value = endTime;
-  updateTimeFields();
-  showDurationInfo(minutes);
-}
+  // Parse selected start time
+  const [startHour, startMinute] = selectedStartTime.split(":").map(Number);
+  const startTotalMinutes = startHour * 60 + startMinute;
 
-// Show duration information
-function showDurationInfo(minutes) {
-  const hours = minutes / 60;
-  let existingInfo = document.getElementById("duration-info");
+  // Generate end time options (30 minutes to 4 hours after start time)
+  for (let duration = 30; duration <= 240; duration += 30) {
+    const endTotalMinutes = startTotalMinutes + duration;
+    const endHour = Math.floor(endTotalMinutes / 60);
+    const endMinute = endTotalMinutes % 60;
 
-  if (!existingInfo) {
-    existingInfo = document.createElement("div");
-    existingInfo.id = "duration-info";
-    existingInfo.className =
-      "mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm";
-    document.getElementById("end-time").parentNode.appendChild(existingInfo);
-  }
-
-  existingInfo.innerHTML = `
-        <div class="flex items-center justify-between">
-            <span class="text-blue-700">
-                <i class="fas fa-clock mr-1"></i>
-                Duration: ${hours} hour${
-    hours !== 1 ? "s" : ""
-  } (${minutes} minutes)
-            </span>
-            <span class="text-blue-600 font-medium">
-                ${hours} unit${hours !== 1 ? "s" : ""}
-            </span>
-        </div>
-    `;
-}
-
-// Enhanced time validation
-function validateTimeInput(input) {
-  const timeValue = input.value.trim();
-
-  if (!timeValue) return true;
-
-  // Allow HH:MM format
-  if (timeValue.includes(":")) {
-    const [hours, minutes] = timeValue.split(":").map(Number);
-    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      return true;
-    }
-  }
-
-  // Allow HHMM format
-  if (/^\d{3,4}$/.test(timeValue)) {
-    const timeStr = timeValue.padStart(4, "0");
-    const hours = parseInt(timeStr.substring(0, 2));
-    const minutes = parseInt(timeStr.substring(2, 4));
-
-    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      // Auto-format to HH:MM
-      input.value = `${hours.toString().padStart(2, "0")}:${minutes
+    // Only show times up to 10:00 PM (22:00)
+    if (endHour < 22 || (endHour === 22 && endMinute === 0)) {
+      const endTimeValue = `${endHour.toString().padStart(2, "0")}:${endMinute
         .toString()
         .padStart(2, "0")}`;
-      return true;
+      const endTimeDisplay = formatTime(endTimeValue);
+      const durationText = formatDuration(duration);
+
+      const option = document.createElement("option");
+      option.value = endTimeValue;
+      option.textContent = `${endTimeDisplay} (${durationText})`;
+      option.setAttribute("data-duration", duration);
+
+      endTimeSelect.appendChild(option);
     }
   }
 
-  // Invalid format
-  showNotification(
-    "Please enter time in HH:MM format (e.g., 07:30 or 730)",
-    "error"
+  // Auto-select 1 hour duration if available
+  const oneHourOption = endTimeSelect.querySelector(
+    'option[data-duration="60"]'
   );
-  input.focus();
-  return false;
-}
-
-// Enhanced function to edit schedule from ANY cell
-function editScheduleFromAnyCell(scheduleId) {
-  console.log("✏️ Editing schedule from any cell:", scheduleId);
-
-  // Find the schedule in the data
-  const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
-  if (!schedule) {
-    console.error("Schedule not found:", scheduleId);
-    showNotification("Schedule not found", "error");
-    return;
+  if (oneHourOption) {
+    oneHourOption.selected = true;
   }
 
-  // Use the existing edit function
-  editSchedule(scheduleId);
+  updateTimeFields();
 }
 
-// Enhanced CSS injection for better visual distinction
-const enhancedStyles = `
-    .full-access-card {
-        opacity: 1 !important;
-        cursor: move !important;
-    }
-    
-    .full-access-card:hover {
-        opacity: 1 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 100;
-    }
-    
-    .schedule-card.dragging {
-        opacity: 0.6 !important;
-        transform: rotate(5deg);
-    }
-    
-    .drop-zone.drag-over {
-        background: rgba(34, 197, 94, 0.1) !important;
-        border: 2px dashed #22c55e !important;
-    }
-    
-    /* Ensure all action buttons are visible */
-    .schedule-card button {
-        opacity: 0.8 !important;
-        display: block !important;
-    }
-    
-    .schedule-card:hover button {
-        opacity: 1 !important;
-    }
-    
-    /* Remove any opacity restrictions */
-    .schedule-card {
-        opacity: 1 !important;
-    }
-`;
+function formatDuration(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
 
-// Inject the enhanced styles
-const styleElement = document.createElement("style");
-styleElement.textContent = enhancedScheduleStyles;
-document.head.appendChild(styleElement);
-
-// Initialize everything
-function initializeManualScheduleSystem() {
-  console.log("🔄 Initializing Enhanced Manual Schedule System...");
-
-  buildCurrentSemesterCourseMappings();
-  initializeEnhancedDragAndDrop();
-  setupEventListeners();
-
-  // Make sure ALL schedule cards are fully accessible
-  setTimeout(() => {
-    enableFullAccessToAllScheduleCards();
-  }, 500);
+  if (hours === 0) {
+    return `${mins}min`;
+  } else if (mins === 0) {
+    return `${hours}h`;
+  } else {
+    return `${hours}h ${mins}m`;
+  }
 }
 
-// Enhanced function to make ALL schedule cards fully accessible
-function enableFullAccessToAllScheduleCards() {
-  const allScheduleCards = document.querySelectorAll(".schedule-card");
-  console.log(
-    `🎯 Enabling full access for ${allScheduleCards.length} schedule cards`
-  );
+// Enhanced formatTime function
+function formatTime(timeString) {
+  if (!timeString) return "";
+  const [hours, minutes] = timeString.split(":");
+  const date = new Date(2000, 0, 1, hours, minutes);
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
-  allScheduleCards.forEach((card) => {
-    // Remove any restrictions and make fully accessible
-    card.classList.add("full-access-card");
-    card.setAttribute("data-full-access", "true");
-    card.draggable = true;
+// Enhanced safeUpdateScheduleDisplay for dynamic grid
+function safeUpdateScheduleDisplay(schedules) {
+  window.scheduleData = schedules;
 
-    // Remove any "(cont.)" labels and make all cards look the same
-    const contSpan = card.querySelector("span.text-gray-500");
-    if (contSpan) {
-      contSpan.remove();
+  // Update both manual and view grids
+  updateManualGrid(schedules);
+  updateViewGrid(schedules);
+}
+
+function updateManualGrid(schedules) {
+  const manualGrid = document.getElementById("schedule-grid");
+  if (!manualGrid) return;
+
+  syncGridWithSchedules(schedules);
+
+  manualGrid.innerHTML = "";
+
+  // Generate dynamic time slots (same as PHP)
+  const timeSlots = generateTimeSlots();
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  // Pre-process schedules for faster lookup
+  const scheduleLookup = {};
+  schedules.forEach((schedule) => {
+    const day = schedule.day_of_week;
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
+    const end = schedule.end_time ? schedule.end_time.substring(0, 5) : "";
+
+    if (!scheduleLookup[day]) {
+      scheduleLookup[day] = [];
     }
 
-    // Ensure full opacity for all cards
-    card.style.opacity = "1";
+    scheduleLookup[day].push({
+      schedule: schedule,
+      start: start,
+      end: end,
+    });
+  });
 
-    // Make sure the card itself is draggable
-    card.addEventListener("dragstart", handleEnhancedDragStart);
-    card.addEventListener("dragend", handleEnhancedDragEnd);
+  timeSlots.forEach((time) => {
+    const duration =
+      (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) /
+      1000;
+    const rowSpan = Math.max(1, duration / 1800); // 30-minute base unit
+    const minHeight = rowSpan * 60;
 
-    // 🚀 FORCE action buttons to be visible
-    forceActionButtonsVisibility();
+    const row = document.createElement("div");
+    row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+    row.style.gridRow = `span ${rowSpan}`;
 
-    // Ensure edit/delete buttons work
-    const editBtn = card.querySelector('button[onclick*="editSchedule"]');
-    const deleteBtn = card.querySelector(
-      'button[onclick*="openDeleteSingleModal"]'
-    );
+    // Time cell
+    const timeCell = document.createElement("div");
+    timeCell.className =
+      "px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start";
+    timeCell.style.gridRow = `span ${rowSpan}`;
+    timeCell.innerHTML = `
+            <span class="text-sm hidden sm:block">${formatTime(
+              time[0]
+            )} - ${formatTime(time[1])}</span>
+            <span class="text-xs sm:hidden">${time[0].substring(
+              0,
+              5
+            )}-${time[1].substring(0, 5)}</span>
+        `;
+    row.appendChild(timeCell);
 
-    if (editBtn) {
-      editBtn.style.display = "block";
-      editBtn.style.opacity = "1";
-      editBtn.onclick = function (e) {
-        e.stopPropagation();
-        const scheduleId = card.dataset.scheduleId;
-        console.log("Editing schedule from ANY cell:", scheduleId);
-        editScheduleFromAnyCell(scheduleId);
-      };
-    }
+    // Day cells
+    days.forEach((day) => {
+      const cell = document.createElement("div");
+      cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[${minHeight}px]`;
+      cell.dataset.day = day;
+      cell.dataset.startTime = time[0];
+      cell.dataset.endTime = time[1];
 
-    if (deleteBtn) {
-      deleteBtn.style.display = "block";
-      deleteBtn.style.opacity = "1";
-      deleteBtn.onclick = function (e) {
-        e.stopPropagation();
-        const scheduleId = card.dataset.scheduleId;
-        const schedule = window.scheduleData.find(
-          (s) => s.schedule_id == scheduleId
-        );
-        if (schedule) {
-          openDeleteSingleModal(
-            scheduleId,
-            schedule.course_code,
-            schedule.section_name,
-            schedule.day_of_week,
-            formatTime(schedule.start_time?.substring(0, 5) || ""),
-            formatTime(schedule.end_time?.substring(0, 5) || "")
+      const schedulesInSlot = [];
+      if (scheduleLookup[day]) {
+        scheduleLookup[day].forEach((scheduleData) => {
+          const scheduleStart = scheduleData.start;
+          const scheduleEnd = scheduleData.end;
+
+          const slotStart = new Date(`2000-01-01 ${time[0]}`).getTime();
+          const slotEnd = new Date(`2000-01-01 ${time[1]}`).getTime();
+          const schedStart = new Date(`2000-01-01 ${scheduleStart}`).getTime();
+          const schedEnd = new Date(`2000-01-01 ${scheduleEnd}`).getTime();
+
+          if (schedStart < slotEnd && schedEnd > slotStart) {
+            schedulesInSlot.push({
+              schedule: scheduleData.schedule,
+              isStartCell: scheduleStart === time[0],
+            });
+          }
+        });
+      }
+
+      if (schedulesInSlot.length === 0) {
+        const addButton = document.createElement("button");
+        addButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
+        addButton.className =
+          "w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-1";
+        addButton.onclick = () => openAddModalForSlot(day, time[0], time[1]);
+        cell.appendChild(addButton);
+      } else {
+        const container = document.createElement("div");
+        container.className = "space-y-1 p-1";
+
+        schedulesInSlot.forEach((scheduleData) => {
+          const scheduleCard = createDynamicScheduleCard(
+            scheduleData.schedule,
+            scheduleData.isStartCell
           );
-        }
-      };
-    }
+          container.appendChild(scheduleCard);
+        });
 
-    // Make sure the card itself is draggable
-    card.addEventListener("dragstart", handleEnhancedDragStart);
-    card.addEventListener("dragend", handleEnhancedDragEnd);
-  });
-}
+        cell.appendChild(container);
+      }
 
-// Enhanced drag start - works for ALL cards
-function handleEnhancedDragStart(e) {
-  draggedElement = e.target.closest(".schedule-card");
-  if (!draggedElement) return;
-
-  const scheduleId = draggedElement.dataset.scheduleId;
-  console.log("🔄 Dragging schedule:", scheduleId);
-
-  e.dataTransfer.setData("text/plain", scheduleId);
-  e.dataTransfer.effectAllowed = "move";
-  draggedElement.classList.add("dragging");
-
-  // Store original position for reference
-  const originalCell = draggedElement.closest(".schedule-cell");
-  if (originalCell) {
-    draggedElement.dataset.originalDay = originalCell.dataset.day;
-    draggedElement.dataset.originalStartTime = originalCell.dataset.startTime;
-  }
-
-  setTimeout(() => {
-    draggedElement.style.opacity = "0.4";
-  }, 0);
-}
-
-// Enhanced drag end
-function handleEnhancedDragEnd(e) {
-  if (draggedElement) {
-    draggedElement.style.opacity = "1";
-    draggedElement.classList.remove("dragging");
-  }
-  draggedElement = null;
-
-  // Remove drag-over class from all drop zones
-  document.querySelectorAll(".drop-zone.drag-over").forEach((zone) => {
-    zone.classList.remove("drag-over");
-  });
-}
-
-// Enhanced drag enter
-function handleEnhancedDragEnter(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.target.classList.add("drag-over");
-    e.preventDefault();
-  }
-}
-
-// Enhanced drag over
-function handleEnhancedDragOver(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }
-}
-
-// Enhanced drag leave
-function handleEnhancedDragLeave(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.target.classList.remove("drag-over");
-  }
-}
-
-// Enhanced drop handler
-function handleEnhancedDrop(e) {
-  e.preventDefault();
-  const dropZone = e.target.closest(".drop-zone");
-  if (!dropZone || !draggedElement) return;
-
-  dropZone.classList.remove("drag-over");
-  const scheduleId = e.dataTransfer.getData("text/plain");
-  const newDay = dropZone.dataset.day;
-  const newSlotStartTime = dropZone.dataset.startTime;
-
-  console.log(
-    "🎯 Dropping schedule:",
-    scheduleId,
-    "to",
-    newDay,
-    "at slot",
-    newSlotStartTime
-  );
-
-  const scheduleIndex = window.scheduleData.findIndex(
-    (s) => s.schedule_id == scheduleId
-  );
-
-  if (scheduleIndex !== -1) {
-    const originalSchedule = window.scheduleData[scheduleIndex];
-
-    // Calculate new times based on the original duration
-    const originalStart = new Date(`2000-01-01T${originalSchedule.start_time}`);
-    const originalEnd = new Date(`2000-01-01T${originalSchedule.end_time}`);
-    const durationMinutes = (originalEnd - originalStart) / (1000 * 60);
-
-    // Use the slot start time as the new start time
-    const newStart = new Date(`2000-01-01T${newSlotStartTime}:00`);
-    const newEnd = new Date(newStart.getTime() + durationMinutes * 60000);
-
-    const formattedStartTime = newStart.toTimeString().substring(0, 8);
-    const formattedEndTime = newEnd.toTimeString().substring(0, 8);
-
-    console.log("⏰ Time update:", {
-      original: `${originalSchedule.start_time} - ${originalSchedule.end_time}`,
-      new: `${formattedStartTime} - ${formattedEndTime}`,
-      duration: durationMinutes + " minutes",
+      row.appendChild(cell);
     });
 
-    // Update the schedule data
-    window.scheduleData[scheduleIndex] = {
-      ...window.scheduleData[scheduleIndex],
-      day_of_week: newDay,
-      start_time: formattedStartTime,
-      end_time: formattedEndTime,
-    };
+    manualGrid.appendChild(row);
+  });
 
-    // Refresh the entire display
-    refreshScheduleGrid();
-    showNotification(
-      `✅ Schedule moved to ${newDay} ${formattedStartTime.substring(
-        0,
-        5
-      )}-${formattedEndTime.substring(0, 5)}`,
-      "success"
-    );
-  }
+  initializeDragAndDrop();
 }
 
-// Refresh the entire grid
-function refreshScheduleGrid() {
-  console.log("🔄 Refreshing schedule grid...");
+function generateTimeSlots() {
+  const timeSlots = [];
+  const startHour = 7;
+  const endHour = 21;
 
-  // Show loading state
-  const grid = document.getElementById("schedule-grid");
-  if (grid) {
-    grid.style.opacity = "0.7";
-  }
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const currentTime = `${hour.toString().padStart(2, "0")}:${minute
+        .toString()
+        .padStart(2, "0")}`;
+      const nextHour = hour + (minute + 30 >= 60 ? 1 : 0);
+      const nextMinute = (minute + 30) % 60;
 
-  // Re-render with current data
-  setTimeout(() => {
-    safeUpdateScheduleDisplay(window.scheduleData);
-    refreshScheduleUI(); // Use the new refresh function
+      if (nextHour >= endHour && nextMinute > 0) continue;
 
-    if (grid) {
-      grid.style.opacity = "1";
+      const nextTime = `${nextHour.toString().padStart(2, "0")}:${nextMinute
+        .toString()
+        .padStart(2, "0")}`;
+      timeSlots.push([currentTime, nextTime]);
     }
-  }, 300);
-}
-
-// Initialize enhanced drag and drop
-function initializeEnhancedDragAndDrop() {
-  const dropZones = document.querySelectorAll(".drop-zone");
-  const draggables = document.querySelectorAll(".schedule-card");
-
-  console.log("🎯 Initializing enhanced drag & drop:", {
-    dropZones: dropZones.length,
-    draggables: draggables.length,
-  });
-
-  // Setup drop zones
-  dropZones.forEach((zone) => {
-    zone.removeEventListener("dragover", handleEnhancedDragOver);
-    zone.removeEventListener("dragenter", handleEnhancedDragEnter);
-    zone.removeEventListener("dragleave", handleEnhancedDragLeave);
-    zone.removeEventListener("drop", handleEnhancedDrop);
-
-    zone.addEventListener("dragover", handleEnhancedDragOver);
-    zone.addEventListener("dragenter", handleEnhancedDragEnter);
-    zone.addEventListener("dragleave", handleEnhancedDragLeave);
-    zone.addEventListener("drop", handleEnhancedDrop);
-  });
-
-  // Setup draggables
-  draggables.forEach((draggable) => {
-    draggable.removeEventListener("dragstart", handleEnhancedDragStart);
-    draggable.removeEventListener("dragend", handleEnhancedDragEnd);
-
-    draggable.addEventListener("dragstart", handleEnhancedDragStart);
-    draggable.addEventListener("dragend", handleEnhancedDragEnd);
-  });
-}
-
-// Setup event listeners
-function setupEventListeners() {
-  console.log("🔧 Setting up event listeners...");
-
-  // Modal event listeners
-  const modal = document.getElementById("schedule-modal");
-  if (modal) {
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) closeModal();
-    });
   }
 
-  // Real-time validation setup
-  setupValidationEventListeners();
+  return timeSlots;
 }
 
-// 🚀 FORCE action buttons to appear on ALL schedule cards
-function forceActionButtonsVisibility() {
-  console.log("🔧 Forcing action buttons visibility...");
+function createDynamicScheduleCard(schedule, isStartCell) {
+  const colors = [
+    "bg-blue-100 border-blue-300 text-blue-800",
+    "bg-green-100 border-green-300 text-green-800",
+    "bg-purple-100 border-purple-300 text-purple-800",
+    "bg-orange-100 border-orange-300 text-orange-800",
+    "bg-pink-100 border-pink-300 text-pink-800",
+    "bg-teal-100 border-teal-300 text-teal-800",
+    "bg-amber-100 border-amber-300 text-amber-800",
+  ];
 
-  const allScheduleCards = document.querySelectorAll(".schedule-card");
+  const colorIndex = schedule.schedule_id
+    ? schedule.schedule_id % colors.length
+    : Math.floor(Math.random() * colors.length);
+  const colorClass = colors[colorIndex];
 
-  allScheduleCards.forEach((card) => {
-    // Ensure the action buttons container exists
-    let actionContainer = card.querySelector(
-      ".flex.space-x-1.flex-shrink-0.ml-1"
-    );
+  const card = document.createElement("div");
+  card.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 draggable cursor-move text-xs`;
+  card.draggable = true;
+  card.dataset.scheduleId = schedule.schedule_id || "";
+  card.dataset.yearLevel = schedule.year_level || "";
+  card.dataset.sectionName = schedule.section_name || "";
+  card.dataset.roomName = schedule.room_name || "Online";
 
-    if (!actionContainer) {
-      // Create action buttons container if it doesn't exist
-      actionContainer = document.createElement("div");
-      actionContainer.className = "flex space-x-1 flex-shrink-0 ml-1";
+  if (!isStartCell) {
+    card.style.opacity = "0.6";
+  }
 
-      const scheduleId = card.dataset.scheduleId;
-      const schedule = window.scheduleData.find(
-        (s) => s.schedule_id == scheduleId
-      );
-
-      if (schedule) {
-        actionContainer.innerHTML = `
-                    <button onclick="event.stopPropagation(); editScheduleFromAnyCell('${scheduleId}')" 
-                            class="text-yellow-600 hover:text-yellow-700 no-print">
+  card.innerHTML = `
+        ${
+          isStartCell
+            ? `
+            <div class="flex justify-between items-start mb-1">
+                <div class="font-semibold truncate flex-1">
+                    ${schedule.course_code || ""}
+                </div>
+                <div class="flex space-x-1 flex-shrink-0 ml-1">
+                    <button onclick="editSchedule('${
+                      schedule.schedule_id || ""
+                    }')" class="text-yellow-600 hover:text-yellow-700 no-print">
                         <i class="fas fa-edit text-xs"></i>
                     </button>
-                    <button onclick="event.stopPropagation(); openDeleteSingleModal(
-                        '${scheduleId}', 
+                    <button onclick="openDeleteSingleModal(
+                        '${schedule.schedule_id || ""}', 
                         '${schedule.course_code || ""}', 
                         '${schedule.section_name || ""}', 
                         '${schedule.day_of_week || ""}', 
@@ -2662,150 +2810,48 @@ function forceActionButtonsVisibility() {
                     )" class="text-red-600 hover:text-red-700 no-print">
                         <i class="fas fa-trash text-xs"></i>
                     </button>
-                `;
-
-        // Find the title container and append action buttons
-        const titleContainer = card.querySelector(
-          ".flex.justify-between.items-start.mb-1"
-        );
-        if (titleContainer) {
-          titleContainer.appendChild(actionContainer);
+                </div>
+            </div>
+            <div class="opacity-90 truncate">
+                ${schedule.section_name || ""}
+            </div>
+            <div class="opacity-75 truncate">
+                ${schedule.faculty_name || ""}
+            </div>
+            <div class="opacity-75 truncate">
+                ${schedule.room_name || "Online"}
+            </div>
+            <div class="font-medium mt-1 hidden sm:block text-xs">
+                ${
+                  schedule.start_time && schedule.end_time
+                    ? `${formatTime(
+                        schedule.start_time.substring(0, 5)
+                      )} - ${formatTime(schedule.end_time.substring(0, 5))}`
+                    : ""
+                }
+            </div>
+        `
+            : `
+            <div class="font-semibold truncate mb-1 text-center opacity-75">
+                <i class="fas fa-ellipsis-h text-xs"></i>
+            </div>
+        `
         }
-      }
-    }
+    `;
 
-    // Force display and opacity of all buttons
-    const buttons = card.querySelectorAll("button");
-    buttons.forEach((button) => {
-      button.style.display = "inline-block";
-      button.style.opacity = "1";
-    });
-  });
+  card.ondragstart = handleDragStart;
+  card.ondragend = handleDragEnd;
 
-  console.log(`✅ Action buttons forced on ${allScheduleCards.length} cards`);
+  return card;
 }
 
-// Call this function after any DOM updates
-function refreshScheduleUI() {
-  console.log("🔄 Refreshing schedule UI...");
+function updateViewGrid(schedules) {
+  const viewGrid = document.getElementById("timetableGrid");
+  if (!viewGrid) return;
 
-  // Small delay to ensure DOM is ready
-  setTimeout(() => {
-    forceActionButtonsVisibility();
-    enableFullAccessToAllScheduleCards();
-    initializeEnhancedDragAndDrop();
-  }, 100);
-}
+  viewGrid.innerHTML = "";
 
-// Debug function to check button visibility
-function debugButtonVisibility() {
-  console.log("🔍 Debugging button visibility...");
-
-  const cards = document.querySelectorAll(".schedule-card");
-  cards.forEach((card, index) => {
-    const scheduleId = card.dataset.scheduleId;
-    const buttons = card.querySelectorAll("button");
-    const actionContainer = card.querySelector(
-      ".flex.space-x-1.flex-shrink-0.ml-1"
-    );
-
-    console.log(`Card ${index + 1} (ID: ${scheduleId}):`, {
-      buttonsCount: buttons.length,
-      hasActionContainer: !!actionContainer,
-      actionContainerHTML: actionContainer
-        ? actionContainer.innerHTML
-        : "MISSING",
-    });
-  });
-}
-
-// 🎯 ACCURATE TIME SLOT MANAGEMENT
-function generateAccurateTimeSlots(schedules) {
-  console.log("🎯 Generating accurate time slots...");
-
-  const allTimes = new Set();
-
-  // Add ALL unique start and end times from schedules
-  schedules.forEach((schedule) => {
-    if (schedule.start_time) {
-      const startTime = schedule.start_time.substring(0, 5);
-      allTimes.add(startTime);
-    }
-    if (schedule.end_time) {
-      const endTime = schedule.end_time.substring(0, 5);
-      allTimes.add(endTime);
-    }
-  });
-
-  // Add base time points for coverage
-  const baseTimes = [
-    "07:00",
-    "07:30",
-    "08:00",
-    "08:30",
-    "09:00",
-    "09:30",
-    "10:00",
-    "10:30",
-    "11:00",
-    "11:30",
-    "12:00",
-    "12:30",
-    "13:00",
-    "13:30",
-    "14:00",
-    "14:30",
-    "15:00",
-    "15:30",
-    "16:00",
-    "16:30",
-    "17:00",
-    "17:30",
-    "18:00",
-    "18:30",
-    "19:00",
-    "19:30",
-    "20:00",
-  ];
-
-  baseTimes.forEach((time) => allTimes.add(time));
-
-  // Convert to array and sort
-  const sortedTimes = Array.from(allTimes).sort((a, b) => {
-    return new Date(`2000-01-01T${a}:00`) - new Date(`2000-01-01T${b}:00`);
-  });
-
-  // Create time slots
-  const timeSlots = [];
-  for (let i = 0; i < sortedTimes.length - 1; i++) {
-    timeSlots.push({
-      start: sortedTimes[i],
-      end: sortedTimes[i + 1],
-    });
-  }
-
-  console.log("Generated time slots:", timeSlots);
-  return timeSlots;
-}
-
-// 🎯 Calculate proper row height based on duration
-function calculateRowHeight(startTime, endTime) {
-  const start = new Date(`2000-01-01T${startTime}:00`);
-  const end = new Date(`2000-01-01T${endTime}:00`);
-  const duration = (end - start) / (1000 * 60); // duration in minutes
-
-  // Base height + proportional scaling (40px per 30 minutes)
-  return Math.max(60, (duration / 30) * 40);
-}
-
-// 🎯 Enhanced schedule display with accurate time slots
-function updateScheduleGridWithAccurateSlots(schedules) {
-  const grid = document.getElementById("schedule-grid");
-  if (!grid) return;
-
-  grid.innerHTML = "";
-
-  const timeSlots = generateAccurateTimeSlots(schedules);
+  const timeSlots = generateDynamicTimeSlots();
   const days = [
     "Monday",
     "Tuesday",
@@ -2813,105 +2859,78 @@ function updateScheduleGridWithAccurateSlots(schedules) {
     "Thursday",
     "Friday",
     "Saturday",
+    "Sunday",
   ];
 
-  timeSlots.forEach((slot) => {
-    const rowHeight = calculateRowHeight(slot.start, slot.end);
-    const row = document.createElement("div");
-    row.className = `grid grid-cols-7 hover:bg-gray-50 transition-colors duration-200 schedule-row`;
-    row.style.minHeight = `${rowHeight}px`;
+  // Pre-process schedules for view grid
+  const scheduleLookup = {};
+  schedules.forEach((schedule) => {
+    const day = schedule.day_of_week;
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
 
-    // Time Column
+    if (!scheduleLookup[day]) {
+      scheduleLookup[day] = {};
+    }
+    if (!scheduleLookup[day][start]) {
+      scheduleLookup[day][start] = [];
+    }
+    scheduleLookup[day][start].push(schedule);
+  });
+
+  timeSlots.forEach((time) => {
+    const duration =
+      (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) /
+      1000;
+    const rowSpan = Math.max(1, duration / 1800);
+    const minHeight = rowSpan * 60;
+
+    const row = document.createElement("div");
+    row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+    row.style.gridRow = `span ${rowSpan}`;
+
+    // Time cell
     const timeCell = document.createElement("div");
     timeCell.className =
-      "px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-center";
-    timeCell.style.minHeight = `${rowHeight}px`;
-
-    const duration =
-      (new Date(`2000-01-01T${slot.end}:00`) -
-        new Date(`2000-01-01T${slot.start}:00`)) /
-      (1000 * 60);
-
-    timeCell.innerHTML = `
-            <div>
-                <span class="text-sm hidden sm:block">
-                    ${formatTime(slot.start)} - ${formatTime(slot.end)}
-                </span>
-                <span class="text-xs sm:hidden">
-                    ${slot.start}-${slot.end}
-                </span>
-                <br>
-                <span class="text-xs text-gray-500 hidden sm:inline">
-                    (${duration} min)
-                </span>
-            </div>
-        `;
+      "px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center";
+    timeCell.style.gridRow = `span ${rowSpan}`;
+    timeCell.textContent = `${formatTime(time[0])} - ${formatTime(time[1])}`;
     row.appendChild(timeCell);
 
-    // Day Columns
+    // Day cells
     days.forEach((day) => {
       const cell = document.createElement("div");
-      cell.className =
-        "px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone schedule-cell";
+      cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative schedule-cell`;
       cell.dataset.day = day;
-      cell.dataset.startTime = slot.start;
-      cell.dataset.endTime = slot.end;
-      cell.style.minHeight = `${rowHeight}px`;
+      cell.dataset.startTime = time[0];
+      cell.dataset.endTime = time[1];
 
-      // Find schedules that start EXACTLY in this time slot
-      const schedulesForSlot = schedules.filter((schedule) => {
-        if (schedule.day_of_week !== day) return false;
+      const daySchedules =
+        scheduleLookup[day] && scheduleLookup[day][time[0]]
+          ? scheduleLookup[day][time[0]]
+          : [];
 
-        const scheduleStart = schedule.start_time
-          ? schedule.start_time.substring(0, 5)
-          : "";
-        return scheduleStart === slot.start;
-      });
+      if (daySchedules.length > 0) {
+        const container = document.createElement("div");
+        container.className = "schedules-container space-y-1";
 
-      if (schedulesForSlot.length > 0) {
-        const schedulesContainer = document.createElement("div");
-        schedulesContainer.className = "space-y-1 h-full";
-
-        schedulesForSlot.forEach((schedule) => {
-          const scheduleCard = createAccurateScheduleCard(schedule, slot);
-          schedulesContainer.appendChild(scheduleCard);
+        daySchedules.forEach((schedule) => {
+          const scheduleItem = createDynamicScheduleItem(schedule);
+          container.appendChild(scheduleItem);
         });
 
-        cell.appendChild(schedulesContainer);
-      } else {
-        // Empty slot - show add button
-        const addButton = document.createElement("button");
-        addButton.innerHTML = '<i class="fas fa-plus text-sm"></i>';
-        addButton.className =
-          "w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center";
-        addButton.style.minHeight = `${rowHeight - 16}px`;
-        addButton.onclick = () =>
-          openAddModalForSlot(day, slot.start, slot.end);
-        cell.appendChild(addButton);
+        cell.appendChild(container);
       }
 
       row.appendChild(cell);
     });
 
-    grid.appendChild(row);
+    viewGrid.appendChild(row);
   });
-
-  // Initialize enhanced functionality
-  setTimeout(() => {
-    enableFullAccessToAllScheduleCards();
-    initializeEnhancedDragAndDrop();
-  }, 100);
 }
 
-// 🎯 Create accurate schedule card with proper height
-function createAccurateScheduleCard(schedule, timeSlot) {
-  const card = document.createElement("div");
-
-  const scheduleStart = new Date(`2000-01-01T${schedule.start_time}`);
-  const scheduleEnd = new Date(`2000-01-01T${schedule.end_time}`);
-  const scheduleDuration = (scheduleEnd - scheduleStart) / (1000 * 60);
-  const scheduleHeight = Math.max(60, (scheduleDuration / 30) * 40);
-
+function createDynamicScheduleItem(schedule) {
   const colors = [
     "bg-blue-100 border-blue-300 text-blue-800",
     "bg-green-100 border-green-300 text-green-800",
@@ -2921,76 +2940,203 @@ function createAccurateScheduleCard(schedule, timeSlot) {
   ];
 
   const colorIndex = schedule.schedule_id
-    ? parseInt(schedule.schedule_id) % colors.length
+    ? schedule.schedule_id % colors.length
     : Math.floor(Math.random() * colors.length);
   const colorClass = colors[colorIndex];
 
-  card.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 draggable cursor-move text-xs full-access-card`;
-  card.draggable = true;
-  card.dataset.scheduleId = schedule.schedule_id || "";
-  card.dataset.yearLevel = schedule.year_level || "";
-  card.dataset.sectionName = schedule.section_name || "";
-  card.dataset.roomName = schedule.room_name || "Online";
-  card.dataset.startTime = schedule.start_time;
-  card.dataset.endTime = schedule.end_time;
-  card.dataset.fullAccess = "true";
-  card.style.minHeight = `${scheduleHeight - 16}px`;
+  const item = document.createElement("div");
+  item.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 mb-1 schedule-item`;
+  item.dataset.yearLevel = schedule.year_level || "";
+  item.dataset.sectionName = schedule.section_name || "";
+  item.dataset.roomName = schedule.room_name || "Online";
 
-  card.innerHTML = `
-        <div class="flex justify-between items-start mb-1">
-            <div class="font-semibold truncate flex-1">
-                ${schedule.course_code || ""}
-            </div>
-            <div class="flex space-x-1 flex-shrink-0 ml-1">
-                <button onclick="event.stopPropagation(); editScheduleFromAnyCell('${
-                  schedule.schedule_id || ""
-                }')" 
-                        class="text-yellow-600 hover:text-yellow-700 no-print">
-                    <i class="fas fa-edit text-xs"></i>
-                </button>
-                <button onclick="event.stopPropagation(); openDeleteSingleModal(
-                    '${schedule.schedule_id || ""}', 
-                    '${schedule.course_code || ""}', 
-                    '${schedule.section_name || ""}', 
-                    '${schedule.day_of_week || ""}', 
-                    '${
-                      schedule.start_time
-                        ? formatTime(schedule.start_time.substring(0, 5))
-                        : ""
-                    }', 
-                    '${
-                      schedule.end_time
-                        ? formatTime(schedule.end_time.substring(0, 5))
-                        : ""
-                    }'
-                )" class="text-red-600 hover:text-red-700 no-print">
-                    <i class="fas fa-trash text-xs"></i>
-                </button>
-            </div>
+  item.innerHTML = `
+        <div class="font-semibold text-xs truncate mb-1">
+            ${schedule.course_code || ""}
         </div>
-        <div class="opacity-90 truncate">
+        <div class="text-xs opacity-90 truncate mb-1">
             ${schedule.section_name || ""}
         </div>
-        <div class="opacity-75 truncate">
+        <div class="text-xs opacity-75 truncate">
             ${schedule.faculty_name || ""}
         </div>
-        <div class="opacity-75 truncate">
+        <div class="text-xs opacity-75 truncate">
             ${schedule.room_name || "Online"}
         </div>
-        <div class="font-medium mt-1 text-xs">
+        <div class="text-xs font-medium mt-1">
             ${
               schedule.start_time && schedule.end_time
-                ? `${schedule.start_time.substring(
-                    0,
-                    5
-                  )} - ${schedule.end_time.substring(0, 5)}`
+                ? `${formatTime(
+                    schedule.start_time.substring(0, 5)
+                  )} - ${formatTime(schedule.end_time.substring(0, 5))}`
                 : ""
             }
         </div>
-        <div class="text-xs text-gray-500 mt-1">
-            Duration: ${scheduleDuration} minutes
-        </div>
     `;
 
-  return card;
+  return item;
+}
+
+// Update your existing openAddModalForSlot to set times properly
+function openAddModalForSlot(day, startTime, endTime) {
+  openAddModal();
+
+  document.getElementById("modal-day").value = day;
+  document.getElementById("day-select").value = day;
+
+  // Set start time and update end time options
+  document.getElementById("start-time").value = startTime;
+  updateEndTimeOptions();
+
+  // Set the specific end time
+  document.getElementById("end-time").value = endTime;
+  updateTimeFields();
+}
+
+// Enhanced dynamic grid generation
+function generateDynamicTimeSlots() {
+  const timeSlots = [];
+  const startHour = 7; // 7:00 AM
+  const endHour = 21; // 9:00 PM
+
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const currentTime = `${hour.toString().padStart(2, "0")}:${minute
+        .toString()
+        .padStart(2, "0")}`;
+      const nextHour = hour + (minute + 30 >= 60 ? 1 : 0);
+      const nextMinute = (minute + 30) % 60;
+
+      if (nextHour >= endHour && nextMinute > 0) continue;
+
+      const nextTime = `${nextHour.toString().padStart(2, "0")}:${nextMinute
+        .toString()
+        .padStart(2, "0")}`;
+      timeSlots.push([currentTime, nextTime]);
+    }
+  }
+  return timeSlots;
+}
+
+// Enhanced grid synchronization
+function syncGridWithSchedules(schedules) {
+  const grid = document.getElementById("schedule-grid");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+  const timeSlots = generateDynamicTimeSlots();
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  // Pre-process schedules for faster lookup
+  const scheduleLookup = {};
+  schedules.forEach((schedule) => {
+    const day = schedule.day_of_week;
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
+    const end = schedule.end_time ? schedule.end_time.substring(0, 5) : "";
+
+    if (!scheduleLookup[day]) {
+      scheduleLookup[day] = [];
+    }
+
+    scheduleLookup[day].push({
+      schedule: schedule,
+      start: start,
+      end: end,
+    });
+  });
+
+  timeSlots.forEach((time) => {
+    const duration =
+      (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) /
+      1000;
+    const rowSpan = Math.max(1, duration / 1800); // 30-minute base unit
+    const minHeight = rowSpan * 60;
+
+    const row = document.createElement("div");
+    row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+    row.style.gridRow = `span ${rowSpan}`;
+
+    // Time cell
+    const timeCell = document.createElement("div");
+    timeCell.className =
+      "px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start";
+    timeCell.style.gridRow = `span ${rowSpan}`;
+    timeCell.innerHTML = `
+            <span class="text-sm hidden sm:block">${formatTime(
+              time[0]
+            )} - ${formatTime(time[1])}</span>
+            <span class="text-xs sm:hidden">${time[0].substring(
+              0,
+              5
+            )}-${time[1].substring(0, 5)}</span>
+        `;
+    row.appendChild(timeCell);
+
+    // Day cells
+    days.forEach((day) => {
+      const cell = document.createElement("div");
+      cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[${minHeight}px]`;
+      cell.dataset.day = day;
+      cell.dataset.startTime = time[0];
+      cell.dataset.endTime = time[1];
+
+      const schedulesInSlot = [];
+      if (scheduleLookup[day]) {
+        scheduleLookup[day].forEach((scheduleData) => {
+          const scheduleStart = scheduleData.start;
+          const scheduleEnd = scheduleData.end;
+
+          const slotStart = new Date(`2000-01-01 ${time[0]}`).getTime();
+          const slotEnd = new Date(`2000-01-01 ${time[1]}`).getTime();
+          const schedStart = new Date(`2000-01-01 ${scheduleStart}`).getTime();
+          const schedEnd = new Date(`2000-01-01 ${scheduleEnd}`).getTime();
+
+          if (schedStart < slotEnd && schedEnd > slotStart) {
+            schedulesInSlot.push({
+              schedule: scheduleData.schedule,
+              isStartCell: scheduleStart === time[0],
+            });
+          }
+        });
+      }
+
+      if (schedulesInSlot.length === 0) {
+        const addButton = document.createElement("button");
+        addButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
+        addButton.className =
+          "w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-1";
+        addButton.onclick = () => openAddModalForSlot(day, time[0], time[1]);
+        cell.appendChild(addButton);
+      } else {
+        const container = document.createElement("div");
+        container.className = "space-y-1 p-1";
+
+        schedulesInSlot.forEach((scheduleData) => {
+          const scheduleCard = createDynamicScheduleCard(
+            scheduleData.schedule,
+            scheduleData.isStartCell
+          );
+          container.appendChild(scheduleCard);
+        });
+
+        cell.appendChild(container);
+      }
+
+      row.appendChild(cell);
+    });
+
+    grid.appendChild(row);
+  });
+
+  initializeDragAndDrop();
 }

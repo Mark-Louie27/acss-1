@@ -3,29 +3,121 @@ ob_start();
 ?>
 
 <div class="p-4 sm:p-6 bg-gray-50 min-h-screen font-sans">
-    <!-- Main Header Section with Gold Accent - KEPT AS REQUESTED -->
+    <!-- Main Header Section with Gold Accent and Semester Selector -->
     <div class="bg-gray-800 text-white rounded-xl p-6 sm:p-8 mb-8 shadow-lg relative overflow-hidden">
         <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between">
-            <div class="mb-4 md:mb-0">
+
+        <!-- Main Header Row -->
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
+            <div class="flex-1">
                 <h1 class="text-2xl sm:text-3xl font-bold">PRMSU Scheduling System</h1>
-                <p class="text-gray-300 text-sm sm:text-base mt-1"><?php echo htmlspecialchars($departmentName ?? 'Unknown Department'); ?></p>
+                <p class="text-gray-300 text-sm sm:text-base mt-1">
+                    <?php echo htmlspecialchars($departmentName ?? 'Unknown Department'); ?>
+                </p>
             </div>
-            <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
-                <span class="bg-gray-700 px-3 py-1 rounded-full flex items-center">
-                    <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+            <!-- Right side: Status badges -->
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                <!-- Department Switcher (if multiple departments) -->
+                <?php if (!empty($departments) && count($departments) > 1): ?>
+                    <div class="relative group">
+                        <button id="deptSwitcherBtn" class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg flex items-center transition-colors text-xs sm:text-sm">
+                            <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            <span class="hidden sm:inline">Switch Dept</span>
+                            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <!-- Dropdown -->
+                        <div id="deptSwitcherDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+                            <?php foreach ($departments as $dept): ?>
+                                <button
+                                    class="dept-option w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-800 text-sm flex items-center justify-between"
+                                    data-department-id="<?php echo htmlspecialchars($dept['department_id']); ?>">
+                                    <span><?php echo htmlspecialchars($dept['department_name']); ?></span>
+                                    <?php if ($dept['department_id'] == $currentDepartmentId): ?>
+                                        <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    <?php endif; ?>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Semester Selector with Status Indicator -->
+                <div class="relative">
+                    <select
+                        id="semesterSelector"
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg appearance-none cursor-pointer transition-colors text-xs sm:text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        style="min-width: 200px;">
+                        <?php if (!empty($availableSemesters)): ?>
+                            <?php foreach ($availableSemesters as $semester): ?>
+                                <option
+                                    value="<?php echo htmlspecialchars($semester['semester_id']); ?>"
+                                    <?php echo ($semester['semester_id'] == $currentSemesterId) ? 'selected' : ''; ?>>
+                                    <?php
+                                    echo htmlspecialchars($semester['semester_name'] . ' - ' . $semester['academic_year']);
+                                    if ($semester['is_current']) {
+                                        echo ' ●'; // Current indicator
+                                    }
+                                    ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                    <svg class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2024-2025'); ?>
+                </div>
+
+                <!-- Active Term Status Badge -->
+                <span class="bg-yellow-600 px-3 py-2 rounded-lg flex items-center text-xs sm:text-sm">
+                    <?php if ($isHistoricalView ?? false): ?>
+                        <svg class="w-4 h-4 mr-1 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="hidden sm:inline">Historical</span>
+                    <?php else: ?>
+                        <svg class="w-4 h-4 mr-1 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="hidden sm:inline">Active</span>
+                    <?php endif; ?>
                 </span>
-                <span class="bg-yellow-600 px-3 py-1 rounded-full flex items-center">
-                    <svg class="w-4 h-4 mr-1 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Active Term
-                </span>
+
+                <!-- Quick Return to Current Button (only show when viewing historical) -->
+                <?php if ($isHistoricalView ?? false): ?>
+                    <button
+                        id="returnToCurrentBtn"
+                        class="bg-yellow-500 hover:bg-yellow-600 px-3 py-2 rounded-lg transition-colors text-xs sm:text-sm flex items-center"
+                        title="Return to current semester">
+                        <svg class="w-4 h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="hidden sm:inline">Current</span>
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
+
+        <!-- Historical View Alert (if applicable) -->
+        <?php if ($isHistoricalView ?? false): ?>
+            <div class="bg-blue-900/50 border border-blue-500/30 rounded-lg p-3 flex items-start">
+                <svg class="w-5 h-5 text-blue-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div class="text-sm text-blue-200">
+                    <span class="font-semibold text-blue-100">Viewing Historical Data:</span>
+                    You are viewing data from <?php echo htmlspecialchars($semesterInfo ?? ''); ?>.
+                    Changes cannot be made to historical data.
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Stats Cards - KEPT AS REQUESTED -->
@@ -145,34 +237,72 @@ ob_start();
         </div>
     </div>
 
-    <!-- Charts Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <!-- Schedule Distribution Chart -->
-        <div class="bg-white rounded-xl shadow-md p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-bold text-gray-900">Weekly Schedule Distribution</h3>
-                <div class="text-sm text-gray-500 flex items-center">
-                    <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
-                    Classes per Day
+    <!-- Replace entire charts section with this -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Conflict Alert Card -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-red-500">
+            <div class="flex items-center justify-between mb-3">
+                <div class="p-3 rounded-full bg-red-50">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
                 </div>
+                <span class="text-3xl font-bold text-red-600"><?php echo $conflictCount ?? 0; ?></span>
             </div>
-            <div class="h-64">
-                <canvas id="scheduleChart"></canvas>
-            </div>
+            <h4 class="text-sm font-semibold text-gray-700">Schedule Conflicts</h4>
+            <p class="text-xs text-gray-500 mt-1">Requires immediate attention</p>
+            <?php if (($conflictCount ?? 0) > 0): ?>
+                <a href="/chair/schedule_management" class="mt-3 text-xs text-red-600 hover:text-red-700 font-medium flex items-center">
+                    Resolve Now →
+                </a>
+            <?php endif; ?>
         </div>
 
-        <!-- Faculty Workload Chart -->
-        <div class="bg-white rounded-xl shadow-md p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-bold text-gray-900">Faculty Workload Distribution</h3>
-                <div class="text-sm text-gray-500 flex items-center">
-                    <div class="w-3 h-3 bg-yellow-600 rounded-full mr-2"></div>
-                    Courses Assigned
+        <!-- Pending Approvals -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between mb-3">
+                <div class="p-3 rounded-full bg-yellow-50">
+                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                 </div>
+                <span class="text-3xl font-bold text-yellow-600"><?php echo $scheduleStatusCounts['pending'] ?? 0; ?></span>
             </div>
-            <div class="h-64">
-                <canvas id="workloadChart"></canvas>
+            <h4 class="text-sm font-semibold text-gray-700">Pending Schedules</h4>
+            <p class="text-xs text-gray-500 mt-1">Awaiting approval</p>
+        </div>
+
+        <!-- Unassigned Courses -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between mb-3">
+                <div class="p-3 rounded-full bg-blue-50">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <span class="text-3xl font-bold text-blue-600"><?php echo $unassignedCourses ?? 0; ?></span>
             </div>
+            <h4 class="text-sm font-semibold text-gray-700">Unassigned Courses</h4>
+            <p class="text-xs text-gray-500 mt-1">Need faculty assignment</p>
+            <?php if (($unassignedCourses ?? 0) > 0): ?>
+                <a href="/chair/schedule_management" class="mt-3 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center">
+                    Assign Now →
+                </a>
+            <?php endif; ?>
+        </div>
+
+        <!-- Workload Balance -->
+        <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+            <div class="flex items-center justify-between mb-3">
+                <div class="p-3 rounded-full bg-green-50">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <span class="text-3xl font-bold text-green-600"><?php echo $workloadBalance ?? 85; ?>%</span>
+            </div>
+            <h4 class="text-sm font-semibold text-gray-700">Workload Balance</h4>
+            <p class="text-xs text-gray-500 mt-1">Faculty distribution score</p>
         </div>
     </div>
 
@@ -332,6 +462,180 @@ ob_start();
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Semester Selector
+        const semesterSelector = document.getElementById('semesterSelector');
+        const returnToCurrentBtn = document.getElementById('returnToCurrentBtn');
+
+        if (semesterSelector) {
+            semesterSelector.addEventListener('change', function() {
+                const semesterId = this.value;
+
+                // Disable and show loading
+                this.disabled = true;
+                this.classList.add('opacity-50', 'cursor-wait');
+
+                // Add visual loading indicator
+                const originalBg = this.classList.contains('bg-gray-700');
+                this.classList.remove('bg-gray-700', 'bg-gray-600');
+                this.classList.add('bg-yellow-600');
+
+                fetch('/chair/switch_semester', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'semester_id=' + encodeURIComponent(semesterId)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification(
+                                'Switched to ' + data.semester_name + ' ' + data.academic_year,
+                                'success'
+                            );
+
+                            // Reload page after brief delay
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 800);
+                        } else {
+                            showNotification(data.error || 'Failed to switch semester', 'error');
+                            this.disabled = false;
+                            this.classList.remove('opacity-50', 'cursor-wait', 'bg-yellow-600');
+                            if (originalBg) this.classList.add('bg-gray-700');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Network error. Please try again.', 'error');
+                        this.disabled = false;
+                        this.classList.remove('opacity-50', 'cursor-wait', 'bg-yellow-600');
+                        if (originalBg) this.classList.add('bg-gray-700');
+                    });
+            });
+        }
+
+        if (returnToCurrentBtn) {
+            returnToCurrentBtn.addEventListener('click', function() {
+                this.disabled = true;
+                this.classList.add('opacity-50');
+
+                fetch('/chair/switch_semester', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'reset=true'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification('Returned to current semester', 'success');
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 500);
+                        } else {
+                            showNotification('Failed to return to current semester', 'error');
+                            this.disabled = false;
+                            this.classList.remove('opacity-50');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Network error. Please try again.', 'error');
+                        this.disabled = false;
+                        this.classList.remove('opacity-50');
+                    });
+            });
+        }
+
+        // Department Switcher Dropdown
+        const deptSwitcherBtn = document.getElementById('deptSwitcherBtn');
+        const deptSwitcherDropdown = document.getElementById('deptSwitcherDropdown');
+
+        if (deptSwitcherBtn && deptSwitcherDropdown) {
+            deptSwitcherBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                deptSwitcherDropdown.classList.toggle('hidden');
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!deptSwitcherBtn.contains(e.target) && !deptSwitcherDropdown.contains(e.target)) {
+                    deptSwitcherDropdown.classList.add('hidden');
+                }
+            });
+
+            // Handle department selection
+            document.querySelectorAll('.dept-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    const departmentId = this.getAttribute('data-department-id');
+
+                    fetch('/chair/switch_department', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'department_id=' + encodeURIComponent(departmentId)
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showNotification('Department switched successfully', 'success');
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 500);
+                            } else {
+                                showNotification(data.error || 'Failed to switch department', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotification('Network error. Please try again.', 'error');
+                        });
+
+                    deptSwitcherDropdown.classList.add('hidden');
+                });
+            });
+        }
+
+        // Notification System
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' :
+                type === 'error' ? 'bg-red-500' :
+                type === 'warning' ? 'bg-yellow-500' :
+                'bg-blue-500';
+
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 flex items-center space-x-2 max-w-md`;
+
+            const icon = type === 'success' ?
+                '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' :
+                type === 'error' ?
+                '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' :
+                '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+
+            notification.innerHTML = `
+            ${icon}
+            <span>${message}</span>
+        `;
+
+            document.body.appendChild(notification);
+
+            // Animate in
+            setTimeout(() => {
+                notification.classList.add('animate-slide-in-right');
+            }, 10);
+
+            // Remove after 4 seconds
+            setTimeout(() => {
+                notification.classList.add('opacity-0', 'translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 4000);
+        }
+
         // Schedule Distribution Chart
         const scheduleCtx = document.getElementById('scheduleChart').getContext('2d');
         const scheduleData = <?php echo $scheduleDistJson ?? '[0,0,0,0,0,0]'; ?>;
@@ -492,6 +796,78 @@ ob_start();
 </script>
 
 <style>
+    /* Smooth animations */
+    @keyframes slide-in-right {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .animate-slide-in-right {
+        animation: slide-in-right 0.3s ease-out forwards;
+    }
+
+    /* Custom scrollbar for dropdown */
+    #deptSwitcherDropdown {
+        scrollbar-width: thin;
+        scrollbar-color: #d4af37 #f1f1f1;
+    }
+
+    #deptSwitcherDropdown::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #deptSwitcherDropdown::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    #deptSwitcherDropdown::-webkit-scrollbar-thumb {
+        background: #d4af37;
+        border-radius: 3px;
+    }
+
+    #deptSwitcherDropdown::-webkit-scrollbar-thumb:hover {
+        background: #b8960b;
+    }
+
+    /* Improved select styling */
+    #semesterSelector {
+        background-image: none;
+        /* Remove default arrow */
+    }
+
+    #semesterSelector:hover {
+        background-color: #4a5568;
+    }
+
+    #semesterSelector:focus {
+        outline: none;
+        ring: 2px solid #eab308;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 640px) {
+        #semesterSelector {
+            min-width: 150px;
+            font-size: 0.75rem;
+            padding: 0.5rem 1.5rem 0.5rem 0.75rem;
+        }
+
+        #deptSwitcherDropdown {
+            width: 100vw;
+            left: 0;
+            right: auto;
+            border-radius: 0;
+        }
+    }
+
     /* Progress bar animations */
     .progress-bar {
         transition: width 0.8s ease-in-out;

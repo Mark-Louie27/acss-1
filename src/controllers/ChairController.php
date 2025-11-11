@@ -79,6 +79,85 @@ class ChairController extends BaseController
         error_log("Current department set to {$this->currentDepartmentId} for user_id=" . ($_SESSION['user_id'] ?? 'unknown'));
     }
 
+    // Add this method after the switchDepartment() method
+
+    public function switchSemester()
+    {
+        // Set JSON header immediately
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['semester_id'])) {
+            $newSemesterId = intval($_POST['semester_id']);
+
+            // Validate that the semester exists
+            $stmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE semester_id = ?");
+            $stmt->execute([$newSemesterId]);
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                $_SESSION['selected_semester_id'] = $newSemesterId;
+                error_log("Switched to semester_id=$newSemesterId for user_id=" . ($_SESSION['user_id'] ?? 'unknown'));
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Semester switched successfully',
+                    'semester_id' => $newSemesterId,
+                    'semester_name' => $semester['semester_name'],
+                    'academic_year' => $semester['academic_year']
+                ]);
+            } else {
+                http_response_code(404);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Semester not found'
+                ]);
+            }
+        } else {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Invalid request'
+            ]);
+        }
+
+        exit;
+    }
+
+    // Add this helper method to get all available semesters
+    private function getAvailableSemesters()
+    {
+        $stmt = $this->db->prepare("
+        SELECT semester_id, semester_name, academic_year, is_current 
+        FROM semesters 
+        ORDER BY academic_year DESC, 
+        FIELD(semester_name, '2nd', '1st', 'Summer', 'Mid Year')
+        ");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Add this helper method to get the active semester (current or selected)
+    private function getActiveSemester()
+    {
+        // Check if user has selected a specific semester
+        if (isset($_SESSION['selected_semester_id'])) {
+            $stmt = $this->db->prepare("
+            SELECT semester_id, semester_name, academic_year, is_current 
+            FROM semesters 
+            WHERE semester_id = ?
+        ");
+            $stmt->execute([$_SESSION['selected_semester_id']]);
+            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($semester) {
+                return $semester;
+            }
+        }
+
+        // Fall back to current semester
+        return $this->getCurrentSemester();
+    }
+
     // Method to switch department
     public function switchDepartment()
     {
@@ -138,8 +217,6 @@ class ChairController extends BaseController
                 error_log("dashboard: No department found for chairId: $chairId");
                 $error = "No department assigned to this chair. Please contact the administrator.";
                 $viewPath = __DIR__ . '/../views/chair/dashboard.php';
-                error_log("dashboard: Looking for view at: $viewPath");
-                error_log("dashboard: File exists: " . (file_exists($viewPath) ? 'YES' : 'NO'));
                 if (!file_exists($viewPath)) {
                     error_log("dashboard: View file not found at: $viewPath");
                     http_response_code(404);
@@ -150,6 +227,16 @@ class ChairController extends BaseController
                 return;
             }
 
+            // Get active semester (current or user-selected)
+            $currentSemester = $this->getActiveSemester();
+            $currentSemesterId = $currentSemester['semester_id'] ?? null;
+
+            // Get all available semesters for the dropdown
+            $availableSemesters = $this->getAvailableSemesters();
+
+            // Determine if viewing historical data
+            $isHistoricalView = !$currentSemester['is_current'];
+
             error_log("dashboard: Department fetched - department_id: $departmentId");
 
             // Get department name
@@ -157,11 +244,11 @@ class ChairController extends BaseController
             $deptStmt->execute([$departmentId]);
             $departmentName = $deptStmt->fetchColumn();
 
-            // Get current semester
-            $currentSemesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1 LIMIT 1");
-            $currentSemester = $currentSemesterStmt->fetch(PDO::FETCH_ASSOC);
+            // Format semester info with indicator if historical
             $semesterInfo = $currentSemester ? "{$currentSemester['semester_name']} Semester A.Y {$currentSemester['academic_year']}" : '2nd Semester 2024-2025';
-            $currentSemesterId = $currentSemester['semester_id'] ?? null;
+            if ($isHistoricalView) {
+                $semesterInfo .= " (Historical View)";
+            }
 
             // NEW: Get schedule approval status breakdown
             $scheduleStatusStmt = $this->db->prepare("
@@ -398,8 +485,11 @@ class ChairController extends BaseController
                 'scheduleDistJson' => $scheduleDistJson,
                 'workloadLabelsJson' => $workloadLabelsJson,
                 'workloadCountsJson' => $workloadCountsJson,
-                'departments' => $this->userDepartments, // Pass all departments for switching
-                'currentDepartmentId' => $this->currentDepartmentId
+                'departments' => $this->userDepartments,
+                'currentDepartmentId' => $this->currentDepartmentId,
+                'availableSemesters' => $availableSemesters, // NEW
+                'currentSemesterId' => $currentSemesterId, // NEW
+                'isHistoricalView' => $isHistoricalView // NEW
             ];
 
             $viewPath = __DIR__ . '/../views/chair/dashboard.php';
