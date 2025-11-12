@@ -202,8 +202,6 @@ class ChairController extends BaseController
 
     public function dashboard()
     {
-        error_log("dashboard: Starting for user_id: " . ($this->getCurrentUserId() ?? 'none'));
-        error_log("dashboard: User roles: " . json_encode($this->userRoles));
 
         $this->requireAnyRole('chair', 'dean');
         try {

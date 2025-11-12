@@ -2590,25 +2590,196 @@ function formatTime(timeString) {
   });
 }
 
-// Enhanced safeUpdateScheduleDisplay for dynamic grid
+// Enhanced safeUpdateScheduleDisplay with proper row spanning
 function safeUpdateScheduleDisplay(schedules) {
   window.scheduleData = schedules;
-
-  // Update both manual and view grids
   updateManualGrid(schedules);
   updateViewGrid(schedules);
+}
+
+// Generate time slots based on actual schedules with 30-minute granularity
+function generateDynamicTimeSlotsFromSchedules(schedules) {
+  const defaultStart = "07:00";
+  const defaultEnd = "21:00";
+
+  // Collect all unique time points from schedules
+  const timePointsSet = new Set([defaultStart, defaultEnd]);
+  
+  schedules.forEach((schedule) => {
+    if (schedule.start_time) {
+      timePointsSet.add(schedule.start_time.substring(0, 5));
+    }
+    if (schedule.end_time) {
+      timePointsSet.add(schedule.end_time.substring(0, 5));
+    }
+  });
+
+  // Convert to array and sort by time
+  const timePoints = Array.from(timePointsSet)
+    .filter(Boolean)
+    .map((tp) => {
+      const [h, m] = tp.split(":").map((x) => parseInt(x, 10));
+      return {
+        raw: tp,
+        minutes: h * 60 + (m || 0),
+      };
+    })
+    .sort((a, b) => a.minutes - b.minutes)
+    .map((x) => x.raw);
+
+  // Build time slot intervals with 30-minute granularity
+  const timeSlots = [];
+  
+  if (timePoints.length < 2) {
+    // Fallback to 30-minute intervals
+    const toMinutes = (t) => {
+      const [h, m] = t.split(":");
+      return parseInt(h) * 60 + parseInt(m);
+    };
+    const fromMinutes = (m) => {
+      const hh = Math.floor(m / 60).toString().padStart(2, "0");
+      const mm = (m % 60).toString().padStart(2, "0");
+      return `${hh}:${mm}`;
+    };
+    const startMin = toMinutes(defaultStart);
+    const endMin = toMinutes(defaultEnd);
+    for (let m = startMin; m < endMin; m += 30) {
+      timeSlots.push([fromMinutes(m), fromMinutes(Math.min(m + 30, endMin))]);
+    }
+  } else {
+    // Create 30-minute intervals between min and max times
+    const minTime = timePoints[0];
+    const maxTime = timePoints[timePoints.length - 1];
+    
+    const toMinutes = (t) => {
+      const [h, m] = t.split(":");
+      return parseInt(h) * 60 + parseInt(m);
+    };
+    const fromMinutes = (m) => {
+      const hh = Math.floor(m / 60).toString().padStart(2, "0");
+      const mm = (m % 60).toString().padStart(2, "0");
+      return `${hh}:${mm}`;
+    };
+    
+    const startMin = toMinutes(minTime);
+    const endMin = toMinutes(maxTime);
+    
+    for (let m = startMin; m < endMin; m += 30) {
+      timeSlots.push([fromMinutes(m), fromMinutes(m + 30)]);
+    }
+  }
+
+  console.log("📅 Generated", timeSlots.length, "time slots:", timeSlots);
+  return timeSlots;
+}
+
+function calculateRowSpan(startTime, endTime) {
+  const [startH, startM] = startTime.split(":").map(Number);
+  const [endH, endM] = endTime.split(":").map(Number);
+
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+  const durationMinutes = endMinutes - startMinutes;
+
+  // Each slot is 30 minutes - exact calculation
+  return Math.max(1, durationMinutes / 30);
+}
+
+// Check if a time falls within a schedule's time range
+function isTimeInScheduleRange(checkTime, scheduleStart, scheduleEnd) {
+  const toMinutes = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  
+  const check = toMinutes(checkTime);
+  const start = toMinutes(scheduleStart);
+  const end = toMinutes(scheduleEnd);
+  
+  return check >= start && check < end;
+}
+
+function createScheduleCardForManual(schedule, rowSpan) {
+  const colors = [
+    "bg-blue-100 border-blue-300 text-blue-800",
+    "bg-green-100 border-green-300 text-green-800",
+    "bg-purple-100 border-purple-300 text-purple-800",
+    "bg-orange-100 border-orange-300 text-orange-800",
+    "bg-pink-100 border-pink-300 text-pink-800",
+    "bg-teal-100 border-teal-300 text-teal-800",
+    "bg-amber-100 border-amber-300 text-amber-800",
+  ];
+
+  const colorIndex = schedule.schedule_id
+    ? schedule.schedule_id % colors.length
+    : Math.floor(Math.random() * colors.length);
+  const colorClass = colors[colorIndex];
+
+  const card = document.createElement("div");
+  card.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 draggable cursor-move text-xs`;
+  card.draggable = true;
+  card.dataset.scheduleId = schedule.schedule_id || "";
+  card.dataset.yearLevel = schedule.year_level || "";
+  card.dataset.sectionName = schedule.section_name || "";
+  card.dataset.roomName = schedule.room_name || "Online";
+  
+  // Make the card span multiple rows
+  card.style.gridRow = `span ${rowSpan}`;
+  const minHeight = rowSpan * 60;
+  card.style.minHeight = `${minHeight}px`;
+
+  card.innerHTML = `
+    <div class="flex justify-between items-start mb-1">
+      <div class="font-semibold truncate flex-1">
+        ${escapeHtml(schedule.course_code) || ""}
+      </div>
+      <div class="flex space-x-1 flex-shrink-0 ml-1">
+        <button onclick="editSchedule('${schedule.schedule_id || ""}')" class="text-yellow-600 hover:text-yellow-700 no-print">
+          <i class="fas fa-edit text-xs"></i>
+        </button>
+        <button onclick="openDeleteSingleModal(
+          '${schedule.schedule_id || ""}', 
+          '${escapeHtml(schedule.course_code) || ""}', 
+          '${escapeHtml(schedule.section_name) || ""}', 
+          '${escapeHtml(schedule.day_of_week) || ""}', 
+          '${schedule.start_time ? formatTime(schedule.start_time.substring(0, 5)) : ""}', 
+          '${schedule.end_time ? formatTime(schedule.end_time.substring(0, 5)) : ""}'
+        )" class="text-red-600 hover:text-red-700 no-print">
+          <i class="fas fa-trash text-xs"></i>
+        </button>
+      </div>
+    </div>
+    <div class="text-xs opacity-90 truncate mb-1">
+      ${escapeHtml(schedule.section_name) || ""}
+    </div>
+    <div class="text-xs opacity-75 truncate">
+      ${escapeHtml(schedule.faculty_name) || ""}
+    </div>
+    <div class="text-xs opacity-75 truncate">
+      ${escapeHtml(schedule.room_name) || "Online"}
+    </div>
+    <div class="text-xs font-medium mt-1">
+      ${
+        schedule.start_time && schedule.end_time
+          ? `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}`
+          : ""
+      }
+    </div>
+  `;
+
+  card.ondragstart = handleDragStart;
+  card.ondragend = handleDragEnd;
+
+  return card;
 }
 
 function updateManualGrid(schedules) {
   const manualGrid = document.getElementById("schedule-grid");
   if (!manualGrid) return;
 
-  syncGridWithSchedules(schedules);
-
   manualGrid.innerHTML = "";
 
-  // Generate dynamic time slots (same as PHP)
-  const timeSlots = generateTimeSlots();
+  const timeSlots = generateDynamicTimeSlotsFromSchedules(schedules);
   const days = [
     "Monday",
     "Tuesday",
@@ -2619,13 +2790,14 @@ function updateManualGrid(schedules) {
     "Sunday",
   ];
 
-  // Pre-process schedules for faster lookup
+  // Track which cells are occupied by spanning schedules
+  const occupiedCells = {};
+
+  // Pre-process schedules
   const scheduleLookup = {};
   schedules.forEach((schedule) => {
     const day = schedule.day_of_week;
-    const start = schedule.start_time
-      ? schedule.start_time.substring(0, 5)
-      : "";
+    const start = schedule.start_time ? schedule.start_time.substring(0, 5) : "";
     const end = schedule.end_time ? schedule.end_time.substring(0, 5) : "";
 
     if (!scheduleLookup[day]) {
@@ -2639,56 +2811,52 @@ function updateManualGrid(schedules) {
     });
   });
 
-  timeSlots.forEach((time) => {
-    const duration =
-      (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) /
-      1000;
-    const rowSpan = Math.max(1, duration / 1800); // 30-minute base unit
-    const minHeight = rowSpan * 60;
-
+  timeSlots.forEach((time, timeIndex) => {
     const row = document.createElement("div");
-    row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
-    row.style.gridRow = `span ${rowSpan}`;
+    row.className = `grid grid-cols-8 min-h-[60px] hover:bg-gray-50 transition-colors duration-200`;
 
     // Time cell
     const timeCell = document.createElement("div");
     timeCell.className =
       "px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start";
-    timeCell.style.gridRow = `span ${rowSpan}`;
     timeCell.innerHTML = `
-            <span class="text-sm hidden sm:block">${formatTime(
-              time[0]
-            )} - ${formatTime(time[1])}</span>
-            <span class="text-xs sm:hidden">${time[0].substring(
-              0,
-              5
-            )}-${time[1].substring(0, 5)}</span>
-        `;
+      <span class="text-sm hidden sm:block">${formatTime(time[0])} - ${formatTime(time[1])}</span>
+      <span class="text-xs sm:hidden">${time[0]}-${time[1]}</span>
+    `;
     row.appendChild(timeCell);
 
     // Day cells
     days.forEach((day) => {
+      const cellKey = `${day}-${timeIndex}`;
+      
+      // Check if this cell is already occupied by a spanning schedule
+      if (occupiedCells[cellKey]) {
+        // Skip this cell - it's part of a schedule that spans multiple rows
+        return;
+      }
+
       const cell = document.createElement("div");
-      cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[${minHeight}px]`;
+      cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[60px]`;
       cell.dataset.day = day;
       cell.dataset.startTime = time[0];
       cell.dataset.endTime = time[1];
 
+      // Find schedules that START in this time slot
       const schedulesInSlot = [];
       if (scheduleLookup[day]) {
         scheduleLookup[day].forEach((scheduleData) => {
-          const scheduleStart = scheduleData.start;
-          const scheduleEnd = scheduleData.end;
-
-          const slotStart = new Date(`2000-01-01 ${time[0]}`).getTime();
-          const slotEnd = new Date(`2000-01-01 ${time[1]}`).getTime();
-          const schedStart = new Date(`2000-01-01 ${scheduleStart}`).getTime();
-          const schedEnd = new Date(`2000-01-01 ${scheduleEnd}`).getTime();
-
-          if (schedStart < slotEnd && schedEnd > slotStart) {
+          if (scheduleData.start === time[0]) {
+            const rowSpan = calculateRowSpan(scheduleData.start, scheduleData.end);
+            
+            // Mark the cells this schedule will occupy
+            for (let i = 0; i < rowSpan; i++) {
+              const occupyKey = `${day}-${timeIndex + i}`;
+              occupiedCells[occupyKey] = true;
+            }
+            
             schedulesInSlot.push({
               schedule: scheduleData.schedule,
-              isStartCell: scheduleStart === time[0],
+              rowSpan: rowSpan,
             });
           }
         });
@@ -2703,12 +2871,12 @@ function updateManualGrid(schedules) {
         cell.appendChild(addButton);
       } else {
         const container = document.createElement("div");
-        container.className = "space-y-1 p-1";
+        container.className = "space-y-1 p-1 h-full";
 
         schedulesInSlot.forEach((scheduleData) => {
-          const scheduleCard = createDynamicScheduleCard(
+          const scheduleCard = createScheduleCardForManual(
             scheduleData.schedule,
-            scheduleData.isStartCell
+            scheduleData.rowSpan
           );
           container.appendChild(scheduleCard);
         });
@@ -2725,29 +2893,147 @@ function updateManualGrid(schedules) {
   initializeDragAndDrop();
 }
 
-function generateTimeSlots() {
-  const timeSlots = [];
-  const startHour = 7;
-  const endHour = 21;
+function createScheduleItemForView(schedule, rowSpan) {
+  const colors = [
+    "bg-blue-100 border-blue-300 text-blue-800",
+    "bg-green-100 border-green-300 text-green-800",
+    "bg-purple-100 border-purple-300 text-purple-800",
+    "bg-orange-100 border-orange-300 text-orange-800",
+    "bg-pink-100 border-pink-300 text-pink-800",
+  ];
 
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      const currentTime = `${hour.toString().padStart(2, "0")}:${minute
-        .toString()
-        .padStart(2, "0")}`;
-      const nextHour = hour + (minute + 30 >= 60 ? 1 : 0);
-      const nextMinute = (minute + 30) % 60;
+  const colorIndex = schedule.schedule_id
+    ? schedule.schedule_id % colors.length
+    : Math.floor(Math.random() * colors.length);
+  const colorClass = colors[colorIndex];
 
-      if (nextHour >= endHour && nextMinute > 0) continue;
+  const item = document.createElement("div");
+  item.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 mb-1 schedule-item`;
+  item.dataset.yearLevel = schedule.year_level || "";
+  item.dataset.sectionName = schedule.section_name || "";
+  item.dataset.roomName = schedule.room_name || "Online";
+  
+  // Make the card span multiple rows
+  const minHeight = rowSpan * 60;
+  item.style.minHeight = `${minHeight}px`;
 
-      const nextTime = `${nextHour.toString().padStart(2, "0")}:${nextMinute
-        .toString()
-        .padStart(2, "0")}`;
-      timeSlots.push([currentTime, nextTime]);
+  item.innerHTML = `
+    <div class="font-semibold text-xs truncate mb-1">
+      ${escapeHtml(schedule.course_code) || ""}
+    </div>
+    <div class="text-xs opacity-90 truncate mb-1">
+      ${escapeHtml(schedule.section_name) || ""}
+    </div>
+    <div class="text-xs opacity-75 truncate">
+      ${escapeHtml(schedule.faculty_name) || ""}
+    </div>
+    <div class="text-xs opacity-75 truncate">
+      ${escapeHtml(schedule.room_name) || "Online"}
+    </div>
+    <div class="text-xs font-medium mt-1">
+      ${
+        schedule.start_time && schedule.end_time
+          ? `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}`
+          : ""
+      }
+    </div>
+  `;
+
+  return item;
+}
+
+function updateViewGrid(schedules) {
+  const viewGrid = document.getElementById("timetableGrid");
+  if (!viewGrid) return;
+
+  viewGrid.innerHTML = "";
+
+  const timeSlots = generateDynamicTimeSlotsFromSchedules(schedules);
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  // Track occupied cells
+  const occupiedCells = {};
+
+  // Pre-process schedules
+  const scheduleLookup = {};
+  schedules.forEach((schedule) => {
+    const day = schedule.day_of_week;
+    const start = schedule.start_time ? schedule.start_time.substring(0, 5) : "";
+
+    if (!scheduleLookup[day]) {
+      scheduleLookup[day] = {};
     }
-  }
+    if (!scheduleLookup[day][start]) {
+      scheduleLookup[day][start] = [];
+    }
+    scheduleLookup[day][start].push(schedule);
+  });
 
-  return timeSlots;
+  timeSlots.forEach((time, timeIndex) => {
+    const row = document.createElement("div");
+    row.className = `grid grid-cols-8 min-h-[60px] hover:bg-gray-50 transition-colors duration-200`;
+
+    // Time cell
+    const timeCell = document.createElement("div");
+    timeCell.className =
+      "px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center";
+    timeCell.textContent = `${formatTime(time[0])} - ${formatTime(time[1])}`;
+    row.appendChild(timeCell);
+
+    // Day cells
+    days.forEach((day) => {
+      const cellKey = `${day}-${timeIndex}`;
+      
+      if (occupiedCells[cellKey]) {
+        return;
+      }
+
+      const cell = document.createElement("div");
+      cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[60px] relative schedule-cell`;
+      cell.dataset.day = day;
+      cell.dataset.startTime = time[0];
+      cell.dataset.endTime = time[1];
+
+      const daySchedules =
+        scheduleLookup[day] && scheduleLookup[day][time[0]]
+          ? scheduleLookup[day][time[0]]
+          : [];
+
+      if (daySchedules.length > 0) {
+        const container = document.createElement("div");
+        container.className = "schedules-container space-y-1 h-full";
+
+        daySchedules.forEach((schedule) => {
+          const start = schedule.start_time.substring(0, 5);
+          const end = schedule.end_time.substring(0, 5);
+          const rowSpan = calculateRowSpan(start, end);
+          
+          // Mark occupied cells
+          for (let i = 0; i < rowSpan; i++) {
+            const occupyKey = `${day}-${timeIndex + i}`;
+            occupiedCells[occupyKey] = true;
+          }
+          
+          const scheduleItem = createScheduleItemForView(schedule, rowSpan);
+          container.appendChild(scheduleItem);
+        });
+
+        cell.appendChild(container);
+      }
+
+      row.appendChild(cell);
+    });
+
+    viewGrid.appendChild(row);
+  });
 }
 
 function createDynamicScheduleCard(schedule, isStartCell) {
@@ -3139,4 +3425,252 @@ function syncGridWithSchedules(schedules) {
   });
 
   initializeDragAndDrop();
+}
+
+
+// Add this function at the end of your manual_schedules.js file
+
+// Enhanced tab switch handler for automatic schedule loading
+function handleTabSwitch(tabName) {
+  console.log('Tab switched to:', tabName);
+  
+  // Check if we're switching to manual or schedule view tabs
+  if (tabName === 'manual' || tabName === 'schedule') {
+    // Check if schedules exist
+    if (window.scheduleData && window.scheduleData.length > 0) {
+      console.log(`Loading ${window.scheduleData.length} schedules for ${tabName} tab`);
+      
+      // Use requestAnimationFrame for smooth rendering
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          // Update the display
+          safeUpdateScheduleDisplay(window.scheduleData);
+          
+          // Reinitialize drag and drop for manual tab
+          if (tabName === 'manual') {
+            setTimeout(() => {
+              initializeDragAndDrop();
+              console.log('✅ Drag and drop reinitialized');
+            }, 100);
+          }
+          
+          console.log('✅ Schedules loaded successfully');
+        }, 50);
+      });
+    } else {
+      console.log('⚠️ No schedules available to display');
+    }
+  }
+}
+
+// Override the global switchTab function to include our handler
+(function() {
+  // Store the original switchTab if it exists
+  const originalSwitchTab = window.switchTab;
+  
+  // Create new switchTab function
+  window.switchTab = function(tabName) {
+    console.log('switchTab called with:', tabName);
+    
+    // Perform the tab switch UI updates
+    performTabSwitch(tabName);
+    
+    // Handle schedule loading
+    handleTabSwitch(tabName);
+  };
+  
+  // Helper function for tab UI updates
+  function performTabSwitch(tabName) {
+    // Remove active classes from all tabs
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.classList.remove('bg-yellow-500', 'text-white');
+      btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+    });
+
+    // Add active class to selected tab
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    if (targetTab) {
+      targetTab.classList.add('bg-yellow-500', 'text-white');
+      targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+    }
+
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.classList.add('hidden');
+    });
+
+    // Show selected tab content
+    const targetContent = document.getElementById(`content-${tabName}`);
+    if (targetContent) {
+      targetContent.classList.remove('hidden');
+    }
+
+    // Update URL
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
+    window.history.pushState({}, '', url);
+  }
+})();
+
+// Also update the DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Manual schedules JS loaded');
+  console.log('Current semester:', window.currentSemester);
+  console.log('Schedule data count:', window.scheduleData?.length || 0);
+
+  // Check if faculty data is present
+  if (!window.faculty || window.faculty.length === 0) {
+    console.error('❌ CRITICAL: No faculty data loaded!');
+    if (window.jsData && window.jsData.faculty) {
+      window.faculty = window.jsData.faculty;
+      console.log('✅ Recovered faculty from jsData:', window.faculty.length);
+    }
+  } else {
+    console.log('✅ Faculty data loaded successfully:', window.faculty.length, 'members');
+  }
+
+  buildCurrentSemesterCourseMappings();
+  
+  // Initial display of schedules if they exist
+  if (window.scheduleData && window.scheduleData.length > 0) {
+    console.log('📊 Initial schedule display...');
+    requestAnimationFrame(() => {
+      safeUpdateScheduleDisplay(window.scheduleData);
+      setTimeout(() => {
+        initializeDragAndDrop();
+        console.log('✅ Initial schedules displayed');
+      }, 100);
+    });
+  }
+
+  // Attach event listeners to filter controls
+  const filters = ['filter-year-manual', 'filter-section-manual', 'filter-room-manual'];
+  filters.forEach(filterId => {
+    const filter = document.getElementById(filterId);
+    if (filter) {
+      filter.addEventListener('change', function() {
+        console.log(`Filter changed: ${filterId} = ${this.value}`);
+        filterSchedulesManual();
+      });
+    }
+  });
+
+  // Attach event listeners to tab buttons directly
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabName = button.id.replace('tab-', '');
+      window.switchTab(tabName);
+    });
+  });
+
+  // Modal click outside to close
+  const modal = document.getElementById('schedule-modal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // Delete modal click outside to close
+  const deleteModal = document.getElementById('delete-confirmation-modal');
+  if (deleteModal) {
+    deleteModal.addEventListener('click', function(e) {
+      if (e.target === deleteModal) closeDeleteModal();
+    });
+  }
+
+  // Real-time validation setup
+  setupRealtimeValidation();
+  
+  console.log('✅ Manual schedules initialized successfully');
+});
+
+// Helper function to setup real-time validation
+function setupRealtimeValidation() {
+  const facultySelect = document.getElementById('faculty-name');
+  if (facultySelect) {
+    facultySelect.addEventListener('change', (e) => {
+      validateFieldRealTime('faculty_name', e.target.value, {
+        day_of_week: document.getElementById('day-select')?.value || '',
+        start_time: document.getElementById('start-time')?.value + ':00' || '',
+        end_time: document.getElementById('end-time')?.value + ':00' || ''
+      });
+    });
+  }
+
+  const roomSelect = document.getElementById('room-name');
+  if (roomSelect) {
+    roomSelect.addEventListener('change', (e) => {
+      validateFieldRealTime('room_name', e.target.value, {
+        day_of_week: document.getElementById('day-select')?.value || '',
+        start_time: document.getElementById('start-time')?.value + ':00' || '',
+        end_time: document.getElementById('end-time')?.value + ':00' || ''
+      });
+    });
+  }
+
+  const sectionSelect = document.getElementById('section-name');
+  if (sectionSelect) {
+    sectionSelect.addEventListener('change', (e) => {
+      validateFieldRealTime('section_name', e.target.value);
+      handleSectionChange();
+    });
+  }
+
+  const daySelect = document.getElementById('day-select');
+  if (daySelect) {
+    daySelect.addEventListener('change', (e) => {
+      updateDayField();
+      validateFieldRealTime('day_of_week', e.target.value, {
+        faculty_name: document.getElementById('faculty-name')?.value || '',
+        room_name: document.getElementById('room-name')?.value || '',
+        start_time: document.getElementById('start-time')?.value + ':00' || '',
+        end_time: document.getElementById('end-time')?.value + ':00' || ''
+      });
+    });
+  }
+
+  const startTimeSelect = document.getElementById('start-time');
+  if (startTimeSelect) {
+    startTimeSelect.addEventListener('change', (e) => {
+      updateTimeFields();
+      validateFieldRealTime('start_time', e.target.value + ':00', {
+        day_of_week: document.getElementById('day-select')?.value || '',
+        faculty_name: document.getElementById('faculty-name')?.value || '',
+        room_name: document.getElementById('room-name')?.value || ''
+      });
+    });
+  }
+
+  const endTimeSelect = document.getElementById('end-time');
+  if (endTimeSelect) {
+    endTimeSelect.addEventListener('change', (e) => {
+      updateTimeFields();
+      validateFieldRealTime('end_time', e.target.value + ':00', {
+        day_of_week: document.getElementById('day-select')?.value || '',
+        start_time: document.getElementById('start-time')?.value + ':00' || '',
+        faculty_name: document.getElementById('faculty-name')?.value || '',
+        room_name: document.getElementById('room-name')?.value || ''
+      });
+    });
+  }
+
+  const courseCodeInput = document.getElementById('course-code');
+  if (courseCodeInput) {
+    courseCodeInput.addEventListener('blur', syncCourseName);
+    courseCodeInput.addEventListener('input', function() {
+      resetConflictField('course-code');
+      resetConflictField('course-name');
+    });
+  }
+
+  const courseNameInput = document.getElementById('course-name');
+  if (courseNameInput) {
+    courseNameInput.addEventListener('blur', syncCourseCode);
+    courseNameInput.addEventListener('input', function() {
+      resetConflictField('course-code');
+      resetConflictField('course-name');
+    });
+  }
 }

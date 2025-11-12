@@ -429,6 +429,7 @@ function generateSchedules() {
 
         // Step 2: Update UI asynchronously with proper sequencing
         updateUIAfterGeneration(responseData, loadingOverlay, startTime);
+        setTimeout(() => onSchedulesGenerated(), 500);
       } else {
         hideLoadingAndShowError(
           loadingOverlay,

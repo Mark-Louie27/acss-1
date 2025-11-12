@@ -2948,6 +2948,265 @@ if ($userDepartmentId) {
                     });
                 }
             });
+
+
+            // Enhanced navigation state management
+            let navigationState = {
+                hasGeneratedSchedules: false,
+                currentTab: 'generate',
+                schedulesExist: <?php echo !empty($schedules) ? 'true' : 'false'; ?>
+            };
+
+            // Enhanced switchTab function with state management
+            function switchTab(tabName) {
+                console.log('Switching to tab:', tabName, 'State:', navigationState);
+
+                // Prevent navigation to generate tab if schedules exist
+                if (tabName === 'generate' && navigationState.schedulesExist) {
+                    showNotification('Cannot return to Generate tab once schedules are created. Use Manual Edit to modify schedules.', 'warning');
+                    return;
+                }
+
+                // Update state
+                navigationState.currentTab = tabName;
+
+                // Remove active classes from all tabs
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('bg-yellow-500', 'text-white');
+                    btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                });
+
+                // Add active class to selected tab
+                const targetTab = document.getElementById(`tab-${tabName}`);
+                if (targetTab) {
+                    targetTab.classList.add('bg-yellow-500', 'text-white');
+                    targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                }
+
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+
+                // Show selected tab content
+                const targetContent = document.getElementById(`content-${tabName}`);
+                if (targetContent) {
+                    targetContent.classList.remove('hidden');
+                }
+
+                // Update URL
+                const url = new URL(window.location);
+                url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
+                window.history.pushState({}, '', url);
+
+                // Update tab accessibility based on state
+                updateTabAccessibility();
+            }
+
+            // Function to update which tabs are accessible
+            function updateTabAccessibility() {
+                const generateTab = document.getElementById('tab-generate');
+                const manualTab = document.getElementById('tab-manual');
+                const scheduleTab = document.getElementById('tab-schedule');
+
+                // Check current schedule data to determine if schedules exist
+                const currentSchedulesExist = window.scheduleData && window.scheduleData.length > 0;
+                navigationState.schedulesExist = currentSchedulesExist;
+
+                if (currentSchedulesExist) {
+                    // Disable generate tab when schedules exist
+                    generateTab.style.opacity = '0.5';
+                    generateTab.style.cursor = 'not-allowed';
+                    generateTab.onclick = null;
+
+                    // Enable other tabs
+                    manualTab.style.opacity = '1';
+                    manualTab.style.cursor = 'pointer';
+                    manualTab.onclick = () => switchTab('manual');
+
+                    scheduleTab.style.opacity = '1';
+                    scheduleTab.style.cursor = 'pointer';
+                    scheduleTab.onclick = () => switchTab('schedule');
+
+                    // Store in session storage
+                    sessionStorage.setItem('schedulesExist', 'true');
+                } else {
+                    // Enable all tabs when no schedules exist
+                    [generateTab, manualTab, scheduleTab].forEach(tab => {
+                        if (tab) {
+                            tab.style.opacity = '1';
+                            tab.style.cursor = 'pointer';
+                            tab.onclick = () => switchTab(tab.id.replace('tab-', ''));
+                        }
+                    });
+
+                    // Clear session storage
+                    sessionStorage.removeItem('schedulesExist');
+
+                    // Remove proceed button if it exists
+                    const proceedButton = document.getElementById('proceed-to-manual-btn');
+                    if (proceedButton) proceedButton.remove();
+                }
+            }
+
+            // Function called after successful schedule generation
+            function onSchedulesGenerated() {
+                navigationState.schedulesExist = true;
+                navigationState.hasGeneratedSchedules = true;
+
+                // Update UI to show proceed button and disable generate tab
+                showProceedToManualButton();
+                updateTabAccessibility();
+
+                // Store in session storage to persist across page refreshes
+                sessionStorage.setItem('schedulesExist', 'true');
+            }
+
+            // Function called when all schedules are deleted
+            function onAllSchedulesDeleted() {
+                navigationState.schedulesExist = false;
+                navigationState.hasGeneratedSchedules = false;
+
+                // Update UI to enable generate tab
+                updateTabAccessibility();
+
+                // Clear session storage
+                sessionStorage.removeItem('schedulesExist');
+
+                // Show notification
+                showNotification('All schedules deleted. You can now generate new schedules.', 'success');
+
+                // Switch to generate tab automatically
+                setTimeout(() => switchTab('generate'), 1000);
+            }
+
+            // Show proceed to manual button after generation
+            function showProceedToManualButton() {
+                const generateContent = document.getElementById('content-generate');
+                if (!generateContent) return;
+
+                // Remove existing proceed button if any
+                const existingButton = document.getElementById('proceed-to-manual-btn');
+                if (existingButton) existingButton.remove();
+
+                // Create proceed button
+                const proceedButton = document.createElement('div');
+                proceedButton.id = 'proceed-to-manual-btn';
+                proceedButton.className = 'mt-6 p-6 bg-green-50 border border-green-200 rounded-lg text-center';
+                proceedButton.innerHTML = `
+        <div class="flex items-center justify-center mb-4">
+            <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+            <h3 class="text-lg font-semibold text-green-800">Schedules Generated Successfully!</h3>
+        </div>
+        <p class="text-green-700 mb-4">You can now proceed to manually edit and refine the generated schedules.</p>
+        <button onclick="proceedToManualEdit()" 
+                class="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105">
+            <i class="fas fa-edit mr-2"></i>
+            Proceed to Manual Edit
+        </button>
+    `;
+
+                // Insert after the generate form
+                const generateForm = generateContent.querySelector('#generate-form');
+                if (generateForm) {
+                    generateForm.parentNode.insertBefore(proceedButton, generateForm.nextSibling);
+                }
+            }
+
+            // Proceed to manual edit function
+            function proceedToManualEdit() {
+                // Switch to manual tab
+                switchTab('manual');
+
+                // Show notification
+                showNotification('Now in Manual Edit mode. You can drag and drop to modify schedules.', 'success');
+            }
+
+            // Check for existing schedules on page load
+            function checkExistingSchedules() {
+                const sessionSchedulesExist = sessionStorage.getItem('schedulesExist') === 'true';
+                const currentSchedulesExist = window.scheduleData && window.scheduleData.length > 0;
+
+                navigationState.schedulesExist = sessionSchedulesExist || currentSchedulesExist;
+
+                updateTabAccessibility();
+
+                // If we're on generate tab but schedules exist, redirect to manual
+                const currentTab = new URLSearchParams(window.location.search).get('tab');
+                if ((!currentTab || currentTab === 'generate') && navigationState.schedulesExist) {
+                    switchTab('manual');
+                }
+            }
+
+            // Monitor schedule data changes
+            function monitorScheduleChanges() {
+                let scheduleCount = window.scheduleData ? window.scheduleData.length : 0;
+
+                // Check every second for changes in schedule count
+                setInterval(() => {
+                    const currentCount = window.scheduleData ? window.scheduleData.length : 0;
+                    if (currentCount !== scheduleCount) {
+                        scheduleCount = currentCount;
+                        updateTabAccessibility();
+
+                        // If all schedules are deleted, call onAllSchedulesDeleted
+                        if (currentCount === 0 && navigationState.schedulesExist) {
+                            onAllSchedulesDeleted();
+                        }
+                    }
+                }, 1000);
+            }
+
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                checkExistingSchedules();
+                updateTabAccessibility();
+                monitorScheduleChanges();
+
+                // Override the generateSchedules function to call our state update
+                const originalGenerateSchedules = window.generateSchedules;
+                if (originalGenerateSchedules) {
+                    window.generateSchedules = function() {
+                        // Call original function
+                        const result = originalGenerateSchedules.apply(this, arguments);
+
+                        // Set up a way to detect when generation is complete
+                        setTimeout(() => {
+                            if (window.scheduleData && window.scheduleData.length > 0) {
+                                onSchedulesGenerated();
+                            }
+                        }, 1000);
+
+                        return result;
+                    };
+                }
+
+                // Override delete functions to update state
+                const originalConfirmDeleteAllSchedules = window.confirmDeleteAllSchedules;
+                if (originalConfirmDeleteAllSchedules) {
+                    window.confirmDeleteAllSchedules = function() {
+                        const result = originalConfirmDeleteAllSchedules.apply(this, arguments);
+                        setTimeout(() => onAllSchedulesDeleted(), 500);
+                        return result;
+                    };
+                }
+
+                const originalConfirmDeleteSingleSchedule = window.confirmDeleteSingleSchedule;
+                if (originalConfirmDeleteSingleSchedule) {
+                    window.confirmDeleteSingleSchedule = function() {
+                        const result = originalConfirmDeleteSingleSchedule.apply(this, arguments);
+                        // Check if this was the last schedule
+                        setTimeout(() => {
+                            if (window.scheduleData && window.scheduleData.length === 0) {
+                                onAllSchedulesDeleted();
+                            } else {
+                                updateTabAccessibility();
+                            }
+                        }, 500);
+                        return result;
+                    };
+                }
+            });
         </script>
 
         <!-- Include external JavaScript files -->
