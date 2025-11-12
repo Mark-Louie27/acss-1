@@ -1,5 +1,9 @@
 <?php
 ob_start();
+
+$activeTab = $_GET['tab'] ?? 'generate';
+$activeTab = in_array($activeTab, ['generate', 'manual', 'schedule-list']) ? $activeTab : 'generate';
+
 // Get department ID
 $userDepartmentId = $_SESSION['department_id'] ?? null;
 // Fetch college logo based on department ID
@@ -871,23 +875,7 @@ if ($userDepartmentId) {
             </div>
         </div>
 
-        <!-- Generation Report Modal -->
-        <div id="report-modal" class="fixed inset-0 bg-opacity-30 backdrop-blur-md flex items-center justify-center z-50 hidden">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900" id="report-title">Schedule Generation Report</h3>
-                    <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times text-xl"></i>
-                    </button>
-                </div>
-                <div id="report-content" class="mb-6 text-gray-700">
-                    <!-- Report content will be dynamically updated -->
-                </div>
-                <div class="flex justify-end">
-                    <button onclick="closeReportModal()" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Close</button>
-                </div>
-            </div>
-        </div>
+
 
         <!-- Add/Edit Schedule Modal -->
         <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md items-center justify-center z-50 hidden modal-overlay">
@@ -1192,18 +1180,6 @@ if ($userDepartmentId) {
                 semester: s.semester ?? '',
                 is_active: s.is_active ?? 1
             })) : [];
-
-            function debugDataAttributes() {
-                console.log('=== CHECKING DATA ATTRIBUTES ===');
-                const rows = document.querySelectorAll('#list-view tr.schedule-row');
-                rows.forEach((row, index) => {
-                    console.log(`Row ${index + 1} attributes:`, {
-                        yearLevel: row.getAttribute('data-year-level'),
-                        sectionName: row.getAttribute('data-section-name'),
-                        roomName: row.getAttribute('data-room-name')
-                    });
-                });
-            }
 
             // Clear filters for manual tab
             function clearFiltersManual() {
@@ -2857,79 +2833,6 @@ if ($userDepartmentId) {
                 }
             }
 
-            // NEW: Separate function to show report modal
-            function showReportModal(data) {
-                const reportModal = document.getElementById('report-modal');
-                const reportContent = document.getElementById('report-content');
-                const reportTitle = document.getElementById('report-title');
-
-                let statusText, statusClass;
-
-                // Determine status based on results
-                if (!data.schedules || data.schedules.length === 0) {
-                    statusText = 'No schedules were created. Please check if there are available sections, courses, faculty, and rooms.';
-                    statusClass = 'text-red-600 bg-red-50 border-red-200';
-                    reportTitle.textContent = 'Schedule Generation Failed';
-                } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
-                    statusText = `Partial success. ${data.unassignedCourses.length} courses could not be scheduled: ${data.unassignedCourses.map(c => c.course_code).join(', ')}`;
-                    statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
-                    reportTitle.textContent = 'Schedule Generation Partially Complete';
-                } else {
-                    statusText = 'All schedules generated successfully!';
-                    statusClass = 'text-green-600 bg-green-50 border-green-200';
-                    reportTitle.textContent = 'Schedule Generation Complete';
-                }
-
-                // Build report content
-                reportContent.innerHTML = `
-                    <div class="p-4 ${statusClass} border rounded-lg mb-4">
-                        <p class="font-semibold">${statusText}</p>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
-                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalCourses || 0}</div>
-                            <div class="text-gray-600 mt-1">Total Courses</div>
-                        </div>
-                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
-                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalSections || 0}</div>
-                            <div class="text-gray-600 mt-1">Sections</div>
-                        </div>
-                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
-                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.successRate || '0%'}</div>
-                            <div class="text-gray-600 mt-1">Success Rate</div>
-                        </div>
-                    </div>
-                    ${data.unassignedCourses && data.unassignedCourses.length > 0 ? `
-                        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p class="text-sm font-medium text-yellow-800 mb-2">Unscheduled Courses:</p>
-                            <ul class="text-sm text-yellow-700 list-disc list-inside">
-                                ${data.unassignedCourses.map(c => `<li>${c.course_code}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                `;
-
-                reportTitle.className = `text-lg font-semibold ${statusClass.split(' ')[0]}`;
-
-                // Show the modal
-                reportModal.classList.remove('hidden');
-                reportModal.classList.add('flex');
-
-                // Update generation results card if it exists
-                const generationResults = document.getElementById('generation-results');
-                if (generationResults && data.schedules && data.schedules.length > 0) {
-                    generationResults.classList.remove('hidden');
-                    document.getElementById('total-courses').textContent = data.totalCourses || 0;
-                    document.getElementById('total-sections').textContent = data.totalSections || 0;
-                    document.getElementById('success-rate').textContent = data.successRate || '0%';
-                }
-            }
-
-            function closeReportModal() {
-                const reportModal = document.getElementById('report-modal');
-                reportModal.classList.add('hidden');
-            }
-
             // Initialize page
             document.addEventListener('DOMContentLoaded', function() {
                 const urlParams = new URLSearchParams(window.location.search);
@@ -2957,50 +2860,18 @@ if ($userDepartmentId) {
                 schedulesExist: <?php echo !empty($schedules) ? 'true' : 'false'; ?>
             };
 
-            // Enhanced switchTab function with state management
+            let isSwitchingTabs = false;
+
             function switchTab(tabName) {
-                console.log('Switching to tab:', tabName, 'State:', navigationState);
+                if (isSwitchingTabs) return;
+                isSwitchingTabs = true;
 
-                // Prevent navigation to generate tab if schedules exist
-                if (tabName === 'generate' && navigationState.schedulesExist) {
-                    showNotification('Cannot return to Generate tab once schedules are created. Use Manual Edit to modify schedules.', 'warning');
-                    return;
-                }
-
-                // Update state
-                navigationState.currentTab = tabName;
-
-                // Remove active classes from all tabs
-                document.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.classList.remove('bg-yellow-500', 'text-white');
-                    btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-                });
-
-                // Add active class to selected tab
-                const targetTab = document.getElementById(`tab-${tabName}`);
-                if (targetTab) {
-                    targetTab.classList.add('bg-yellow-500', 'text-white');
-                    targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-                }
-
-                // Hide all tab contents
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.add('hidden');
-                });
-
-                // Show selected tab content
-                const targetContent = document.getElementById(`content-${tabName}`);
-                if (targetContent) {
-                    targetContent.classList.remove('hidden');
-                }
-
-                // Update URL
+                const tabParam = tabName === 'schedule' ? 'schedule-list' : tabName;
                 const url = new URL(window.location);
-                url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
-                window.history.pushState({}, '', url);
+                url.searchParams.set('tab', tabParam);
 
-                // Update tab accessibility based on state
-                updateTabAccessibility();
+                // Force reload to refresh PHP + JS data
+                window.location.href = url.toString();
             }
 
             // Function to update which tabs are accessible
@@ -3094,17 +2965,17 @@ if ($userDepartmentId) {
                 proceedButton.id = 'proceed-to-manual-btn';
                 proceedButton.className = 'mt-6 p-6 bg-green-50 border border-green-200 rounded-lg text-center';
                 proceedButton.innerHTML = `
-        <div class="flex items-center justify-center mb-4">
-            <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
-            <h3 class="text-lg font-semibold text-green-800">Schedules Generated Successfully!</h3>
-        </div>
-        <p class="text-green-700 mb-4">You can now proceed to manually edit and refine the generated schedules.</p>
-        <button onclick="proceedToManualEdit()" 
-                class="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105">
-            <i class="fas fa-edit mr-2"></i>
-            Proceed to Manual Edit
-        </button>
-    `;
+                    <div class="flex items-center justify-center mb-4">
+                        <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+                        <h3 class="text-lg font-semibold text-green-800">Schedules Generated Successfully!</h3>
+                    </div>
+                    <p class="text-green-700 mb-4">You can now proceed to manually edit and refine the generated schedules.</p>
+                    <button onclick="proceedToManualEdit()" 
+                            class="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105">
+                        <i class="fas fa-edit mr-2"></i>
+                        Proceed to Manual Edit
+                    </button>
+                `;
 
                 // Insert after the generate form
                 const generateForm = generateContent.querySelector('#generate-form');
@@ -3162,6 +3033,55 @@ if ($userDepartmentId) {
                 checkExistingSchedules();
                 updateTabAccessibility();
                 monitorScheduleChanges();
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const tab = urlParams.get('tab');
+
+                // Set initial tab
+                if (tab === 'schedule-list') {
+                    currentTab = 'schedule';
+                    switchTabSimple('schedule');
+                } else if (tab === 'manual') {
+                    currentTab = 'manual';
+                    switchTabSimple('manual');
+                } else {
+                    currentTab = 'generate';
+                    switchTabSimple('generate');
+                }
+
+                // Add click handlers with reload
+                document.getElementById('tab-generate')?.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (currentTab !== 'generate') {
+                        switchTab('generate');
+                    }
+                });
+
+                document.getElementById('tab-manual')?.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (currentTab !== 'manual') {
+                        switchTab('manual');
+                    }
+                });
+
+                document.getElementById('tab-schedule')?.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (currentTab !== 'schedule') {
+                        switchTab('schedule');
+                    }
+                });
+
+                // Handle browser back/forward buttons
+                window.addEventListener('popstate', function() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const tab = urlParams.get('tab');
+                    if (tab) {
+                        const tabName = tab === 'schedule-list' ? 'schedule' : tab;
+                        if (tabName !== currentTab) {
+                            location.reload();
+                        }
+                    }
+                });
 
                 // Override the generateSchedules function to call our state update
                 const originalGenerateSchedules = window.generateSchedules;
