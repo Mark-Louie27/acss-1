@@ -847,11 +847,70 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 
         <!-- Navigation -->
         <nav class="mt-4 px-2 pb-20">
+
+
+
+
             <!-- Dashboard Link -->
             <a href="/chair/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                 <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Dashboard</span>
             </a>
+
+
+
+            <!-- Curriculum -->
+            <a href="/chair/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Curriculum</span>
+            </a>
+
+
+
+            <!-- Courses -->
+            <a href="/chair/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/courses') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/chair/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Courses</span>
+            </a>
+
+
+
+
+
+
+
+
+
+
+
+            <!-- Faculty -->
+            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Faculty</span>
+            </a>
+
+
+
+
+            <!-- Classrooms -->
+            <a href="/chair/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/chair/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Classrooms</span>
+            </a>
+
+
+
+
+
+            <!-- Sections -->
+            <a href="/chair/sections" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/sections') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <i class="fas fa-layer-group w-5 mr-3 <?= strpos($currentUri, '/chair/sections') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                <span>Sections</span>
+            </a>
+
+
+
+
 
             <!-- Schedule Dropdown -->
             <div class="dropdown relative my-1">
@@ -939,35 +998,12 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                 </div>
             </div>
 
-            <!-- Curriculum -->
-            <a href="/chair/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Curriculum</span>
-            </a>
 
-            <!-- Faculty -->
-            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Faculty</span>
-            </a>
 
-            <!-- Courses -->
-            <a href="/chair/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/courses') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/chair/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Courses</span>
-            </a>
 
-            <!-- Sections -->
-            <a href="/chair/sections" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/sections') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-layer-group w-5 mr-3 <?= strpos($currentUri, '/chair/sections') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Sections</span>
-            </a>
 
-            <!-- Classrooms -->
-            <a href="/chair/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/chair/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Classrooms</span>
-            </a>
+
+
 
             <!-- Profile -->
             <a href="/chair/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/profile') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
@@ -975,11 +1011,21 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                 <span>Profile</span>
             </a>
 
+
+
+
+
+
             <!-- Settings -->
             <a href="/chair/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/settings') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                 <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/chair/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Settings</span>
             </a>
+
+
+
+
+
 
             <!-- Reports
             <a href="/chair/reports" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/reports') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
@@ -988,6 +1034,9 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
             </a>
              -->
         </nav>
+
+
+
 
         <!-- Sidebar Footer -->
         <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700">
@@ -1002,6 +1051,7 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
             </div>
         </div>
     </aside>
+
 
     <main class="main-content pt-20 p-4 md:pt-16 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-50 relative">
         <div class="max-w-7xl mx-auto">

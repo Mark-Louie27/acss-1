@@ -25,9 +25,6 @@ if ($userDepartmentId) {
 
 <link rel="stylesheet" href="/css/schedule_management.css">
 
-<!-- Force Git to track this change -->
-
-
 <div class="bg-gray-50 min-h-screen">
     <!-- Header -->
     <header class="bg-white shadow-lg border-b border-gray-200">
