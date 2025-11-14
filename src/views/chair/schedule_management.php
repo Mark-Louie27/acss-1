@@ -2859,16 +2859,57 @@ if ($userDepartmentId) {
 
             let isSwitchingTabs = false;
 
+            // IMPROVED: Switch tab function with schedule refresh
             function switchTab(tabName) {
-                if (isSwitchingTabs) return;
-                isSwitchingTabs = true;
+                console.log('🔀 switchTab called:', tabName);
 
-                const tabParam = tabName === 'schedule' ? 'schedule-list' : tabName;
+                // Perform UI updates
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('bg-yellow-500', 'text-white');
+                    btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                });
+
+                const targetTab = document.getElementById(`tab-${tabName}`);
+                if (targetTab) {
+                    targetTab.classList.add('bg-yellow-500', 'text-white');
+                    targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                }
+
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+
+                const targetContent = document.getElementById(`content-${tabName}`);
+                if (targetContent) {
+                    targetContent.classList.remove('hidden');
+                }
+
+                // Update URL
                 const url = new URL(window.location);
-                url.searchParams.set('tab', tabParam);
+                url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
+                window.history.pushState({}, '', url);
 
-                // Force reload to refresh PHP + JS data
-                window.location.href = url.toString();
+                // CRITICAL: Refresh schedules when switching to manual or view tabs
+                if ((tabName === 'manual' || tabName === 'schedule') && window.scheduleData && window.scheduleData.length > 0) {
+                    console.log(`📊 Refreshing ${window.scheduleData.length} schedules for ${tabName} tab`);
+
+                    // Use requestAnimationFrame for smooth rendering
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            safeUpdateScheduleDisplay(window.scheduleData);
+
+                            // Reinitialize drag and drop for manual tab
+                            if (tabName === 'manual' && typeof initializeDragAndDrop === 'function') {
+                                setTimeout(() => {
+                                    initializeDragAndDrop();
+                                    console.log('✅ Drag and drop reinitialized');
+                                }, 100);
+                            }
+
+                            console.log('✅ Tab switch refresh complete');
+                        }, 50);
+                    });
+                }
             }
 
             // Function to update which tabs are accessible

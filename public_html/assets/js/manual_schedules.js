@@ -2590,11 +2590,65 @@ function formatTime(timeString) {
   });
 }
 
-// Enhanced safeUpdateScheduleDisplay with proper row spanning
+// IMPROVED: Safe update schedule display with better error handling
 function safeUpdateScheduleDisplay(schedules) {
+  console.log("🔄 safeUpdateScheduleDisplay called with", schedules?.length || 0, "schedules");
+  
+  // Validate input
+  if (!schedules) {
+    console.warn("⚠️ No schedules provided to safeUpdateScheduleDisplay");
+    schedules = [];
+  }
+
+  if (!Array.isArray(schedules)) {
+    console.error("❌ schedules is not an array:", typeof schedules);
+    schedules = [];
+  }
+
+  // Store in global variable
   window.scheduleData = schedules;
-  updateManualGrid(schedules);
-  updateViewGrid(schedules);
+  console.log("✅ Stored schedules in window.scheduleData");
+
+  // Check if grids exist
+  const manualGrid = document.getElementById("schedule-grid");
+  const viewGrid = document.getElementById("timetableGrid");
+
+  console.log("📍 Grid elements:", {
+    manualGrid: !!manualGrid,
+    viewGrid: !!viewGrid
+  });
+
+  // Update manual grid
+  if (manualGrid) {
+    try {
+      console.log("🔨 Updating manual grid...");
+      updateManualGrid(schedules);
+      console.log("✅ Manual grid updated successfully");
+    } catch (error) {
+      console.error("❌ Error updating manual grid:", error);
+      console.error("Stack:", error.stack);
+    }
+  } else {
+    console.warn("⚠️ Manual grid element not found (ID: schedule-grid)");
+  }
+
+  // Update view grid
+  if (viewGrid) {
+    try {
+      console.log("🔨 Updating view grid...");
+      updateViewGrid(schedules);
+      console.log("✅ View grid updated successfully");
+    } catch (error) {
+      console.error("❌ Error updating view grid:", error);
+      console.error("Stack:", error.stack);
+    }
+  } else {
+    console.warn("⚠️ View grid element not found (ID: timetableGrid)");
+  }
+
+  // Log completion
+  console.log("🎯 safeUpdateScheduleDisplay completed");
+  console.log("📊 Final schedule count:", window.scheduleData?.length || 0);
 }
 
 // Generate time slots based on actual schedules with 30-minute granularity

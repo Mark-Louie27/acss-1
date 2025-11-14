@@ -446,76 +446,89 @@ function generateSchedules() {
     });
 }
 
-// NEW: Separate function to handle UI updates with proper async sequencing
-async function updateUIAfterGeneration(
-  responseData,
-  loadingOverlay,
-  startTime
-) {
+// IMPROVED: Update UI after generation with proper data flow
+async function updateUIAfterGeneration(responseData, loadingOverlay, startTime) {
   try {
     console.log("🎨 Starting UI updates...");
+    console.log("📦 Response data:", responseData);
 
-    // Use requestAnimationFrame to ensure DOM is ready
+    // Wait for DOM to be ready
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
-    // Step 1: Update schedule display (this is the heavy operation)
+    // Step 1: CRITICAL - Store schedules in global variable
+    if (responseData.schedules && Array.isArray(responseData.schedules)) {
+      window.scheduleData = responseData.schedules;
+      console.log(`✅ Stored ${window.scheduleData.length} schedules in window.scheduleData`);
+      
+      // Also log sample schedule for debugging
+      if (window.scheduleData.length > 0) {
+        console.log("📋 Sample schedule:", window.scheduleData[0]);
+      }
+    } else {
+      console.error("❌ Invalid schedules data:", responseData.schedules);
+      window.scheduleData = [];
+    }
+
+    // Step 2: Update schedule display immediately
     console.log("📋 Updating schedule display...");
     const displayStartTime = performance.now();
 
+    // Force update both grids
     safeUpdateScheduleDisplay(window.scheduleData);
 
     const displayTime = performance.now() - displayStartTime;
     console.log(`✅ Display updated in ${displayTime.toFixed(2)}ms`);
 
-    // Step 2: Wait for another frame to ensure render is complete
+    // Step 3: Wait for render to complete
     await new Promise((resolve) => requestAnimationFrame(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Step 3: Update completion status banner
+    // Step 4: Reinitialize drag and drop
+    console.log("🖱️ Reinitializing drag and drop...");
+    if (typeof initializeDragAndDrop === 'function') {
+      initializeDragAndDrop();
+      console.log("✅ Drag and drop reinitialized");
+    }
+
+    // Step 5: Update completion status banner
     console.log("🏁 Updating completion status...");
     updateScheduleCompletionStatus(responseData);
 
-    // Step 4: Update generation results card
+    // Step 6: Update generation results card
     console.log("📊 Updating results card...");
     const generationResults = document.getElementById("generation-results");
     if (generationResults) {
       generationResults.classList.remove("hidden");
-      document.getElementById("total-courses").textContent =
-        responseData.totalCourses || 0;
-      document.getElementById("total-sections").textContent =
-        responseData.totalSections || 0;
-      document.getElementById("success-rate").textContent =
-        responseData.successRate || "100%";
+      
+      const totalCoursesEl = document.getElementById("total-courses");
+      const totalSectionsEl = document.getElementById("total-sections");
+      const successRateEl = document.getElementById("success-rate");
+      
+      if (totalCoursesEl) totalCoursesEl.textContent = responseData.totalCourses || 0;
+      if (totalSectionsEl) totalSectionsEl.textContent = responseData.totalSections || 0;
+      if (successRateEl) successRateEl.textContent = responseData.successRate || "100%";
     }
 
-    // Step 5: Wait a bit longer to ensure all DOM updates are painted
+    // Step 7: Wait for all DOM updates to paint
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // Step 6: NOW hide the loading overlay
+    // Step 8: Hide loading overlay
     const totalTime = performance.now() - startTime;
-    console.log(
-      `✨ All updates complete in ${totalTime.toFixed(2)}ms, hiding overlay...`
-    );
+    console.log(`✨ All updates complete in ${totalTime.toFixed(2)}ms, hiding overlay...`);
 
     if (loadingOverlay) {
       loadingOverlay.classList.add("hidden");
     }
 
-    // Step 7: Show notification AFTER everything is done
+    // Step 9: Show notification
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    if (
-      responseData.unassignedCourses &&
-      responseData.unassignedCourses.length > 0
-    ) {
-      showCompletionToast(
-        "warning",
-        "Schedules generated with some conflicts!",
-        [
-          `${responseData.unassignedCourses.length} course(s) could not be automatically assigned`,
-          "Check for time conflicts or resource limitations",
-          "You can manually adjust schedules in the Manual Edit tab",
-        ]
-      );
+    if (responseData.unassignedCourses && responseData.unassignedCourses.length > 0) {
+      showCompletionToast("warning", "Schedules generated with some conflicts!", [
+        `${responseData.unassignedCourses.length} course(s) could not be automatically assigned`,
+        "Check for time conflicts or resource limitations",
+        "You can manually adjust schedules in the Manual Edit tab",
+      ]);
     } else {
       showCompletionToast("success", "Schedules generated successfully!", [
         `${responseData.schedules.length} courses scheduled`,
@@ -524,15 +537,41 @@ async function updateUIAfterGeneration(
       ]);
     }
 
-    console.log("🎉 Generation process complete!");
+    // Step 10: FORCE refresh both grids one more time to ensure display
+    console.log("🔄 Final grid refresh...");
+    setTimeout(() => {
+      safeUpdateScheduleDisplay(window.scheduleData);
+      console.log("✅ Final refresh complete");
+    }, 500);
+
   } catch (error) {
     console.error("❌ Error during UI update:", error);
-    hideLoadingAndShowError(
-      loadingOverlay,
-      "Error updating display: " + error.message
-    );
+    console.error("Stack trace:", error.stack);
+    hideLoadingAndShowError(loadingOverlay, "Error updating display: " + error.message);
   }
 }
+
+// Add this to the end of updateUIAfterGeneration function, after Step 10
+
+// Step 11: Auto-switch to manual tab to show the schedules
+console.log("🔀 Auto-switching to manual tab...");
+setTimeout(() => {
+  if (typeof switchTab === 'function') {
+    switchTab('manual');
+    console.log("✅ Switched to manual tab");
+    
+    // Force one more refresh after tab switch
+    setTimeout(() => {
+      safeUpdateScheduleDisplay(window.scheduleData);
+      if (typeof initializeDragAndDrop === 'function') {
+        initializeDragAndDrop();
+      }
+      console.log("✅ Post-switch refresh complete");
+    }, 300);
+  } else {
+    console.warn("⚠️ switchTab function not available");
+  }
+}, 800);
 
 // Helper function to hide loading and show error
 function hideLoadingAndShowError(loadingOverlay, message) {
