@@ -79,8 +79,6 @@ class ChairController extends BaseController
         error_log("Current department set to {$this->currentDepartmentId} for user_id=" . ($_SESSION['user_id'] ?? 'unknown'));
     }
 
-    // Add this method after the switchDepartment() method
-
     public function switchSemester()
     {
         // Set JSON header immediately
@@ -202,7 +200,6 @@ class ChairController extends BaseController
 
     public function dashboard()
     {
-
         $this->requireAnyRole('chair', 'dean');
         try {
             $chairId = $_SESSION['user_id'];
@@ -248,63 +245,56 @@ class ChairController extends BaseController
                 $semesterInfo .= " (Historical View)";
             }
 
-            // NEW: Get schedule approval status breakdown
+            // Replace your existing scheduleStatusStmt query with this improved version:
             $scheduleStatusStmt = $this->db->prepare("
-            SELECT 
-                status,
-                COUNT(*) as count
-            FROM schedules s 
-            JOIN courses c ON s.course_id = c.course_id 
-            WHERE c.department_id = ?
-            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
-            GROUP BY status
-            ORDER BY 
-                CASE status
-                    WHEN 'Approved' THEN 1
-                    WHEN 'Dean_Approved' THEN 2
-                    WHEN 'Pending' THEN 3
-                    WHEN 'Rejected' THEN 4
-                    ELSE 5
-                END
-        ");
+    SELECT 
+        s.status,
+        COUNT(*) as count
+    FROM schedules s 
+    JOIN courses c ON s.course_id = c.course_id 
+    WHERE c.department_id = :department_id
+    " . ($currentSemesterId ? "AND s.semester_id = :semester_id" : "") . "
+    GROUP BY s.status
+");
 
-            $params = [$departmentId];
+            $params = [':department_id' => $departmentId];
             if ($currentSemesterId) {
-                $params[] = $currentSemesterId;
+                $params[':semester_id'] = $currentSemesterId;
             }
             $scheduleStatusStmt->execute($params);
             $scheduleStatusData = $scheduleStatusStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Initialize status counts
+            // Debug: Log what we got
+            error_log("Schedule Status Raw Data: " . json_encode($scheduleStatusData));
+
+            // Initialize status counts with all possible statuses
             $scheduleStatusCounts = [
                 'total' => 0,
                 'approved' => 0,
                 'dean_approved' => 0,
                 'pending' => 0,
                 'rejected' => 0,
-                'other' => 0
+                'draft' => 0
             ];
 
-            // Process status data
+            // Process status data - be careful with case sensitivity
             foreach ($scheduleStatusData as $statusRow) {
-                $scheduleStatusCounts['total'] += $statusRow['count'];
+                $status = strtolower(trim($statusRow['status'])); // Normalize to lowercase
+                $count = (int)$statusRow['count'];
 
-                switch ($statusRow['status']) {
-                    case 'Approved':
-                        $scheduleStatusCounts['approved'] = $statusRow['count'];
-                        break;
-                    case 'Dean_Approved':
-                        $scheduleStatusCounts['dean_approved'] = $statusRow['count'];
-                        break;
-                    case 'Pending':
-                        $scheduleStatusCounts['pending'] = $statusRow['count'];
-                        break;
-                    case 'Rejected':
-                        $scheduleStatusCounts['rejected'] = $statusRow['count'];
-                        break;
-                    default:
-                        $scheduleStatusCounts['other'] += $statusRow['count'];
-                        break;
+                $scheduleStatusCounts['total'] += $count;
+
+                // Match status - handle different possible values
+                if (in_array($status, ['approved', 'approve'])) {
+                    $scheduleStatusCounts['approved'] = $count;
+                } elseif (in_array($status, ['dean_approved', 'dean approved', 'deanapproved'])) {
+                    $scheduleStatusCounts['dean_approved'] = $count;
+                } elseif (in_array($status, ['pending', 'pending approval'])) {
+                    $scheduleStatusCounts['pending'] = $count;
+                } elseif (in_array($status, ['rejected', 'reject', 'declined'])) {
+                    $scheduleStatusCounts['rejected'] = $count;
+                } elseif (in_array($status, ['draft'])) {
+                    $scheduleStatusCounts['draft'] = $count;
                 }
             }
 
@@ -438,20 +428,20 @@ class ChairController extends BaseController
 
             error_log("dashboard: Schedule distribution - " . $scheduleDistJson);
 
-            // FIXED: Get faculty workload data for chart
-            $workloadStmt = $this->db->prepare("
-            SELECT 
-                CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
-                COUNT(DISTINCT s.schedule_id) as course_count
-            FROM faculty f
-            JOIN users u ON f.user_id = u.user_id
-            LEFT JOIN schedules s ON f.faculty_id = s.faculty_id AND s.semester_id = ?
-            WHERE u.department_id = ?
-            GROUP BY f.faculty_id, u.title, u.first_name, u.last_name
-            HAVING course_count > 0
-            ORDER BY course_count DESC
-            LIMIT 5
-        ");
+                // FIXED: Get faculty workload data for chart
+                $workloadStmt = $this->db->prepare("
+                SELECT 
+                    CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+                    COUNT(DISTINCT s.schedule_id) as course_count
+                FROM faculty f
+                JOIN users u ON f.user_id = u.user_id
+                LEFT JOIN schedules s ON f.faculty_id = s.faculty_id AND s.semester_id = ?
+                WHERE u.department_id = ?
+                GROUP BY f.faculty_id, u.title, u.first_name, u.last_name
+                HAVING course_count > 0
+                ORDER BY course_count DESC
+                LIMIT 5
+            ");
 
             $workloadParams = [$currentSemesterId, $departmentId];
             $workloadStmt->execute($workloadParams);
@@ -472,6 +462,89 @@ class ChairController extends BaseController
 
             error_log("dashboard: Faculty workload - labels: " . $workloadLabelsJson . ", counts: " . $workloadCountsJson);
 
+            // Get conflict count - FIXED to detect REAL conflicts only
+            $conflictStmt = $this->db->prepare(
+                "
+            SELECT COUNT(DISTINCT s1.schedule_id) as conflict_count
+            FROM schedules s1
+            JOIN schedules s2 ON (
+                s1.schedule_id != s2.schedule_id
+                AND s1.semester_id = s2.semester_id
+                AND s1.day_of_week = s2.day_of_week
+                AND s1.start_time < s2.end_time 
+                AND s1.end_time > s2.start_time
+                AND (
+                    -- Faculty conflict: same faculty teaching at overlapping times
+                    (s1.faculty_id = s2.faculty_id)
+                    OR 
+                    -- Room conflict: same room used at overlapping times (exclude online)
+                    (s1.room_id = s2.room_id AND s1.room_id IS NOT NULL)
+                    OR
+                    -- Section conflict: same section at overlapping times for DIFFERENT courses
+                    (s1.section_id = s2.section_id AND s1.course_id != s2.course_id)
+                )
+            )
+            JOIN courses c ON s1.course_id = c.course_id
+            WHERE c.department_id = ?
+            " .
+            ($currentSemesterId ? "AND s1.semester_id = ?" : "")
+            );
+
+            $params = [$departmentId];
+            if ($currentSemesterId) {
+                $params[] = $currentSemesterId;
+            }
+            $conflictStmt->execute($params);
+            $conflictCount = $conflictStmt->fetchColumn() ?: 0;
+
+            error_log("Dashboard: Detected $conflictCount actual conflicts");
+
+            // Get unassigned courses count
+            $unassignedCoursesStmt = $this->db->prepare("
+                SELECT COUNT(DISTINCT c.course_id) as unassigned_count
+                FROM courses c
+                LEFT JOIN schedules s ON c.course_id = s.course_id 
+                    " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+                WHERE c.department_id = ?
+                AND s.schedule_id IS NULL
+            ");
+
+            $params = [];
+            if ($currentSemesterId) {
+                $params[] = $currentSemesterId;
+            }
+            $params[] = $departmentId;
+            $unassignedCoursesStmt->execute($params);
+            $unassignedCourses = $unassignedCoursesStmt->fetchColumn();
+
+            // Calculate workload balance (faculty distribution score)
+            $workloadBalanceStmt = $this->db->prepare("
+                SELECT 
+                    COUNT(DISTINCT s.faculty_id) as faculty_with_load,
+                    COUNT(DISTINCT f.faculty_id) as total_faculty
+                FROM faculty f
+                JOIN users u ON f.user_id = u.user_id
+                JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+                LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+                    " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+                WHERE fd.department_id = ?
+            ");
+
+            $params = [];
+            if ($currentSemesterId) {
+                $params[] = $currentSemesterId;
+            }
+            $params[] = $departmentId;
+            $workloadBalanceStmt->execute($params);
+            $workloadBalanceData = $workloadBalanceStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Calculate balance percentage
+            $workloadBalance = 0;
+            if ($workloadBalanceData['total_faculty'] > 0) {
+                $workloadBalance = round(($workloadBalanceData['faculty_with_load'] / $workloadBalanceData['total_faculty']) * 100);
+            }
+
+            // Add these to your existing $data array
             $data = [
                 'departmentName' => $departmentName,
                 'semesterInfo' => $semesterInfo,
@@ -485,9 +558,13 @@ class ChairController extends BaseController
                 'workloadCountsJson' => $workloadCountsJson,
                 'departments' => $this->userDepartments,
                 'currentDepartmentId' => $this->currentDepartmentId,
-                'availableSemesters' => $availableSemesters, // NEW
-                'currentSemesterId' => $currentSemesterId, // NEW
-                'isHistoricalView' => $isHistoricalView // NEW
+                'availableSemesters' => $availableSemesters,
+                'currentSemesterId' => $currentSemesterId,
+                'isHistoricalView' => $isHistoricalView,
+                // ADD THESE NEW LINES:
+                'conflictCount' => $conflictCount ?? 0,
+                'unassignedCourses' => $unassignedCourses ?? 0,
+                'workloadBalance' => $workloadBalance ?? 0
             ];
 
             $viewPath = __DIR__ . '/../views/chair/dashboard.php';
@@ -2890,113 +2967,272 @@ class ChairController extends BaseController
     {
         $conflicts = [];
 
-        // Check for faculty conflicts
-        $assignmentsList = [];
-        foreach ($facultyAssignments as $key => $value) {
-            if (is_numeric($key)) {
-                // Indexed array format
-                $assignmentsList[] = $value;
-            } elseif (is_array($value)) {
-                // Associative array by faculty_id
-                foreach ($value as $assignment) {
-                    $assignmentsList[] = $assignment;
-                }
-            }
-        }
+        // Build a lookup map of schedules by faculty for easier conflict checking
+        $facultyScheduleMap = [];
 
-        for ($i = 0; $i < count($assignmentsList); $i++) {
-            $assignment1 = $assignmentsList[$i];
-            if (!isset($assignment1['faculty_id'])) continue;
-
-            for ($j = $i + 1; $j < count($assignmentsList); $j++) {
-                $assignment2 = $assignmentsList[$j];
-                if (!isset($assignment2['faculty_id'])) continue;
-
-                if ($assignment1['faculty_id'] == $assignment2['faculty_id']) {
-                    // Same faculty - check for time conflicts
-                    $days1 = is_array($assignment1['days']) ? $assignment1['days'] : [$assignment1['days']];
-                    $days2 = is_array($assignment2['days']) ? $assignment2['days'] : [$assignment2['days']];
-
-                    $commonDays = array_intersect($days1, $days2);
-
-                    if (!empty($commonDays)) {
-                        $hasTimeConflict = $this->hasTimeConflict(
-                            $assignment1['start_time'],
-                            $assignment1['end_time'],
-                            $assignment2['start_time'],
-                            $assignment2['end_time']
-                        );
-
-                        if ($hasTimeConflict) {
-                            $conflict = [
-                                'type' => 'FACULTY_TIME_CONFLICT',
-                                'faculty_id' => $assignment1['faculty_id'],
-                                'course1' => $assignment1['course_code'] . ' (' . ($assignment1['component'] ?? 'main') . ')',
-                                'course2' => $assignment2['course_code'] . ' (' . ($assignment2['component'] ?? 'main') . ')',
-                                'time1' => $assignment1['start_time'] . '-' . $assignment1['end_time'],
-                                'time2' => $assignment2['start_time'] . '-' . $assignment2['end_time'],
-                                'days' => implode(',', $commonDays)
-                            ];
-                            $conflicts[] = $conflict;
-
-                            error_log("⚠️ CONFLICT: Faculty {$conflict['faculty_id']} teaching {$conflict['course1']} and {$conflict['course2']} at overlapping times on {$conflict['days']}");
-                        }
-                    }
-                }
-            }
-        }
-
-        // Check for lecture+lab same time conflicts
-        $courseComponents = [];
         foreach ($schedules as $schedule) {
-            $key = $schedule['course_id'] . '-' . $schedule['section_id'];
-            if (!isset($courseComponents[$key])) {
-                $courseComponents[$key] = [];
+            $facultyId = $schedule['faculty_id'] ?? null;
+            if (!$facultyId) continue;
+
+            if (!isset($facultyScheduleMap[$facultyId])) {
+                $facultyScheduleMap[$facultyId] = [];
             }
-            $courseComponents[$key][] = $schedule;
+
+            $facultyScheduleMap[$facultyId][] = $schedule;
         }
 
-        foreach ($courseComponents as $key => $components) {
-            if (count($components) >= 2) {
-                // Check if lecture and lab have same time
-                $lecture = array_filter($components, fn($c) => ($c['component_type'] ?? '') === 'Lecture');
-                $lab = array_filter($components, fn($c) => ($c['component_type'] ?? '') === 'Lab');
+        error_log("Faculty schedule map created for " . count($facultyScheduleMap) . " faculty members");
 
-                if (!empty($lecture) && !empty($lab)) {
-                    $lectureSchedule = reset($lecture);
-                    $labSchedule = reset($lab);
+        // Check for faculty time conflicts
+        foreach ($facultyScheduleMap as $facultyId => $facultySchedules) {
+            if (count($facultySchedules) < 2) continue; // No conflict possible with single schedule
 
-                    if (
-                        $lectureSchedule['day_of_week'] === $labSchedule['day_of_week'] &&
-                        $lectureSchedule['start_time'] === $labSchedule['start_time'] &&
-                        $lectureSchedule['end_time'] === $labSchedule['end_time']
-                    ) {
-                        $conflicts[] = [
-                            'type' => 'LECTURE_LAB_SAME_TIME',
-                            'course' => $lectureSchedule['course_code'],
-                            'section' => $lectureSchedule['section_name'],
-                            'time' => $lectureSchedule['start_time'] . '-' . $lectureSchedule['end_time'],
-                            'day' => $lectureSchedule['day_of_week']
+            // Compare each schedule with every other schedule for this faculty
+            for ($i = 0; $i < count($facultySchedules); $i++) {
+                $schedule1 = $facultySchedules[$i];
+
+                for ($j = $i + 1; $j < count($facultySchedules); $j++) {
+                    $schedule2 = $facultySchedules[$j];
+
+                    // Check if on same day
+                    if ($schedule1['day_of_week'] !== $schedule2['day_of_week']) {
+                        continue; // Different days, no conflict
+                    }
+
+                    // Check for time overlap
+                    if ($this->hasTimeConflict(
+                        $schedule1['start_time'],
+                        $schedule1['end_time'],
+                        $schedule2['start_time'],
+                        $schedule2['end_time']
+                    )) {
+                        $courseCode1 = $schedule1['course_code'] ?? 'Unknown';
+                        $courseCode2 = $schedule2['course_code'] ?? 'Unknown';
+                        $component1 = $schedule1['component_type'] ?? 'main';
+                        $component2 = $schedule2['component_type'] ?? 'main';
+
+                        $conflict = [
+                            'type' => 'FACULTY_TIME_CONFLICT',
+                            'faculty_id' => $facultyId,
+                            'course1' => "$courseCode1 ($component1)",
+                            'course2' => "$courseCode2 ($component2)",
+                            'time1' => $schedule1['start_time'] . '-' . $schedule1['end_time'],
+                            'time2' => $schedule2['start_time'] . '-' . $schedule2['end_time'],
+                            'day' => $schedule1['day_of_week'],
+                            'section1' => $schedule1['section_name'] ?? 'Unknown',
+                            'section2' => $schedule2['section_name'] ?? 'Unknown'
                         ];
 
-                        error_log("⚠️ CONFLICT: {$lectureSchedule['course_code']} lecture and lab at SAME TIME on {$lectureSchedule['day_of_week']}");
-                    }
+                        $conflicts[] = $conflict;
 
-                    // Check if lecture and lab have different rooms (lab should be in laboratory)
-                    if (isset($lectureSchedule['room_name']) && isset($labSchedule['room_name'])) {
-                        $labRoomName = strtolower($labSchedule['room_name']);
-                        if (!str_contains($labRoomName, 'lab') && $labSchedule['room_name'] !== 'Online') {
-                            error_log("⚠️ WARNING: Lab component of {$lectureSchedule['course_code']} not in laboratory room: {$labSchedule['room_name']}");
-                        }
+                        error_log("⚠️ FACULTY CONFLICT: Faculty $facultyId teaching {$conflict['course1']} (Section: {$conflict['section1']}) and {$conflict['course2']} (Section: {$conflict['section2']}) at overlapping times on {$conflict['day']}");
+                        error_log("   Time 1: {$conflict['time1']} | Time 2: {$conflict['time2']}");
                     }
                 }
             }
         }
 
+        // Check for section time conflicts
+        $sectionScheduleMap = [];
+
+        foreach ($schedules as $schedule) {
+            $sectionId = $schedule['section_id'] ?? null;
+            if (!$sectionId) continue;
+
+            if (!isset($sectionScheduleMap[$sectionId])) {
+                $sectionScheduleMap[$sectionId] = [];
+            }
+
+            $sectionScheduleMap[$sectionId][] = $schedule;
+        }
+
+        foreach ($sectionScheduleMap as $sectionId => $sectionSchedules) {
+            if (count($sectionSchedules) < 2) continue;
+
+            for ($i = 0; $i < count($sectionSchedules); $i++) {
+                $schedule1 = $sectionSchedules[$i];
+
+                for ($j = $i + 1; $j < count($sectionSchedules); $j++) {
+                    $schedule2 = $sectionSchedules[$j];
+
+                    // Skip if different course components (lecture vs lab of same course)
+                    if (
+                        isset($schedule1['course_id']) && isset($schedule2['course_id']) &&
+                        $schedule1['course_id'] === $schedule2['course_id'] &&
+                        isset($schedule1['component_type']) && isset($schedule2['component_type']) &&
+                        $schedule1['component_type'] !== $schedule2['component_type']
+                    ) {
+                        continue; // This is expected (lecture + lab of same course)
+                    }
+
+                    // Check if on same day
+                    if ($schedule1['day_of_week'] !== $schedule2['day_of_week']) {
+                        continue;
+                    }
+
+                    // Check for time overlap
+                    if ($this->hasTimeConflict(
+                        $schedule1['start_time'],
+                        $schedule1['end_time'],
+                        $schedule2['start_time'],
+                        $schedule2['end_time']
+                    )) {
+                        $courseCode1 = $schedule1['course_code'] ?? 'Unknown';
+                        $courseCode2 = $schedule2['course_code'] ?? 'Unknown';
+
+                        $conflict = [
+                            'type' => 'SECTION_TIME_CONFLICT',
+                            'section_id' => $sectionId,
+                            'section_name' => $schedule1['section_name'] ?? 'Unknown',
+                            'course1' => $courseCode1,
+                            'course2' => $courseCode2,
+                            'time1' => $schedule1['start_time'] . '-' . $schedule1['end_time'],
+                            'time2' => $schedule2['start_time'] . '-' . $schedule2['end_time'],
+                            'day' => $schedule1['day_of_week']
+                        ];
+
+                        $conflicts[] = $conflict;
+
+                        error_log("⚠️ SECTION CONFLICT: Section {$conflict['section_name']} has {$conflict['course1']} and {$conflict['course2']} at overlapping times on {$conflict['day']}");
+                    }
+                }
+            }
+        }
+
+        // Check for room conflicts
+        $roomScheduleMap = [];
+
+        foreach ($schedules as $schedule) {
+            $roomId = $schedule['room_id'] ?? null;
+            if (!$roomId) continue; // Skip online schedules
+
+            if (!isset($roomScheduleMap[$roomId])) {
+                $roomScheduleMap[$roomId] = [];
+            }
+
+            $roomScheduleMap[$roomId][] = $schedule;
+        }
+
+        foreach ($roomScheduleMap as $roomId => $roomSchedules) {
+            if (count($roomSchedules) < 2) continue;
+
+            for ($i = 0; $i < count($roomSchedules); $i++) {
+                $schedule1 = $roomSchedules[$i];
+
+                for ($j = $i + 1; $j < count($roomSchedules); $j++) {
+                    $schedule2 = $roomSchedules[$j];
+
+                    // Check if on same day
+                    if ($schedule1['day_of_week'] !== $schedule2['day_of_week']) {
+                        continue;
+                    }
+
+                    // Check for time overlap
+                    if ($this->hasTimeConflict(
+                        $schedule1['start_time'],
+                        $schedule1['end_time'],
+                        $schedule2['start_time'],
+                        $schedule2['end_time']
+                    )) {
+                        $courseCode1 = $schedule1['course_code'] ?? 'Unknown';
+                        $courseCode2 = $schedule2['course_code'] ?? 'Unknown';
+
+                        $conflict = [
+                            'type' => 'ROOM_CONFLICT',
+                            'room_id' => $roomId,
+                            'room_name' => $schedule1['room_name'] ?? 'Unknown',
+                            'course1' => $courseCode1,
+                            'course2' => $courseCode2,
+                            'section1' => $schedule1['section_name'] ?? 'Unknown',
+                            'section2' => $schedule2['section_name'] ?? 'Unknown',
+                            'time1' => $schedule1['start_time'] . '-' . $schedule1['end_time'],
+                            'time2' => $schedule2['start_time'] . '-' . $schedule2['end_time'],
+                            'day' => $schedule1['day_of_week']
+                        ];
+
+                        $conflicts[] = $conflict;
+
+                        error_log("⚠️ ROOM CONFLICT: Room {$conflict['room_name']} double-booked for {$conflict['course1']} (Section: {$conflict['section1']}) and {$conflict['course2']} (Section: {$conflict['section2']}) on {$conflict['day']}");
+                    }
+                }
+            }
+        }
+
+        // Check for lecture+lab same time conflicts (SPECIFIC CHECK)
+        $courseComponentMap = [];
+
+        foreach ($schedules as $schedule) {
+            $courseId = $schedule['course_id'] ?? null;
+            $sectionId = $schedule['section_id'] ?? null;
+
+            if (!$courseId || !$sectionId) continue;
+
+            $key = $courseId . '-' . $sectionId;
+
+            if (!isset($courseComponentMap[$key])) {
+                $courseComponentMap[$key] = [];
+            }
+
+            $courseComponentMap[$key][] = $schedule;
+        }
+
+        foreach ($courseComponentMap as $key => $components) {
+            if (count($components) < 2) continue; // Need at least lecture AND lab
+
+            $lecture = null;
+            $lab = null;
+
+            foreach ($components as $component) {
+                $componentType = strtolower($component['component_type'] ?? 'main');
+
+                if ($componentType === 'lecture') {
+                    $lecture = $component;
+                } elseif (in_array($componentType, ['lab', 'laboratory'])) {
+                    $lab = $component;
+                }
+            }
+
+            // If both lecture and lab exist, check if they're at the same time
+            if ($lecture && $lab) {
+                if (
+                    $lecture['day_of_week'] === $lab['day_of_week'] &&
+                    $lecture['start_time'] === $lab['start_time'] &&
+                    $lecture['end_time'] === $lab['end_time']
+                ) {
+                    $courseCode = $lecture['course_code'] ?? 'Unknown';
+                    $sectionName = $lecture['section_name'] ?? 'Unknown';
+
+                    $conflicts[] = [
+                        'type' => 'LECTURE_LAB_SAME_TIME',
+                        'course' => $courseCode,
+                        'section' => $sectionName,
+                        'time' => $lecture['start_time'] . '-' . $lecture['end_time'],
+                        'day' => $lecture['day_of_week']
+                    ];
+
+                    error_log("⚠️ LECTURE+LAB SAME TIME: $courseCode (Section: $sectionName) has lecture and lab at SAME TIME on {$lecture['day_of_week']}");
+                }
+            }
+        }
+
+        // Summary
         if (empty($conflicts)) {
-            error_log("✅ No conflicts found - schedule is valid");
+            error_log("✅ Schedule validation PASSED - No conflicts found!");
         } else {
-            error_log("❌ Found " . count($conflicts) . " conflicts!");
+            error_log("❌ Schedule validation found " . count($conflicts) . " conflicts:");
+
+            $conflictsByType = [];
+            foreach ($conflicts as $conflict) {
+                $type = $conflict['type'];
+                if (!isset($conflictsByType[$type])) {
+                    $conflictsByType[$type] = 0;
+                }
+                $conflictsByType[$type]++;
+            }
+
+            foreach ($conflictsByType as $type => $count) {
+                error_log("   - $type: $count");
+            }
         }
 
         error_log("========================================");

@@ -162,7 +162,7 @@ ob_start();
             </div>
         </div>
 
-        <!-- Compact Schedule Status Card -->
+        <!-- Schedule Status Card - IMPROVED -->
         <div class="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider">Schedule Status</h3>
@@ -174,61 +174,101 @@ ob_start();
             </div>
 
             <!-- Total Count -->
-            <div class="mb-3">
+            <div class="mb-4">
                 <p class="text-3xl font-bold text-gray-900"><?php echo htmlspecialchars($scheduleStatusCounts['total'] ?? 0); ?></p>
                 <p class="text-sm text-gray-500">Total Schedules</p>
             </div>
 
-            <!-- Status Progress Bars -->
-            <div class="space-y-2">
-                <!-- Approved -->
-                <?php if ($scheduleStatusCounts['approved'] > 0): ?>
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="text-green-600 font-medium">Approved</span>
-                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['approved']); ?></span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                        <div class="bg-green-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['approved'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
-                    </div>
-                <?php endif; ?>
+            <!-- Status Breakdown -->
+            <?php if (($scheduleStatusCounts['total'] ?? 0) > 0): ?>
+                <div class="space-y-3">
+                    <!-- Approved -->
+                    <?php if (($scheduleStatusCounts['approved'] ?? 0) > 0): ?>
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-green-600 font-medium">✓ Approved</span>
+                                <span class="text-gray-700 font-semibold"><?php echo htmlspecialchars($scheduleStatusCounts['approved']); ?></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full transition-all duration-500"
+                                    style="width: <?php echo round(($scheduleStatusCounts['approved'] / max(1, $scheduleStatusCounts['total'])) * 100); ?>%">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
-                <!-- Dean Approved -->
-                <?php if ($scheduleStatusCounts['dean_approved'] > 0): ?>
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="text-blue-600 font-medium">Dean Approved</span>
-                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['dean_approved']); ?></span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                        <div class="bg-blue-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['dean_approved'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
-                    </div>
-                <?php endif; ?>
+                    <!-- Dean Approved -->
+                    <?php if (($scheduleStatusCounts['dean_approved'] ?? 0) > 0): ?>
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-blue-600 font-medium">✓ Dean Approved</span>
+                                <span class="text-gray-700 font-semibold"><?php echo htmlspecialchars($scheduleStatusCounts['dean_approved']); ?></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                    style="width: <?php echo round(($scheduleStatusCounts['dean_approved'] / max(1, $scheduleStatusCounts['total'])) * 100); ?>%">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
-                <!-- Pending -->
-                <?php if ($scheduleStatusCounts['pending'] > 0): ?>
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="text-yellow-600 font-medium">Pending</span>
-                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['pending']); ?></span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                        <div class="bg-yellow-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['pending'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
-                    </div>
-                <?php endif; ?>
+                    <!-- Pending -->
+                    <?php if (($scheduleStatusCounts['pending'] ?? 0) > 0): ?>
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-yellow-600 font-medium">⏳ Pending</span>
+                                <span class="text-gray-700 font-semibold"><?php echo htmlspecialchars($scheduleStatusCounts['pending']); ?></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-yellow-500 h-2 rounded-full transition-all duration-500"
+                                    style="width: <?php echo round(($scheduleStatusCounts['pending'] / max(1, $scheduleStatusCounts['total'])) * 100); ?>%">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
-                <!-- Rejected -->
-                <?php if ($scheduleStatusCounts['rejected'] > 0): ?>
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="text-red-600 font-medium">Rejected</span>
-                        <span class="text-gray-500"><?php echo htmlspecialchars($scheduleStatusCounts['rejected']); ?></span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                        <div class="bg-red-500 h-1.5 rounded-full" style="width: <?php echo ($scheduleStatusCounts['rejected'] / max(1, $scheduleStatusCounts['total'])) * 100; ?>%"></div>
-                    </div>
-                <?php endif; ?>
-            </div>
+                    <!-- Rejected -->
+                    <?php if (($scheduleStatusCounts['rejected'] ?? 0) > 0): ?>
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-red-600 font-medium">✗ Rejected</span>
+                                <span class="text-gray-700 font-semibold"><?php echo htmlspecialchars($scheduleStatusCounts['rejected']); ?></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-red-500 h-2 rounded-full transition-all duration-500"
+                                    style="width: <?php echo round(($scheduleStatusCounts['rejected'] / max(1, $scheduleStatusCounts['total'])) * 100); ?>%">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Draft -->
+                    <?php if (($scheduleStatusCounts['draft'] ?? 0) > 0): ?>
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-gray-600 font-medium">📝 Draft</span>
+                                <span class="text-gray-700 font-semibold"><?php echo htmlspecialchars($scheduleStatusCounts['draft']); ?></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-gray-500 h-2 rounded-full transition-all duration-500"
+                                    style="width: <?php echo round(($scheduleStatusCounts['draft'] / max(1, $scheduleStatusCounts['total'])) * 100); ?>%">
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <div class="text-center py-4">
+                    <svg class="w-12 h-12 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p class="text-sm text-gray-500">No schedules found</p>
+                </div>
+            <?php endif; ?>
 
             <div class="mt-4 pt-3 border-t border-gray-200">
                 <a href="/chair/schedule_management" class="text-sm text-yellow-600 hover:text-yellow-700 flex items-center font-medium justify-center">
-                    View Details
+                    View All Schedules
                     <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
@@ -457,8 +497,7 @@ ob_start();
     </div>
 </div>
 
-<!-- Chart.js CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -618,7 +657,7 @@ ob_start();
             notification.innerHTML = `
             ${icon}
             <span>${message}</span>
-        `;
+            `;
 
             document.body.appendChild(notification);
 
@@ -636,162 +675,7 @@ ob_start();
             }, 4000);
         }
 
-        // Schedule Distribution Chart
-        const scheduleCtx = document.getElementById('scheduleChart').getContext('2d');
-        const scheduleData = <?php echo $scheduleDistJson ?? '[0,0,0,0,0,0]'; ?>;
-        const scheduleDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-        new Chart(scheduleCtx, {
-            type: 'bar',
-            data: {
-                labels: scheduleDays,
-                datasets: [{
-                    label: 'Classes',
-                    data: scheduleData,
-                    backgroundColor: 'rgba(234, 179, 8, 0.8)',
-                    borderColor: 'rgba(234, 179, 8, 1)',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    borderSkipped: false,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            stepSize: 1
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                },
-                elements: {
-                    bar: {
-                        borderRadius: 4
-                    }
-                }
-            }
-        });
-
-        // Faculty Workload Chart - FIXED for Chart.js 3.x
-        const workloadCtx = document.getElementById('workloadChart').getContext('2d');
-        const workloadLabels = <?php echo $workloadLabelsJson ?? '["No Data"]'; ?>;
-        const workloadData = <?php echo $workloadCountsJson ?? '[0]'; ?>;
-
-        console.log('Workload Chart Data:', {
-            labels: workloadLabels,
-            data: workloadData
-        });
-
-        new Chart(workloadCtx, {
-            type: 'bar', // Changed from 'horizontalBar' to 'bar'
-            data: {
-                labels: workloadLabels.map(label => {
-                    // Clean up extra spaces and truncate long names
-                    const cleanLabel = label.trim();
-                    return cleanLabel.length > 20 ? cleanLabel.substring(0, 17) + '...' : cleanLabel;
-                }),
-                datasets: [{
-                    label: 'Courses Assigned',
-                    data: workloadData,
-                    backgroundColor: [
-                        'rgba(234, 179, 8, 0.8)',
-                        'rgba(202, 138, 4, 0.8)',
-                        'rgba(180, 120, 3, 0.8)',
-                        'rgba(160, 110, 2, 0.8)',
-                        'rgba(140, 100, 1, 0.8)'
-                    ],
-                    borderColor: [
-                        'rgba(234, 179, 8, 1)',
-                        'rgba(202, 138, 4, 1)',
-                        'rgba(180, 120, 3, 1)',
-                        'rgba(160, 110, 2, 1)',
-                        'rgba(140, 100, 1, 1)'
-                    ],
-                    borderWidth: 1,
-                    borderRadius: 6,
-                    borderSkipped: false,
-                }]
-            },
-            options: {
-                indexAxis: 'y', // This makes the bar chart horizontal
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: function(tooltipItems) {
-                                return workloadLabels[tooltipItems[0].dataIndex];
-                            },
-                            label: function(context) {
-                                return context.parsed.x + ' course' + (context.parsed.x !== 1 ? 's' : '');
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            stepSize: 1,
-                            callback: function(value) {
-                                if (value % 1 === 0) {
-                                    return value;
-                                }
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'Number of Courses'
-                        }
-                    },
-                    y: {
-                        grid: {
-                            display: false
-                        },
-                        ticks: {
-                            maxRotation: 0,
-                            font: {
-                                size: 11
-                            }
-                        }
-                    }
-                },
-                elements: {
-                    bar: {
-                        borderRadius: 6
-                    }
-                },
-                layout: {
-                    padding: {
-                        left: 10,
-                        right: 10,
-                        top: 10,
-                        bottom: 10
-                    }
-                }
-            }
-        });
     });
 </script>
 
