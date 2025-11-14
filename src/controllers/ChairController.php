@@ -81,60 +81,108 @@ class ChairController extends BaseController
 
     public function switchSemester()
     {
-        // Set JSON header immediately
         header('Content-Type: application/json');
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['semester_id'])) {
-            $newSemesterId = intval($_POST['semester_id']);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Handle reset to current semester
+            if (isset($_POST['reset']) && $_POST['reset'] === 'true') {
+                $currentStmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year, is_current 
+                FROM semesters 
+                WHERE is_current = 1
+            ");
+                $currentStmt->execute();
+                $currentSemester = $currentStmt->fetch(PDO::FETCH_ASSOC);
 
-            // Validate that the semester exists
-            $stmt = $this->db->prepare("SELECT semester_id, semester_name, academic_year FROM semesters WHERE semester_id = ?");
-            $stmt->execute([$newSemesterId]);
-            $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($currentSemester) {
+                    $_SESSION['selected_semester_id'] = $currentSemester['semester_id'];
+                    $_SESSION['selected_semester'] = $currentSemester;
 
-            if ($semester) {
-                $_SESSION['selected_semester_id'] = $newSemesterId;
-                error_log("Switched to semester_id=$newSemesterId for user_id=" . ($_SESSION['user_id'] ?? 'unknown'));
+                    // Clear historical view flag
+                    unset($_SESSION['is_historical_view']);
 
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Semester switched successfully',
-                    'semester_id' => $newSemesterId,
-                    'semester_name' => $semester['semester_name'],
-                    'academic_year' => $semester['academic_year']
-                ]);
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Returned to current semester',
+                        'semester_id' => $currentSemester['semester_id'],
+                        'semester_name' => $currentSemester['semester_name'],
+                        'academic_year' => $currentSemester['academic_year'],
+                        'is_current' => true
+                    ]);
+                } else {
+                    http_response_code(404);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Current semester not found'
+                    ]);
+                }
+                exit;
+            }
+
+            // Handle semester switch
+            if (isset($_POST['semester_id'])) {
+                $newSemesterId = intval($_POST['semester_id']);
+
+                $stmt = $this->db->prepare("
+                SELECT semester_id, semester_name, academic_year, is_current 
+                FROM semesters 
+                WHERE semester_id = ?
+            ");
+                $stmt->execute([$newSemesterId]);
+                $semester = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($semester) {
+                    // Store selected semester in session
+                    $_SESSION['selected_semester_id'] = $newSemesterId;
+                    $_SESSION['selected_semester'] = $semester;
+
+                    // Set historical view flag if not current
+                    $_SESSION['is_historical_view'] = !$semester['is_current'];
+
+                    error_log("Switched to semester_id=$newSemesterId (historical: " . ($_SESSION['is_historical_view'] ? 'yes' : 'no') . ")");
+
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Semester switched successfully',
+                        'semester_id' => $newSemesterId,
+                        'semester_name' => $semester['semester_name'],
+                        'academic_year' => $semester['academic_year'],
+                        'is_current' => $semester['is_current']
+                    ]);
+                } else {
+                    http_response_code(404);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Semester not found'
+                    ]);
+                }
             } else {
-                http_response_code(404);
+                http_response_code(400);
                 echo json_encode([
                     'success' => false,
-                    'error' => 'Semester not found'
+                    'error' => 'Invalid request'
                 ]);
             }
         } else {
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'error' => 'Invalid request'
+                'error' => 'Invalid request method'
             ]);
         }
 
         exit;
     }
 
-    // Add this helper method to get all available semesters
-    private function getAvailableSemesters()
+    private function isHistoricalView()
     {
-        $stmt = $this->db->prepare("
-        SELECT semester_id, semester_name, academic_year, is_current 
-        FROM semesters 
-        ORDER BY academic_year DESC, 
-        FIELD(semester_name, '2nd', '1st', 'Summer', 'Mid Year')
-        ");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $_SESSION['is_historical_view'] ?? false;
     }
 
-    // Add this helper method to get the active semester (current or selected)
+    // ============================================================================
+    // 2. UPDATE: getActiveSemester method - Use selected semester if available
+    // ============================================================================
+
     private function getActiveSemester()
     {
         // Check if user has selected a specific semester
@@ -154,6 +202,19 @@ class ChairController extends BaseController
 
         // Fall back to current semester
         return $this->getCurrentSemester();
+    }
+
+    // Add this helper method to get all available semesters
+    private function getAvailableSemesters()
+    {
+        $stmt = $this->db->prepare("
+        SELECT semester_id, semester_name, academic_year, is_current 
+        FROM semesters 
+        ORDER BY academic_year DESC, 
+        FIELD(semester_name, '2nd', '1st', 'Summer', 'Mid Year')
+        ");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // Method to switch department
@@ -247,15 +308,15 @@ class ChairController extends BaseController
 
             // Replace your existing scheduleStatusStmt query with this improved version:
             $scheduleStatusStmt = $this->db->prepare("
-    SELECT 
-        s.status,
-        COUNT(*) as count
-    FROM schedules s 
-    JOIN courses c ON s.course_id = c.course_id 
-    WHERE c.department_id = :department_id
-    " . ($currentSemesterId ? "AND s.semester_id = :semester_id" : "") . "
-    GROUP BY s.status
-");
+        SELECT 
+            s.status,
+            COUNT(*) as count
+        FROM schedules s 
+        JOIN courses c ON s.course_id = c.course_id 
+        WHERE c.department_id = :department_id
+        " . ($currentSemesterId ? "AND s.semester_id = :semester_id" : "") . "
+        GROUP BY s.status
+        ");
 
             $params = [':department_id' => $departmentId];
             if ($currentSemesterId) {
@@ -606,11 +667,20 @@ class ChairController extends BaseController
         $this->requireAnyRole('chair', 'dean');
         try {
             $chairId = $_SESSION['user_id'];
-            error_log("mySchedule: Starting mySchedule method for user_id: $chairId");
+            // Use active semester (current or selected)
+            $semester = $this->getActiveSemester();
+            $semesterId = $semester['semester_id'];
+            $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
+
+            // Add historical indicator
+            $isHistoricalView = !$semester['is_current'];
+            if ($isHistoricalView) {
+                $semesterName .= ' (Historical View)';
+            }
 
             // Handle download requests
             if (isset($_GET['action']) && $_GET['action'] === 'download') {
-                $this->handleDownload($chairId);
+                $this->handleDownload($chairId, $semesterId); // Pass semesterId
                 return;
             }
 
@@ -2213,64 +2283,53 @@ class ChairController extends BaseController
         $this->requireAnyRole('chair', 'dean');
         $chairId = $_SESSION['user_id'] ?? null;
         $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
-        $currentSemester = $this->getCurrentSemester();
+
+        // Use active semester
+        $currentSemester = $this->getActiveSemester();
         $_SESSION['current_semester'] = $currentSemester;
+
+        $isHistoricalView = !$currentSemester['is_current'];
         $activeTab = $_GET['tab'] ?? 'generate';
         $error = $success = null;
+
+        // Load schedules for selected semester
         $schedules = $this->loadSchedules($departmentId, $currentSemester);
         $collegeId = $this->getChairCollege($chairId)['college_id'] ?? null;
 
         if ($departmentId) {
-            if (!isset($_SESSION['schedule_cache'][$departmentId])) {
-                $_SESSION['schedule_cache'][$departmentId] = $this->loadCommonData($departmentId, $currentSemester, $collegeId);
-                error_log("manageSchedule: Cache initialized for dept $departmentId: " . json_encode(array_keys($_SESSION['schedule_cache'][$departmentId])));
-            }
+            // Always refresh data for selected semester
+            $_SESSION['schedule_cache'][$departmentId] = $this->loadCommonData(
+                $departmentId,
+                $currentSemester,
+                $collegeId
+            );
 
             $cachedData = $_SESSION['schedule_cache'][$departmentId];
             $curricula = $cachedData['curricula'];
             $classrooms = $cachedData['classrooms'];
-
-            // ✅ ALWAYS GET FRESH FACULTY DATA (Don't use cache)
             $faculty = $this->getFaculty($departmentId, $collegeId);
-            error_log("🔄 Fresh faculty data loaded: " . count($faculty) . " members");
-            error_log("Faculty IDs: " . implode(', ', array_column($faculty, 'faculty_id')));
+            $sections = $this->getSections($departmentId, $currentSemester['semester_id']);
 
-            $sections = $cachedData['sections'];
-
-            // FIX: Load curriculum courses for manual scheduling
+            // Load curriculum courses
             $curriculumCourses = [];
             if (!empty($curricula)) {
                 $firstCurriculumId = $curricula[0]['curriculum_id'];
                 $curriculumCourses = $this->getCurriculumCourses($firstCurriculumId);
-                error_log("manageSchedule: Loaded " . count($curriculumCourses) . " courses for curriculum $firstCurriculumId");
             }
 
             $jsData = [
                 'departmentId' => $departmentId,
                 'collegeId' => $collegeId,
                 'currentSemester' => $currentSemester,
-                'sectionsData' => $this->getSections($departmentId, $currentSemester['semester_id']),
+                'isHistoricalView' => $isHistoricalView,
+                'sectionsData' => $sections,
                 'currentAcademicYear' => $currentSemester['academic_year'] ?? '',
-                'faculty' => $faculty, // ✅ Use fresh faculty data
+                'faculty' => $faculty,
                 'classrooms' => $classrooms,
                 'curricula' => $curricula,
                 'curriculumCourses' => $curriculumCourses,
                 'schedules' => $schedules
             ];
-        } else {
-            $jsData = [
-                'departmentId' => $departmentId,
-                'collegeId' => $collegeId,
-                'currentSemester' => $currentSemester,
-                'sectionsData' => [],
-                'currentAcademicYear' => '',
-                'faculty' => [],
-                'classrooms' => [],
-                'curricula' => [],
-                'curriculumCourses' => [],
-                'schedules' => []
-            ];
-            $error = "No department assigned to chair.";
         }
 
         define('IN_MANAGE_SCHEDULE', true);
@@ -5903,7 +5962,17 @@ class ChairController extends BaseController
             $userId = $_SESSION['user_id'];
             error_log("departmentTeachingLoad: Starting method for user_id: $userId");
 
-            // Get department details for the program chair
+            // Use active semester
+            $semester = $this->getActiveSemester();
+            $semesterId = $semester['semester_id'];
+            $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
+            $isHistoricalView = !$semester['is_current'];
+
+            if ($isHistoricalView) {
+                $semesterName .= ' (Historical View)';
+            }
+
+            // Get department details
             $deptStmt = $this->db->prepare("
             SELECT d.department_id, d.department_name, c.college_name, c.college_id
             FROM program_chairs pc 
@@ -5923,27 +5992,10 @@ class ChairController extends BaseController
             }
 
             $departmentId = $department['department_id'];
-            $departmentName = $department['department_name'];
-            $collegeName = $department['college_name'];
-            $collegeId = $department['college_id'];
 
             error_log("departmentTeachingLoad: Department ID: $departmentId, Name: $departmentName");
 
-            // Get current semester
-            $semesterStmt = $this->db->query("SELECT semester_id, semester_name, academic_year FROM semesters WHERE is_current = 1");
-            $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$semester) {
-                error_log("departmentTeachingLoad: No current semester found");
-                $error = "No current semester defined. Please contact the administrator to set the current semester.";
-                require_once __DIR__ . '/../views/chair/faculty-teaching-load.php';
-                return;
-            }
-
-            $semesterId = $semester['semester_id'];
-            $semesterName = $semester['semester_name'] . ' Semester, A.Y ' . $semester['academic_year'];
-            error_log("departmentTeachingLoad: Current semester ID: $semesterId, Name: $semesterName");
-
+        
             // Get all faculty in the department with their schedules
             $facultyStmt = $this->db->prepare("
             SELECT 
@@ -5986,18 +6038,15 @@ class ChairController extends BaseController
                     WHEN s.component_type = 'laboratory' 
                     THEN s.course_id 
                 END) as lab_preparations
-            FROM faculty f
+             FROM faculty f
             JOIN users u ON f.user_id = u.user_id
             JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
             JOIN departments d ON fd.department_id = d.department_id
             LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
-                AND s.semester_id = ?
+                AND s.semester_id = ?  -- Use selected semester
                 AND s.status != 'Rejected'
             WHERE d.department_id = ?
-            GROUP BY f.faculty_id, u.first_name, u.middle_name, u.last_name, u.title, u.suffix,
-                    f.academic_rank, f.employment_type, f.equiv_teaching_load, d.department_name,
-                    f.bachelor_degree, f.master_degree, f.doctorate_degree, f.post_doctorate_degree,
-                    f.designation, f.classification, f.advisory_class, d.department_id
+            GROUP BY f.faculty_id, u.first_name, u.middle_name, u.last_name, u.title, u.suffix
             ORDER BY faculty_name
         ");
             $facultyStmt->execute([$semesterId, $departmentId]);
@@ -6717,58 +6766,50 @@ class ChairController extends BaseController
             $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $fetchClassrooms = function ($departmentId) {
-                $currentSemester = $this->getCurrentSemester();
+                // Use active semester
+                $currentSemester = $this->getActiveSemester();
                 $currentSemesterId = $currentSemester['semester_id'];
 
                 $query = "
-                    SELECT 
-                        c.*,
-                        d.department_name,
-                        cl.college_name,
-                        CASE 
-                            WHEN c.department_id = :department_id1 THEN 'Owned'
-                            WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
-                            ELSE 'Unknown'
-                        END AS room_status,
-                        COUNT(DISTINCT s.schedule_id) AS current_semester_usage,
-                        GROUP_CONCAT(DISTINCT CONCAT(
-                            sec.section_name, '|',
-                            COALESCE(crs.course_code, 'N/A'), '|',
-                            COALESCE(
-                                TRIM(CONCAT(
-                                    COALESCE(u.title, ''), ' ',
-                                    COALESCE(u.first_name, ''), ' ',
-                                    COALESCE(u.middle_name, ''), ' ',
-                                    COALESCE(u.last_name, ''), ' ',
-                                    COALESCE(u.suffix, '')
-                                )),
-                                u.email,
-                                'TBA'
-                            ), '|',
-                            s.day_of_week, '|',
-                            s.start_time, '|',
-                            s.end_time
-                        ) SEPARATOR ';;;') AS schedule_details
-                    FROM classrooms c
-                    JOIN departments d ON c.department_id = d.department_id
-                    JOIN colleges cl ON d.college_id = cl.college_id
-                    LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
-                    LEFT JOIN schedules s ON c.room_id = s.room_id AND s.semester_id = :current_semester_id AND s.room_id IS NOT NULL
-                    LEFT JOIN sections sec ON s.section_id = sec.section_id
-                    LEFT JOIN courses crs ON s.course_id = crs.course_id
-                    LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
-                    LEFT JOIN users u ON f.user_id = u.user_id
-                    WHERE (
-                        c.department_id = :department_id3
-                        OR 
-                        (c.shared = 1 AND cd.department_id = :department_id4)
-                    )
-                    GROUP BY c.room_id
-                    ORDER BY c.room_name
-                ";
+            SELECT 
+                c.*,
+                d.department_name,
+                cl.college_name,
+                CASE 
+                    WHEN c.department_id = :department_id1 THEN 'Owned'
+                    WHEN c.shared = 1 AND cd.department_id IS NOT NULL THEN 'Included'
+                    ELSE 'Unknown'
+                END AS room_status,
+                COUNT(DISTINCT s.schedule_id) AS current_semester_usage,
+                GROUP_CONCAT(DISTINCT CONCAT(
+                    sec.section_name, '|',
+                    COALESCE(crs.course_code, 'N/A'), '|',
+                    COALESCE(TRIM(CONCAT(COALESCE(u.title, ''), ' ', COALESCE(u.first_name, ''), ' ', COALESCE(u.middle_name, ''), ' ', COALESCE(u.last_name, ''), ' ', COALESCE(u.suffix, ''))), u.email, 'TBA'), '|',
+                    s.day_of_week, '|',
+                    s.start_time, '|',
+                    s.end_time
+                ) SEPARATOR ';;;') AS schedule_details
+            FROM classrooms c
+            JOIN departments d ON c.department_id = d.department_id
+            JOIN colleges cl ON d.college_id = cl.college_id
+            LEFT JOIN classroom_departments cd ON c.room_id = cd.classroom_id AND cd.department_id = :department_id2
+            LEFT JOIN schedules s ON c.room_id = s.room_id 
+                AND s.semester_id = :current_semester_id 
+                AND s.room_id IS NOT NULL
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN courses crs ON s.course_id = crs.course_id
+            LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+            LEFT JOIN users u ON f.user_id = u.user_id
+            WHERE (
+                c.department_id = :department_id3
+                OR 
+                (c.shared = 1 AND cd.department_id = :department_id4)
+            )
+            GROUP BY c.room_id
+            ORDER BY c.room_name
+        ";
 
                 $stmt = $this->db->prepare($query);
-
                 $params = [
                     ':department_id1' => $departmentId,
                     ':department_id2' => $departmentId,
@@ -6777,74 +6818,8 @@ class ChairController extends BaseController
                     ':current_semester_id' => $currentSemesterId
                 ];
 
-                error_log("classroom: Executing ENHANCED query with params: " . json_encode($params));
                 $stmt->execute($params);
-                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                // Process schedule details for each classroom
-                foreach ($results as &$classroom) {
-                    $classroom['sections'] = [];
-                    $classroom['faculty'] = [];
-                    $classroom['schedule_days'] = [];
-                    $classroom['time_ranges'] = [];
-
-                    if (!empty($classroom['schedule_details'])) {
-                        $schedules = explode(';;;', $classroom['schedule_details']);
-                        $uniqueSections = [];
-                        $uniqueFaculty = [];
-                        $daysBySchedule = []; // Group days by section-course-faculty combination
-
-                        foreach ($schedules as $schedule) {
-                            $parts = explode('|', $schedule);
-                            if (count($parts) === 6) {
-                                list($section, $course, $faculty, $dayOfWeek, $startTime, $endTime) = $parts;
-
-                                // Clean up faculty name (remove extra spaces)
-                                $faculty = preg_replace('/\s+/', ' ', trim($faculty));
-
-                                // Collect unique sections with course
-                                $sectionKey = $section . ' - ' . $course;
-                                if (!in_array($sectionKey, $uniqueSections)) {
-                                    $uniqueSections[] = $sectionKey;
-                                }
-
-                                // Collect unique faculty
-                                if (!in_array($faculty, $uniqueFaculty) && $faculty !== 'TBA' && !empty($faculty)) {
-                                    $uniqueFaculty[] = $faculty;
-                                }
-
-                                // Group days by time range for the same section-course
-                                $timeKey = substr($startTime, 0, 5) . '-' . substr($endTime, 0, 5); // Format: HH:MM-HH:MM
-                                $scheduleKey = $sectionKey . '|' . $timeKey;
-
-                                if (!isset($daysBySchedule[$scheduleKey])) {
-                                    $daysBySchedule[$scheduleKey] = [];
-                                }
-                                $daysBySchedule[$scheduleKey][] = $dayOfWeek;
-                            }
-                        }
-
-                        // Format days using SchedulingService
-                        $uniqueDays = [];
-                        foreach ($daysBySchedule as $scheduleKey => $days) {
-                            // Join days with comma and format them
-                            $dayString = implode(', ', array_unique($days));
-                            $formattedDays = $this->schedulingService->formatScheduleDays($dayString);
-
-                            if (!in_array($formattedDays, $uniqueDays)) {
-                                $uniqueDays[] = $formattedDays;
-                            }
-                        }
-
-                        $classroom['sections'] = $uniqueSections;
-                        $classroom['faculty'] = $uniqueFaculty;
-                        $classroom['schedule_days'] = $uniqueDays;
-                    }
-                }
-
-                error_log("classroom: Fetched " . count($results) . " classrooms for department_id=$departmentId");
-
-                return $results;
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
             };
 
             if ($departmentId) {
@@ -6866,37 +6841,37 @@ class ChairController extends BaseController
                             $currentSemesterId = $currentSemester['semester_id'];
 
                             $query = "
-            SELECT 
-                s.day_of_week,
-                s.start_time,
-                s.end_time,
-                sec.section_name,
-                crs.course_code,
-                crs.course_name,
-                COALESCE(
-                    TRIM(CONCAT(
-                        COALESCE(u.title, ''), ' ',
-                        COALESCE(u.first_name, ''), ' ',
-                        COALESCE(u.middle_name, ''), ' ',
-                        COALESCE(u.last_name, ''), ' ',
-                        COALESCE(u.suffix, '')
-                    )),
-                    u.email,
-                    'TBA'
-                ) AS faculty_name,
-                c.room_type
-            FROM schedules s
-            LEFT JOIN sections sec ON s.section_id = sec.section_id
-            LEFT JOIN courses crs ON s.course_id = crs.course_id
-            LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
-            LEFT JOIN users u ON f.user_id = u.user_id
-            LEFT JOIN classrooms c ON s.room_id = c.room_id
-            WHERE s.room_id = :room_id 
-            AND s.semester_id = :semester_id
-            ORDER BY 
-                FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'),
-                s.start_time
-        ";
+                                SELECT 
+                                    s.day_of_week,
+                                    s.start_time,
+                                    s.end_time,
+                                    sec.section_name,
+                                    crs.course_code,
+                                    crs.course_name,
+                                    COALESCE(
+                                        TRIM(CONCAT(
+                                            COALESCE(u.title, ''), ' ',
+                                            COALESCE(u.first_name, ''), ' ',
+                                            COALESCE(u.middle_name, ''), ' ',
+                                            COALESCE(u.last_name, ''), ' ',
+                                            COALESCE(u.suffix, '')
+                                        )),
+                                        u.email,
+                                        'TBA'
+                                    ) AS faculty_name,
+                                    c.room_type
+                                FROM schedules s
+                                LEFT JOIN sections sec ON s.section_id = sec.section_id
+                                LEFT JOIN courses crs ON s.course_id = crs.course_id
+                                LEFT JOIN faculty f ON s.faculty_id = f.faculty_id
+                                LEFT JOIN users u ON f.user_id = u.user_id
+                                LEFT JOIN classrooms c ON s.room_id = c.room_id
+                                WHERE s.room_id = :room_id 
+                                AND s.semester_id = :semester_id
+                                ORDER BY 
+                                    FIELD(s.day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'),
+                                    s.start_time
+                            ";
 
                             $stmt = $this->db->prepare($query);
                             $stmt->execute([
@@ -6925,11 +6900,11 @@ class ChairController extends BaseController
 
                             // Get classroom info for the header
                             $classroomStmt = $this->db->prepare("
-            SELECT c.room_name, c.building, d.department_name
-            FROM classrooms c
-            LEFT JOIN departments d ON c.department_id = d.department_id
-            WHERE c.room_id = :room_id
-        ");
+                                SELECT c.room_name, c.building, d.department_name
+                                FROM classrooms c
+                                LEFT JOIN departments d ON c.department_id = d.department_id
+                                WHERE c.room_id = :room_id
+                            ");
                             $classroomStmt->execute([':room_id' => $room_id]);
                             $classroomInfo = $classroomStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -7192,20 +7167,20 @@ class ChairController extends BaseController
                             error_log("classroom: Starting search_shared_rooms with searchTerm=$searchTerm, departmentId=$departmentId");
 
                             $query = "
-            SELECT 
-                c.*,
-                d.department_name,
-                cl.college_name,
-                'Shared' AS room_status
-            FROM classrooms c
-            JOIN departments d ON c.department_id = d.department_id
-            JOIN colleges cl ON d.college_id = cl.college_id
-            WHERE 
-                c.shared = 1
-                AND c.department_id != :department_id
-                AND (c.room_name LIKE :search1 OR c.building LIKE :search2 OR d.department_name LIKE :search3)
-            ORDER BY c.room_name
-        ";
+                                SELECT 
+                                    c.*,
+                                    d.department_name,
+                                    cl.college_name,
+                                    'Shared' AS room_status
+                                FROM classrooms c
+                                JOIN departments d ON c.department_id = d.department_id
+                                JOIN colleges cl ON d.college_id = cl.college_id
+                                WHERE 
+                                    c.shared = 1
+                                    AND c.department_id != :department_id
+                                    AND (c.room_name LIKE :search1 OR c.building LIKE :search2 OR d.department_name LIKE :search3)
+                                ORDER BY c.room_name
+                            ";
 
                             error_log("classroom: Preparing search query");
                             $stmt = $this->db->prepare($query);
@@ -7313,8 +7288,9 @@ class ChairController extends BaseController
                 return;
             }
 
-            // Get current semester first
-            $currentSemester = $this->getCurrentSemester();
+            // Get active semester (current or selected)
+            $currentSemester = $this->getActiveSemester();
+            $isHistoricalView = !$currentSemester['is_current'];
 
             if (!$currentSemester) {
                 error_log("sections: No current semester set");
@@ -7354,7 +7330,7 @@ class ChairController extends BaseController
                 unset($_SESSION['success'], $_SESSION['error'], $_SESSION['info']);
             }
 
-            // Fetch ONLY current semester sections
+            // Fetch sections for SELECTED semester
             $query = "
             SELECT s.*, p.program_name
             FROM sections s
@@ -7363,23 +7339,24 @@ class ChairController extends BaseController
             AND s.is_active = 1
             AND s.semester_id = :semester_id
             ORDER BY
-            CASE s.year_level
-            WHEN '1st Year' THEN 1
-            WHEN '2nd Year' THEN 2
-            WHEN '3rd Year' THEN 3
-            WHEN '4th Year' THEN 4
-            ELSE 5
-            END,
-            s.section_name
-            ";
+                CASE s.year_level
+                    WHEN '1st Year' THEN 1
+                    WHEN '2nd Year' THEN 2
+                    WHEN '3rd Year' THEN 3
+                    WHEN '4th Year' THEN 4
+                    ELSE 5
+                END,
+                s.section_name
+        ";
 
             $stmt = $this->db->prepare($query);
-            $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
-            $stmt->bindParam(':semester_id', $currentSemester['semester_id'], PDO::PARAM_INT);
-            $stmt->execute();
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':semester_id' => $currentSemester['semester_id']
+            ]);
             $currentSemesterSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Group current semester sections by year level
+            // Group sections...
             $groupedCurrentSections = [
                 '1st Year' => [],
                 '2nd Year' => [],
@@ -7393,7 +7370,7 @@ class ChairController extends BaseController
                 }
             }
 
-            // Fetch previous semester sections
+            // Fetch previous semesters (excluding currently selected)
             $query = "
             SELECT s.*, p.program_name, sm.semester_name, sm.academic_year
             FROM sections s
@@ -7402,29 +7379,30 @@ class ChairController extends BaseController
             WHERE s.department_id = :department_id
             AND s.semester_id != :current_semester_id
             ORDER BY sm.academic_year DESC,
-            CASE sm.semester_name
-            WHEN '1st' THEN 1
-            WHEN '2nd' THEN 2
-            WHEN 'Summer' THEN 3
-            WHEN 'Mid Year' THEN 4
-            ELSE 5
-            END,
-            CASE s.year_level
-            WHEN '1st Year' THEN 1
-            WHEN '2nd Year' THEN 2
-            WHEN '3rd Year' THEN 3
-            WHEN '4th Year' THEN 4
-            ELSE 5
-            END,
-            s.section_name
-            ";
+                CASE sm.semester_name
+                    WHEN '1st' THEN 1
+                    WHEN '2nd' THEN 2
+                    WHEN 'Summer' THEN 3
+                    WHEN 'Mid Year' THEN 4
+                    ELSE 5
+                END,
+                CASE s.year_level
+                    WHEN '1st Year' THEN 1
+                    WHEN '2nd Year' THEN 2
+                    WHEN '3rd Year' THEN 3
+                    WHEN '4th Year' THEN 4
+                    ELSE 5
+                END,
+                s.section_name
+        ";
             $stmt = $this->db->prepare($query);
-            $stmt->bindParam(':department_id', $departmentId, PDO::PARAM_INT);
-            $stmt->bindParam(':current_semester_id', $currentSemester['semester_id'], PDO::PARAM_INT);
-            $stmt->execute();
+            $stmt->execute([
+                ':department_id' => $departmentId,
+                ':current_semester_id' => $currentSemester['semester_id']
+            ]);
             $previousSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Group previous sections by semester and year level
+            // Group previous sections...
             $groupedPreviousSections = [];
             foreach ($previousSections as $section) {
                 $semesterKey = $section['semester_name'] . ' ' . $section['academic_year'];
