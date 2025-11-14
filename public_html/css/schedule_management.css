@@ -485,75 +485,86 @@ body.modal-open {
 
 /* Drag and Drop Styles */
 .schedule-card.dragging {
-    transform: rotate(5deg);
-    z-index: 1000;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  transform: rotate(5deg);
+  z-index: 1000;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
 .drop-zone.drag-over {
-    background-color: #f0f9ff;
-    border: 2px dashed #3b82f6;
+  background-color: #f0f9ff;
+  border: 2px dashed #3b82f6;
 }
 
 .drop-zone.conflict {
-    background-color: #fef2f2;
-    border: 2px dashed #ef4444;
-    cursor: not-allowed;
+  background-color: #fef2f2;
+  border: 2px dashed #ef4444;
+  cursor: not-allowed;
 }
 
 .drop-zone.conflict::after {
-    content: "⚠️ Conflict";
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    background: #ef4444;
-    color: white;
-    font-size: 10px;
-    padding: 2px 4px;
-    border-radius: 4px;
-    z-index: 10;
+  content: "⚠️ Conflict";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  z-index: 10;
 }
 
 .conflict-tooltip {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 250px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 250px;
 }
 
 /* Smooth transitions */
 .schedule-card {
-    transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease-in-out;
 }
 
 .drop-zone {
-    transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease-in-out;
 }
 
 /* Visual feedback for drag operations */
 .drag-preview {
-    opacity: 0.8;
-    transform: scale(0.95);
+  opacity: 0.8;
+  transform: scale(0.95);
 }
 
 .drop-zone.conflict-high {
-    background-color: #fef2f2 !important;
-    border: 2px dashed #dc2626 !important;
+  background-color: #fef2f2 !important;
+  border: 2px dashed #dc2626 !important;
 }
 
 .drop-zone.conflict-medium {
-    background-color: #fff7ed !important;
-    border: 2px dashed #ea580c !important;
+  background-color: #fff7ed !important;
+  border: 2px dashed #ea580c !important;
 }
 
 .drop-zone.conflict-low {
-    background-color: #fefce8 !important;
-    border: 2px dashed #ca8a04 !important;
+  background-color: #fefce8 !important;
+  border: 2px dashed #ca8a04 !important;
 }
 
 /* Conflict type indicators */
-.conflict-time { background-color: #fef2f2; }
-.conflict-room { background-color: #fff7ed; }
-.conflict-faculty { background-color: #f0f9ff; }
-.conflict-section { background-color: #faf5ff; }
+.conflict-time {
+  background-color: #fef2f2;
+}
+
+.conflict-room {
+  background-color: #fff7ed;
+}
+
+.conflict-faculty {
+  background-color: #f0f9ff;
+}
+
+.conflict-section {
+  background-color: #faf5ff;
+}
 
 /* Better scrolling for many schedules */
 .schedules-container {
@@ -797,80 +808,221 @@ select.bg-red-50 {
 
 /* Dynamic grid styles */
 .schedule-card {
-    transition: all 0.2s ease-in-out;
-    min-height: 60px;
+  transition: all 0.2s ease-in-out;
+  min-height: 60px;
 }
 
 .schedule-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .drop-zone {
-    min-height: 60px;
-    transition: all 0.2s ease-in-out;
+  min-height: 60px;
+  transition: all 0.2s ease-in-out;
 }
 
 .drop-zone.drag-over {
-    background-color: #fefce8;
-    border-color: #f59e0b;
+  background-color: #fefce8;
+  border-color: #f59e0b;
 }
 
 .dragging {
-    opacity: 0.5;
-    transform: rotate(5deg);
+  opacity: 0.5;
+  transform: rotate(5deg);
 }
 
 /* Ensure consistent row heights */
-.grid-rows-\[minmax\(60px\2c auto\)\] > * {
-    min-height: 60px;
+.grid-rows-\[minmax\(60px\2c auto\)\]>* {
+  min-height: 60px;
 }
 
 /* Smooth scrolling for the grid */
 .overflow-x-auto {
-    scroll-behavior: smooth;
+  scroll-behavior: smooth;
 }
 
 /* Better visual feedback for time cells */
 .bg-gray-50 {
-    transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .bg-gray-50:hover {
-    background-color: #f9fafb;
+  background-color: #f9fafb;
 }
 
 /* Add to your CSS */
 #unassigned-courses-list {
-    transition: all 0.3s ease-in-out;
+  transition: all 0.3s ease-in-out;
 }
 
 .conflict-warning {
-    animation: pulse 2s infinite;
+  animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 /* Loading overlay improvements */
 #loading-overlay {
-    z-index: 9999;
+  z-index: 9999;
 }
 
 .pulsing-loader {
-    width: 40px;
-    height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #f59e0b;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #f59e0b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 120px repeat(7, 1fr);
+  grid-auto-rows: minmax(60px, auto);
+  gap: 1px;
+  background-color: #e5e7eb;
+}
+
+.grid-time-cell {
+  background: #f9fafb;
+  border-right: 1px solid #d1d5db;
+  padding: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #374151;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.grid-day-cell {
+  background: white;
+  min-height: 60px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.grid-day-cell:hover {
+  background: #f3f4f6;
+}
+
+.schedule-card {
+  border-left-width: 4px;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  cursor: move;
+  transition: all 0.2s ease;
+  margin: 1px;
+}
+
+.schedule-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.drop-zone {
+  min-height: 60px;
+  transition: all 0.2s ease;
+}
+
+.drop-zone.drag-over {
+  background-color: #fef3c7;
+  border: 2px dashed #f59e0b;
+}
+
+.drop-zone.conflict {
+  background-color: #fee2e2;
+  border: 2px dashed #dc2626;
+}
+
+/* Add to your schedule_management.css */
+.tab-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+
+.tab-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  background-color: #f3f4f6 !important;
+  color: #9ca3af !important;
+}
+
+
+/* Add to your schedule_management.css */
+.schedule-count-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.schedule-update-indicator {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.real-time-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #10B981;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

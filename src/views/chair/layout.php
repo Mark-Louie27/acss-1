@@ -283,12 +283,73 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
             animation: slideInRight 0.4s ease forwards;
         }
 
-        /* Sidebar */
+        /* Fixed Sidebar with Sticky Footer */
         .sidebar {
             background: linear-gradient(to bottom, #1F2937, #111827);
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
             z-index: 40;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            /* Prevent entire sidebar scroll */
+        }
+
+        /* Sidebar Header - Fixed at top */
+        .sidebar>div:first-child {
+            flex-shrink: 0;
+        }
+
+        /* User Profile Section - Fixed */
+        .sidebar>div:nth-child(2) {
+            flex-shrink: 0;
+        }
+
+        /* Navigation Container - Scrollable */
+        .sidebar nav {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 1rem;
+            /* Custom scrollbar for sidebar nav */
+            scrollbar-width: thin;
+            scrollbar-color: #4B5563 #1F2937;
+        }
+
+        .sidebar nav::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar nav::-webkit-scrollbar-track {
+            background: #1F2937;
+        }
+
+        .sidebar nav::-webkit-scrollbar-thumb {
+            background: #4B5563;
+            border-radius: 3px;
+        }
+
+        .sidebar nav::-webkit-scrollbar-thumb:hover {
+            background: #6B7280;
+        }
+
+        /* Sidebar Footer - Fixed at bottom */
+        .sidebar>div:last-child {
+            flex-shrink: 0;
+            position: relative;
+            bottom: auto;
+            left: auto;
+            right: auto;
+            margin-top: auto;
+        }
+
+        /* Remove absolute positioning from footer */
+        .sidebar-footer {
+            position: relative !important;
+            bottom: auto !important;
+            left: auto !important;
+            right: auto !important;
         }
 
         /* Mobile Sidebar States */
@@ -658,6 +719,59 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                 display: none !important;
             }
         }
+
+        /* Setup progress animations */
+        .setup-progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+
+        /* Badge animations */
+        .nav-item span.ml-auto {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        /* Locked item overlay */
+        .locked-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 255, 255, 0.05) 2px,
+                    rgba(255, 255, 255, 0.05) 4px);
+            pointer-events: none;
+            border-radius: 0.375rem;
+        }
+
+        /* Tooltip improvements */
+        .group:hover .group-hover\:opacity-100 {
+            opacity: 1 !important;
+        }
+
+        /* Progress indicator styling */
+        .setup-progress-item {
+            transition: all 0.3s ease;
+        }
+
+        .setup-progress-item:hover {
+            transform: translateX(2px);
+        }
     </style>
 </head>
 
@@ -847,163 +961,321 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 
         <!-- Navigation -->
         <nav class="mt-4 px-2 pb-20">
-
-
-
-
             <!-- Dashboard Link -->
             <a href="/chair/dashboard" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                 <i class="fas fa-tachometer-alt w-5 mr-3 <?= strpos($currentUri, '/chair/dashboard') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Dashboard</span>
             </a>
 
+            <!-- Setup Section Header -->
+            <div class="px-4 py-2 mt-4 mb-2">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Setup & Configuration</p>
+            </div>
 
-
-            <!-- Curriculum -->
-            <a href="/chair/curriculum" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Curriculum</span>
+            <!-- 1. Curriculum -->
+            <a href="/chair/curriculum" class="nav-item flex items-center justify-between px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <div class="flex items-center">
+                    <i class="fas fa-graduation-cap w-5 mr-3 <?= strpos($currentUri, '/chair/curriculum') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                    <span>Curriculum</span>
+                </div>
+                <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">1</span>
             </a>
 
-
-
-            <!-- Courses -->
-            <a href="/chair/courses" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/courses') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/chair/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Courses</span>
+            <!-- 2. Courses -->
+            <a href="/chair/courses" class="nav-item flex items-center justify-between px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/courses') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <div class="flex items-center">
+                    <i class="fas fa-book w-5 mr-3 <?= strpos($currentUri, '/chair/courses') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                    <span>Courses</span>
+                </div>
+                <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">2</span>
             </a>
 
-
-
-
-
-
-
-
-
-
-
-            <!-- Faculty -->
-            <a href="/chair/faculty" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Faculty</span>
+            <!-- 3. Faculty -->
+            <a href="/chair/faculty" class="nav-item flex items-center justify-between px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <div class="flex items-center">
+                    <i class="fas fa-chalkboard-teacher w-5 mr-3 <?= ($currentUri === '/chair/faculty' || strpos($currentUri, '/chair/faculty?') === 0 || (strpos($currentUri, '/chair/faculty/') !== false && strpos($currentUri, '/chair/faculty-') === false)) ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                    <span>Faculty</span>
+                </div>
+                <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">3</span>
             </a>
 
-
-
-
-            <!-- Classrooms -->
-            <a href="/chair/classroom" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/chair/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Classrooms</span>
+            <!-- 4. Classrooms -->
+            <a href="/chair/classroom" class="nav-item flex items-center justify-between px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/classroom') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <div class="flex items-center">
+                    <i class="fas fa-door-open w-5 mr-3 <?= strpos($currentUri, '/chair/classroom') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                    <span>Classrooms</span>
+                </div>
+                <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">4</span>
             </a>
 
-
-
-
-
-            <!-- Sections -->
-            <a href="/chair/sections" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/sections') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-layer-group w-5 mr-3 <?= strpos($currentUri, '/chair/sections') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Sections</span>
+            <!-- 5. Sections -->
+            <a href="/chair/sections" class="nav-item flex items-center justify-between px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/sections') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
+                <div class="flex items-center">
+                    <i class="fas fa-layer-group w-5 mr-3 <?= strpos($currentUri, '/chair/sections') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
+                    <span>Sections</span>
+                </div>
+                <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">5</span>
             </a>
 
+            <!-- Divider -->
+            <div class="border-t border-gray-700 my-4"></div>
 
-
-
+            <!-- Scheduling Section Header -->
+            <div class="px-4 py-2 mb-2">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Scheduling</p>
+            </div>
 
             <!-- Schedule Dropdown -->
             <div class="dropdown relative my-1">
                 <button class="nav-item w-full flex px-4 py-3 text-gray-200 hover:text-white items-center justify-between cursor-pointer rounded-lg transition-all duration-300 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false || strpos($currentUri, '/chair/faculty-teaching-load') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                     <div class="flex items-center">
                         <i class="fas fa-calendar-alt w-5 mr-3 <?= strpos($currentUri, '/chair/schedule') !== false || strpos($currentUri, '/chair/my_schedule') !== false || strpos($currentUri, '/chair/faculty-teaching-load') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                        <span>Schedule</span>
+                        <span>Schedules</span>
                     </div>
                     <i class="fas fa-chevron-down text-xs transition-transform duration-300 toggle-icon"></i>
                 </button>
 
                 <div class="dropdown-menu ml-5 mt-1 rounded-md flex-col bg-gray-800/80 overflow-hidden">
-                    <!-- Deadline Status Indicator -->
-                    <?php if ($isScheduleLocked): ?>
-                        <div class="ml-5 mb-2 px-3 py-2 bg-red-900/50 rounded-md text-xs">
-                            <div class="flex items-center text-red-300">
-                                <i class="fas fa-lock mr-2"></i>
-                                <span>Schedule Creation Locked</span>
+                    <!-- Setup Progress Indicator (Compact) -->
+                    <div class="ml-5 mb-2 px-3 py-2 bg-gradient-to-r from-blue-900/50 to-blue-800/50 rounded-md text-xs border border-blue-700/30">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-blue-200">Setup Progress</span>
+                            <?php
+                            // Check setup completion
+                            $setupStatus = [
+                                'curriculum' => false,
+                                'courses' => false,
+                                'faculty' => false,
+                                'classrooms' => false,
+                                'sections' => false
+                            ];
+
+                            // Additional detailed checks
+                            $curriculumExists = false;
+                            $coursesInCurriculum = false;
+                            $coursesCount = 0;
+
+                            try {
+                                $db = (new Database())->connect();
+
+                                // Check curriculum exists
+                                $stmt = $db->prepare("SELECT COUNT(*) FROM curricula WHERE department_id = :dept_id AND status = 'Active'");
+                                $stmt->execute([':dept_id' => $userDepartmentId]);
+                                $curriculumExists = $stmt->fetchColumn() > 0;
+                                $setupStatus['curriculum'] = $curriculumExists;
+
+                                // Check courses in curriculum (MORE DETAILED)
+                                $stmt = $db->prepare("
+                            SELECT COUNT(*) FROM curriculum_courses cc
+                            JOIN curricula c ON cc.curriculum_id = c.curriculum_id
+                            WHERE c.department_id = :dept_id AND c.status = 'Active'
+                        ");
+                                $stmt->execute([':dept_id' => $userDepartmentId]);
+                                $coursesCount = $stmt->fetchColumn();
+                                $coursesInCurriculum = $coursesCount > 0;
+                                $setupStatus['courses'] = $coursesInCurriculum;
+
+                                // Check faculty
+                                $stmt = $db->prepare("
+                            SELECT COUNT(*) FROM faculty_departments fd
+                            WHERE fd.department_id = :dept_id AND (fd.is_active = 1 OR fd.is_active IS NULL)
+                        ");
+                                $stmt->execute([':dept_id' => $userDepartmentId]);
+                                $setupStatus['faculty'] = $stmt->fetchColumn() > 0;
+
+                                // Check classrooms
+                                $stmt = $db->prepare("
+                            SELECT COUNT(*) FROM classrooms 
+                            WHERE (department_id = :dept_id OR shared = 1) AND availability = 'available'
+                        ");
+                                $stmt->execute([':dept_id' => $userDepartmentId]);
+                                $setupStatus['classrooms'] = $stmt->fetchColumn() > 0;
+
+                                // Check sections
+                                $currentSemester = $_SESSION['current_semester'] ?? null;
+                                if ($currentSemester) {
+                                    $stmt = $db->prepare("
+                                SELECT COUNT(*) FROM sections 
+                                WHERE department_id = :dept_id AND semester_id = :sem_id AND is_active = 1
+                            ");
+                                    $stmt->execute([
+                                        ':dept_id' => $userDepartmentId,
+                                        ':sem_id' => $currentSemester['semester_id']
+                                    ]);
+                                    $setupStatus['sections'] = $stmt->fetchColumn() > 0;
+                                }
+                            } catch (PDOException $e) {
+                                error_log("Setup status check error: " . $e->getMessage());
+                            }
+
+                            $completedCount = count(array_filter($setupStatus));
+                            $totalCount = count($setupStatus);
+                            $completionPercent = ($completedCount / $totalCount) * 100;
+                            ?>
+                            <span class="text-blue-300 font-bold"><?= $completedCount ?>/<?= $totalCount ?></span>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-gray-700 rounded-full h-1.5 mb-2">
+                            <div class="bg-gradient-to-r from-blue-500 to-green-500 h-1.5 rounded-full transition-all duration-500" style="width: <?= $completionPercent ?>%"></div>
+                        </div>
+
+                        <!-- Compact Status Icons -->
+                        <div class="flex items-center justify-between text-xs">
+                            <?php
+                            $setupIcons = [
+                                [
+                                    'icon' => 'graduation-cap',
+                                    'status' => $setupStatus['curriculum'],
+                                    'name' => 'Curriculum',
+                                    'detail' => $curriculumExists ? 'Active' : 'Not created'
+                                ],
+                                [
+                                    'icon' => 'book',
+                                    'status' => $setupStatus['courses'],
+                                    'name' => 'Courses',
+                                    'detail' => $coursesInCurriculum ? "$coursesCount courses" : 'No courses in curriculum'
+                                ],
+                                [
+                                    'icon' => 'chalkboard-teacher',
+                                    'status' => $setupStatus['faculty'],
+                                    'name' => 'Faculty',
+                                    'detail' => $setupStatus['faculty'] ? 'Assigned' : 'Not assigned'
+                                ],
+                                [
+                                    'icon' => 'door-open',
+                                    'status' => $setupStatus['classrooms'],
+                                    'name' => 'Rooms',
+                                    'detail' => $setupStatus['classrooms'] ? 'Available' : 'Not available'
+                                ],
+                                [
+                                    'icon' => 'layer-group',
+                                    'status' => $setupStatus['sections'],
+                                    'name' => 'Sections',
+                                    'detail' => $setupStatus['sections'] ? 'Created' : 'Not created'
+                                ]
+                            ];
+                            foreach ($setupIcons as $item):
+                            ?>
+                                <div class="flex flex-col items-center group relative">
+                                    <i class="fas fa-<?= $item['icon'] ?> <?= $item['status'] ? 'text-green-400' : 'text-red-400' ?> text-sm"></i>
+                                    <!-- Enhanced Tooltip with Detail -->
+                                    <div class="absolute bottom-full mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-lg border border-gray-700">
+                                        <div class="font-semibold"><?= $item['name'] ?></div>
+                                        <div class="text-gray-300"><?= $item['detail'] ?></div>
+                                        <!-- Tooltip arrow -->
+                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                                            <div class="border-4 border-transparent border-t-gray-900"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Warning if curriculum exists but no courses -->
+                        <?php if ($curriculumExists && !$coursesInCurriculum): ?>
+                            <div class="mt-2 pt-2 border-t border-yellow-700/50">
+                                <div class="flex items-start gap-2 text-yellow-300">
+                                    <i class="fas fa-exclamation-triangle text-xs mt-0.5"></i>
+                                    <div class="flex-1">
+                                        <div class="font-semibold text-xs">Action Required</div>
+                                        <div class="text-xs text-yellow-400/80">Add courses to your curriculum</div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="text-red-400 mt-1">
-                                <?= htmlspecialchars($deadlineStatus['message'] ?? 'Unknown deadline') ?>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Deadline Status Indicator (Compact) -->
+                    <?php if ($isScheduleLocked): ?>
+                        <div class="ml-5 mb-2 px-3 py-2 bg-red-900/50 rounded-md text-xs border border-red-700/50">
+                            <div class="flex items-center">
+                                <i class="fas fa-lock mr-2 text-red-300"></i>
+                                <div class="flex-1">
+                                    <span class="text-red-200 font-semibold block">Locked</span>
+                                    <span class="text-red-400 text-xs"><?= htmlspecialchars($deadlineStatus['message'] ?? 'Deadline passed') ?></span>
+                                </div>
                             </div>
                         </div>
                     <?php elseif (isset($deadlineStatus['deadline'])): ?>
                         <?php
                         $timeRemaining = $deadlineStatus['time_remaining'] ?? null;
                         $totalHours = $deadlineStatus['total_hours'] ?? 0;
-                        $warningClass = ($totalHours <= 24) ? 'deadline-warning text-yellow-400' : (($totalHours <= 48) ? 'text-orange-400' : 'text-blue-400');
                         ?>
-                        <div class="ml-5 mb-2 px-3 py-2 bg-blue-900/50 rounded-md text-xs">
-                            <div class="flex items-center text-blue-300">
-                                <i class="fas fa-clock mr-2"></i>
-                                <span>Deadline: <?= ($deadlineStatus['deadline'] ?? new DateTime())->format('M j, g:i A') ?></span>
-                            </div>
-                            <div class="text-<?= $warningClass ?> mt-1">
-                                <?php if ($totalHours <= 24): ?>
-                                    <span>⚠️ <?= $totalHours ?> hours remaining</span>
-                                <?php elseif ($totalHours <= 48): ?>
-                                    <span>⏳ <?= $timeRemaining->days ?? 0 ?>d <?= $timeRemaining->h ?? 0 ?>h left</span>
-                                <?php else: ?>
-                                    <span><?= $timeRemaining->days ?? 0 ?>d <?= $timeRemaining->h ?? 0 ?>h remaining</span>
-                                <?php endif; ?>
+                        <div class="ml-5 mb-2 px-3 py-2 bg-blue-900/50 rounded-md text-xs border border-blue-700/50">
+                            <div class="flex items-center">
+                                <i class="fas fa-clock mr-2 text-blue-300"></i>
+                                <div class="flex-1">
+                                    <span class="text-blue-200 font-semibold block">Deadline</span>
+                                    <span class="text-blue-300 text-xs">
+                                        <?php if ($totalHours <= 24): ?>
+                                            ⚠️ <?= $totalHours ?>h left
+                                        <?php elseif ($totalHours <= 48): ?>
+                                            <?= $timeRemaining->days ?? 0 ?>d <?= $timeRemaining->h ?? 0 ?>h left
+                                        <?php else: ?>
+                                            <?= ($deadlineStatus['deadline'] ?? new DateTime())->format('M j, g:i A') ?>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     <?php endif; ?>
 
-                    <!-- Create Schedule - Conditional Locking -->
-                    <?php if ($isScheduleLocked): ?>
-                        <div class="locked-item">
-                            <div class="flex items-center px-4 py-3 text-gray-500 bg-gray-900/50 cursor-not-allowed rounded-md opacity-75">
-                                <i class="fas fa-lock w-5 mr-2 text-red-400"></i> Create Schedule
-                                <span class="ml-auto text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Locked</span>
+                    <!-- Create Schedule -->
+                    <?php
+                    $allSetupComplete = !in_array(false, $setupStatus, true);
+                    $canCreateSchedule = $allSetupComplete && !$isScheduleLocked;
+                    ?>
+
+                    <?php if (!$allSetupComplete): ?>
+                        <div class="group relative">
+                            <div class="flex items-center px-4 py-3 text-gray-500 bg-gray-900/30 cursor-not-allowed rounded-md">
+                                <i class="fas fa-exclamation-triangle w-5 mr-2 text-yellow-400"></i>
+                                <span class="flex-1">Create Schedule</span>
+                                <span class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded border border-yellow-500/30">Setup Required</span>
                             </div>
-                            <div class="absolute left-full top-0 ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
-                                <?= htmlspecialchars($deadlineStatus['message'] ?? 'Deadline passed') ?>
-                                <div class="absolute top-1/2 left-0 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+                        </div>
+                    <?php elseif ($isScheduleLocked): ?>
+                        <div class="group relative">
+                            <div class="flex items-center px-4 py-3 text-gray-500 bg-gray-900/30 cursor-not-allowed rounded-md">
+                                <i class="fas fa-lock w-5 mr-2 text-red-400"></i>
+                                <span class="flex-1">Create Schedule</span>
+                                <span class="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded border border-red-500/30">Locked</span>
                             </div>
                         </div>
                     <?php else: ?>
-                        <a href="/chair/schedule_management" class="group relative flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule_management') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
-                            <i class="fas fa-plus-circle w-5 mr-2"></i> Create Schedule
-                            <?php if (isset($deadlineStatus['deadline']) && $totalHours <= 48): ?>
-                                <span class="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full <?= ($totalHours <= 24) ? 'deadline-warning' : '' ?>">
-                                    <?= $totalHours ?>h left
-                                </span>
-                                <div class="absolute left-full top-0 ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
-                                    Deadline: <?= ($deadlineStatus['deadline'] ?? new DateTime())->format('M j, Y g:i A') ?>
-                                    <div class="absolute top-1/2 left-0 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
-                                </div>
-                            <?php endif; ?>
+                        <a href="/chair/schedule_management" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule_management') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
+                            <i class="fas fa-plus-circle w-5 mr-2 text-green-400"></i>
+                            <span class="flex-1">Create Schedule</span>
+                            <span class="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded border border-green-500/30">Ready</span>
                         </a>
                     <?php endif; ?>
 
+                    <!-- Other Schedule Links -->
                     <a href="/chair/my_schedule" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/my_schedule') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
-                        <i class="fas fa-list w-5 mr-2"></i> My Schedule
+                        <i class="fas fa-list w-5 mr-2"></i>
+                        <span>My Schedule</span>
                     </a>
 
                     <a href="/chair/faculty-teaching-load" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/faculty-teaching-load') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
-                        <i class="fas fa-user-clock w-5 mr-2"></i> Faculty Teaching Load
+                        <i class="fas fa-user-clock w-5 mr-2"></i>
+                        <span>Faculty Teaching Load</span>
                     </a>
 
                     <a href="/chair/schedule_history" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-yellow-300 transition duration-300 rounded-md <?= strpos($currentUri, '/chair/schedule_history') !== false ? 'bg-gray-700 text-yellow-300' : '' ?>">
-                        <i class="fas fa-history w-5 mr-2"></i>View All Created Schedule
+                        <i class="fas fa-history w-5 mr-2"></i>
+                        <span>Schedule History</span>
                     </a>
                 </div>
             </div>
 
+            <!-- Divider -->
+            <div class="border-t border-gray-700 my-4"></div>
 
-
-
-
-
-
+            <!-- Account Section Header -->
+            <div class="px-4 py-2 mb-2">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Account</p>
+            </div>
 
             <!-- Profile -->
             <a href="/chair/profile" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/profile') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
@@ -1011,35 +1283,15 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                 <span>Profile</span>
             </a>
 
-
-
-
-
-
             <!-- Settings -->
             <a href="/chair/settings" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/settings') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
                 <i class="fas fa-cog w-5 mr-3 <?= strpos($currentUri, '/chair/settings') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
                 <span>Settings</span>
             </a>
-
-
-
-
-
-
-            <!-- Reports
-            <a href="/chair/reports" class="nav-item flex items-center px-4 py-3 text-gray-200 rounded-lg mb-1 hover:text-white transition-all duration-300 <?= strpos($currentUri, '/chair/reports') !== false ? 'active-nav bg-gray-800 text-yellow-300' : '' ?>">
-                <i class="fas fa-chart-bar w-5 mr-3 <?= strpos($currentUri, '/chair/reports') !== false ? 'text-yellow-400' : 'text-gray-400' ?>"></i>
-                <span>Reports</span>
-            </a>
-             -->
         </nav>
 
-
-
-
-        <!-- Sidebar Footer -->
-        <div class="absolute bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-700">
+        <!-- Sidebar Footer - UPDATED -->
+        <div class="p-4 bg-gray-900 border-t border-gray-700">
             <div class="flex items-center justify-between text-xs text-gray-400">
                 <div>
                     <p>Program Chair System</p>
