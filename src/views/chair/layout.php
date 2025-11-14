@@ -926,7 +926,9 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                     class="h-12"
                     onerror="this.src='/assets/logo/main_logo/PRMSUlogo.png';">
             </div>
-            <h2 class="text-xl text-yellow-600 font-bold text-center">PRMSU Scheduling System - ACSS</h2>
+            <h2 class="text-xl font-bold text-yellow-400 text-center">
+                <?php echo htmlspecialchars($systemName); ?>
+            </h2>
             <p class="text-xs text-gray-400 mt-1 text-center">Management System</p>
         </div>
 

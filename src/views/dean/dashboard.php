@@ -1,366 +1,645 @@
 <?php
 ob_start();
 ?>
+<!DOCTYPE html>
+<html lang="en">
 
-<div>
-    <!-- Dashboard Header -->
-    <div class="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl p-6 sm:p-8 mb-8 shadow-lg relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-2 h-full bg-yellow-500"></div>
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-            <div>
-                <h1 class="text-2xl sm:text-3xl font-bold">PRMSU Scheduling System</h1>
-                <p class="text-gray-300 mt-2"><?php echo htmlspecialchars($college['college_name'] ?? 'College'); ?></p>
-            </div>
-            <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mt-4 sm:mt-0">
-                <span class="text-sm bg-gray-700 px-3 py-1 rounded-full flex items-center">
-                    <svg class="w-4 h-4 mr-1 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <?php echo htmlspecialchars($currentSemester); ?>
-                </span>
-                <span class="bg-yellow-500 px-3 py-1 rounded-full flex items-center text-gray-900 font-semibold">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Active Term
-                </span>
-            </div>
-        </div>
-    </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Dean Dashboard - PRMSU</title>
+    <link rel="stylesheet" href="/css/output.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Total Faculty Card -->
-        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-medium">Total Faculty</p>
-                    <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo $stats['total_faculty']; ?></h3>
-                </div>
-                <div class="bg-yellow-100 rounded-full p-3">
-                    <i class="fas fa-users text-yellow-500 text-2xl"></i>
-                </div>
-            </div>
-        </div>
+        * {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
 
-        <!-- Total Classrooms Card -->
-        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-medium">Total Classrooms</p>
-                    <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo $stats['total_classrooms']; ?></h3>
-                </div>
-                <div class="bg-yellow-100 rounded-full p-3">
-                    <i class="fas fa-door-open text-yellow-500 text-2xl"></i>
-                </div>
-            </div>
-        </div>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+        }
 
-        <!-- Total Departments Card -->
-        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-medium">Total Departments</p>
-                    <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo $stats['total_departments']; ?></h3>
-                </div>
-                <div class="bg-yellow-100 rounded-full p-3">
-                    <i class="fas fa-building text-yellow-600 text-2xl"></i>
-                </div>
-            </div>
-        </div>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        }
 
-        <!-- Pending Approvals Card -->
-        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500 hover:shadow-lg transition-shadow">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-medium">Pending Approvals</p>
-                    <h3 class="text-3xl font-bold text-gray-800 mt-2"><?php echo $stats['pending_approvals']; ?></h3>
-                </div>
-                <div class="bg-yellow-100 rounded-full p-3">
-                    <i class="fas fa-clock text-yellow-500 text-2xl"></i>
-                </div>
-            </div>
-        </div>
-    </div>
+        .hover-scale {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-    <!-- Main Content Grid - REARRANGED LAYOUT -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Middle Column - Charts -->
-        <div class="lg:col-span-2 space-y-6">
-            <!-- Schedule Distribution Chart -->
-            <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900">Schedule Distribution by Day</h3>
-                    <span class="fas fa-chart-bar text-yellow-500"></span>
-                </div>
-                <div class="h-64">
-                    <?php if (!empty($scheduleDistribution)): ?>
-                        <canvas id="scheduleDistributionChart"></canvas>
-                    <?php else: ?>
-                        <div class="h-full flex items-center justify-center text-gray-400">
-                            <div class="text-center">
-                                <span class="fas fa-chart-bar text-4xl mb-2"></span>
-                                <p>No schedule data available</p>
+        .hover-scale:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+        }
+
+        .gradient-header {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gradient-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .metric-icon {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 16px rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .7;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        .chart-container {
+            position: relative;
+            padding: 24px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
+        }
+
+        .workload-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .workload-light {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .workload-moderate {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .workload-heavy {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .action-button {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .action-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .action-button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .summary-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(245, 158, 11, 0.1);
+        }
+
+        .summary-stat:last-child {
+            border-bottom: none;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Modern Header -->
+        <div class="gradient-header text-white rounded-2xl p-8 mb-6 shadow-xl relative">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl"></div>
+            <div class="relative z-10">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                <i class="fas fa-university text-2xl"></i>
+                            </div>
+                            <div>
+                                <h1 class="text-3xl md:text-4xl font-bold tracking-tight">College Dean Dashboard</h1>
+                                <p class="text-white/80 text-sm mt-1">PRMSU Scheduling System</p>
                             </div>
                         </div>
-                    <?php endif; ?>
+                        <h3 class="text-xl font-semibold mb-2">Welcome back! 👋</h3>
+                        <p class="text-white/90 flex items-center gap-2">
+                            <i class="fas fa-building"></i>
+                            <?php echo htmlspecialchars($college['college_name'] ?? 'College'); ?>
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <span class="bg-gray-600 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 backdrop-blur-md">
+                            <i class="fas fa-calendar-alt text-white"></i>
+                            <?php echo htmlspecialchars($currentSemester); ?>
+                        </span>
+                        <span class="bg-yellow-500/90 px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 backdrop-blur-md">
+                            <span class="status-dot bg-white"></span>
+                            Active Term
+                        </span>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Classroom Availability -->
-            <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900">Classroom Availability</h3>
-                    <span class="fas fa-door-open text-yellow-500"></span>
+        <!-- Metrics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Faculty Card -->
+            <div class="glass-card rounded-2xl p-6 hover-scale fade-in" style="animation-delay: 0.1s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon">
+                        <i class="fas fa-chalkboard-teacher text-white text-xl"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">FACULTY</span>
                 </div>
-                <div class="h-64">
-                    <?php if (!empty($classroomAvailability)): ?>
-                        <canvas id="classroomAvailabilityChart"></canvas>
-                    <?php else: ?>
-                        <div class="h-full flex items-center justify-center text-gray-400">
-                            <div class="text-center">
-                                <span class="fas fa-door-open text-4xl mb-2"></span>
-                                <p>No classroom data available</p>
-                            </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Total Faculty</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo $stats['total_faculty']; ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-users"></i>
+                    Active members
+                </p>
+            </div>
+
+            <!-- Classrooms Card -->
+            <div class="glass-card rounded-2xl p-6 hover-scale fade-in" style="animation-delay: 0.2s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon">
+                        <i class="fas fa-door-open text-white text-xl"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">ROOMS</span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Classrooms</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo $stats['total_classrooms']; ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-map-marked-alt"></i>
+                    Available spaces
+                </p>
+            </div>
+
+            <!-- Departments Card -->
+            <div class="glass-card rounded-2xl p-6 hover-scale fade-in" style="animation-delay: 0.3s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon">
+                        <i class="fas fa-building text-white text-xl"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">DEPTS</span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Departments</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo $stats['total_departments']; ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-sitemap"></i>
+                    Under college
+                </p>
+            </div>
+
+            <!-- Pending Card -->
+            <div class="glass-card rounded-2xl p-6 hover-scale cursor-pointer fade-in" onclick="window.location.href='/dean/manage_schedules'" style="animation-delay: 0.4s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                        <i class="fas fa-clock text-white text-xl"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-red-600 bg-red-100 px-3 py-1 rounded-full badge-pulse">URGENT</span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Pending Approvals</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo $stats['pending_approvals']; ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Needs review
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column - Charts -->
+            <div class="lg:col-span-2 space-y-8">
+
+                <!-- Faculty Workload Chart -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.5s">
+                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">Faculty Workload Distribution</h3>
+                            <p class="text-sm text-gray-500">Teaching hours per faculty member</p>
                         </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Department Overview -->
-            <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900">Department Overview</h3>
-                    <span class="fas fa-building text-yellow-500"></span>
-                </div>
-                <div class="space-y-4">
-                    <?php if (!empty($departmentOverview)): ?>
-                        <?php foreach ($departmentOverview as $dept): ?>
-                            <div class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-                                <div>
-                                    <p class="font-medium text-gray-900"><?php echo htmlspecialchars($dept['department_name']); ?></p>
-                                    <p class="text-sm text-gray-600"><?php echo $dept['faculty_count']; ?> faculty • <?php echo $dept['active_schedules']; ?> schedules</p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="workload-badge workload-light text-xs">
+                                <i class="fas fa-circle mr-1"></i> &lt;12h
+                            </span>
+                            <span class="workload-badge workload-moderate text-xs">
+                                <i class="fas fa-circle mr-1"></i> 12-24h
+                            </span>
+                            <span class="workload-badge workload-heavy text-xs">
+                                <i class="fas fa-circle mr-1"></i> &gt;24h
+                            </span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <?php if (!empty($facultyWorkload)): ?>
+                            <canvas id="facultyWorkloadChart" style="height: 320px;"></canvas>
+                        <?php else: ?>
+                            <div class="h-64 flex items-center justify-center text-gray-400">
+                                <div class="text-center">
+                                    <i class="fas fa-user-clock text-4xl mb-2"></i>
+                                    <p>No faculty workload data available</p>
                                 </div>
-                                <div class="text-right">
-                                    <span class="text-sm font-medium text-gray-900"><?php echo $dept['course_count']; ?> courses</span>
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        <?php if ($dept['faculty_count'] > 0): ?>
-                                            <span class="text-yellow-600 font-medium">Active</span>
-                                        <?php else: ?>
-                                            <span class="text-gray-400">No faculty</span>
-                                        <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Classroom Utilization Chart -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">Classroom Utilization Rate</h3>
+                            <p class="text-sm text-gray-500">Percentage of classroom usage</p>
+                        </div>
+                        <i class="fas fa-door-open text-yellow-600 text-xl"></i>
+                    </div>
+                    <div class="chart-container">
+                        <?php if (!empty($classroomUtilization)): ?>
+                            <canvas id="classroomUtilizationChart" style="height: 280px;"></canvas>
+                        <?php else: ?>
+                            <div class="h-64 flex items-center justify-center text-gray-400">
+                                <div class="text-center">
+                                    <i class="fas fa-door-open text-4xl mb-2"></i>
+                                    <p>No classroom data available</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Department Overview -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.7s">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <i class="fas fa-building text-yellow-600"></i>
+                        Department Overview
+                    </h3>
+                    <div class="space-y-3">
+                        <?php if (!empty($departmentOverview)): ?>
+                            <?php foreach ($departmentOverview as $dept): ?>
+                                <div class="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border border-yellow-100 hover:shadow-md transition-all">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-12 h-12 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
+                                            <i class="fas fa-building text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-gray-900"><?php echo htmlspecialchars($dept['department_name']); ?></p>
+                                            <p class="text-sm text-gray-600">
+                                                <i class="fas fa-users text-xs mr-1"></i><?php echo $dept['faculty_count']; ?> faculty •
+                                                <i class="fas fa-calendar text-xs mr-1"></i><?php echo $dept['active_schedules']; ?> schedules
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-2xl font-bold text-gray-900"><?php echo $dept['course_count']; ?></p>
+                                        <p class="text-xs text-gray-500">courses</p>
                                     </div>
                                 </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="text-center py-12 text-gray-400">
+                                <i class="fas fa-inbox text-4xl mb-2"></i>
+                                <p>No departments found</p>
                             </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div class="text-center py-8 text-gray-400">
-                            <span class="fas fa-inbox text-2xl mb-2"></span>
-                            <p>No departments</p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- Left Column - My Schedule & Quick Actions -->
-        <div class="space-y-6">
-
-            <!-- Quick Actions -->
-            <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                <div class="space-y-3">
-                    <a href="/dean/manage_schedules" class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors border border-yellow-200">
-                        <div class="flex items-center">
-                            <span class="fas fa-check-circle text-yellow-600 text-lg mr-3"></span>
-                            <span class="font-medium text-gray-900">Review Approvals</span>
-                        </div>
-                        <span class="fas fa-arrow-right text-yellow-500"></span>
-                    </a>
-
-                    <a href="/dean/schedule" class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors border border-yellow-200">
-                        <div class="flex items-center">
-                            <span class="fas fa-calendar-alt text-yellow-600 text-lg mr-3"></span>
-                            <span class="font-medium text-gray-900">View Schedule</span>
-                        </div>
-                        <span class="fas fa-arrow-right text-yellow-500"></span>
-                    </a>
-
-                    <a href="/dean/faculty" class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors border border-yellow-200">
-                        <div class="flex items-center">
-                            <span class="fas fa-users text-yellow-600 text-lg mr-3"></span>
-                            <span class="font-medium text-gray-900">Manage Faculty</span>
-                        </div>
-                        <span class="fas fa-arrow-right text-yellow-500"></span>
-                    </a>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
 
-            <!-- Recent Activity -->
-            <div class="bg-white p-6 rounded-xl border border-yellow-200 shadow-sm">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Recent Activity</h3>
-                    <span class="fas fa-bell text-yellow-500"></span>
-                </div>
-                <div class="space-y-3">
-                    <?php if (!empty($activities)): ?>
-                        <?php foreach (array_slice($activities, 0, 4) as $activity): ?>
-                            <div class="flex items-start space-x-3">
-                                <div class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                    <span class="fas fa-user text-yellow-600 text-sm"></span>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm text-gray-900 truncate"><?php echo htmlspecialchars($activity['description'] ?? 'Activity'); ?></p>
-                                    <p class="text-xs text-gray-500 mt-1"><?php echo date('h:i A', strtotime($activity['created_at'] ?? 'now')); ?></p>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div class="text-center py-4 text-gray-400">
-                            <span class="fas fa-inbox text-lg mb-1"></span>
-                            <p class="text-sm">No recent activity</p>
+            <!-- Right Sidebar -->
+            <div class="space-y-8">
+
+                <!-- Approval Status -->
+                <?php if (!empty($scheduleApprovalStatus)): ?>
+                    <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.5s">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-gray-900">Approval Status</h3>
+                            <i class="fas fa-tasks text-yellow-600"></i>
                         </div>
-                    <?php endif; ?>
+                        <div class="space-y-4">
+                            <?php foreach ($scheduleApprovalStatus as $status): ?>
+                                <?php
+                                $statusConfig = [
+                                    'pending' => ['bg-yellow-500', 'text-white', 'fas fa-clock', 'Pending Review'],
+                                    'approved' => ['bg-green-500', 'text-white', 'fas fa-check-circle', 'Approved'],
+                                    'rejected' => ['bg-red-500', 'text-white', 'fas fa-times-circle', 'Rejected']
+                                ];
+                                $config = $statusConfig[$status['status']] ?? ['bg-gray-500', 'text-white', 'fas fa-question', ucfirst($status['status'])];
+                                ?>
+                                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 hover-scale">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-12 h-12 <?php echo $config[0]; ?> rounded-xl flex items-center justify-center shadow-lg">
+                                            <i class="<?php echo $config[2]; ?> <?php echo $config[1]; ?>"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-gray-900"><?php echo $config[3]; ?></p>
+                                            <p class="text-xs text-gray-500">Last 30 days</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-2xl font-bold text-gray-900"><?php echo $status['count']; ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Quick Actions -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <i class="fas fa-bolt text-yellow-600"></i>
+                        Quick Actions
+                    </h3>
+                    <div class="space-y-3">
+                        <a href="/dean/manage_schedules" class="action-button w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white px-4 py-3 rounded-xl transition duration-200 flex items-center justify-center font-semibold shadow-lg shadow-yellow-500/30">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Review Approvals
+                        </a>
+
+                        <a href="/dean/schedule" class="action-button w-full bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 px-4 py-3 rounded-xl transition duration-200 flex items-center justify-center font-semibold">
+                            <i class="fas fa-calendar-alt mr-2"></i>
+                            View Schedule
+                        </a>
+
+                        <a href="/dean/faculty" class="action-button w-full bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 px-4 py-3 rounded-xl transition duration-200 flex items-center justify-center font-semibold">
+                            <i class="fas fa-users mr-2"></i>
+                            Manage Faculty
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.7s">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-gray-900">Recent Activity</h3>
+                        <i class="fas fa-bell text-yellow-600"></i>
+                    </div>
+                    <div class="space-y-3">
+                        <?php if (!empty($activities)): ?>
+                            <?php foreach (array_slice($activities, 0, 5) as $activity): ?>
+                                <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-bolt text-white text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm text-gray-900 font-medium truncate"><?php echo htmlspecialchars($activity['description'] ?? 'Activity'); ?></p>
+                                        <p class="text-xs text-gray-500 mt-1"><?php echo date('M d, h:i A', strtotime($activity['created_at'] ?? 'now')); ?></p>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fas fa-inbox text-xl mb-1"></i>
+                                <p class="text-sm">No recent activity</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Schedule Distribution Chart - Bar Chart
-        const scheduleCtx = document.getElementById('scheduleDistributionChart');
-        if (scheduleCtx) {
-            <?php if (!empty($scheduleDistribution)): ?>
-                new Chart(scheduleCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: <?php echo json_encode(array_column($scheduleDistribution, 'day_of_week')); ?>,
-                        datasets: [{
-                            label: 'Number of Schedules',
-                            data: <?php echo json_encode(array_column($scheduleDistribution, 'schedule_count')); ?>,
-                            backgroundColor: [
-                                '#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FEF3C7', '#FEF7CD', '#FFFBEB'
-                            ],
-                            borderColor: '#D97706',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // Faculty Workload Chart
+            const workloadCtx = document.getElementById('facultyWorkloadChart');
+            if (workloadCtx) {
+                <?php if (!empty($facultyWorkload)): ?>
+                    const facultyNames = <?php echo json_encode(array_map(function ($f) {
+                                                return strlen($f['faculty_name']) > 20 ? substr($f['faculty_name'], 0, 20) . '...' : $f['faculty_name'];
+                                            }, $facultyWorkload)); ?>;
+                    const teachingHours = <?php echo json_encode(array_map(function ($f) {
+                                                return round($f['total_hours'] ?? 0, 1);
+                                            }, $facultyWorkload)); ?>;
+
+                    const workloadColors = teachingHours.map(hours => {
+                        if (hours < 12) return '#10b981';
+                        if (hours <= 24) return '#3b82f6';
+                        return '#ef4444';
+                    });
+
+                    new Chart(workloadCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: facultyNames,
+                            datasets: [{
+                                label: 'Teaching Hours',
+                                data: teachingHours,
+                                backgroundColor: workloadColors,
+                                borderRadius: 8,
+                                barThickness: 24
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    backgroundColor: '#1f2937',
+                                    padding: 12,
+                                    titleColor: '#f3f4f6',
+                                    bodyColor: '#d1d5db',
+                                    borderColor: '#f59e0b',
+                                    borderWidth: 1,
+                                    cornerRadius: 8,
+                                    callbacks: {
+                                        label: function(ctx) {
+                                            const hours = ctx.parsed.x;
+                                            let status = hours < 12 ? 'Light Load' : hours <= 24 ? 'Optimal Load' : 'Heavy Load';
+                                            return [`${hours}h per week`, status];
+                                        }
+                                    }
+                                }
                             },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `Schedules: ${context.parsed.y}`;
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    grid: {
+                                        color: '#f3f4f6',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        callback: v => v + 'h',
+                                        color: '#6b7280'
+                                    }
+                                },
+                                y: {
+                                    grid: {
+                                        display: false
+                                    },
+                                    ticks: {
+                                        color: '#374151',
+                                        font: {
+                                            size: 11
+                                        }
                                     }
                                 }
                             }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Number of Schedules'
-                                },
-                                ticks: {
-                                    stepSize: 1
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Day of Week'
-                                }
-                            }
                         }
-                    }
-                });
-            <?php endif; ?>
-        }
+                    });
+                <?php endif; ?>
+            }
 
-        // Classroom Availability Chart - Horizontal Bar Chart
-        const classroomCtx = document.getElementById('classroomAvailabilityChart');
-        if (classroomCtx) {
-            <?php if (!empty($classroomAvailability)): ?>
-                // Group classrooms by usage level
-                const usageLevels = {
-                    'Available': 0,
-                    'Moderate': 0,
-                    'Heavy': 0
-                };
+            // Classroom Utilization Chart
+            const classroomCtx = document.getElementById('classroomUtilizationChart');
+            if (classroomCtx) {
+                <?php if (!empty($classroomUtilization)): ?>
+                    const roomNames = <?php echo json_encode(array_map(function ($r) {
+                                            return strlen($r['room_name']) > 15 ? substr($r['room_name'], 0, 15) . '...' : $r['room_name'];
+                                        }, $classroomUtilization)); ?>;
+                    const utilRates = <?php echo json_encode(array_column($classroomUtilization, 'utilization_rate')); ?>;
 
-                <?php foreach ($classroomAvailability as $classroom): ?>
-                    usageLevels['<?php echo $classroom['usage_level']; ?>']++;
-                <?php endforeach; ?>
+                    const utilColors = utilRates.map(rate => {
+                        if (rate < 30) return '#10b981';
+                        if (rate < 60) return '#f59e0b';
+                        return '#ef4444';
+                    });
 
-                new Chart(classroomCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Available', 'Moderate', 'Heavy'],
-                        datasets: [{
-                            label: 'Classrooms',
-                            data: [usageLevels['Available'], usageLevels['Moderate'], usageLevels['Heavy']],
-                            backgroundColor: [
-                                '#10B981', // Green for available
-                                '#F59E0B', // Yellow for moderate
-                                '#EF4444' // Red for heavy
-                            ],
-                            borderColor: [
-                                '#047857',
-                                '#D97706',
-                                '#DC2626'
-                            ],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
+                    new Chart(classroomCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: roomNames,
+                            datasets: [{
+                                label: 'Utilization %',
+                                data: utilRates,
+                                backgroundColor: utilColors,
+                                borderRadius: 8,
+                                barThickness: 22
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    backgroundColor: '#1f2937',
+                                    padding: 12,
+                                    borderColor: '#f59e0b',
+                                    borderWidth: 1,
+                                    cornerRadius: 8,
+                                    callbacks: {
+                                        label: ctx => `${ctx.parsed.x}% utilized`
+                                    }
+                                }
                             },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.parsed.x} classrooms`;
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    grid: {
+                                        color: '#f3f4f6',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        callback: v => v + '%',
+                                        color: '#6b7280'
+                                    }
+                                },
+                                y: {
+                                    grid: {
+                                        display: false
+                                    },
+                                    ticks: {
+                                        color: '#374151',
+                                        font: {
+                                            size: 11
+                                        }
                                     }
                                 }
                             }
-                        },
-                        scales: {
-                            x: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Number of Classrooms'
-                                },
-                                ticks: {
-                                    stepSize: 1
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Usage Level'
-                                }
-                            }
                         }
-                    }
-                });
-            <?php endif; ?>
-        }
-    });
-</script>
+                    });
+                <?php endif; ?>
+            }
+        });
+    </script>
+
+</body>
+
+</html>
 
 <?php
 $content = ob_get_clean();

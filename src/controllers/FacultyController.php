@@ -65,36 +65,48 @@ class FacultyController
             $pendingRequests = $pendingRequestsStmt->fetchColumn();
 
             $recentSchedulesStmt = $this->db->prepare("
-                  SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, sec.section_name
-                  FROM schedules s
-                  JOIN courses c ON s.course_id = c.course_id
-                  LEFT JOIN sections sec ON s.section_id = sec.section_id
-                  LEFT JOIN classrooms r ON s.room_id = r.room_id
-                  WHERE s.faculty_id = :faculty_id
-                  ORDER BY s.created_at DESC
-                  LIMIT 5
-              ");
+            SELECT s.schedule_id, c.course_code, c.course_name, r.room_name, s.day_of_week, s.start_time, s.end_time, s.schedule_type, sec.section_name
+            FROM schedules s
+            JOIN courses c ON s.course_id = c.course_id
+            LEFT JOIN sections sec ON s.section_id = sec.section_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            WHERE s.faculty_id = :faculty_id
+            ORDER BY s.created_at DESC
+            LIMIT 5
+        ");
             $recentSchedulesStmt->execute([':faculty_id' => $facultyId]);
             $recentSchedules = $recentSchedulesStmt->fetchAll(PDO::FETCH_ASSOC);
             error_log("dashboard: Fetched " . count($recentSchedules) . " recent schedules for faculty_id $facultyId");
 
-            $scheduleDistStmt = $this->db->prepare("
-                  SELECT s.day_of_week, COUNT(*) as count 
-                  FROM schedules s 
-                  WHERE s.faculty_id = :faculty_id 
-                  GROUP BY s.day_of_week
-              ");
-            $scheduleDistStmt->execute([':faculty_id' => $facultyId]);
-            $scheduleDistData = $scheduleDistStmt->fetchAll(PDO::FETCH_ASSOC);
+            // NEW: Teaching Hours Distribution (Option 1)
+            $teachingHoursStmt = $this->db->prepare("
+            SELECT 
+                s.day_of_week,
+                SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) as total_hours,
+                COUNT(*) as class_count
+            FROM schedules s 
+            WHERE s.faculty_id = :faculty_id 
+            GROUP BY s.day_of_week
+        ");
+            $teachingHoursStmt->execute([':faculty_id' => $facultyId]);
+            $teachingHoursData = $teachingHoursStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            $scheduleDist = array_fill_keys($days, 0);
-            foreach ($scheduleDistData as $row) {
-                $scheduleDist[$row['day_of_week']] = (int)$row['count'];
-            }
-            $scheduleDistJson = json_encode(array_values($scheduleDist));
+            $teachingHours = array_fill_keys($days, 0);
+            $classCount = array_fill_keys($days, 0);
 
-            // Pass variables to the view instead of a single $content string
+            foreach ($teachingHoursData as $row) {
+                $teachingHours[$row['day_of_week']] = round((float)$row['total_hours'], 1);
+                $classCount[$row['day_of_week']] = (int)$row['class_count'];
+            }
+
+            $teachingHoursJson = json_encode(array_values($teachingHours));
+            $classCountJson = json_encode(array_values($classCount));
+
+            // Calculate total weekly hours
+            $totalWeeklyHours = array_sum($teachingHours);
+
+            // Pass variables to the view
             require_once __DIR__ . '/../views/faculty/dashboard.php';
         } catch (Exception $e) {
             error_log("dashboard: Full error: " . $e->getMessage());

@@ -138,10 +138,10 @@ class DeanController extends BaseController
 
         // Get college details for the dean
         $query = "
-        SELECT d.college_id, c.college_name 
-        FROM deans d
-        JOIN colleges c ON d.college_id = c.college_id
-        WHERE d.user_id = :user_id AND d.is_current = 1";
+    SELECT d.college_id, c.college_name 
+    FROM deans d
+    JOIN colleges c ON d.college_id = c.college_id
+    WHERE d.user_id = :user_id AND d.is_current = 1";
         $stmt = $this->db->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         $college = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -168,29 +168,29 @@ class DeanController extends BaseController
 
         if ($faculty) {
             $scheduleQuery = "
-            SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year,
-            CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
-            GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
-                    CASE s.day_of_week 
-                        WHEN 'Monday' THEN 1
-                        WHEN 'Tuesday' THEN 2
-                        WHEN 'Wednesday' THEN 3
-                        WHEN 'Thursday' THEN 4
-                        WHEN 'Friday' THEN 5
-                        WHEN 'Saturday' THEN 6
-                        WHEN 'Sunday' THEN 7
-                    END
-                    SEPARATOR ', '
-                ) as day_of_week
-            FROM schedules s
-            JOIN courses c ON s.course_id = c.course_id
-             JOIN faculty f ON s.faculty_id = f.faculty_id
-             JOIN users u ON f.user_id = u.user_id
-            LEFT JOIN sections sec ON s.section_id = sec.section_id
-            LEFT JOIN classrooms r ON s.room_id = r.room_id
-            JOIN semesters se ON s.semester_id = se.semester_id
-            WHERE s.faculty_id = :faculty_id AND se.is_current = 1
-            ORDER BY s.day_of_week, s.start_time";
+        SELECT s.*, c.course_code, c.course_name, r.room_name, se.semester_name, se.academic_year,
+        CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name, 
+        GROUP_CONCAT(DISTINCT s.day_of_week ORDER BY 
+                CASE s.day_of_week 
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END
+                SEPARATOR ', '
+            ) as day_of_week
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.course_id
+         JOIN faculty f ON s.faculty_id = f.faculty_id
+         JOIN users u ON f.user_id = u.user_id
+        LEFT JOIN sections sec ON s.section_id = sec.section_id
+        LEFT JOIN classrooms r ON s.room_id = r.room_id
+        JOIN semesters se ON s.semester_id = se.semester_id
+        WHERE s.faculty_id = :faculty_id AND se.is_current = 1
+        ORDER BY s.day_of_week, s.start_time";
             $scheduleStmt = $this->db->prepare($scheduleQuery);
             $scheduleStmt->execute([':faculty_id' => $faculty['faculty_id']]);
             $schedules = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -211,23 +211,24 @@ class DeanController extends BaseController
         $activities = $this->getDepartmentActivities($college['college_id']);
         $departmentLogins = $this->getDepartmentLogins($college['college_id']);
 
-        // NEW: Fetch department overview with faculty count
+        // ENHANCED CHARTS - More functional for Dean
+
+        // 1. Faculty Workload Distribution (NEW - Most Important)
+        $facultyWorkload = $this->getFacultyWorkloadDistribution($college['college_id']);
+
+        // 2. Department Performance Comparison (NEW - Very Useful)
+        $departmentPerformance = $this->getDepartmentPerformance($college['college_id']);
+
+        // 3. Classroom Utilization Rate (IMPROVED - Better than old one)
+        $classroomUtilization = $this->getClassroomUtilizationRate($college['college_id']);
+
+        // 4. Schedule Approval Status (NEW - Action Required)
+        $scheduleApprovalStatus = $this->getScheduleApprovalStatus($college['college_id']);
+
+        // Keep existing useful data
         $departmentOverview = $this->getDepartmentOverview($college['college_id']);
-
-        // NEW: Fetch faculty distribution by department
         $facultyDistribution = $this->getFacultyDistribution($college['college_id']);
-
-        // NEW: Fetch classroom utilization
-        $classroomUtilization = $this->getClassroomUtilization($college['college_id']);
-
-        // NEW: Fetch recent schedule changes
         $recentScheduleChanges = $this->getRecentScheduleChanges($college['college_id']);
-
-        // NEW: Fetch schedule distribution by day
-        $scheduleDistribution = $this->getScheduleDistribution($college['college_id']);
-
-        // NEW: Fetch classroom availability
-        $classroomAvailability = $this->getClassroomAvailability($college['college_id']);
 
         // Pass all data to the view
         $currentSemester = $currentSemesterDisplay;
@@ -235,67 +236,33 @@ class DeanController extends BaseController
     }
 
     /**
-     * Get classroom availability statistics
+     * NEW: Get faculty workload distribution
+     * Shows how teaching hours are distributed across faculty
      */
-    private function getClassroomAvailability($collegeId)
+    private function getFacultyWorkloadDistribution($collegeId)
     {
         $query = "
-        SELECT 
-            c.room_name,
-            c.capacity,
-            c.room_type,
-            COUNT(s.schedule_id) as scheduled_hours,
-            CASE 
-                WHEN COUNT(s.schedule_id) = 0 THEN 'Available'
-                WHEN COUNT(s.schedule_id) < 4 THEN 'Moderate'
-                ELSE 'Heavy'
-            END as usage_level
-        FROM classrooms c
-        JOIN departments d ON c.department_id = d.department_id
-        LEFT JOIN schedules s ON c.room_id = s.room_id 
-            AND s.semester_id IN (SELECT semester_id FROM semesters WHERE is_current = 1)
-        WHERE d.college_id = :college_id
-        GROUP BY c.room_id, c.room_name, c.capacity, c.room_type
-        ORDER BY scheduled_hours DESC, c.room_name
-        ";
-
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([':college_id' => $collegeId]);
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Debug: Log the result
-        error_log("Classroom Availability Query Result: " . print_r($result, true));
-
-        return $result;
-    }
-
-    private function getScheduleDistribution($collegeId)
-    {
-        $query = "
-        SELECT 
-            s.day_of_week,
-            COUNT(*) as schedule_count
-        FROM schedules s
-        JOIN faculty f ON s.faculty_id = f.faculty_id
-        JOIN departments d ON s.department_id = d.department_id
-        JOIN users u ON f.user_id = u.user_id
-        JOIN semesters sem ON s.semester_id = sem.semester_id
-        WHERE d.college_id = :college_id 
-        AND sem.is_current = 1
-        AND s.day_of_week IS NOT NULL
-        AND s.day_of_week != ''
-        GROUP BY s.day_of_week
-        ORDER BY 
-            CASE s.day_of_week 
-                WHEN 'Monday' THEN 1
-                WHEN 'Tuesday' THEN 2
-                WHEN 'Wednesday' THEN 3
-                WHEN 'Thursday' THEN 4
-                WHEN 'Friday' THEN 5
-                WHEN 'Saturday' THEN 6
-                WHEN 'Sunday' THEN 7
-            END
-        ";
+    SELECT 
+        CONCAT(u.first_name, ' ', u.last_name) as faculty_name,
+        d.department_name,
+        COUNT(DISTINCT s.schedule_id) as class_count,
+        SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) as total_hours,
+        CASE 
+            WHEN SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) < 12 THEN 'Underutilized'
+            WHEN SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) BETWEEN 12 AND 24 THEN 'Optimal'
+            ELSE 'Overloaded'
+        END as workload_status
+    FROM faculty f
+    JOIN users u ON f.user_id = u.user_id
+    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+    JOIN departments d ON fd.department_id = d.department_id
+    LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+        AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
+    WHERE d.college_id = :college_id
+    GROUP BY f.faculty_id, u.first_name, u.last_name, d.department_name
+    ORDER BY total_hours DESC
+    LIMIT 15
+    ";
 
         $stmt = $this->db->prepare($query);
         $stmt->execute([':college_id' => $collegeId]);
@@ -303,107 +270,161 @@ class DeanController extends BaseController
     }
 
     /**
-     * Get department overview with faculty and course counts
+     * NEW: Get department performance comparison
+     * Shows comparative metrics for each department
      */
+    private function getDepartmentPerformance($collegeId)
+    {
+        $query = "
+    SELECT 
+        d.department_name,
+        COUNT(DISTINCT f.faculty_id) as faculty_count,
+        COUNT(DISTINCT s.schedule_id) as schedule_count,
+        COUNT(DISTINCT c.course_id) as course_count,
+        ROUND(COUNT(DISTINCT s.schedule_id) / NULLIF(COUNT(DISTINCT f.faculty_id), 0), 2) as avg_load_per_faculty
+    FROM departments d
+    LEFT JOIN faculty_departments fd ON d.department_id = fd.department_id
+    LEFT JOIN faculty f ON fd.faculty_id = f.faculty_id
+    LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+        AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
+    LEFT JOIN courses c ON d.department_id = c.department_id
+    WHERE d.college_id = :college_id
+    GROUP BY d.department_id, d.department_name
+    ORDER BY d.department_name
+    ";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * IMPROVED: Get classroom utilization rate (percentage-based)
+     * Better than the old "Available/Moderate/Heavy" chart
+     */
+    private function getClassroomUtilizationRate($collegeId)
+    {
+        $query = "
+    SELECT 
+        r.room_name,
+        r.room_type,
+        r.capacity,
+        COUNT(DISTINCT s.schedule_id) as scheduled_classes,
+        COUNT(DISTINCT CONCAT(s.day_of_week, s.start_time)) as time_slots_used,
+        -- Assuming 6 days x 10 hours = 60 possible time slots per week
+        ROUND((COUNT(DISTINCT CONCAT(s.day_of_week, s.start_time)) / 60.0) * 100, 1) as utilization_rate
+    FROM classrooms r
+    JOIN departments d ON r.department_id = d.department_id
+    LEFT JOIN schedules s ON r.room_id = s.room_id 
+        AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
+    WHERE d.college_id = :college_id
+    GROUP BY r.room_id, r.room_name, r.room_type, r.capacity
+    ORDER BY utilization_rate DESC
+    LIMIT 12
+    ";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * NEW: Get schedule approval status
+     * Shows what needs dean's attention
+     */
+    private function getScheduleApprovalStatus($collegeId)
+    {
+        $query = "
+    SELECT 
+        sr.status,
+        COUNT(*) as count
+    FROM schedule_requests sr
+    JOIN faculty f ON sr.faculty_id = f.faculty_id
+    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+    JOIN departments d ON fd.department_id = d.department_id
+    WHERE d.college_id = :college_id
+    AND sr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    GROUP BY sr.status
+    ORDER BY 
+        CASE sr.status
+            WHEN 'pending' THEN 1
+            WHEN 'approved' THEN 2
+            WHEN 'rejected' THEN 3
+            ELSE 4
+        END
+    ";
+
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([':college_id' => $collegeId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Keep existing helper methods
     private function getDepartmentOverview($collegeId)
     {
         $query = "
-        SELECT 
-            d.department_id,
-            d.department_name,
-          
-            COUNT(DISTINCT fd.faculty_id) as faculty_count,
-            COUNT(DISTINCT c.course_id) as course_count,
-            COUNT(DISTINCT s.schedule_id) as active_schedules
-        FROM departments d
-        LEFT JOIN faculty_departments fd ON d.department_id = fd.department_id
-        LEFT JOIN courses c ON d.department_id = c.department_id
-        LEFT JOIN schedules s ON c.course_id = s.course_id AND s.semester_id = (
-            SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1
-        )
-        WHERE d.college_id = :college_id
-        GROUP BY d.department_id, d.department_name
-        ORDER BY d.department_name";
+    SELECT 
+        d.department_id,
+        d.department_name,
+        COUNT(DISTINCT fd.faculty_id) as faculty_count,
+        COUNT(DISTINCT c.course_id) as course_count,
+        COUNT(DISTINCT s.schedule_id) as active_schedules
+    FROM departments d
+    LEFT JOIN faculty_departments fd ON d.department_id = fd.department_id
+    LEFT JOIN courses c ON d.department_id = c.department_id
+    LEFT JOIN schedules s ON c.course_id = s.course_id AND s.semester_id = (
+        SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1
+    )
+    WHERE d.college_id = :college_id
+    GROUP BY d.department_id, d.department_name
+    ORDER BY d.department_name";
 
         $stmt = $this->db->prepare($query);
         $stmt->execute([':college_id' => $collegeId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Get faculty distribution by employment type for this college
-     */
     private function getFacultyDistribution($collegeId)
     {
         $query = "
-        SELECT 
-            f.employment_type,
-            COUNT(DISTINCT f.faculty_id) as count
-        FROM faculty f
-        JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-        JOIN departments d ON fd.department_id = d.department_id
-        WHERE d.college_id = :college_id
-        GROUP BY f.employment_type
-        ORDER BY count DESC";
+    SELECT 
+        f.employment_type,
+        COUNT(DISTINCT f.faculty_id) as count
+    FROM faculty f
+    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+    JOIN departments d ON fd.department_id = d.department_id
+    WHERE d.college_id = :college_id
+    GROUP BY f.employment_type
+    ORDER BY count DESC";
 
         $stmt = $this->db->prepare($query);
         $stmt->execute([':college_id' => $collegeId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Get classroom utilization statistics
-     */
-    private function getClassroomUtilization($collegeId)
-    {
-        $query = "
-        SELECT 
-            r.room_id,
-            r.room_name,
-            r.capacity,
-            COUNT(DISTINCT s.schedule_id) as total_schedules,
-            COUNT(DISTINCT s.day_of_week) as days_used
-        FROM classrooms r
-        JOIN departments d ON r.department_id = d.department_id
-        LEFT JOIN schedules s ON r.room_id = s.room_id AND s.semester_id = (
-            SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1
-        )
-        WHERE d.college_id = :college_id
-        GROUP BY r.room_id, r.room_name, r.capacity
-        ORDER BY total_schedules DESC
-        LIMIT 10";
-
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([':college_id' => $collegeId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    /**
-     * Get recent schedule changes
-     */
     private function getRecentScheduleChanges($collegeId)
     {
         $query = "
-        SELECT 
-            s.schedule_id,
-            c.course_code,
-            c.course_name,
-            CONCAT(u.first_name, ' ', u.last_name) as faculty_name,
-            r.room_name,
-            s.day_of_week,
-            s.start_time,
-            s.end_time,
-            s.updated_at
-        FROM schedules s
-        JOIN courses c ON s.course_id = c.course_id
-        JOIN faculty f ON s.faculty_id = f.faculty_id
-        JOIN users u ON f.user_id = u.user_id
-        JOIN departments d ON c.department_id = d.department_id
-        LEFT JOIN classrooms r ON s.room_id = r.room_id
-        WHERE d.college_id = :college_id 
-        AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
-        ORDER BY s.updated_at DESC
-        LIMIT 5";
+    SELECT 
+        s.schedule_id,
+        c.course_code,
+        c.course_name,
+        CONCAT(u.first_name, ' ', u.last_name) as faculty_name,
+        r.room_name,
+        s.day_of_week,
+        s.start_time,
+        s.end_time,
+        s.updated_at
+    FROM schedules s
+    JOIN courses c ON s.course_id = c.course_id
+    JOIN faculty f ON s.faculty_id = f.faculty_id
+    JOIN users u ON f.user_id = u.user_id
+    JOIN departments d ON c.department_id = d.department_id
+    LEFT JOIN classrooms r ON s.room_id = r.room_id
+    WHERE d.college_id = :college_id 
+    AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
+    ORDER BY s.updated_at DESC
+    LIMIT 5";
 
         $stmt = $this->db->prepare($query);
         $stmt->execute([':college_id' => $collegeId]);
