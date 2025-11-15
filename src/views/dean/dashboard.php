@@ -443,28 +443,89 @@ ob_start();
                 </div>
 
                 <!-- Recent Activity -->
-                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.7s">
+                <div class="glass-card rounded-3xl p-6 animate-slide-in" style="animation-delay: 1.1s">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-bold text-gray-900">Recent Activity</h3>
-                        <i class="fas fa-bell text-yellow-600"></i>
+                        <h3 class="text-xl font-bold text-gray-900">Recent Activity</h3>
+                        <i class="fas fa-bell text-orange-600 text-xl"></i>
                     </div>
-                    <div class="space-y-3">
+                    <div class="space-y-3" id="activityFeed">
                         <?php if (!empty($activities)): ?>
-                            <?php foreach (array_slice($activities, 0, 5) as $activity): ?>
-                                <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                    <div class="w-8 h-8 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <i class="fas fa-bolt text-white text-xs"></i>
+                            <?php
+                            // Helper function to get activity icon
+                            function getActivityIcon($source)
+                            {
+                                $icons = [
+                                    'schedule_update' => 'fa-calendar-edit',
+                                    'schedule_request' => 'fa-clipboard-check',
+                                    'faculty_assignment' => 'fa-user-plus',
+                                    'course_addition' => 'fa-book-plus',
+                                    'activity_log' => 'fa-history'
+                                ];
+                                return $icons[$source] ?? 'fa-bolt';
+                            }
+
+                            // Helper function to get activity color
+                            function getActivityColor($source)
+                            {
+                                $colors = [
+                                    'schedule_update' => 'from-blue-500 to-blue-600',
+                                    'schedule_request' => 'from-green-500 to-green-600',
+                                    'faculty_assignment' => 'from-purple-500 to-purple-600',
+                                    'course_addition' => 'from-yellow-500 to-yellow-600',
+                                    'activity_log' => 'from-gray-500 to-gray-600'
+                                ];
+                                return $colors[$source] ?? 'from-orange-500 to-orange-600';
+                            }
+                            ?>
+                            <?php foreach (array_slice($activities, 0, 8) as $index => $activity): ?>
+                                <?php
+                                $source = $activity['source'] ?? 'activity_log';
+                                $icon = getActivityIcon($source);
+                                $color = getActivityColor($source);
+                                ?>
+                                <div class="dept-card p-4 rounded-xl flex items-start gap-3 hover:shadow-md transition-all">
+                                    <div class="w-10 h-10 bg-gradient-to-br <?php echo $color; ?> rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                                        <i class="fas <?php echo $icon; ?> text-white text-sm"></i>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <p class="text-sm text-gray-900 font-medium truncate"><?php echo htmlspecialchars($activity['description'] ?? 'Activity'); ?></p>
-                                        <p class="text-xs text-gray-500 mt-1"><?php echo date('M d, h:i A', strtotime($activity['created_at'] ?? 'now')); ?></p>
+                                        <p class="text-sm text-gray-900 font-semibold line-clamp-2">
+                                            <?php echo htmlspecialchars($activity['description'] ?? 'Activity'); ?>
+                                        </p>
+                                        <div class="flex items-center gap-3 mt-1">
+                                            <?php if (!empty($activity['department_name'])): ?>
+                                                <span class="text-xs text-purple-600 font-medium">
+                                                    <i class="fas fa-building text-xs mr-1"></i>
+                                                    <?php echo htmlspecialchars($activity['department_name']); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            <span class="text-xs text-gray-500 flex items-center gap-1">
+                                                <i class="fas fa-clock text-xs"></i>
+                                                <?php
+                                                $timestamp = strtotime($activity['created_at'] ?? 'now');
+                                                $now = time();
+                                                $diff = $now - $timestamp;
+
+                                                if ($diff < 3600) {
+                                                    echo floor($diff / 60) . ' min ago';
+                                                } elseif ($diff < 86400) {
+                                                    echo floor($diff / 3600) . ' hrs ago';
+                                                } else {
+                                                    echo date('M d, h:i A', $timestamp);
+                                                }
+                                                ?>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
+                            <a href="/dean/activities" class="block text-center text-sm font-semibold text-purple-600 hover:text-purple-700 mt-4 transition-colors">
+                                View All Activity →
+                            </a>
                         <?php else: ?>
                             <div class="text-center py-8 text-gray-400">
-                                <i class="fas fa-inbox text-xl mb-1"></i>
-                                <p class="text-sm">No recent activity</p>
+                                <i class="fas fa-inbox text-4xl mb-2 opacity-50"></i>
+                                <p class="text-sm font-semibold">No recent activity</p>
+                                <p class="text-xs mt-1">Activities will appear here as they occur</p>
                             </div>
                         <?php endif; ?>
                     </div>
