@@ -446,112 +446,503 @@ function generateSchedules() {
     });
 }
 
-// IMPROVED: Update UI after generation with proper data flow
+// ✅ ENHANCED TRANSFORMER - Splits ALL time slots from combined strings
+
+// Parse all time slots from combined string
+function parseAllTimeSlots(timeString, roomString) {
+  console.log("🔍 Parsing time string:", timeString);
+  console.log("🔍 Room string:", roomString);
+  
+  const slots = [];
+  
+  // Split by semicolon first (multiple time slots)
+  const segments = timeString.split(';');
+  
+  segments.forEach(segment => {
+    segment = segment.trim();
+    if (!segment) return;
+    
+    console.log("  📝 Processing segment:", segment);
+    
+    // Pattern: "MWF 7:30-8:30 am Room 1" or "T 10:30 am-12:30 pm Laboratory 1"
+    // Or just: "7:30-8:30 am Room 1" (days from parent)
+    
+    // Extract days from this segment (or use parent days)
+    let days = null;
+    let remainingSegment = segment;
+    
+    // Check if segment starts with day codes
+    const dayCodeMatch = segment.match(/^([MTWFS]+|TTH|TH)\s+/);
+    if (dayCodeMatch) {
+      days = parseDays(dayCodeMatch[1]);
+      remainingSegment = segment.substring(dayCodeMatch[0].length);
+    }
+    
+    // Extract time: handles both "7:30-8:30 am" and "10:30 am-12:30 pm"
+    const timeMatch = remainingSegment.match(/(\d{1,2}:\d{2})\s*(?:am|pm)?\s*-\s*(\d{1,2}:\d{2})\s*(am|pm)/i);
+    
+    if (!timeMatch) {
+      console.warn("  ⚠️ No time match in:", remainingSegment);
+      return;
+    }
+    
+    let startTime = timeMatch[1];
+    let endTime = timeMatch[2];
+    const period = timeMatch[3].toLowerCase();
+    
+    // Check if start time has am/pm, if not, use end time's period
+    const startHasPeriod = remainingSegment.match(new RegExp(startTime + '\\s*(am|pm)', 'i'));
+    const startPeriod = startHasPeriod ? startHasPeriod[1].toLowerCase() : period;
+    
+    startTime = convertTo24Hour(startTime, startPeriod);
+    endTime = convertTo24Hour(endTime, period);
+    
+    // Extract room from this segment
+    let room = 'Online';
+    const roomMatch = remainingSegment.match(/(Room|Laboratory|Lab)\s+\d+/i);
+    if (roomMatch) {
+      room = roomMatch[0];
+    } else if (remainingSegment.toLowerCase().includes('online')) {
+      room = 'Online';
+    } else {
+      // Try to extract from end of string
+      const parts = remainingSegment.split(/\s+/);
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.length > 0) {
+        // Reconstruct truncated room names
+        if (roomString && roomString.startsWith('om ')) {
+          room = 'Room ' + roomString.substring(3);
+        } else if (roomString && roomString.startsWith('ry ')) {
+          room = 'Laboratory ' + roomString.substring(3);
+        } else if (roomString && roomString !== 'line') {
+          room = roomString;
+        }
+      }
+    }
+    
+    slots.push({
+      days: days,
+      startTime: startTime,
+      endTime: endTime,
+      room: room
+    });
+    
+    console.log("  ✅ Extracted slot:", {
+      days: days ? days.join(', ') : 'inherit',
+      startTime,
+      endTime,
+      room
+    });
+  });
+  
+  console.log(`✅ Total slots extracted: ${slots.length}`);
+  return slots;
+}
+
+// ✅ NEW: Get sections data with proper mapping
+function getSectionsForSchedule(backendSchedule) {
+  // Try multiple sources for section information
+  let sections = [];
+  
+  // 1. Direct section field
+  if (backendSchedule.section) {
+    sections = Array.isArray(backendSchedule.section) 
+      ? backendSchedule.section 
+      : [backendSchedule.section];
+  }
+  
+  // 2. Section name field
+  if (!sections.length && backendSchedule.section_name) {
+    sections = [backendSchedule.section_name];
+  }
+  
+  // 3. Sections array
+  if (!sections.length && backendSchedule.sections) {
+    sections = Array.isArray(backendSchedule.sections) 
+      ? backendSchedule.sections 
+      : [backendSchedule.sections];
+  }
+  
+  // 4. From sectionsData based on year level
+  if (!sections.length && backendSchedule.year_level && window.sectionsData) {
+    const yearLevel = backendSchedule.year_level;
+    const matchingSections = window.sectionsData.filter(s => 
+      s.year_level === yearLevel || 
+      s.year_level?.toLowerCase() === yearLevel?.toLowerCase()
+    );
+    
+    if (matchingSections.length > 0) {
+      sections = matchingSections.map(s => s.section_name);
+      console.log(`📚 Found ${sections.length} sections for ${yearLevel}:`, sections);
+    }
+  }
+  
+  // 5. Fallback: get all sections for current semester
+  if (!sections.length && window.sectionsData && window.sectionsData.length > 0) {
+    sections = window.sectionsData.slice(0, 3).map(s => s.section_name); // Limit to first 3
+    console.warn(`⚠️ No section mapping found, using default sections:`, sections);
+  }
+  
+  // 6. Ultimate fallback
+  if (!sections.length) {
+    sections = ['Section A'];
+    console.warn(`⚠️ No sections available, using fallback: Section A`);
+  }
+  
+  return sections;
+}
+
+// ✅ NEW: Get year level from course code or other sources
+function getYearLevel(backendSchedule) {
+  // Try direct year_level field
+  if (backendSchedule.year_level) {
+    return backendSchedule.year_level;
+  }
+  
+  // Try to extract from course code (e.g., "CC 101" = 1st year)
+  const courseCode = backendSchedule.course_code || '';
+  const numberMatch = courseCode.match(/(\d)0\d/); // Matches 101, 201, 301, 401
+  
+  if (numberMatch) {
+    const yearNum = parseInt(numberMatch[1]);
+    if (yearNum >= 1 && yearNum <= 4) {
+      const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+      return yearLevels[yearNum - 1];
+    }
+  }
+  
+  // Fallback
+  return '1st Year';
+}
+
+// Enhanced transformer that handles ALL time slots AND sections
+function transformBackendSchedule(backendSchedule, baseIndex) {
+  console.log("🔄 Transforming schedule:", backendSchedule);
+  
+  try {
+    const timeRoomString = backendSchedule.time || '';
+    const roomString = backendSchedule.room || '';
+    const parentDays = backendSchedule.days || '';
+    
+    if (!timeRoomString) {
+      console.warn("⚠️ No time string in schedule");
+      return null;
+    }
+    
+    // Parse ALL time slots from the combined string
+    const timeSlots = parseAllTimeSlots(timeRoomString, roomString);
+    
+    if (timeSlots.length === 0) {
+      console.warn("⚠️ No time slots extracted from:", timeRoomString);
+      return null;
+    }
+    
+    console.log(`📊 Found ${timeSlots.length} time slots in this schedule`);
+    
+    // Get parent days if slots don't have their own
+    const parentDaysList = parseDays(parentDays);
+    
+    // ✅ Get sections for this schedule
+    const sections = getSectionsForSchedule(backendSchedule);
+    console.log(`📚 Using ${sections.length} section(s):`, sections);
+    
+    // ✅ Get year level
+    const yearLevel = getYearLevel(backendSchedule);
+    console.log(`📖 Year level: ${yearLevel}`);
+    
+    // Create schedules for each time slot AND each section
+    const transformedSchedules = [];
+    let scheduleIdCounter = 0;
+    
+    // Loop through sections
+    sections.forEach(sectionName => {
+      // Loop through time slots
+      timeSlots.forEach((slot, slotIndex) => {
+        // Use slot's days or fall back to parent days
+        const daysToUse = slot.days || parentDaysList;
+        
+        // Create a schedule entry for each day
+        daysToUse.forEach(day => {
+          transformedSchedules.push({
+            schedule_id: (baseIndex * 1000) + scheduleIdCounter++,
+            course_code: backendSchedule.course_code || 'Unknown',
+            course_name: backendSchedule.course_name || backendSchedule.course_code || 'Unknown',
+            faculty_name: backendSchedule.instructor || backendSchedule.faculty_name || 'TBA',
+            day_of_week: day,
+            start_time: slot.startTime + ':00',
+            end_time: slot.endTime + ':00',
+            room_name: slot.room,
+            section_name: sectionName,
+            section_id: null, // Will be populated if needed
+            year_level: yearLevel,
+            semester_id: window.currentSemester?.semester_id || null,
+            department_id: window.departmentId || null,
+            college_id: window.jsData?.collegeId || null,
+            lecture_units: backendSchedule.lecture_units || 0,
+            lab_units: backendSchedule.lab_units || 0,
+            current_students: 0,
+            max_students: 40
+          });
+        });
+      });
+    });
+    
+    console.log(`✅ Created ${transformedSchedules.length} individual schedule entries (${sections.length} sections × ${timeSlots.length} time slots × days)`);
+    return transformedSchedules;
+    
+  } catch (error) {
+    console.error("❌ Error transforming schedule:", error, backendSchedule);
+    return null;
+  }
+}
+
+// Convert 12-hour time to 24-hour format
+function convertTo24Hour(timeStr, period) {
+  let [hours, minutes] = timeStr.split(':').map(Number);
+  
+  if (period === 'pm' && hours !== 12) {
+    hours += 12;
+  } else if (period === 'am' && hours === 12) {
+    hours = 0;
+  }
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
+// Parse day codes with better handling of combined codes
+function parseDays(dayCode) {
+  if (!dayCode) return ['Monday'];
+  
+  dayCode = dayCode.toUpperCase().trim();
+  
+  const dayMap = {
+    'M': 'Monday',
+    'T': 'Tuesday',
+    'W': 'Wednesday',
+    'TH': 'Thursday',
+    'F': 'Friday',
+    'S': 'Saturday',
+    'SU': 'Sunday'
+  };
+  
+  // Handle special cases first
+  if (dayCode === 'MWF') return ['Monday', 'Wednesday', 'Friday'];
+  if (dayCode === 'TTH' || dayCode === 'TH') return ['Tuesday', 'Thursday'];
+  if (dayCode === 'MW') return ['Monday', 'Wednesday'];
+  if (dayCode === 'MTWTHF') return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  
+  const days = [];
+  let i = 0;
+  
+  while (i < dayCode.length) {
+    // Try two-character match first
+    if (i < dayCode.length - 1) {
+      const twoChar = dayCode.substring(i, i + 2);
+      if (dayMap[twoChar]) {
+        days.push(dayMap[twoChar]);
+        i += 2;
+        continue;
+      }
+    }
+    
+    // Try single character
+    const oneChar = dayCode[i];
+    if (dayMap[oneChar]) {
+      days.push(dayMap[oneChar]);
+    }
+    i++;
+  }
+  
+  // Remove duplicates while preserving order
+  const uniqueDays = [...new Set(days)];
+  
+  return uniqueDays.length > 0 ? uniqueDays : ['Monday'];
+}
+
+// ✅ UPDATED: updateUIAfterGeneration with better logging
 async function updateUIAfterGeneration(responseData, loadingOverlay, startTime) {
   try {
-    console.log("🎨 Starting UI updates...");
-    console.log("📦 Response data:", responseData);
+    console.log("🎨 ===== STARTING ENHANCED UI UPDATE =====");
+    console.log("📦 Response schedules count:", responseData.schedules?.length || 0);
+    console.log("📚 Available sections:", window.sectionsData?.length || 0);
 
-    // Wait for DOM to be ready
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await new Promise(resolve => requestAnimationFrame(resolve));
 
-    // Step 1: CRITICAL - Store schedules in global variable
-    if (responseData.schedules && Array.isArray(responseData.schedules)) {
-      window.scheduleData = responseData.schedules;
-      console.log(`✅ Stored ${window.scheduleData.length} schedules in window.scheduleData`);
-      
-      // Also log sample schedule for debugging
-      if (window.scheduleData.length > 0) {
-        console.log("📋 Sample schedule:", window.scheduleData[0]);
+    if (!responseData.schedules || !Array.isArray(responseData.schedules)) {
+      console.error("❌ Invalid schedules in response!");
+      throw new Error("No valid schedules returned from server");
+    }
+
+    if (responseData.schedules.length === 0) {
+      console.warn("⚠️ Server returned 0 schedules!");
+      showValidationToast(["No schedules were generated."]);
+      if (loadingOverlay) loadingOverlay.classList.add("hidden");
+      return;
+    }
+
+    console.log("🔄 Transforming schedules with enhanced parser...");
+    console.log("📋 Sample backend schedule:", JSON.stringify(responseData.schedules[0], null, 2));
+    
+    // Transform all schedules
+    const transformedSchedules = [];
+    responseData.schedules.forEach((backendSchedule, index) => {
+      const transformed = transformBackendSchedule(backendSchedule, index);
+      if (transformed && Array.isArray(transformed)) {
+        transformedSchedules.push(...transformed);
+        console.log(`  ✅ Schedule ${index + 1} (${backendSchedule.course_code}): ${transformed.length} entries created`);
       }
-    } else {
-      console.error("❌ Invalid schedules data:", responseData.schedules);
-      window.scheduleData = [];
+    });
+
+    console.log(`✅ TRANSFORMATION COMPLETE:`);
+    console.log(`   Backend schedules: ${responseData.schedules.length}`);
+    console.log(`   Frontend schedules: ${transformedSchedules.length}`);
+    console.log(`   Expansion ratio: ${(transformedSchedules.length / responseData.schedules.length).toFixed(2)}x`);
+    console.log(`   Unique sections: ${new Set(transformedSchedules.map(s => s.section_name)).size}`);
+    console.log(`   Unique days: ${new Set(transformedSchedules.map(s => s.day_of_week)).size}`);
+
+    if (transformedSchedules.length === 0) {
+      console.error("❌ NO SCHEDULES AFTER TRANSFORMATION!");
+      throw new Error("Schedule transformation failed - no valid schedules created");
     }
 
-    // Step 2: Update schedule display immediately
-    console.log("📋 Updating schedule display...");
-    const displayStartTime = performance.now();
+    // Show sample transformed schedule
+    console.log("📋 Sample transformed schedule:", JSON.stringify(transformedSchedules[0], null, 2));
 
-    // Force update both grids
-    safeUpdateScheduleDisplay(window.scheduleData);
+    // Store transformed schedules
+    window.scheduleData = transformedSchedules;
+    console.log(`✅ STORED ${window.scheduleData.length} SCHEDULES IN window.scheduleData`);
 
-    const displayTime = performance.now() - displayStartTime;
-    console.log(`✅ Display updated in ${displayTime.toFixed(2)}ms`);
-
-    // Step 3: Wait for render to complete
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Step 4: Reinitialize drag and drop
-    console.log("🖱️ Reinitializing drag and drop...");
-    if (typeof initializeDragAndDrop === 'function') {
-      initializeDragAndDrop();
-      console.log("✅ Drag and drop reinitialized");
-    }
-
-    // Step 5: Update completion status banner
-    console.log("🏁 Updating completion status...");
-    updateScheduleCompletionStatus(responseData);
-
-    // Step 6: Update generation results card
-    console.log("📊 Updating results card...");
+    // Update generation results
     const generationResults = document.getElementById("generation-results");
     if (generationResults) {
       generationResults.classList.remove("hidden");
-      
       const totalCoursesEl = document.getElementById("total-courses");
       const totalSectionsEl = document.getElementById("total-sections");
       const successRateEl = document.getElementById("success-rate");
-      
-      if (totalCoursesEl) totalCoursesEl.textContent = responseData.totalCourses || 0;
-      if (totalSectionsEl) totalSectionsEl.textContent = responseData.totalSections || 0;
+      if (totalCoursesEl) totalCoursesEl.textContent = responseData.totalCourses || responseData.schedules.length;
+      if (totalSectionsEl) totalSectionsEl.textContent = new Set(transformedSchedules.map(s => s.section_name)).size;
       if (successRateEl) successRateEl.textContent = responseData.successRate || "100%";
     }
 
-    // Step 7: Wait for all DOM updates to paint
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Update completion status
+    updateScheduleCompletionStatus(responseData);
 
-    // Step 8: Hide loading overlay
+    // Force grid update with multiple attempts
+    console.log("🔄 Forcing grid update...");
+    
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      console.log(`🔄 Grid update attempt ${attempt}/${3}...`);
+      
+      if (typeof safeUpdateScheduleDisplay === 'function') {
+        safeUpdateScheduleDisplay(window.scheduleData);
+      }
+      
+      if (typeof updateManualGrid === 'function') {
+        updateManualGrid(window.scheduleData);
+      }
+      
+      if (typeof updateViewGrid === 'function') {
+        updateViewGrid(window.scheduleData);
+      }
+      
+      if (attempt < 3) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+    }
+
+    // Verify grids were populated
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const manualGrid = document.getElementById("schedule-grid");
+    if (manualGrid) {
+      const scheduleCards = manualGrid.querySelectorAll('.schedule-card');
+      console.log(`📊 Manual grid verification: ${scheduleCards.length} schedule cards found`);
+      
+      if (scheduleCards.length === 0) {
+        console.warn("⚠️ Manual grid is empty, attempting emergency rebuild...");
+        if (typeof emergencyGridRebuild === 'function') {
+          emergencyGridRebuild(window.scheduleData);
+        }
+      } else {
+        console.log(`✅ Grid successfully populated with ${scheduleCards.length} cards`);
+      }
+    }
+
+    // Reinitialize drag and drop
+    if (typeof initializeDragAndDrop === 'function') {
+      initializeDragAndDrop();
+      console.log("✅ Drag and drop initialized");
+    }
+
+    // Hide loading
     const totalTime = performance.now() - startTime;
-    console.log(`✨ All updates complete in ${totalTime.toFixed(2)}ms, hiding overlay...`);
-
+    console.log(`✨ All updates completed in ${totalTime.toFixed(2)}ms`);
+    
     if (loadingOverlay) {
       loadingOverlay.classList.add("hidden");
     }
 
-    // Step 9: Show notification
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Show notification
+    const uniqueSections = new Set(transformedSchedules.map(s => s.section_name)).size;
+    await new Promise(resolve => setTimeout(resolve, 100));
+    showCompletionToast("success", "Schedules generated successfully!", [
+      `${transformedSchedules.length} schedule entries created`,
+      `${responseData.schedules.length} courses across ${uniqueSections} sections`,
+      `Displaying on ${new Set(transformedSchedules.map(s => s.day_of_week)).size} days`,
+    ]);
 
-    if (responseData.unassignedCourses && responseData.unassignedCourses.length > 0) {
-      showCompletionToast("warning", "Schedules generated with some conflicts!", [
-        `${responseData.unassignedCourses.length} course(s) could not be automatically assigned`,
-        "Check for time conflicts or resource limitations",
-        "You can manually adjust schedules in the Manual Edit tab",
-      ]);
-    } else {
-      showCompletionToast("success", "Schedules generated successfully!", [
-        `${responseData.schedules.length} courses scheduled`,
-        `${responseData.totalSections} sections assigned`,
-        "All courses successfully scheduled without conflicts",
-      ]);
-    }
-
-    // Step 10: FORCE refresh both grids one more time to ensure display
-    console.log("🔄 Final grid refresh...");
-    setTimeout(() => {
-      safeUpdateScheduleDisplay(window.scheduleData);
-      console.log("✅ Final refresh complete");
-    }, 500);
+    // Auto-switch to manual tab
+    console.log("🔀 Switching to manual tab in 800ms...");
+    setTimeout(async () => {
+      if (typeof switchTab === 'function') {
+        switchTab('manual');
+        console.log("✅ Switched to manual tab");
+        
+        // Post-switch refresh
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        console.log("🔄 Post-switch refresh...");
+        if (typeof safeUpdateScheduleDisplay === 'function') {
+          safeUpdateScheduleDisplay(window.scheduleData);
+        }
+        if (typeof updateManualGrid === 'function') {
+          updateManualGrid(window.scheduleData);
+        }
+        if (typeof initializeDragAndDrop === 'function') {
+          initializeDragAndDrop();
+        }
+        
+        // Final verification
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const finalGrid = document.getElementById("schedule-grid");
+        if (finalGrid) {
+          const finalCards = finalGrid.querySelectorAll('.schedule-card');
+          console.log(`📊 FINAL VERIFICATION: ${finalCards.length} schedule cards visible`);
+          
+          if (finalCards.length === 0) {
+            console.error("❌ Schedules still not visible after all attempts!");
+            console.log("🚨 Triggering emergency rebuild...");
+            if (typeof emergencyGridRebuild === 'function') {
+              emergencyGridRebuild(window.scheduleData);
+            }
+          } else {
+            console.log("✅✅✅ SUCCESS! All schedules are now visible!");
+          }
+        }
+        
+        console.log("🎉 ===== UPDATE PROCESS COMPLETE =====");
+      }
+    }, 800);
 
   } catch (error) {
-    console.error("❌ Error during UI update:", error);
+    console.error("❌❌❌ CRITICAL ERROR during UI update:", error);
     console.error("Stack trace:", error.stack);
+    console.error("Response data:", responseData);
     hideLoadingAndShowError(loadingOverlay, "Error updating display: " + error.message);
   }
 }
 
-// Add this to the end of updateUIAfterGeneration function, after Step 10
+console.log("✅ Enhanced schedule transformer loaded - handles sections and multiple time slots");
 
 // Step 11: Auto-switch to manual tab to show the schedules
 console.log("🔀 Auto-switching to manual tab...");

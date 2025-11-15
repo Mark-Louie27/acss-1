@@ -328,6 +328,9 @@
   .visible {
     visibility: visible;
   }
+  .visible\! {
+    visibility: visible !important;
+  }
   .sr-only {
     position: absolute;
     width: 1px;
@@ -461,6 +464,9 @@
   }
   .order-2 {
     order: 2;
+  }
+  .col-span-8 {
+    grid-column: span 8 / span 8;
   }
   .container {
     width: 100%;
@@ -2560,6 +2566,9 @@
   }
   .opacity-75 {
     opacity: 75%;
+  }
+  .opacity-80 {
+    opacity: 80%;
   }
   .opacity-90 {
     opacity: 90%;

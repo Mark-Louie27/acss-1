@@ -1909,77 +1909,269 @@ function openAddModal() {
   console.log("=== END OPEN ADD MODAL DEBUG ===");
 }
 
+// ✅ FIXED: Enhanced editSchedule function with proper field population
+
 function editSchedule(scheduleId) {
   console.log("=== EDIT SCHEDULE DEBUG ===");
-  console.log("Editing schedule:", scheduleId);
-  console.log("Faculty data available:", window.faculty?.length || 0);
+  console.log("Editing schedule ID:", scheduleId);
+  console.log("Total schedules in window.scheduleData:", window.scheduleData?.length || 0);
 
+  // Find the schedule
   const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
+  
   if (!schedule) {
-    console.error("Schedule not found:", scheduleId);
+    console.error("❌ Schedule not found:", scheduleId);
+    console.log("Available schedule IDs:", window.scheduleData?.map(s => s.schedule_id));
     showNotification("Schedule not found", "error");
     return;
   }
 
-  resetConflictField("course-code");
-  resetConflictField("course-name");
+  console.log("✅ Found schedule:", schedule);
 
-  console.log("Found schedule:", schedule);
+  // Reset any previous conflict warnings
+  if (typeof resetConflictField === 'function') {
+    resetConflictField("course-code");
+    resetConflictField("course-name");
+  }
 
+  // Check semester match
   if (schedule.semester_id != window.currentSemester?.semester_id) {
     showNotification("Can only edit schedules from current semester", "error");
     return;
   }
 
-  buildCurrentSemesterCourseMappings();
-
-  document.getElementById("modal-title").textContent = "Edit Schedule";
-  document.getElementById("schedule-id").value = schedule.schedule_id;
-  document.getElementById("course-code").value = schedule.course_code || "";
-  document.getElementById("course-name").value = schedule.course_name || "";
-  document.getElementById("room-name").value = schedule.room_name || "";
-  document.getElementById("section-name").value = schedule.section_name || "";
-
-  // ✅ POPULATE FACULTY DROPDOWN FOR EDIT
-  const facultySelect = document.getElementById("faculty-name");
-  if (facultySelect) {
-    facultySelect.innerHTML = '<option value="">Select Faculty</option>';
-
-    if (window.faculty && window.faculty.length > 0) {
-      window.faculty.forEach((fac) => {
-        const option = document.createElement("option");
-        option.value = fac.name;
-        option.textContent = fac.name;
-        option.setAttribute("data-faculty-id", fac.faculty_id);
-        facultySelect.appendChild(option);
-      });
-
-      // Set the current faculty value
-      facultySelect.value = schedule.faculty_name || "";
-      console.log("✅ Set faculty to:", schedule.faculty_name);
-    } else {
-      console.error("❌ No faculty available for editing");
-    }
+  // Build course mappings if not already done
+  if (typeof buildCurrentSemesterCourseMappings === 'function') {
+    buildCurrentSemesterCourseMappings();
   }
 
+  // Set modal title and ID
+  document.getElementById("modal-title").textContent = "Edit Schedule";
+  document.getElementById("schedule-id").value = schedule.schedule_id;
+
+  // ✅ CRITICAL FIX 1: Populate course fields
+  const courseCodeInput = document.getElementById("course-code");
+  const courseNameInput = document.getElementById("course-name");
+  
+  if (courseCodeInput) {
+    courseCodeInput.value = schedule.course_code || "";
+    console.log("✅ Set course code:", schedule.course_code);
+  }
+  
+  if (courseNameInput) {
+    courseNameInput.value = schedule.course_name || schedule.course_code || "";
+    console.log("✅ Set course name:", schedule.course_name);
+  }
+
+  // ✅ CRITICAL FIX 2: Populate and verify faculty dropdown
+  const facultySelect = document.getElementById("faculty-name");
+  if (facultySelect) {
+    console.log("📋 Faculty dropdown options:", facultySelect.options.length);
+    
+    // First, ensure faculty dropdown is populated
+    if (facultySelect.options.length <= 1) {
+      console.warn("⚠️ Faculty dropdown is empty, repopulating...");
+      facultySelect.innerHTML = '<option value="">Select Faculty</option>';
+      
+      if (window.faculty && window.faculty.length > 0) {
+        window.faculty.forEach((fac) => {
+          const option = document.createElement("option");
+          option.value = fac.name;
+          option.textContent = fac.name;
+          option.setAttribute("data-faculty-id", fac.faculty_id);
+          facultySelect.appendChild(option);
+        });
+        console.log("✅ Repopulated faculty dropdown with", window.faculty.length, "members");
+      } else {
+        console.error("❌ No faculty data available!");
+      }
+    }
+    
+    // Set the value
+    const facultyName = schedule.faculty_name || schedule.instructor || "";
+    facultySelect.value = facultyName;
+    console.log("✅ Set faculty:", facultyName);
+    
+    // Verify the value was set
+    if (facultySelect.value !== facultyName && facultyName) {
+      console.warn("⚠️ Faculty value not found in dropdown, adding it...");
+      const option = document.createElement("option");
+      option.value = facultyName;
+      option.textContent = facultyName;
+      facultySelect.appendChild(option);
+      facultySelect.value = facultyName;
+    }
+    
+    console.log("✅ Final faculty value:", facultySelect.value);
+  } else {
+    console.error("❌ Faculty select element not found!");
+  }
+
+  // ✅ CRITICAL FIX 3: Populate and verify room dropdown
+  const roomSelect = document.getElementById("room-name");
+  if (roomSelect) {
+    console.log("🏫 Room dropdown options:", roomSelect.options.length);
+    
+    // Ensure room dropdown has options
+    if (roomSelect.options.length <= 1) {
+      console.warn("⚠️ Room dropdown is empty, repopulating...");
+      roomSelect.innerHTML = '<option value="Online">Online</option>';
+      
+      if (window.classrooms && window.classrooms.length > 0) {
+        window.classrooms.forEach((room) => {
+          const option = document.createElement("option");
+          option.value = room.room_name;
+          option.textContent = room.room_name;
+          roomSelect.appendChild(option);
+        });
+        console.log("✅ Repopulated room dropdown with", window.classrooms.length, "rooms");
+      }
+    }
+    
+    const roomName = schedule.room_name || "Online";
+    roomSelect.value = roomName;
+    console.log("✅ Set room:", roomName);
+    
+    // Verify and add if missing
+    if (roomSelect.value !== roomName && roomName !== "Online") {
+      console.warn("⚠️ Room value not found in dropdown, adding it...");
+      const option = document.createElement("option");
+      option.value = roomName;
+      option.textContent = roomName;
+      roomSelect.appendChild(option);
+      roomSelect.value = roomName;
+    }
+    
+    console.log("✅ Final room value:", roomSelect.value);
+  } else {
+    console.error("❌ Room select element not found!");
+  }
+
+  // ✅ CRITICAL FIX 4: Populate and verify section dropdown
+  const sectionSelect = document.getElementById("section-name");
+  if (sectionSelect) {
+    console.log("📚 Section dropdown options:", sectionSelect.options.length);
+    
+    // Ensure section dropdown has options
+    if (sectionSelect.options.length <= 1) {
+      console.warn("⚠️ Section dropdown is empty, repopulating...");
+      sectionSelect.innerHTML = '<option value="">Select Section</option>';
+      
+      if (window.sectionsData && window.sectionsData.length > 0) {
+        // Group by year level
+        const sectionsByYear = {};
+        window.sectionsData.forEach((section) => {
+          const yearLevel = section.year_level || "Unknown";
+          if (!sectionsByYear[yearLevel]) {
+            sectionsByYear[yearLevel] = [];
+          }
+          sectionsByYear[yearLevel].push(section);
+        });
+        
+        // Add sections grouped by year
+        Object.keys(sectionsByYear).sort().forEach((yearLevel) => {
+          const optgroup = document.createElement("optgroup");
+          optgroup.label = yearLevel;
+          
+          sectionsByYear[yearLevel].forEach((section) => {
+            const option = document.createElement("option");
+            option.value = section.section_name;
+            option.textContent = `${section.section_name} (${section.current_students}/${section.max_students})`;
+            option.setAttribute("data-year-level", section.year_level);
+            option.setAttribute("data-max-students", section.max_students);
+            option.setAttribute("data-current-students", section.current_students);
+            optgroup.appendChild(option);
+          });
+          
+          sectionSelect.appendChild(optgroup);
+        });
+        console.log("✅ Repopulated section dropdown with", window.sectionsData.length, "sections");
+      }
+    }
+    
+    const sectionName = schedule.section_name || "";
+    sectionSelect.value = sectionName;
+    console.log("✅ Set section:", sectionName);
+    
+    // Verify and add if missing
+    if (sectionSelect.value !== sectionName && sectionName) {
+      console.warn("⚠️ Section value not found in dropdown, adding it...");
+      const option = document.createElement("option");
+      option.value = sectionName;
+      option.textContent = sectionName;
+      sectionSelect.appendChild(option);
+      sectionSelect.value = sectionName;
+    }
+    
+    console.log("✅ Final section value:", sectionSelect.value);
+  } else {
+    console.error("❌ Section select element not found!");
+  }
+
+  // ✅ Set day and time fields
   const day = schedule.day_of_week || "Monday";
-  document.getElementById("modal-day").value = day;
-  document.getElementById("day-select").value = day;
+  const modalDay = document.getElementById("modal-day");
+  const daySelect = document.getElementById("day-select");
+  
+  if (modalDay) modalDay.value = day;
+  if (daySelect) daySelect.value = day;
+  console.log("✅ Set day:", day);
 
-  const startTime = schedule.start_time
-    ? schedule.start_time.substring(0, 5)
-    : "07:30";
-  const endTime = schedule.end_time
-    ? schedule.end_time.substring(0, 5)
-    : "08:30";
-  document.getElementById("modal-start-time").value = startTime;
-  document.getElementById("modal-end-time").value = endTime;
-  document.getElementById("start-time").value = startTime;
-  document.getElementById("end-time").value = endTime;
+  // Parse and set times
+  const startTime = schedule.start_time ? schedule.start_time.substring(0, 5) : "07:30";
+  const endTime = schedule.end_time ? schedule.end_time.substring(0, 5) : "08:30";
+  
+  const modalStartTime = document.getElementById("modal-start-time");
+  const modalEndTime = document.getElementById("modal-end-time");
+  const startTimeSelect = document.getElementById("start-time");
+  const endTimeSelect = document.getElementById("end-time");
+  
+  if (modalStartTime) modalStartTime.value = startTime;
+  if (modalEndTime) modalEndTime.value = endTime;
+  if (startTimeSelect) startTimeSelect.value = startTime;
+  
+  // Update end time options based on start time
+  if (startTimeSelect && typeof updateEndTimeOptions === 'function') {
+    updateEndTimeOptions();
+  }
+  
+  if (endTimeSelect) endTimeSelect.value = endTime;
+  
+  console.log("✅ Set times:", startTime, "-", endTime);
 
-  currentEditingId = scheduleId;
+  // ✅ Set schedule type
+  const scheduleTypeSelect = document.getElementById("schedule-type");
+  if (scheduleTypeSelect) {
+    const scheduleType = schedule.schedule_type || "f2f";
+    scheduleTypeSelect.value = scheduleType;
+    console.log("✅ Set schedule type:", scheduleType);
+  }
+
+  // Set current editing ID
+  window.currentEditingId = scheduleId;
+  console.log("✅ Set currentEditingId:", scheduleId);
+
+  // Show the modal
   showModal();
+  
+  console.log("=== EDIT SCHEDULE SETUP COMPLETE ===");
+  
+  // ✅ VERIFICATION: Log all form values after setup
+  setTimeout(() => {
+    console.log("📋 FORM VERIFICATION:");
+    console.log("  Course Code:", document.getElementById("course-code")?.value);
+    console.log("  Course Name:", document.getElementById("course-name")?.value);
+    console.log("  Faculty:", document.getElementById("faculty-name")?.value);
+    console.log("  Section:", document.getElementById("section-name")?.value);
+    console.log("  Room:", document.getElementById("room-name")?.value);
+    console.log("  Day:", document.getElementById("day-select")?.value);
+    console.log("  Start Time:", document.getElementById("start-time")?.value);
+    console.log("  End Time:", document.getElementById("end-time")?.value);
+  }, 100);
 }
+
+
+console.log("✅ Fixed edit schedule functions loaded");
 
 function showModal() {
   const modal = document.getElementById("schedule-modal");
@@ -2592,11 +2784,15 @@ function formatTime(timeString) {
 
 // IMPROVED: Safe update schedule display with better error handling
 function safeUpdateScheduleDisplay(schedules) {
-  console.log("🔄 safeUpdateScheduleDisplay called with", schedules?.length || 0, "schedules");
-  
+  console.log(
+    "🔄 safeUpdateScheduleDisplay called with",
+    schedules?.length || 0,
+    "schedules"
+  );
+
   // Validate input
   if (!schedules) {
-    console.warn("⚠️ No schedules provided to safeUpdateScheduleDisplay");
+    console.warn("⚠️ No schedules provided");
     schedules = [];
   }
 
@@ -2605,17 +2801,21 @@ function safeUpdateScheduleDisplay(schedules) {
     schedules = [];
   }
 
-  // Store in global variable
+  // ✅ CRITICAL: Store globally FIRST
   window.scheduleData = schedules;
-  console.log("✅ Stored schedules in window.scheduleData");
+  console.log(
+    "✅ Stored",
+    schedules.length,
+    "schedules in window.scheduleData"
+  );
 
-  // Check if grids exist
+  // ✅ Update both grids immediately
   const manualGrid = document.getElementById("schedule-grid");
   const viewGrid = document.getElementById("timetableGrid");
 
-  console.log("📍 Grid elements:", {
+  console.log("📍 Grid elements found:", {
     manualGrid: !!manualGrid,
-    viewGrid: !!viewGrid
+    viewGrid: !!viewGrid,
   });
 
   // Update manual grid
@@ -2623,13 +2823,10 @@ function safeUpdateScheduleDisplay(schedules) {
     try {
       console.log("🔨 Updating manual grid...");
       updateManualGrid(schedules);
-      console.log("✅ Manual grid updated successfully");
+      console.log("✅ Manual grid updated");
     } catch (error) {
       console.error("❌ Error updating manual grid:", error);
-      console.error("Stack:", error.stack);
     }
-  } else {
-    console.warn("⚠️ Manual grid element not found (ID: schedule-grid)");
   }
 
   // Update view grid
@@ -2637,18 +2834,58 @@ function safeUpdateScheduleDisplay(schedules) {
     try {
       console.log("🔨 Updating view grid...");
       updateViewGrid(schedules);
-      console.log("✅ View grid updated successfully");
+      console.log("✅ View grid updated");
     } catch (error) {
       console.error("❌ Error updating view grid:", error);
-      console.error("Stack:", error.stack);
     }
-  } else {
-    console.warn("⚠️ View grid element not found (ID: timetableGrid)");
   }
 
-  // Log completion
   console.log("🎯 safeUpdateScheduleDisplay completed");
-  console.log("📊 Final schedule count:", window.scheduleData?.length || 0);
+}
+
+function forceGridRefresh() {
+  console.log("🔄 Force grid refresh called");
+
+  if (!window.scheduleData || window.scheduleData.length === 0) {
+    console.warn("⚠️ No schedule data to refresh");
+    return;
+  }
+
+  console.log(
+    "📊 Refreshing grids with",
+    window.scheduleData.length,
+    "schedules"
+  );
+
+  // Clear and rebuild both grids
+  const manualGrid = document.getElementById("schedule-grid");
+  const viewGrid = document.getElementById("timetableGrid");
+
+  if (manualGrid) {
+    manualGrid.innerHTML =
+      '<div class="col-span-8 text-center py-4">Loading schedules...</div>';
+    setTimeout(() => {
+      updateManualGrid(window.scheduleData);
+      console.log("✅ Manual grid force refreshed");
+    }, 50);
+  }
+
+  if (viewGrid) {
+    viewGrid.innerHTML =
+      '<div class="col-span-8 text-center py-4">Loading schedules...</div>';
+    setTimeout(() => {
+      updateViewGrid(window.scheduleData);
+      console.log("✅ View grid force refreshed");
+    }, 50);
+  }
+
+  // Reinitialize drag and drop after refresh
+  setTimeout(() => {
+    if (typeof initializeDragAndDrop === "function") {
+      initializeDragAndDrop();
+      console.log("✅ Drag and drop reinitialized");
+    }
+  }, 200);
 }
 
 // Generate time slots based on actual schedules with 30-minute granularity
@@ -3185,137 +3422,7 @@ function createDynamicScheduleCard(schedule, isStartCell) {
   return card;
 }
 
-function updateViewGrid(schedules) {
-  const viewGrid = document.getElementById("timetableGrid");
-  if (!viewGrid) return;
 
-  viewGrid.innerHTML = "";
-
-  const timeSlots = generateDynamicTimeSlots();
-  const days = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ];
-
-  // Pre-process schedules for view grid
-  const scheduleLookup = {};
-  schedules.forEach((schedule) => {
-    const day = schedule.day_of_week;
-    const start = schedule.start_time
-      ? schedule.start_time.substring(0, 5)
-      : "";
-
-    if (!scheduleLookup[day]) {
-      scheduleLookup[day] = {};
-    }
-    if (!scheduleLookup[day][start]) {
-      scheduleLookup[day][start] = [];
-    }
-    scheduleLookup[day][start].push(schedule);
-  });
-
-  timeSlots.forEach((time) => {
-    const duration =
-      (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) /
-      1000;
-    const rowSpan = Math.max(1, duration / 1800);
-    const minHeight = rowSpan * 60;
-
-    const row = document.createElement("div");
-    row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
-    row.style.gridRow = `span ${rowSpan}`;
-
-    // Time cell
-    const timeCell = document.createElement("div");
-    timeCell.className =
-      "px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center";
-    timeCell.style.gridRow = `span ${rowSpan}`;
-    timeCell.textContent = `${formatTime(time[0])} - ${formatTime(time[1])}`;
-    row.appendChild(timeCell);
-
-    // Day cells
-    days.forEach((day) => {
-      const cell = document.createElement("div");
-      cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative schedule-cell`;
-      cell.dataset.day = day;
-      cell.dataset.startTime = time[0];
-      cell.dataset.endTime = time[1];
-
-      const daySchedules =
-        scheduleLookup[day] && scheduleLookup[day][time[0]]
-          ? scheduleLookup[day][time[0]]
-          : [];
-
-      if (daySchedules.length > 0) {
-        const container = document.createElement("div");
-        container.className = "schedules-container space-y-1";
-
-        daySchedules.forEach((schedule) => {
-          const scheduleItem = createDynamicScheduleItem(schedule);
-          container.appendChild(scheduleItem);
-        });
-
-        cell.appendChild(container);
-      }
-
-      row.appendChild(cell);
-    });
-
-    viewGrid.appendChild(row);
-  });
-}
-
-function createDynamicScheduleItem(schedule) {
-  const colors = [
-    "bg-blue-100 border-blue-300 text-blue-800",
-    "bg-green-100 border-green-300 text-green-800",
-    "bg-purple-100 border-purple-300 text-purple-800",
-    "bg-orange-100 border-orange-300 text-orange-800",
-    "bg-pink-100 border-pink-300 text-pink-800",
-  ];
-
-  const colorIndex = schedule.schedule_id
-    ? schedule.schedule_id % colors.length
-    : Math.floor(Math.random() * colors.length);
-  const colorClass = colors[colorIndex];
-
-  const item = document.createElement("div");
-  item.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 mb-1 schedule-item`;
-  item.dataset.yearLevel = schedule.year_level || "";
-  item.dataset.sectionName = schedule.section_name || "";
-  item.dataset.roomName = schedule.room_name || "Online";
-
-  item.innerHTML = `
-        <div class="font-semibold text-xs truncate mb-1">
-            ${schedule.course_code || ""}
-        </div>
-        <div class="text-xs opacity-90 truncate mb-1">
-            ${schedule.section_name || ""}
-        </div>
-        <div class="text-xs opacity-75 truncate">
-            ${schedule.faculty_name || ""}
-        </div>
-        <div class="text-xs opacity-75 truncate">
-            ${schedule.room_name || "Online"}
-        </div>
-        <div class="text-xs font-medium mt-1">
-            ${
-              schedule.start_time && schedule.end_time
-                ? `${formatTime(
-                    schedule.start_time.substring(0, 5)
-                  )} - ${formatTime(schedule.end_time.substring(0, 5))}`
-                : ""
-            }
-        </div>
-    `;
-
-  return item;
-}
 
 // Update your existing openAddModalForSlot to set times properly
 function openAddModalForSlot(day, startTime, endTime) {
@@ -3482,163 +3589,182 @@ function syncGridWithSchedules(schedules) {
 }
 
 
-// Add this function at the end of your manual_schedules.js file
-
-// Enhanced tab switch handler for automatic schedule loading
 function handleTabSwitch(tabName) {
-  console.log('Tab switched to:', tabName);
-  
-  // Check if we're switching to manual or schedule view tabs
-  if (tabName === 'manual' || tabName === 'schedule') {
+  console.log("🔀 Tab switched to:", tabName);
+
+  if (tabName === "manual" || tabName === "schedule") {
+    console.log("📊 Loading schedules for", tabName, "tab");
+
     // Check if schedules exist
     if (window.scheduleData && window.scheduleData.length > 0) {
-      console.log(`Loading ${window.scheduleData.length} schedules for ${tabName} tab`);
       
-      // Use requestAnimationFrame for smooth rendering
+
+      // Force immediate update
       requestAnimationFrame(() => {
+        safeUpdateScheduleDisplay(window.scheduleData);
+
+        // Additional refresh after a short delay
         setTimeout(() => {
-          // Update the display
-          safeUpdateScheduleDisplay(window.scheduleData);
-          
-          // Reinitialize drag and drop for manual tab
-          if (tabName === 'manual') {
+          console.log("🔄 Secondary refresh...");
+          if (tabName === "manual") {
+            updateManualGrid(window.scheduleData);
+          } else {
+            updateViewGrid(window.scheduleData);
+          }
+
+          // Reinitialize drag and drop
+          if (
+            tabName === "manual" &&
+            typeof initializeDragAndDrop === "function"
+          ) {
             setTimeout(() => {
               initializeDragAndDrop();
-              console.log('✅ Drag and drop reinitialized');
+              console.log("✅ Drag and drop reinitialized");
             }, 100);
           }
-          
-          console.log('✅ Schedules loaded successfully');
-        }, 50);
+        }, 200);
       });
     } else {
-      console.log('⚠️ No schedules available to display');
+      console.warn("⚠️ No schedules available");
+      // Show empty state
+      const grid =
+        tabName === "manual"
+          ? document.getElementById("schedule-grid")
+          : document.getElementById("timetableGrid");
+
+      if (grid) {
+        grid.innerHTML = `
+          <div class="col-span-8 text-center py-8 text-gray-500">
+            <i class="fas fa-calendar-times text-4xl mb-3"></i>
+            <p>No schedules generated yet</p>
+            <p class="text-sm mt-2">Go to Generate tab to create schedules</p>
+          </div>
+        `;
+      }
     }
   }
 }
 
-// Override the global switchTab function to include our handler
-(function() {
-  // Store the original switchTab if it exists
+// ✅ OVERRIDE: Enhanced switchTab function
+(function () {
   const originalSwitchTab = window.switchTab;
-  
-  // Create new switchTab function
-  window.switchTab = function(tabName) {
-    console.log('switchTab called with:', tabName);
-    
-    // Perform the tab switch UI updates
-    performTabSwitch(tabName);
-    
-    // Handle schedule loading
-    handleTabSwitch(tabName);
-  };
-  
-  // Helper function for tab UI updates
-  function performTabSwitch(tabName) {
-    // Remove active classes from all tabs
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.classList.remove('bg-yellow-500', 'text-white');
-      btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+
+  window.switchTab = function (tabName) {
+    console.log("🔀 switchTab called:", tabName);
+
+    // UI updates
+    document.querySelectorAll(".tab-button").forEach((btn) => {
+      btn.classList.remove("bg-yellow-500", "text-white");
+      btn.classList.add(
+        "text-gray-700",
+        "hover:text-gray-900",
+        "hover:bg-gray-100"
+      );
     });
 
-    // Add active class to selected tab
     const targetTab = document.getElementById(`tab-${tabName}`);
     if (targetTab) {
-      targetTab.classList.add('bg-yellow-500', 'text-white');
-      targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+      targetTab.classList.add("bg-yellow-500", "text-white");
+      targetTab.classList.remove(
+        "text-gray-700",
+        "hover:text-gray-900",
+        "hover:bg-gray-100"
+      );
     }
 
-    // Hide all tab contents
-    document.querySelectorAll('.tab-content').forEach(content => {
-      content.classList.add('hidden');
+    document.querySelectorAll(".tab-content").forEach((content) => {
+      content.classList.add("hidden");
     });
 
-    // Show selected tab content
     const targetContent = document.getElementById(`content-${tabName}`);
     if (targetContent) {
-      targetContent.classList.remove('hidden');
+      targetContent.classList.remove("hidden");
     }
 
     // Update URL
     const url = new URL(window.location);
-    url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
-    window.history.pushState({}, '', url);
-  }
+    url.searchParams.set(
+      "tab",
+      tabName === "schedule" ? "schedule-list" : tabName
+    );
+    window.history.pushState({}, "", url);
+
+    // ✅ CRITICAL: Handle schedule loading
+    handleTabSwitch(tabName);
+  };
 })();
 
-// Also update the DOMContentLoaded event listener
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('Manual schedules JS loaded');
-  console.log('Current semester:', window.currentSemester);
-  console.log('Schedule data count:', window.scheduleData?.length || 0);
+// ✅ ENHANCED: DOMContentLoaded with better initialization
+document.addEventListener("DOMContentLoaded", function () {
+  console.log("✅ Manual schedules JS loaded");
+  console.log("📊 Initial schedule count:", window.scheduleData?.length || 0);
 
-  // Check if faculty data is present
+  // Check faculty data
   if (!window.faculty || window.faculty.length === 0) {
-    console.error('❌ CRITICAL: No faculty data loaded!');
+    console.error("❌ No faculty data loaded");
     if (window.jsData && window.jsData.faculty) {
       window.faculty = window.jsData.faculty;
-      console.log('✅ Recovered faculty from jsData:', window.faculty.length);
+      console.log("✅ Recovered faculty from jsData:", window.faculty.length);
     }
   } else {
-    console.log('✅ Faculty data loaded successfully:', window.faculty.length, 'members');
+    console.log("✅ Faculty data loaded:", window.faculty.length, "members");
   }
 
   buildCurrentSemesterCourseMappings();
-  
-  // Initial display of schedules if they exist
+
+  // ✅ Initial display if schedules exist
   if (window.scheduleData && window.scheduleData.length > 0) {
-    console.log('📊 Initial schedule display...');
+    console.log("📊 Displaying initial schedules...");
     requestAnimationFrame(() => {
       safeUpdateScheduleDisplay(window.scheduleData);
       setTimeout(() => {
         initializeDragAndDrop();
-        console.log('✅ Initial schedules displayed');
+        console.log("✅ Initial schedules displayed");
       }, 100);
     });
   }
 
-  // Attach event listeners to filter controls
-  const filters = ['filter-year-manual', 'filter-section-manual', 'filter-room-manual'];
-  filters.forEach(filterId => {
+  // Attach filter listeners
+  const filters = [
+    "filter-year-manual",
+    "filter-section-manual",
+    "filter-room-manual",
+  ];
+  filters.forEach((filterId) => {
     const filter = document.getElementById(filterId);
     if (filter) {
-      filter.addEventListener('change', function() {
+      filter.addEventListener("change", function () {
         console.log(`Filter changed: ${filterId} = ${this.value}`);
         filterSchedulesManual();
       });
     }
   });
 
-  // Attach event listeners to tab buttons directly
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.addEventListener('click', (e) => {
-      e.preventDefault();
-      const tabName = button.id.replace('tab-', '');
-      window.switchTab(tabName);
-    });
-  });
-
-  // Modal click outside to close
-  const modal = document.getElementById('schedule-modal');
+  // Modal event listeners
+  const modal = document.getElementById("schedule-modal");
   if (modal) {
-    modal.addEventListener('click', function(e) {
+    modal.addEventListener("click", function (e) {
       if (e.target === modal) closeModal();
     });
   }
 
-  // Delete modal click outside to close
-  const deleteModal = document.getElementById('delete-confirmation-modal');
+  const deleteModal = document.getElementById("delete-confirmation-modal");
   if (deleteModal) {
-    deleteModal.addEventListener('click', function(e) {
+    deleteModal.addEventListener("click", function (e) {
       if (e.target === deleteModal) closeDeleteModal();
     });
   }
 
   // Real-time validation setup
   setupRealtimeValidation();
-  
-  console.log('✅ Manual schedules initialized successfully');
+
+  console.log("✅ Manual schedules initialized");
 });
+
+// ✅ EXPOSE functions globally for access from generate_schedules.js
+window.safeUpdateScheduleDisplay = safeUpdateScheduleDisplay;
+window.forceGridRefresh = forceGridRefresh;
+window.handleTabSwitch = handleTabSwitch;
 
 // Helper function to setup real-time validation
 function setupRealtimeValidation() {
