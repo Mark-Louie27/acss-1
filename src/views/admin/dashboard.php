@@ -1,286 +1,320 @@
 <?php
 ob_start();
 ?>
+<!DOCTYPE html>
+<html lang="en">
 
-<!-- Add this in the head section of your layout.php -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - PRMSU</title>
+    <link rel="stylesheet" href="/css/output.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-<style>
-    .chart-container {
-        background: white;
-        border-radius: 0.75rem;
-        border: 1px solid #e5e7eb;
-        padding: 1.5rem;
-        height: 100%;
-    }
+        * {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
 
-    .stats-card {
-        background: white;
-        border-radius: 0.75rem;
-        border: 1px solid #e5e7eb;
-        padding: 1.5rem;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+        }
 
-    .stats-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        }
 
-    .stats-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: linear-gradient(to bottom, #d97706, #f59e0b);
-    }
+        .hover-scale {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-    .user-role-badge {
-        font-size: 0.7rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.375rem;
-        font-weight: 500;
-    }
+        .hover-scale:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+        }
 
-    .activity-item {
-        border-left: 3px solid #f59e0b;
-        padding-left: 1rem;
-        margin-bottom: 1rem;
-    }
+        .gradient-header {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            position: relative;
+            overflow: hidden;
+        }
 
-    .progress-bar {
-        height: 6px;
-        background: #f3f4f6;
-        border-radius: 3px;
-        overflow: hidden;
-    }
+        .gradient-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
 
-    .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #d97706, #f59e0b);
-        border-radius: 3px;
-        transition: width 0.3s ease;
-    }
-</style>
+        .metric-icon {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 16px rgba(245, 158, 11, 0.3);
+        }
 
-<div class="p-4 sm:p-6 bg-gray-50 min-h-screen font-sans">
-    <!-- Success/Error Messages -->
-    <?php if (isset($_SESSION['success'])): ?>
-        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-xl" role="alert">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-6 h-6 bg-amber-500 rounded-xl flex items-center justify-center">
-                        <svg class="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                        </svg>
+        .badge-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .7;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        .chart-container {
+            position: relative;
+            padding: 24px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            min-width: 300px;
+            max-width: 500px;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideInRight 0.3s ease-out;
+            backdrop-filter: blur(10px);
+        }
+
+        .toast-success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%);
+            color: white;
+        }
+
+        .toast-error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+            color: white;
+        }
+
+        .toast-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toast-close {
+            margin-left: auto;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .toast-removing {
+            animation: slideOutRight 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Modern Header -->
+        <div class="gradient-header text-white rounded-2xl p-8 mb-6 shadow-xl relative fade-in">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl"></div>
+            <div class="relative z-10">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                <i class="fas fa-user-shield text-2xl"></i>
+                            </div>
+                            <div>
+                                <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Admin Dashboard</h1>
+                                <p class="text-white/80 text-sm mt-1">Automated Classroom Scheduling System</p>
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2">Welcome back, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?>! 👋</h3>
                     </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-amber-800 font-medium"><?php echo htmlspecialchars($_SESSION['success']);
-                                                            unset($_SESSION['success']); ?></p>
+                    <div class="flex flex-wrap gap-3">
+                        <span class="bg-gray-600 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 backdrop-blur-md">
+                            <i class="fas fa-calendar-alt text-white"></i>
+                            <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2024-2025'); ?>
+                        </span>
+                        <span class="bg-yellow-500/90 px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 backdrop-blur-md">
+                            <span class="status-dot bg-white"></span>
+                            Active Term
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
-    <?php endif; ?>
 
-    <?php if (isset($_SESSION['error'])): ?>
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-xl" role="alert">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-6 h-6 bg-red-500 rounded-xl flex items-center justify-center">
-                        <svg class="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-                        </svg>
+        <!-- Metrics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Total Users -->
+            <div class="glass-card rounded-2xl p-6 hover-scale cursor-pointer fade-in" onclick="window.location.href='/admin/users'" style="animation-delay: 0.1s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon">
+                        <i class="fas fa-users text-white text-xl"></i>
                     </div>
+                    <span class="text-xs font-semibold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">USERS</span>
                 </div>
-                <div class="ml-3">
-                    <p class="text-red-800 font-medium"><?php echo htmlspecialchars($_SESSION['error']);
-                                                        unset($_SESSION['error']); ?></p>
-                </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Total Users</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo htmlspecialchars($userCount ?? '0'); ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-user-check"></i>
+                    Active accounts
+                </p>
             </div>
-        </div>
-    <?php endif; ?>
 
-    <!-- Main Header Section -->
-    <div class="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl p-6 sm:p-8 mb-8 shadow-lg relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-2 h-full bg-yellow-600"></div>
-
-        <div class="relative">
-            <div class="flex flex-col md:flex-row items-start md:items-center justify-between">
-                <div class="mb-4 md:mb-0">
-                    <h1 class="text-2xl sm:text-3xl font-bold mb-2">Admin Dashboard</h1>
-                    <p class="text-gray-300 text-sm sm:text-base">Welcome back, <?php echo htmlspecialchars($_SESSION['first_name'] . ' ' . $_SESSION['last_name']); ?></p>
-                </div>
-                <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
-                    <span class="bg-gray-700 px-3 py-1 rounded-full flex items-center backdrop-blur-sm">
-                        <svg class="w-4 h-4 mr-1 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <?php echo htmlspecialchars($semesterInfo ?? '2nd Semester 2024-2025'); ?>
-                    </span>
-                    <span class="bg-yellow-600 px-3 py-1 rounded-full flex items-center backdrop-blur-sm">
-                        <svg class="w-4 h-4 mr-1 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Active Term
-                    </span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Stats Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Total Users Card -->
-        <div class="stats-card">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center">
-                    <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
-                        </svg>
+            <!-- Total Colleges -->
+            <div class="glass-card rounded-2xl p-6 hover-scale cursor-pointer fade-in" onclick="window.location.href='/admin/colleges'" style="animation-delay: 0.2s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);">
+                        <i class="fas fa-building text-white text-xl"></i>
                     </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($userCount ?? '0'); ?></p>
-                        <p class="text-sm font-medium text-gray-500">Total Users</p>
-                    </div>
+                    <span class="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">COLLEGES</span>
                 </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Total Colleges</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo htmlspecialchars($collegeCount ?? '0'); ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-graduation-cap"></i>
+                    Academic units
+                </p>
             </div>
-            <div class="flex items-center justify-between">
-                <div class="progress-bar flex-1 mr-3">
-                    <div class="progress-fill" style="width: 85%"></div>
+
+            <!-- Total Departments -->
+            <div class="glass-card rounded-2xl p-6 hover-scale cursor-pointer fade-in" onclick="window.location.href='/admin/colleges'" style="animation-delay: 0.3s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); box-shadow: 0 8px 16px rgba(139, 92, 246, 0.3);">
+                        <i class="fas fa-sitemap text-white text-xl"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">DEPTS</span>
                 </div>
-                <a href="/admin/users" class="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors">
-                    View All →
-                </a>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Departments</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo htmlspecialchars($departmentCount ?? '0'); ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-layer-group"></i>
+                    Organizational units
+                </p>
+            </div>
+
+            <!-- Total Schedules -->
+            <div class="glass-card rounded-2xl p-6 hover-scale cursor-pointer fade-in" onclick="window.location.href='/admin/schedules'" style="animation-delay: 0.4s">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="metric-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);">
+                        <i class="fas fa-calendar-check text-white text-xl"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-green-600 bg-green-100 px-3 py-1 rounded-full">SCHEDULES</span>
+                </div>
+                <h3 class="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Total Schedules</h3>
+                <p class="text-4xl font-bold text-gray-900 mb-1"><?php echo htmlspecialchars($scheduleCount ?? '0'); ?></p>
+                <p class="text-sm text-gray-500 flex items-center gap-2">
+                    <i class="fas fa-clock"></i>
+                    Active schedules
+                </p>
             </div>
         </div>
 
-        <!-- Total Colleges Card -->
-        <div class="stats-card">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center">
-                    <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($collegeCount ?? '0'); ?></p>
-                        <p class="text-sm font-medium text-gray-500">Colleges</p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex items-center justify-between">
-                <div class="progress-bar flex-1 mr-3">
-                    <div class="progress-fill" style="width: 70%"></div>
-                </div>
-                <a href="/admin/colleges" class="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors">
-                    Manage →
-                </a>
-            </div>
-        </div>
-
-        <!-- Total Departments Card -->
-        <div class="stats-card">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center">
-                    <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($departmentCount ?? '0'); ?></p>
-                        <p class="text-sm font-medium text-gray-500">Departments</p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex items-center justify-between">
-                <div class="progress-bar flex-1 mr-3">
-                    <div class="progress-fill" style="width: 60%"></div>
-                </div>
-                <a href="/admin/colleges" class="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors">
-                    Manage →
-                </a>
-            </div>
-        </div>
-
-        <!-- Total Schedules Card -->
-        <div class="stats-card">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center">
-                    <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($scheduleCount ?? '0'); ?></p>
-                        <p class="text-sm font-medium text-gray-500">Schedules</p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex items-center justify-between">
-                <div class="progress-bar flex-1 mr-3">
-                    <div class="progress-fill" style="width: 90%"></div>
-                </div>
-                <a href="/admin/schedules" class="text-sm font-medium text-amber-600 hover:text-amber-800 transition-colors">
-                    View All →
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Charts and Analytics Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <!-- User Distribution Chart -->
-        <div class="chart-container">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-900">User Distribution</h3>
-                <span class="text-sm text-gray-500">By Role</span>
-            </div>
-            <div class="h-64">
-                <canvas id="userDistributionChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Schedule Status Chart -->
-        <div class="chart-container">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-900">Schedule Status</h3>
-                <span class="text-sm text-gray-500">Current Semester</span>
-            </div>
-            <div class="h-64">
-                <canvas id="scheduleStatusChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Semester Configuration and Quick Stats -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <!-- Semester Configuration -->
-        <div class="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
-            <div class="flex items-center mb-6">
-                <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    </svg>
+        <!-- Semester Configuration (Moved Here) -->
+        <div class="glass-card rounded-2xl p-6 mb-8 fade-in" style="animation-delay: 0.5s">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <i class="fas fa-cog text-white"></i>
                 </div>
                 <div>
-                    <h2 class="text-xl font-bold text-gray-900">Semester Configuration</h2>
-                    <p class="text-gray-600 text-sm mt-1">Set the current active academic semester</p>
+                    <h3 class="text-xl font-bold text-gray-900">Semester Configuration</h3>
+                    <p class="text-sm text-gray-500">Set the current active academic semester</p>
                 </div>
             </div>
 
             <form method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label for="semester_name" class="block text-sm font-medium text-gray-700 mb-2">Semester</label>
-                    <select id="semester_name" name="semester_name" class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors">
+                    <label for="semester_name" class="block text-sm font-semibold text-gray-700 mb-2">Semester</label>
+                    <select id="semester_name" name="semester_name" class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition bg-white">
                         <option value="1st" <?php echo $currentSemester && $currentSemester['semester_name'] === '1st' ? 'selected' : ''; ?>>1st Semester</option>
                         <option value="2nd" <?php echo $currentSemester && $currentSemester['semester_name'] === '2nd' ? 'selected' : ''; ?>>2nd Semester</option>
                         <option value="Mid Year" <?php echo $currentSemester && $currentSemester['semester_name'] === 'Mid Year' ? 'selected' : ''; ?>>Mid Year</option>
@@ -288,337 +322,374 @@ ob_start();
                 </div>
 
                 <div>
-                    <label for="academic_year" class="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+                    <label for="academic_year" class="block text-sm font-semibold text-gray-700 mb-2">Academic Year</label>
                     <input type="text" id="academic_year" name="academic_year"
                         value="<?php echo htmlspecialchars($currentSemester['academic_year'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
                         placeholder="e.g., 2024-2025">
                 </div>
 
                 <div class="flex items-end">
                     <button type="submit" name="set_semester"
-                        class="w-full bg-gradient-to-r from-amber-500 to-yellow-600 text-white px-4 py-2 rounded-xl hover:from-amber-600 hover:to-yellow-700 font-medium transition-all duration-200 shadow-lg hover:shadow-xl">
-                        Update Semester
+                        class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white px-4 py-3 rounded-xl font-semibold transition shadow-lg shadow-yellow-500/30">
+                        <i class="fas fa-save mr-2"></i>Update Semester
                     </button>
                 </div>
             </form>
         </div>
 
-        <!-- Quick Stats -->
-        <div class="bg-white rounded-xl border border-gray-200 p-6">
-            <div class="flex items-center mb-6">
-                <div class="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                </div>
-                <div>
-                    <h2 class="text-xl font-bold text-gray-900">Quick Stats</h2>
-                    <p class="text-gray-600 text-sm mt-1">System Overview</p>
-                </div>
-            </div>
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <div class="space-y-4">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600">Active Users</span>
-                    <span class="text-sm font-semibold text-gray-900"><?php echo htmlspecialchars($userCount ?? '0'); ?></span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600">Colleges</span>
-                    <span class="text-sm font-semibold text-gray-900"><?php echo htmlspecialchars($collegeCount ?? '0'); ?></span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600">Departments</span>
-                    <span class="text-sm font-semibold text-gray-900"><?php echo htmlspecialchars($departmentCount ?? '0'); ?></span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600">Active Schedules</span>
-                    <span class="text-sm font-semibold text-gray-900"><?php echo htmlspecialchars($scheduleCount ?? '0'); ?></span>
-                </div>
-            </div>
-        </div>
-    </div>
+            <!-- Charts Section -->
+            <div class="lg:col-span-2 space-y-8">
 
-    <!-- Recent Activity and System Status -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Recent Activity -->
-        <div class="bg-white rounded-xl border border-gray-200">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <div class="w-8 h-8 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center mr-3 shadow-lg">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                            </svg>
+                <!-- User Distribution Chart -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">User Distribution</h3>
+                            <p class="text-sm text-gray-500">Distribution by role</p>
                         </div>
-                        <h2 class="text-lg font-semibold text-gray-900">Recent Activity</h2>
+                        <i class="fas fa-chart-pie text-yellow-600 text-xl"></i>
                     </div>
-                    <span class="text-sm text-gray-500">Last 24 hours</span>
-                </div>
-            </div>
-
-            <div class="p-6 max-h-96 overflow-y-auto">
-                <?php
-                try {
-                    $stmt = $controller->db->prepare("
-                        SELECT al.log_id, al.action_type, al.action_description, al.entity_type, al.entity_id, 
-                               al.created_at, u.first_name, u.last_name, u.role_id
-                        FROM activity_logs al
-                        JOIN users u ON al.user_id = u.user_id
-                        ORDER BY al.created_at DESC
-                        LIMIT 6
-                    ");
-                    $stmt->execute();
-                    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                    if (empty($logs)) {
-                        echo '<div class="text-center py-8">
-                            <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                            </svg>
-                            <p class="text-gray-500 font-medium">No recent activity</p>
-                            <p class="text-gray-400 text-sm mt-1">Activity will appear here as users interact with the system</p>
-                        </div>';
-                    } else {
-                        foreach ($logs as $log) {
-                            echo '<div class="activity-item">
-                                <div class="flex justify-between items-start mb-1">
-                                    <div class="flex items-center">
-                                        <div class="user-avatar mr-3">
-                                            ' . strtoupper(substr($log['first_name'], 0, 1)) . strtoupper(substr($log['last_name'], 0, 1)) . '
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-medium text-gray-900">' . htmlspecialchars($log['first_name'] . ' ' . $log['last_name']) . '</p>
-                                            <p class="text-xs text-gray-500">' . htmlspecialchars($log['action_type']) . '</p>
-                                        </div>
-                                    </div>
-                                    <span class="text-xs text-gray-400">' . date('H:i', strtotime($log['created_at'])) . '</span>
-                                </div>
-                                <p class="text-sm text-gray-600 truncate">' . htmlspecialchars($log['action_description']) . '</p>
-                            </div>';
-                        }
-                    }
-                } catch (PDOException $e) {
-                    error_log("Activity logs error: " . $e->getMessage());
-                    echo '<div class="text-center py-8">
-                        <svg class="w-12 h-12 text-red-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                        </svg>
-                        <p class="text-red-600 font-medium">Error loading activity</p>
-                    </div>';
-                }
-                ?>
-            </div>
-
-            <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                <a href="/admin/act_logs" class="inline-flex items-center justify-center w-full px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl">
-                    View All Activity
-                    <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                    </svg>
-                </a>
-            </div>
-        </div>
-
-        <!-- System Status -->
-        <div class="bg-white rounded-xl border border-gray-200">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <div class="flex items-center">
-                    <div class="w-8 h-8 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center mr-3 shadow-lg">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                    </div>
-                    <h2 class="text-lg font-semibold text-gray-900">System Status</h2>
-                </div>
-            </div>
-
-            <div class="p-6">
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-600">Database</span>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                            Online
-                        </span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-600">API Services</span>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                            Operational
-                        </span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-600">Scheduling Engine</span>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                            Running
-                        </span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-600">User Authentication</span>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                            Secure
-                        </span>
+                    <div class="chart-container">
+                        <canvas id="userDistributionChart" style="height: 280px;"></canvas>
                     </div>
                 </div>
 
-                <div class="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p class="text-sm text-amber-800">
-                            All systems are running smoothly. Last updated: <?php echo date('M j, Y g:i A'); ?>
+                <!-- Schedule Status Chart -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.7s">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">Schedule Status</h3>
+                            <p class="text-sm text-gray-500">Current semester overview</p>
+                        </div>
+                        <i class="fas fa-chart-bar text-yellow-600 text-xl"></i>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="scheduleStatusChart" style="height: 280px;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="space-y-8">
+
+                <!-- System Status -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <i class="fas fa-server text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">System Status</h3>
+                            <p class="text-xs text-gray-500">All systems operational</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                            <span class="text-sm font-medium text-gray-700">Database</span>
+                            <span class="px-3 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full flex items-center gap-1">
+                                <span class="status-dot bg-green-500"></span>
+                                Online
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                            <span class="text-sm font-medium text-gray-700">API Services</span>
+                            <span class="px-3 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full flex items-center gap-1">
+                                <span class="status-dot bg-green-500"></span>
+                                Operational
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                            <span class="text-sm font-medium text-gray-700">Scheduling</span>
+                            <span class="px-3 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full flex items-center gap-1">
+                                <span class="status-dot bg-green-500"></span>
+                                Running
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                            <span class="text-sm font-medium text-gray-700">Authentication</span>
+                            <span class="px-3 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-full flex items-center gap-1">
+                                <span class="status-dot bg-green-500"></span>
+                                Secure
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                        <p class="text-sm text-green-800 flex items-center gap-2">
+                            <i class="fas fa-check-circle"></i>
+                            Last updated: <?php echo date('M j, Y g:i A'); ?>
                         </p>
                     </div>
                 </div>
+
+                <!-- Recent Activity -->
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.7s">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold text-gray-900">Recent Activity</h3>
+                        <i class="fas fa-bell text-yellow-600"></i>
+                    </div>
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        <?php
+                        try {
+                            $stmt = $controller->db->prepare("
+                            SELECT al.log_id, al.action_type, al.action_description, al.created_at,
+                                   u.first_name, u.last_name
+                            FROM activity_logs al
+                            JOIN users u ON al.user_id = u.user_id
+                            ORDER BY al.created_at DESC
+                            LIMIT 6
+                        ");
+                            $stmt->execute();
+                            $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                            if (empty($logs)): ?>
+                                <div class="text-center py-12 text-gray-400">
+                                    <i class="fas fa-inbox text-4xl mb-2"></i>
+                                    <p class="text-sm">No recent activity</p>
+                                </div>
+                            <?php else: ?>
+                                <?php foreach ($logs as $log): ?>
+                                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                        <div class="w-8 h-8 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-bolt text-white text-xs"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-bold text-gray-900">
+                                                <?php echo htmlspecialchars($log['first_name'] . ' ' . $log['last_name']); ?>
+                                            </p>
+                                            <p class="text-xs text-gray-600 mt-1 truncate">
+                                                <?php echo htmlspecialchars($log['action_description']); ?>
+                                            </p>
+                                            <p class="text-xs text-gray-400 mt-1">
+                                                <i class="far fa-clock mr-1"></i>
+                                                <?php echo date('M d, h:i A', strtotime($log['created_at'])); ?>
+                                            </p>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif;
+                        } catch (PDOException $e) {
+                            error_log("Activity logs error: " . $e->getMessage());
+                            ?>
+                            <div class="text-center py-8 text-red-400">
+                                <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                                <p class="text-sm">Error loading activity</p>
+                            </div>
+                        <?php } ?>
+                    </div>
+
+                    <div class="mt-6">
+                        <a href="/admin/act_logs" class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white px-4 py-3 rounded-xl font-semibold transition shadow-lg shadow-yellow-500/30 flex items-center justify-center gap-2">
+                            View All Activity
+                            <i class="fas fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // User Distribution Chart (Doughnut)
-        const userDistributionCtx = document.getElementById('userDistributionChart').getContext('2d');
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
 
-        // Prepare user distribution data from PHP
-        const roleData = <?php echo json_encode($roleDistribution); ?>;
-        const roleLabels = roleData.map(item => item.role_name);
-        const roleCounts = roleData.map(item => parseInt(item.count));
+            // Toast Notification Function
+            function showToast(message, type = 'success') {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                toast.className = `toast toast-${type}`;
 
-        const userDistributionChart = new Chart(userDistributionCtx, {
-            type: 'doughnut',
-            data: {
-                labels: roleLabels,
-                datasets: [{
-                    data: roleCounts,
-                    backgroundColor: [
-                        '#f59e0b', '#d97706', '#fbbf24', '#f97316',
-                        '#ea580c', '#dc2626', '#b91c1c'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: {
-                            boxWidth: 12,
-                            padding: 15,
-                            font: {
-                                size: 11
-                            }
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.raw || 0;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = Math.round((value / total) * 100);
-                                return `${label}: ${value} (${percentage}%)`;
-                            }
-                        }
-                    }
-                },
-                cutout: '65%'
+                const icon = type === 'success' ?
+                    '<i class="fas fa-check-circle toast-icon"></i>' :
+                    '<i class="fas fa-exclamation-circle toast-icon"></i>';
+
+                toast.innerHTML = `
+            ${icon}
+            <span style="flex: 1;">${message}</span>
+            <i class="fas fa-times toast-close"></i>
+        `;
+
+                container.appendChild(toast);
+
+                // Close button
+                toast.querySelector('.toast-close').addEventListener('click', () => {
+                    removeToast(toast);
+                });
+
+                // Auto remove after 4 seconds
+                setTimeout(() => removeToast(toast), 4000);
             }
-        });
 
-        // Schedule Status Chart (Bar)
-        const scheduleStatusCtx = document.getElementById('scheduleStatusChart').getContext('2d');
+            function removeToast(toast) {
+                toast.classList.add('toast-removing');
+                setTimeout(() => toast.remove(), 300);
+            }
 
-        // Prepare schedule status data (you'll need to modify this based on your actual data structure)
-        const scheduleData = <?php echo json_encode($scheduleDistribution ?? []); ?>;
+            // Show PHP session messages as toasts
+            <?php if (isset($_SESSION['success'])): ?>
+                showToast(<?php echo json_encode($_SESSION['success']); ?>, 'success');
+                <?php unset($_SESSION['success']); ?>
+            <?php endif; ?>
 
-        // Default data if no schedule distribution is available
-        const scheduleLabels = scheduleData.length > 0 ?
-            scheduleData.map(item => item.status) : ['Pending', 'Approved', 'Completed', 'Cancelled'];
+            <?php if (isset($_SESSION['error'])): ?>
+                showToast(<?php echo json_encode($_SESSION['error']); ?>, 'error');
+                <?php unset($_SESSION['error']); ?>
+            <?php endif; ?>
 
-        const scheduleCounts = scheduleData.length > 0 ?
-            scheduleData.map(item => parseInt(item.count)) : [5, 12, 8, 2];
-
-        const scheduleStatusChart = new Chart(scheduleStatusCtx, {
-            type: 'bar',
-            data: {
-                labels: scheduleLabels,
-                datasets: [{
-                    label: 'Schedules',
-                    data: scheduleCounts,
-                    backgroundColor: [
-                        'rgba(245, 158, 11, 0.8)',
-                        'rgba(34, 197, 94, 0.8)',
-                        'rgba(59, 130, 246, 0.8)',
-                        'rgba(239, 68, 68, 0.8)'
-                    ],
-                    borderColor: [
-                        'rgb(245, 158, 11)',
-                        'rgb(34, 197, 94)',
-                        'rgb(59, 130, 246)',
-                        'rgb(239, 68, 68)'
-                    ],
-                    borderWidth: 1,
-                    borderRadius: 6,
-                    borderSkipped: false,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
+            // User Distribution Chart
+            const userCtx = document.getElementById('userDistributionChart');
+            if (userCtx) {
+                const roleData = <?php echo json_encode($roleDistribution); ?>;
+                new Chart(userCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: roleData.map(item => item.role_name),
+                        datasets: [{
+                            data: roleData.map(item => parseInt(item.count)),
+                            backgroundColor: [
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(139, 92, 246, 0.8)',
+                                'rgba(16, 185, 129, 0.8)',
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(6, 182, 212, 0.8)'
+                            ],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    font: {
+                                        size: 12,
+                                        weight: '600'
+                                    },
+                                    color: '#374151'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(31, 41, 55, 0.95)',
+                                padding: 12,
+                                borderColor: 'rgba(245, 158, 11, 0.5)',
+                                borderWidth: 2,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${label}: ${value} (${percentage}%)`;
+                                    }
+                                }
+                            }
                         },
-                        ticks: {
-                            stepSize: 1
-                        }
+                        cutout: '65%'
+                    }
+                });
+            }
+
+            // Schedule Status Chart
+            const scheduleCtx = document.getElementById('scheduleStatusChart');
+            if (scheduleCtx) {
+                const scheduleData = <?php echo json_encode($scheduleDistribution ?? []); ?>;
+                const labels = scheduleData.length > 0 ?
+                    scheduleData.map(item => item.status) : ['Pending', 'Approved', 'Completed', 'Cancelled'];
+                const counts = scheduleData.length > 0 ?
+                    scheduleData.map(item => parseInt(item.count)) : [5, 12, 8, 2];
+
+                new Chart(scheduleCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Schedules',
+                            data: counts,
+                            backgroundColor: [
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(16, 185, 129, 0.8)',
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(239, 68, 68, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(217, 119, 6, 1)',
+                                'rgba(5, 150, 105, 1)',
+                                'rgba(37, 99, 235, 1)',
+                                'rgba(220, 38, 38, 1)'
+                            ],
+                            borderWidth: 2,
+                            borderRadius: 8
+                        }]
                     },
-                    x: {
-                        grid: {
-                            display: false
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(31, 41, 55, 0.95)',
+                                padding: 12,
+                                borderColor: 'rgba(245, 158, 11, 0.5)',
+                                borderWidth: 2,
+                                cornerRadius: 8
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    font: {
+                                        size: 11,
+                                        weight: '600'
+                                    },
+                                    color: '#6b7280'
+                                },
+                                grid: {
+                                    color: 'rgba(148, 163, 184, 0.1)',
+                                    drawBorder: false
+                                },
+                                border: {
+                                    display: false
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    font: {
+                                        size: 11,
+                                        weight: '600'
+                                    },
+                                    color: '#374151'
+                                },
+                                grid: {
+                                    display: false
+                                },
+                                border: {
+                                    display: false
+                                }
+                            }
                         }
                     }
-                }
+                });
             }
         });
+    </script>
 
-        // College Department Distribution (Optional - if you want more charts)
-        const collegeDeptData = <?php echo json_encode($departmentsByCollege ?? []); ?>;
-        if (collegeDeptData && Object.keys(collegeDeptData).length > 0) {
-            // You can add more charts here if needed
-        }
+</body>
 
-        // Handle window resize for charts
-        window.addEventListener('resize', function() {
-            userDistributionChart.resize();
-            scheduleStatusChart.resize();
-        });
-    });
-</script>
+</html>
 
 <?php
 $content = ob_get_clean();
