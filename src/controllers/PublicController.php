@@ -279,15 +279,18 @@ class PublicController
 
     public function downloadSchedulePdf()
     {
-        // Re-use search logic
+        // FIX: Properly capture POST parameters with isset() instead of ?? operator
         $currentSemester = $this->getCurrentSemester();
 
-        $college_id = $_POST['college_id'] ?? 0;
-        $semester_id = $_POST['semester_id'] ?? $currentSemester['semester_id'];
-        $department_id = $_POST['department_id'] ?? 0;
-        $year_level = $_POST['year_level'] ?? '';
-        $section_id = $_POST['section_id'] ?? 0;
-        $search = $_POST['search'] ?? '';
+        $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
+        $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : (int)$currentSemester['semester_id'];
+        $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
+        $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
+        $section_id = isset($_POST['section_id']) ? (int)$_POST['section_id'] : 0;
+        $search = isset($_POST['search']) ? trim($_POST['search']) : '';
+
+        // Debug logging
+        error_log("PDF Download Filters - College: $college_id, Dept: $department_id, Year: $year_level, Section: $section_id, Search: $search");
 
         $query = "
         SELECT 
@@ -333,6 +336,9 @@ class PublicController
         ]);
 
         $rawSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Debug logging
+        error_log("PDF Download - Raw schedules count: " . count($rawSchedules));
 
         // GROUP + FORMAT DAYS
         $grouped = [];
@@ -384,7 +390,7 @@ class PublicController
 
     private function buildWeeklyGrid($schedules, $timeSlots)
     {
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         $grid = [];
 
         foreach ($timeSlots as $slot) {
@@ -392,17 +398,25 @@ class PublicController
         }
 
         foreach ($schedules as $sch) {
-            list($start, $end) = explode(' - ', $sch['start_time'] . ' - ' . $sch['end_time']);
-            $startKey = date('g:i A', strtotime($start));
-            $endKey = date('g:i A', strtotime($end));
+            // Parse start and end times
+            $start = date('g:i A', strtotime($sch['start_time']));
+            $end = date('g:i A', strtotime($sch['end_time']));
 
-            $slotKey = $this->findTimeSlot($startKey, $endKey, $timeSlots);
-            if (!$slotKey) continue;
+            // Find all time slots that this schedule spans
+            $affectedSlots = $this->findAffectedTimeSlots($start, $end, $timeSlots);
+
+            if (empty($affectedSlots)) continue;
 
             $dayList = $this->expandDays($sch['formatted_days']);
-            foreach ($dayList as $day) {
-                if (in_array($day, $days)) {
-                    $grid[$slotKey][$day] = $sch;
+
+            foreach ($affectedSlots as $slotKey) {
+                foreach ($dayList as $day) {
+                    if (in_array($day, $days)) {
+                        // Only place the schedule in the first slot to avoid duplication
+                        if ($slotKey === $affectedSlots[0]) {
+                            $grid[$slotKey][$day] = $sch;
+                        }
+                    }
                 }
             }
         }
@@ -410,11 +424,41 @@ class PublicController
         return $grid;
     }
 
+    private function findAffectedTimeSlots($startTime, $endTime, $slots)
+    {
+        $affectedSlots = [];
+        $startTimestamp = strtotime($startTime);
+        $endTimestamp = strtotime($endTime);
+
+        foreach ($slots as $slot) {
+            // Parse the slot time range
+            list($slotStart, $slotEnd) = explode(' - ', $slot);
+            $slotStartTimestamp = strtotime($slotStart);
+            $slotEndTimestamp = strtotime($slotEnd);
+
+            // Check if the schedule overlaps with this time slot
+            if ($startTimestamp <= $slotStartTimestamp && $endTimestamp > $slotStartTimestamp) {
+                $affectedSlots[] = $slot;
+            }
+        }
+
+        return $affectedSlots;
+    }
+
     private function findTimeSlot($start, $end, $slots)
     {
+        $startTimestamp = strtotime($start);
+
         foreach ($slots as $slot) {
-            if (strpos($slot, $start) === 0) return $slot;
+            list($slotStart, $slotEnd) = explode(' - ', $slot);
+            $slotStartTimestamp = strtotime($slotStart);
+
+            // Check if the start time matches or is within this slot
+            if (abs($startTimestamp - $slotStartTimestamp) < 60) { // Within 1 minute tolerance
+                return $slot;
+            }
         }
+
         return null;
     }
 
@@ -432,7 +476,8 @@ class PublicController
             'W' => ['Wednesday'],
             'Th' => ['Thursday'],
             'F' => ['Friday'],
-            'S' => ['Saturday']
+            'S' => ['Saturday'],
+            'Su' => ['Sunday']
         ];
         return $map[$formatted] ?? [$formatted];
     }
@@ -464,12 +509,11 @@ class PublicController
     {
         $university = "President Ramon Magsaysay State University";
         $campus = "Iba Campus";
-        $system = "Automatic Classroom Scheduling System (ACSS)";
+        $system = "Automated Classroom Scheduling System (ACSS)";
         $semesterName = $semester['semester_name'] . ' ' . $semester['academic_year'];
         $filterText = $filters ? implode(' | ', $filters) : 'All Public Schedules';
         $generated = date('F j, Y \a\t g:i A');
 
-        // Load logo as base64
         $logoPath = __DIR__ . '/../../public/assets/logo/main_logo/PRMSUlogo.png';
         $logoData = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : '';
         $logo = $logoData ? 'data:image/png;base64,' . $logoData : '';
@@ -498,7 +542,6 @@ class PublicController
                     width: 100%;
                 }
 
-                /* Header */
                 .header {
                     text-align: center;
                     border-bottom: 3px solid #DA9100;
@@ -538,7 +581,6 @@ class PublicController
                     margin: 2px 0;
                 }
 
-                /* Legend */
                 .legend {
                     float: right;
                     font-size: 8pt;
@@ -563,7 +605,6 @@ class PublicController
                     vertical-align: middle;
                 }
 
-                /* Table */
                 table {
                     width: 100%;
                     border-collapse: collapse;
@@ -574,12 +615,11 @@ class PublicController
                 th,
                 td {
                     border: 1px solid #ddd;
-                    padding: 6px 4px;
+                    padding: 8px 4px;
                     text-align: center;
-                    vertical-align: top;
-                    height: 70px;
+                    vertical-align: middle;
+                    min-height: 60px;
                     font-size: 8pt;
-                    position: relative;
                 }
 
                 th {
@@ -587,19 +627,18 @@ class PublicController
                     font-weight: bold;
                     color: #2c3e50;
                     font-size: 9pt;
+                    height: 40px;
                 }
 
                 .time-col {
                     background: #eef5db !important;
                     font-weight: bold;
                     width: 10%;
-                    writing-mode: vertical-rl;
-                    text-orientation: mixed;
-                    transform: rotate(180deg);
+                    font-size: 7.5pt;
                     white-space: nowrap;
+                    vertical-align: middle;
                 }
 
-                /* Day Pattern Colors */
                 .mwf {
                     background-color: #d4edda !important;
                     border-left: 3px solid #28a745;
@@ -629,17 +668,20 @@ class PublicController
                     font-weight: bold;
                     font-size: 9pt;
                     color: #2c3e50;
+                    margin-bottom: 2px;
                 }
 
                 .section {
                     font-size: 8pt;
                     color: #495057;
+                    margin-bottom: 2px;
                 }
 
                 .instructor {
                     font-size: 7.5pt;
                     color: #6c757d;
                     font-style: italic;
+                    margin-bottom: 2px;
                 }
 
                 .room {
@@ -647,7 +689,6 @@ class PublicController
                     color: #495057;
                 }
 
-                /* Footer */
                 .footer {
                     position: fixed;
                     bottom: 0;
@@ -670,7 +711,6 @@ class PublicController
 
         <body>
             <div class="container">
-                <!-- Header -->
                 <div class="header">
                     <?php if ($logo): ?>
                         <img src="<?= $logo ?>" class="logo" alt="Logo">
@@ -683,7 +723,6 @@ class PublicController
                     <div class="meta">Generated: <?= $generated ?></div>
                 </div>
 
-                <!-- Legend -->
                 <div class="legend">
                     <div class="legend-item"><span class="legend-color" style="background:#d4edda"></span>MWF</div>
                     <div class="legend-item"><span class="legend-color" style="background:#d1ecf1"></span>TTH</div>
@@ -693,7 +732,6 @@ class PublicController
                 </div>
                 <div style="clear:both;"></div>
 
-                <!-- Schedule Table -->
                 <table>
                     <thead>
                         <tr>
@@ -704,13 +742,14 @@ class PublicController
                             <th>THURSDAY</th>
                             <th>FRIDAY</th>
                             <th>SATURDAY</th>
+                            <th>SUNDAY</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($timeSlots as $slot): ?>
                             <tr>
-                                <td class="time-col"><?= $slot ?></td>
-                                <?php foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $day):
+                                <td class="time-col"><?= htmlspecialchars($slot) ?></td>
+                                <?php foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $day):
                                     $sch = $grid[$slot][$day] ?? null;
                                     $bg = $sch ? $this->getDayColorClass($sch['formatted_days']) : '';
                                 ?>
@@ -728,7 +767,6 @@ class PublicController
                     </tbody>
                 </table>
 
-                <!-- Footer -->
                 <div class="footer">
                     <?= htmlspecialchars($system) ?> | Page <span class="page-number"></span>
                 </div>
@@ -736,9 +774,9 @@ class PublicController
 
             <script type="text/php">
                 if (isset($pdf)) {
-            $pdf->page_text(750, 570, "Page {PAGE_NUM} of {PAGE_COUNT}", null, 8, array(0,0,0));
-        }
-    </script>
+                $pdf->page_text(750, 570, "Page {PAGE_NUM} of {PAGE_COUNT}", null, 8, array(0,0,0));
+            }
+        </script>
         </body>
 
         </html>

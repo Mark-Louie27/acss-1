@@ -3593,8 +3593,6 @@ function handleTabSwitch(tabName) {
   console.log("🔀 Tab switched to:", tabName);
 
   if (tabName === "manual" || tabName === "schedule") {
-    console.log("📊 Loading schedules for", tabName, "tab");
-
     // Check if schedules exist
     if (window.scheduleData && window.scheduleData.length > 0) {
       

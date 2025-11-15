@@ -1040,43 +1040,6 @@ function getSettingsImagePath($path)
                     .catch(err => alert('Error generating PDF'));
             });
 
-
-            // Download button functionality
-            //document.getElementById('downloadScheduleBtn').addEventListener('click', function() {
-            //  document.getElementById('downloadForm').classList.add('active');
-            //});
-
-            //function closeDownloadForm() {
-            //  document.getElementById('downloadForm').classList.remove('active');
-            //}
-
-            //document.getElementById('downloadScheduleForm').addEventListener('submit', function(e) {
-            //  e.preventDefault();
-            //  const formData = new FormData(this);
-            //  fetch('/public/download-schedule-pdf', {
-            //     method: 'POST',
-            //   body: formData
-            //}).then(response => {
-            //  if (response.ok) {
-            //    return response.blob();
-            //} else {
-            //  throw new Error('Failed to generate PDF');
-            //}
-            //}).then(blob => {
-            //  const url = window.URL.createObjectURL(blob);
-            //const a = document.createElement('a');
-            // a.href = url;
-            // a.download = 'PRMSU_Schedule_' + new Date().toISOString().replace(/[:.]/g, '-') + '.pdf';
-            // document.body.appendChild(a);
-            // a.click();
-            // a.remove();
-            // window.URL.revokeObjectURL(url);
-            // closeDownloadForm();
-            //}).catch(error => {
-            //  console.error('Error downloading PDF:', error);
-            //  alert('An error occurred while downloading the PDF.');
-            // });
-            //});
         });
 
         function fetchSchedules(page = 1) {

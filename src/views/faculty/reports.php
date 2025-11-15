@@ -504,7 +504,7 @@ ob_start();
                             </div>
                             <span class="text-gray-700">Weekly Time Allocation</span>
                         </div>
-                        <a href="/faculty/reports/schedule" class="text-green-600 hover:text-green-800 text-sm font-medium">
+                        <a href="/faculty/schedule" class="text-green-600 hover:text-green-800 text-sm font-medium">
                             View Details
                         </a>
                     </div>

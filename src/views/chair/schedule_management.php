@@ -418,7 +418,7 @@ if ($userDepartmentId) {
                             <div id="schedule-grid" class="divide-y divide-gray-200">
                                 <?php
                                 // Generate dynamic time slots from 7:00 AM to 9:00 PM in 30-minute intervals
-                                $timeSlots = [];
+                                $timeSlots = [];    
                                 $startHour = 7;
                                 $endHour = 21;
 
@@ -871,8 +871,6 @@ if ($userDepartmentId) {
                 <p class="text-gray-700 font-medium">Generating schedules...</p>
             </div>
         </div>
-
-
 
         <!-- Add/Edit Schedule Modal -->
         <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-md items-center justify-center z-50 hidden modal-overlay">
@@ -2891,7 +2889,6 @@ if ($userDepartmentId) {
 
                 // CRITICAL: Refresh schedules when switching to manual or view tabs
                 if ((tabName === 'manual' || tabName === 'schedule') && window.scheduleData && window.scheduleData.length > 0) {
-                    console.log(`📊 Refreshing ${window.scheduleData.length} schedules for ${tabName} tab`);
 
                     // Use requestAnimationFrame for smooth rendering
                     requestAnimationFrame(() => {
@@ -2902,11 +2899,9 @@ if ($userDepartmentId) {
                             if (tabName === 'manual' && typeof initializeDragAndDrop === 'function') {
                                 setTimeout(() => {
                                     initializeDragAndDrop();
-                                    console.log('✅ Drag and drop reinitialized');
                                 }, 100);
                             }
 
-                            console.log('✅ Tab switch refresh complete');
                         }, 50);
                     });
                 }
