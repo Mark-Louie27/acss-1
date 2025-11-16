@@ -3073,13 +3073,12 @@ if ($userDepartmentId) {
                 // Set initial tab
                 if (tab === 'schedule-list') {
                     currentTab = 'schedule';
-                    switchTabSimple('schedule');
+
                 } else if (tab === 'manual') {
                     currentTab = 'manual';
-                    switchTabSimple('manual');
                 } else {
                     currentTab = 'generate';
-                    switchTabSimple('generate');
+
                 }
 
                 // Add click handlers with reload

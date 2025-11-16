@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 // Make sure to install PhpSpreadsheet via Composer
