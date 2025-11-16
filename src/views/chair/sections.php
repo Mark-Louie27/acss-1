@@ -764,9 +764,11 @@ ob_start();
                             <label for="semester-filter" class="block text-sm font-medium text-gray-dark mb-1">Filter by Semester</label>
                             <select id="semester-filter" class="filter-select">
                                 <option value="">All Semesters</option>
-                                <?php foreach (array_keys($groupedPreviousSections) as $semesterKey): ?>
-                                    <option value="<?php echo htmlspecialchars($semesterKey); ?>"><?php echo htmlspecialchars($semesterKey); ?></option>
-                                <?php endforeach; ?>
+                                <?php if (!empty($groupedPreviousSections)): ?>
+                                    <?php foreach (array_keys($groupedPreviousSections) as $semesterKey): ?>
+                                        <option value="<?php echo htmlspecialchars($semesterKey); ?>"><?php echo htmlspecialchars($semesterKey); ?></option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             </select>
                         </div>
                         <div class="flex-1">

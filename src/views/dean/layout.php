@@ -96,9 +96,10 @@ $stats = $stats ?? ['total_pending' => 0];
             $g = hexdec(substr($hex, 2, 2));
             $b = hexdec(substr($hex, 4, 2));
 
-            $r = max(0, min(255, $r + ($r * $percent / 100)));
-            $g = max(0, min(255, $g + ($g * $percent / 100)));
-            $b = max(0, min(255, $b + ($b * $percent / 100)));
+            // FIXED: Explicitly cast to integers
+            $r = (int) max(0, min(255, $r + ($r * $percent / 100)));
+            $g = (int) max(0, min(255, $g + ($g * $percent / 100)));
+            $b = (int) max(0, min(255, $b + ($b * $percent / 100)));
 
             return '#' . str_pad(dechex($r), 2, '0', STR_PAD_LEFT)
                 . str_pad(dechex($g), 2, '0', STR_PAD_LEFT)

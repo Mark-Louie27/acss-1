@@ -292,7 +292,7 @@ ob_start();
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Suffix</label>
-                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['suffix'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Email Address</label>
@@ -343,42 +343,42 @@ ob_start();
                             <label class="text-sm font-medium text-gray-600">Designation</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-id-badge text-green-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['designation'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['designation'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Advisory Class</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-chalkboard-teacher text-pink-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['advisory_class'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['advisory_class'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Bachelor's Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-scroll text-indigo-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['bachelor_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['bachelor_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Master's Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-award text-orange-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['master_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['master_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Doctorate Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-university text-gray-400"></i>
-                                <?php echo htmlspecialchars($user['doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['doctorate_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Post-Doctorate Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-medal text-teal-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['post_doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['post_doctorate_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                     </div>

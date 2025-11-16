@@ -1836,7 +1836,7 @@ class ChairController extends BaseController
     }
 
     // Enhanced conflict detection with day pattern support
-    private function checkScheduleConflicts($sectionId, $facultyId, $roomId, $dayOfWeek, $startTime, $endTime, $excludeScheduleId = null, $semesterId)
+    private function checkScheduleConflicts($sectionId, $facultyId, $roomId, $dayOfWeek, $startTime, $endTime, $semesterId, $excludeScheduleId = null)
     {
         $conflicts = [];
 
@@ -1849,20 +1849,20 @@ class ChairController extends BaseController
 
         foreach ($daysToCheck as $day) {
             // Check section conflicts
-            $sectionConflicts = $this->checkEntityConflicts('section_id', $sectionId, $day, $startTime, $endTime, $excludeScheduleId, $semesterId);
+            $sectionConflicts = $this->checkEntityConflicts('section_id', $sectionId, $day, $startTime, $endTime, $semesterId, $excludeScheduleId);
             if (!empty($sectionConflicts)) {
                 $conflicts = array_merge($conflicts, $sectionConflicts);
             }
 
             // Check faculty conflicts
-            $facultyConflicts = $this->checkEntityConflicts('faculty_id', $facultyId, $day, $startTime, $endTime, $excludeScheduleId, $semesterId);
+            $facultyConflicts = $this->checkEntityConflicts('faculty_id', $facultyId, $day, $startTime, $endTime, $semesterId, $excludeScheduleId);
             if (!empty($facultyConflicts)) {
                 $conflicts = array_merge($conflicts, $facultyConflicts);
             }
 
             // Check room conflicts (only if room is specified and not online)
             if ($roomId) {
-                $roomConflicts = $this->checkEntityConflicts('room_id', $roomId, $day, $startTime, $endTime, $excludeScheduleId, $semesterId);
+                $roomConflicts = $this->checkEntityConflicts('room_id', $roomId, $day, $startTime, $endTime, $semesterId, $excludeScheduleId);
                 if (!empty($roomConflicts)) {
                     $conflicts = array_merge($conflicts, $roomConflicts);
                 }
@@ -7284,6 +7284,7 @@ class ChairController extends BaseController
                 ];
                 $currentSemester = null;
                 $previousSections = [];
+                $groupedPreviousSections = []; // Initialize as empty array
                 require_once __DIR__ . '/../views/chair/sections.php';
                 return;
             }
@@ -7303,6 +7304,7 @@ class ChairController extends BaseController
                     '4th Year' => []
                 ];
                 $previousSections = [];
+                $groupedPreviousSections = []; // Initialize as empty array
                 require_once __DIR__ . '/../views/chair/sections.php';
                 return;
             }
@@ -7332,22 +7334,22 @@ class ChairController extends BaseController
 
             // Fetch sections for SELECTED semester
             $query = "
-            SELECT s.*, p.program_name
-            FROM sections s
-            JOIN programs p ON s.department_id = p.department_id
-            WHERE s.department_id = :department_id
-            AND s.is_active = 1
-            AND s.semester_id = :semester_id
-            ORDER BY
-                CASE s.year_level
-                    WHEN '1st Year' THEN 1
-                    WHEN '2nd Year' THEN 2
-                    WHEN '3rd Year' THEN 3
-                    WHEN '4th Year' THEN 4
-                    ELSE 5
-                END,
-                s.section_name
-        ";
+        SELECT s.*, p.program_name
+        FROM sections s
+        JOIN programs p ON s.department_id = p.department_id
+        WHERE s.department_id = :department_id
+        AND s.is_active = 1
+        AND s.semester_id = :semester_id
+        ORDER BY
+            CASE s.year_level
+                WHEN '1st Year' THEN 1
+                WHEN '2nd Year' THEN 2
+                WHEN '3rd Year' THEN 3
+                WHEN '4th Year' THEN 4
+                ELSE 5
+            END,
+            s.section_name
+    ";
 
             $stmt = $this->db->prepare($query);
             $stmt->execute([
@@ -7372,29 +7374,29 @@ class ChairController extends BaseController
 
             // Fetch previous semesters (excluding currently selected)
             $query = "
-            SELECT s.*, p.program_name, sm.semester_name, sm.academic_year
-            FROM sections s
-            JOIN programs p ON s.department_id = p.department_id
-            JOIN semesters sm ON s.semester_id = sm.semester_id
-            WHERE s.department_id = :department_id
-            AND s.semester_id != :current_semester_id
-            ORDER BY sm.academic_year DESC,
-                CASE sm.semester_name
-                    WHEN '1st' THEN 1
-                    WHEN '2nd' THEN 2
-                    WHEN 'Summer' THEN 3
-                    WHEN 'Mid Year' THEN 4
-                    ELSE 5
-                END,
-                CASE s.year_level
-                    WHEN '1st Year' THEN 1
-                    WHEN '2nd Year' THEN 2
-                    WHEN '3rd Year' THEN 3
-                    WHEN '4th Year' THEN 4
-                    ELSE 5
-                END,
-                s.section_name
-        ";
+        SELECT s.*, p.program_name, sm.semester_name, sm.academic_year
+        FROM sections s
+        JOIN programs p ON s.department_id = p.department_id
+        JOIN semesters sm ON s.semester_id = sm.semester_id
+        WHERE s.department_id = :department_id
+        AND s.semester_id != :current_semester_id
+        ORDER BY sm.academic_year DESC,
+            CASE sm.semester_name
+                WHEN '1st' THEN 1
+                WHEN '2nd' THEN 2
+                WHEN 'Summer' THEN 3
+                WHEN 'Mid Year' THEN 4
+                ELSE 5
+            END,
+            CASE s.year_level
+                WHEN '1st Year' THEN 1
+                WHEN '2nd Year' THEN 2
+                WHEN '3rd Year' THEN 3
+                WHEN '4th Year' THEN 4
+                ELSE 5
+            END,
+            s.section_name
+    ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,
@@ -7403,7 +7405,7 @@ class ChairController extends BaseController
             $previousSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Group previous sections...
-            $groupedPreviousSections = [];
+            $groupedPreviousSections = []; // Initialize as empty array
             foreach ($previousSections as $section) {
                 $semesterKey = $section['semester_name'] . ' ' . $section['academic_year'];
                 if (!isset($groupedPreviousSections[$semesterKey])) {
@@ -7433,7 +7435,7 @@ class ChairController extends BaseController
                 '4th Year' => []
             ];
             $previousSections = [];
-            $groupedPreviousSections = [];
+            $groupedPreviousSections = []; // Initialize as empty array
             require_once __DIR__ . '/../views/chair/sections.php';
         }
     }
