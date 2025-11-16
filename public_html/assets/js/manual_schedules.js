@@ -3,6 +3,7 @@ let currentSemesterCourses = {};
 let validationTimeout;
 let currentDeleteScheduleId = null;
 const DEBOUNCE_DELAY = 300;
+let isUpdatingGrids = false;
 
 // Enhanced Drag and Drop with Conflict Detection
 let draggedElement = null;
@@ -2757,17 +2758,24 @@ function updateEndTimeOptions() {
   updateTimeFields();
 }
 
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
 function formatDuration(minutes) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-
-  if (hours === 0) {
-    return `${mins}min`;
-  } else if (mins === 0) {
-    return `${hours}h`;
-  } else {
-    return `${hours}h ${mins}m`;
-  }
+  if (hours === 0) return `${mins}min`;
+  if (mins === 0) return `${hours}hr`;
+  return `${hours}hr ${mins}min`;
 }
 
 // Enhanced formatTime function
@@ -2780,6 +2788,41 @@ function formatTime(timeString) {
     minute: "2-digit",
     hour12: true,
   });
+}
+
+function calculateDurationMinutes(startTime, endTime) {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  return end - start;
+}
+
+function calculateSlotSpan(
+  scheduleStart,
+  scheduleEnd,
+  timeSlots,
+  currentSlotIndex
+) {
+  const startMin = timeToMinutes(scheduleStart);
+  const endMin = timeToMinutes(scheduleEnd);
+
+  let spanCount = 0;
+
+  // Count how many slots from currentSlotIndex onwards are covered by this schedule
+  for (let i = currentSlotIndex; i < timeSlots.length; i++) {
+    const slot = timeSlots[i];
+    const slotStartMin = timeToMinutes(slot[0]);
+    const slotEndMin = timeToMinutes(slot[1]);
+
+    // Check if this slot overlaps with the schedule
+    if (slotStartMin >= startMin && slotEndMin <= endMin) {
+      spanCount++;
+    } else if (slotStartMin >= endMin) {
+      // We've passed the schedule's end time
+      break;
+    }
+  }
+
+  return Math.max(1, spanCount);
 }
 
 // IMPROVED: Safe update schedule display with better error handling
@@ -3068,6 +3111,8 @@ function updateManualGrid(schedules) {
   const manualGrid = document.getElementById("schedule-grid");
   if (!manualGrid) return;
 
+  console.log("🔨 updateManualGrid called with", schedules.length, "schedules");
+
   manualGrid.innerHTML = "";
 
   const timeSlots = generateDynamicTimeSlotsFromSchedules(schedules);
@@ -3081,79 +3126,122 @@ function updateManualGrid(schedules) {
     "Sunday",
   ];
 
-  // Track which cells are occupied by spanning schedules
-  const occupiedCells = {};
-
-  // Pre-process schedules
+  // Build schedule lookup
   const scheduleLookup = {};
   schedules.forEach((schedule) => {
     const day = schedule.day_of_week;
-    const start = schedule.start_time ? schedule.start_time.substring(0, 5) : "";
-    const end = schedule.end_time ? schedule.end_time.substring(0, 5) : "";
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
 
     if (!scheduleLookup[day]) {
-      scheduleLookup[day] = [];
+      scheduleLookup[day] = {};
     }
-
-    scheduleLookup[day].push({
-      schedule: schedule,
-      start: start,
-      end: end,
-    });
+    if (!scheduleLookup[day][start]) {
+      scheduleLookup[day][start] = [];
+    }
+    scheduleLookup[day][start].push(schedule);
   });
+
+  // Track occupied cells
+  const occupiedCells = {};
 
   timeSlots.forEach((time, timeIndex) => {
     const row = document.createElement("div");
-    row.className = `grid grid-cols-8 min-h-[60px] hover:bg-gray-50 transition-colors duration-200`;
+    row.className =
+      "grid grid-cols-8 min-h-[60px] hover:bg-gray-50 transition-colors duration-200 border-b border-gray-100";
 
-    // Time cell
+    // ✅ SMART TIME LABEL: Check if ANY schedule starts at this time across all days
+    let anyScheduleStartsHere = false;
+    let sampleSchedule = null;
+
+    days.forEach((day) => {
+      if (scheduleLookup[day] && scheduleLookup[day][time[0]]) {
+        anyScheduleStartsHere = true;
+        if (!sampleSchedule) {
+          sampleSchedule = scheduleLookup[day][time[0]][0];
+        }
+      }
+    });
+
+    // Time cell with conditional styling
     const timeCell = document.createElement("div");
     timeCell.className =
-      "px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start";
-    timeCell.innerHTML = `
-      <span class="text-sm hidden sm:block">${formatTime(time[0])} - ${formatTime(time[1])}</span>
-      <span class="text-xs sm:hidden">${time[0]}-${time[1]}</span>
-    `;
+      "px-3 py-3 text-sm font-medium border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-center justify-center";
+
+    if (anyScheduleStartsHere && sampleSchedule) {
+      // Highlight time when schedule starts
+      const scheduleEnd = sampleSchedule.end_time.substring(0, 5);
+      const duration = timeToMinutes(scheduleEnd) - timeToMinutes(time[0]);
+      const durationLabel = formatDuration(duration);
+
+      timeCell.className += " bg-blue-50 border-l-4 border-blue-500";
+      timeCell.innerHTML = `
+        <div class="flex flex-col items-center w-full">
+          <div class="font-bold text-blue-700 text-base">${formatTime(
+            time[0]
+          )}</div>
+          <div class="text-[10px] text-gray-500 mt-0.5 hidden sm:block">${durationLabel}</div>
+        </div>
+      `;
+    } else {
+      // Regular time slot
+      timeCell.className += " text-gray-500";
+      timeCell.innerHTML = `
+        <span class="text-xs hidden sm:inline">${formatTime(time[0])}</span>
+        <span class="text-[10px] sm:hidden">${time[0]}</span>
+      `;
+    }
+
     row.appendChild(timeCell);
 
-    // Day cells
+    // Day cells (rest of the code remains the same)
     days.forEach((day) => {
       const cellKey = `${day}-${timeIndex}`;
-      
-      // Check if this cell is already occupied by a spanning schedule
+
       if (occupiedCells[cellKey]) {
-        // Skip this cell - it's part of a schedule that spans multiple rows
         return;
       }
 
       const cell = document.createElement("div");
-      cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[60px]`;
+      cell.className =
+        "px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[60px]";
       cell.dataset.day = day;
       cell.dataset.startTime = time[0];
       cell.dataset.endTime = time[1];
 
-      // Find schedules that START in this time slot
-      const schedulesInSlot = [];
-      if (scheduleLookup[day]) {
-        scheduleLookup[day].forEach((scheduleData) => {
-          if (scheduleData.start === time[0]) {
-            const rowSpan = calculateRowSpan(scheduleData.start, scheduleData.end);
-            
-            // Mark the cells this schedule will occupy
-            for (let i = 0; i < rowSpan; i++) {
-              const occupyKey = `${day}-${timeIndex + i}`;
-              occupiedCells[occupyKey] = true;
-            }
-            
-            schedulesInSlot.push({
-              schedule: scheduleData.schedule,
-              rowSpan: rowSpan,
-            });
+      const schedulesStartingHere = [];
+
+      if (scheduleLookup[day] && scheduleLookup[day][time[0]]) {
+        scheduleLookup[day][time[0]].forEach((schedule) => {
+          const scheduleStart = schedule.start_time.substring(0, 5);
+          const scheduleEnd = schedule.end_time.substring(0, 5);
+
+          const spanCount = calculateSlotSpan(
+            scheduleStart,
+            scheduleEnd,
+            timeSlots,
+            timeIndex
+          );
+
+          for (let i = 0; i < spanCount; i++) {
+            const occupyKey = `${day}-${timeIndex + i}`;
+            occupiedCells[occupyKey] = {
+              scheduleId: schedule.schedule_id,
+              courseCode: schedule.course_code,
+              slotIndex: i,
+              totalSpan: spanCount,
+            };
           }
+
+          schedulesStartingHere.push({
+            schedule: schedule,
+            spanCount: spanCount,
+          });
         });
       }
 
-      if (schedulesInSlot.length === 0) {
+      if (schedulesStartingHere.length === 0) {
         const addButton = document.createElement("button");
         addButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
         addButton.className =
@@ -3164,10 +3252,10 @@ function updateManualGrid(schedules) {
         const container = document.createElement("div");
         container.className = "space-y-1 p-1 h-full";
 
-        schedulesInSlot.forEach((scheduleData) => {
+        schedulesStartingHere.forEach((scheduleData) => {
           const scheduleCard = createScheduleCardForManual(
             scheduleData.schedule,
-            scheduleData.rowSpan
+            scheduleData.spanCount
           );
           container.appendChild(scheduleCard);
         });
@@ -3181,7 +3269,13 @@ function updateManualGrid(schedules) {
     manualGrid.appendChild(row);
   });
 
-  initializeDragAndDrop();
+  console.log("✅ Manual grid updated with smart time labels");
+
+  setTimeout(() => {
+    if (typeof initializeDragAndDrop === "function") {
+      initializeDragAndDrop();
+    }
+  }, 100);
 }
 
 function createScheduleItemForView(schedule, rowSpan) {
