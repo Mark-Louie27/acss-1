@@ -145,190 +145,131 @@ class PublicController
 
     public function searchSchedules()
     {
-        // Production-safe error handling
         try {
-            // Check database connection first
             if ($this->db === null) {
                 throw new Exception("Database connection is null");
             }
 
             $currentSemester = $this->getCurrentSemester();
 
-            // Validate current semester exists
             if (empty($currentSemester) || !isset($currentSemester['semester_id'])) {
-                error_log("CRITICAL: No current semester found in database");
                 header('Content-Type: application/json');
                 echo json_encode([
                     'schedules' => [],
                     'total' => 0,
                     'page' => 1,
                     'per_page' => 10,
-                    'error' => 'No active semester is currently set. Please contact administrator.'
+                    'error' => 'No active semester is currently set.'
                 ]);
                 exit;
             }
 
-            // Safely get and sanitize parameters
-            $college_id = filter_input(INPUT_POST, 'college_id', FILTER_VALIDATE_INT) ?: 0;
-            $semester_id = filter_input(INPUT_POST, 'semester_id', FILTER_VALIDATE_INT) ?: (int)$currentSemester['semester_id'];
-            $department_id = filter_input(INPUT_POST, 'department_id', FILTER_VALIDATE_INT) ?: 0;
-            $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
-            $section_id = filter_input(INPUT_POST, 'section_id', FILTER_VALIDATE_INT) ?: 0;
+            // Get basic parameters only
+            $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
+            $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : (int)$currentSemester['semester_id'];
+            $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
             $search = isset($_POST['search']) ? trim($_POST['search']) : '';
 
-            // Build query with named parameters for safety
+            error_log("Online Search - Semester: $semester_id, College: $college_id, Dept: $department_id, Search: '$search'");
+
+            // SIMPLEST POSSIBLE QUERY - No complex functions, no FIELD(), no CASE
             $query = "
-            SELECT 
-                s.schedule_id, 
-                c.course_code, 
-                c.course_name, 
-                sec.section_name,
-                sec.year_level,
-                COALESCE(r.room_name, 'Online') AS room_name, 
-                COALESCE(r.building, '') AS building, 
-                s.day_of_week, 
-                s.start_time, 
-                s.end_time, 
-                s.schedule_type, 
-                TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,
-                d.department_name,
-                col.college_name
-            FROM schedules s
-            INNER JOIN courses c ON s.course_id = c.course_id
-            INNER JOIN sections sec ON s.section_id = sec.section_id
-            INNER JOIN semesters sem ON s.semester_id = sem.semester_id
-            LEFT JOIN classrooms r ON s.room_id = r.room_id
-            INNER JOIN faculty f ON s.faculty_id = f.faculty_id
-            INNER JOIN users u ON f.user_id = u.user_id
-            INNER JOIN departments d ON sec.department_id = d.department_id
-            INNER JOIN colleges col ON d.college_id = col.college_id
-            WHERE s.is_public = 1
-            AND sem.semester_id = :semester_id
+        SELECT 
+            s.schedule_id, 
+            c.course_code, 
+            c.course_name, 
+            sec.section_name,
+            sec.year_level,
+            COALESCE(r.room_name, 'Online') AS room_name, 
+            s.day_of_week, 
+            s.start_time, 
+            s.end_time,
+            CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
+            d.department_name,
+            col.college_name
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.course_id
+        JOIN sections sec ON s.section_id = sec.section_id
+        JOIN semesters sem ON s.semester_id = sem.semester_id
+        LEFT JOIN classrooms r ON s.room_id = r.room_id
+        JOIN faculty f ON s.faculty_id = f.faculty_id
+        JOIN users u ON f.user_id = u.user_id
+        JOIN departments d ON sec.department_id = d.department_id
+        JOIN colleges col ON d.college_id = col.college_id
+        WHERE s.is_public = 1
+        AND sem.semester_id = ?
+        AND (? = 0 OR col.college_id = ?)
+        AND (? = 0 OR d.department_id = ?)
         ";
 
-            $params = [':semester_id' => $semester_id];
-
-            // Dynamically add filters only if they're set
-            if ($college_id > 0) {
-                $query .= " AND col.college_id = :college_id";
-                $params[':college_id'] = $college_id;
-            }
-
-            if ($department_id > 0) {
-                $query .= " AND d.department_id = :department_id";
-                $params[':department_id'] = $department_id;
-            }
-
-            if (!empty($year_level)) {
-                $query .= " AND sec.year_level = :year_level";
-                $params[':year_level'] = $year_level;
-            }
-
-            if ($section_id > 0) {
-                $query .= " AND sec.section_id = :section_id";
-                $params[':section_id'] = $section_id;
-            }
+            $params = [$semester_id, $college_id, $college_id, $department_id, $department_id];
 
             if (!empty($search)) {
-                $query .= " AND (
-                c.course_code LIKE :search 
-                OR c.course_name LIKE :search 
-                OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search
-            )";
-                $params[':search'] = '%' . $search . '%';
+                $query .= " AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)";
+                $searchPattern = '%' . $search . '%';
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
             }
 
-            $query .= " ORDER BY c.course_code, sec.section_name, s.start_time, 
-                    FIELD(s.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')";
+            // Simple ORDER BY - avoid any functions that might cause issues
+            $query .= " ORDER BY c.course_code, sec.section_name, s.day_of_week, s.start_time";
+
+            error_log("Online Query: " . $query);
+            error_log("Online Params: " . json_encode($params));
 
             $stmt = $this->db->prepare($query);
 
             if (!$stmt) {
-                throw new Exception("Failed to prepare SQL statement");
+                throw new Exception("Failed to prepare statement");
             }
 
-            $stmt->execute($params);
-            $rawSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Execute with simple array
+            $result = $stmt->execute($params);
 
-            // GROUP schedules by course + section + time + room
-            $grouped = [];
-            foreach ($rawSchedules as $sch) {
-                $key = implode('|', [
-                    $sch['course_code'],
-                    $sch['section_name'],
-                    $sch['start_time'],
-                    $sch['end_time'],
-                    $sch['room_name'],
-                    $sch['instructor_name']
-                ]);
-
-                if (!isset($grouped[$key])) {
-                    $grouped[$key] = $sch;
-                    $grouped[$key]['days'] = [];
-                }
-                $grouped[$key]['days'][] = $sch['day_of_week'];
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                throw new Exception("Execute failed: " . ($errorInfo[2] ?? 'Unknown'));
             }
 
-            // FORMAT DAYS
-            $formattedSchedules = [];
-            foreach ($grouped as $item) {
-                $dayString = implode(', ', $item['days']);
+            $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Online results: " . count($schedules));
 
-                // Check if schedulingService exists
-                if ($this->schedulingService && method_exists($this->schedulingService, 'formatScheduleDays')) {
-                    $item['formatted_days'] = $this->schedulingService->formatScheduleDays($dayString);
-                } else {
-                    // Fallback formatting if service is unavailable
-                    $item['formatted_days'] = $this->fallbackFormatDays($dayString);
-                }
-
-                unset($item['days'], $item['day_of_week']);
-                $formattedSchedules[] = $item;
+            // Simple client-side grouping (let JavaScript handle complex formatting)
+            $groupedSchedules = [];
+            foreach ($schedules as $schedule) {
+                $groupedSchedules[] = [
+                    'course_code' => $schedule['course_code'],
+                    'course_name' => $schedule['course_name'],
+                    'section_name' => $schedule['section_name'],
+                    'year_level' => $schedule['year_level'],
+                    'room_name' => $schedule['room_name'],
+                    'day_of_week' => $schedule['day_of_week'], // Let JS format this
+                    'start_time' => $schedule['start_time'],
+                    'end_time' => $schedule['end_time'],
+                    'instructor_name' => $schedule['instructor_name'],
+                    'department_name' => $schedule['department_name'],
+                    'college_name' => $schedule['college_name']
+                ];
             }
 
-            // Sort schedules
-            usort($formattedSchedules, function ($a, $b) {
-                $daysOrder = ['MWF' => 1, 'TTH' => 2, 'MW' => 3, 'THF' => 4, 'MTHF' => 5, 'TWTHF' => 6];
-                $aOrder = $daysOrder[$a['formatted_days']] ?? 99;
-                $bOrder = $daysOrder[$b['formatted_days']] ?? 99;
-
-                if ($aOrder !== $bOrder) {
-                    return $aOrder <=> $bOrder;
-                }
-                return strcmp($a['start_time'], $b['start_time']);
-            });
-
-            // Pagination
-            $total = count($formattedSchedules);
+            // Simple pagination
+            $total = count($groupedSchedules);
             $perPage = 10;
-            $page = filter_input(INPUT_POST, 'page', FILTER_VALIDATE_INT) ?: 1;
-            $page = max(1, $page);
+            $page = isset($_POST['page']) ? max(1, (int)$_POST['page']) : 1;
             $offset = ($page - 1) * $perPage;
-            $pagedSchedules = array_slice($formattedSchedules, $offset, $perPage);
+            $pagedSchedules = array_slice($groupedSchedules, $offset, $perPage);
 
             header('Content-Type: application/json');
             echo json_encode([
                 'schedules' => $pagedSchedules,
                 'total' => $total,
                 'page' => $page,
-                'per_page' => $perPage
-            ]);
-        } catch (PDOException $e) {
-            error_log("PUBLIC SEARCH ERROR [PDO]: " . $e->getMessage());
-            error_log("Query params: " . json_encode($params ?? []));
-
-            header('Content-Type: application/json');
-            http_response_code(500);
-            echo json_encode([
-                'schedules' => [],
-                'total' => 0,
-                'page' => 1,
-                'per_page' => 10,
-                'error' => 'Unable to load schedules at this time. Please try again later.'
+                'per_page' => $perPage,
+                'debug' => ['online_mode' => true, 'count' => count($schedules)]
             ]);
         } catch (Exception $e) {
-            error_log("PUBLIC SEARCH ERROR [General]: " . $e->getMessage());
-            error_log("Stack: " . $e->getTraceAsString());
+            error_log("ONLINE SEARCH ERROR: " . $e->getMessage());
 
             header('Content-Type: application/json');
             http_response_code(500);
@@ -337,37 +278,44 @@ class PublicController
                 'total' => 0,
                 'page' => 1,
                 'per_page' => 10,
-                'error' => 'An unexpected error occurred. Please contact support.'
+                'error' => 'Service temporarily unavailable. Please try again.',
+                'debug' => 'online_error'
             ]);
         }
         exit;
     }
 
-    /**
-     * Fallback day formatting if SchedulingService is unavailable
-     */
     private function fallbackFormatDays($dayString)
     {
-        $days = array_map('trim', explode(',', $dayString));
-        $days = array_unique($days);
-
-        // Simple abbreviation mapping
-        $abbrev = [
+        $dayMap = [
             'Monday' => 'M',
             'Tuesday' => 'T',
             'Wednesday' => 'W',
-            'Thursday' => 'Th',
+            'Thursday' => 'TH',
             'Friday' => 'F',
             'Saturday' => 'S',
-            'Sunday' => 'Su'
+            'Sunday' => 'SU'
         ];
 
-        $formatted = [];
+        $days = explode(', ', $dayString);
+        $formatted = '';
+
         foreach ($days as $day) {
-            $formatted[] = $abbrev[$day] ?? substr($day, 0, 1);
+            if (isset($dayMap[$day])) {
+                $formatted .= $dayMap[$day];
+            }
         }
 
-        return implode('', $formatted);
+        // Common combinations
+        $combinations = [
+            'MWF' => 'MWF',
+            'TTH' => 'TTH',
+            'MW' => 'MW',
+            'THF' => 'THF',
+            'MTWTHF' => 'MTWTHF'
+        ];
+
+        return $combinations[$formatted] ?? $formatted;
     }
 
     private function getCurrentSemester()

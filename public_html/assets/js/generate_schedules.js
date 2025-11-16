@@ -1,17 +1,3 @@
-// Debug logging at the beginning of the script
-console.log("=== GENERATE SCHEDULES DEBUG ===");
-console.log("Raw data received:", window.jsData);
-console.log("Sections data:", window.rawSectionsData);
-console.log("Faculty data:", window.faculty);
-console.log("Classrooms data:", window.classrooms);
-console.log("Curricula data:", window.curricula);
-console.log(
-  "Curriculum courses for current semester:",
-  window.jsData?.curriculumCourses || []
-);
-console.log("Current semester:", window.currentSemester);
-console.log("Department ID:", window.departmentId);
-
 // Initialize data
 function initializeScheduleData() {
   window.sectionsData = Array.isArray(window.rawSectionsData)
