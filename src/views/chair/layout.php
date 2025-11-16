@@ -131,6 +131,9 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Program Chair Dashboard</title>
+    <link rel="icon" href="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>" type="image/png">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>">
+    <meta name="theme-color" content="<?php echo htmlspecialchars($primaryColor); ?>">
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>

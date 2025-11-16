@@ -257,7 +257,7 @@ ob_start();
                         <p class="text-sm font-medium text-orange-100"><?php echo htmlspecialchars($user['department_name'], ENT_QUOTES, 'UTF-8'); ?></p>
                         <p class="text-xs text-orange-100 flex items-center mt-1">
                             <span class="inline-block w-2 h-2 bg-orange-200 rounded-full mr-2"></span>
-                            <?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?>
+                            College <?php echo htmlspecialchars($user['role_name'], ENT_QUOTES, 'UTF-8'); ?>
                         </p>
                     </div>
                 </div>
@@ -292,7 +292,7 @@ ob_start();
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Suffix</label>
-                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['suffix'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            <p class="mt-1 text-gray-800 font-medium"><?php echo htmlspecialchars($user['suffix'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Email Address</label>
@@ -343,42 +343,42 @@ ob_start();
                             <label class="text-sm font-medium text-gray-600">Designation</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-id-badge text-green-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['designation'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['designation'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Advisory Class</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-chalkboard-teacher text-pink-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['advisory_class'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['advisory_class'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Bachelor's Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-scroll text-indigo-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['bachelor_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['bachelor_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Master's Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-award text-orange-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['master_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['master_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Doctorate Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-university text-gray-400"></i>
-                                <?php echo htmlspecialchars($user['doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['doctorate_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-gray-600">Post-Doctorate Degree</label>
                             <p class="mt-1 text-gray-800 font-medium flex items-center">
                                 <i class="fas fa-medal text-teal-500 mr-2"></i>
-                                <?php echo htmlspecialchars($user['post_doctorate_degree'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($user['post_doctorate_degree'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </p>
                         </div>
                     </div>
@@ -443,7 +443,7 @@ ob_start();
                             </div>
                             <div class="p-6">
                                 <p class="text-gray-700">Are you sure you want to remove this subject specialization? This action cannot be undone.</p>
-                                <form method="POST" action="/faculty/profile/" class="mt-4">
+                                <form method="POST" action="/dean/profile/" class="mt-4">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                                     <input type="hidden" name="action" value="remove_specialization">
                                     <input type="hidden" name="course_id" id="remove_course_id" value="">
@@ -816,7 +816,7 @@ ob_start();
                     </button>
                 </div>
 
-                <form method="POST" action="/faculty/profile/" class="p-6">
+                <form method="POST" action="/dean/profile/" class="p-6">
                     <input type="hidden" name="email" value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="first_name" value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="last_name" value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>">
@@ -1078,7 +1078,7 @@ ob_start();
                     }
 
                     try {
-                        const response = await fetch(`/faculty/profile/search_courses?query=${encodeURIComponent(query)}`, {
+                        const response = await fetch(`/dean/profile/search_courses?query=${encodeURIComponent(query)}`, {
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'

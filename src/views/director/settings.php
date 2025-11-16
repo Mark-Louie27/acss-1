@@ -32,7 +32,7 @@ ob_start();
                         <div class="w-16 h-16 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center text-white text-xl font-bold mx-auto mb-3 shadow-lg">
                             <i class="fas fa-user-tie"></i>
                         </div>
-                        <h3 class="text-lg font-semibold text-gray-900">Program Chair</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">Director Instructions</h3>
                         <p class="text-sm text-gray-500 mt-1">Account Settings</p>
                     </div>
 

@@ -85,7 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register | PRMSU Scheduling System</title>
+    <title>Register | Automated Classroom Scheduling System</title>
+    <link rel="icon" href="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>" type="image/png">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>">
+    <meta name="theme-color" content="<?php echo htmlspecialchars($primaryColor); ?>">
     <meta name="description" content="Register for the President Ramon Magsaysay State University Scheduling System.">
     <link href="/css/output.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">

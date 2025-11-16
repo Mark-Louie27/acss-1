@@ -38,7 +38,10 @@ function getSettingsImagePath($path)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PRMSU Iba Campus Class Schedules - ACSS</title>
+    <title>Automated Classroom Scheduling System</title>
+    <link rel="icon" href="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>" type="image/png">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars(getSettingsImagePath($systemLogo)); ?>">
+    <meta name="theme-color" content="<?php echo htmlspecialchars($primaryColor); ?>">
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -564,7 +567,7 @@ function getSettingsImagePath($path)
                         </div>
                         <div>
                             <h1 class="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-tight">President Ramon Magsaysay State University</h1>
-                            <p class="text-white text-xs sm:text-sm md:text-base opacity-90">Automatic Classroom Scheduling System</p>
+                            <p class="text-white text-xs sm:text-sm md:text-base opacity-90">Automated Classroom Scheduling System</p>
                         </div>
                     </div>
                 </div>

@@ -50,6 +50,11 @@ $currentUri = $_SERVER['REQUEST_URI'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($systemName); ?> - Admin Dashboard</title>
+    <!-- Favicon / tab icon using the system logo -->
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo htmlspecialchars($systemLogo); ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo htmlspecialchars($systemLogo); ?>">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($systemLogo); ?>">
+    <meta name="theme-color" content="<?php echo htmlspecialchars($primaryColor); ?>">
     <link rel="stylesheet" href="/css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
