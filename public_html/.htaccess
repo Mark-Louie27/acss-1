@@ -19,6 +19,15 @@
     </FilesMatch>
 </IfModule>
 
+<IfModule mod_headers.c>
+    # Prevent caching of JS files
+    <FilesMatch "\.(js)$">
+        Header set Cache-Control "no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
 # Set default index file
 DirectoryIndex index.php index.html
 

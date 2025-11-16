@@ -418,7 +418,7 @@ if ($userDepartmentId) {
                             <div id="schedule-grid" class="divide-y divide-gray-200">
                                 <?php
                                 // Generate dynamic time slots from 7:00 AM to 9:00 PM in 30-minute intervals
-                                $timeSlots = [];    
+                                $timeSlots = [];
                                 $startHour = 7;
                                 $endHour = 21;
 
@@ -3162,8 +3162,8 @@ if ($userDepartmentId) {
         </script>
 
         <!-- Include external JavaScript files -->
-        <script src="/assets/js/generate_schedules.js"></script>
-        <script src="/assets/js/manual_schedules.js"></script>
+        <script src="/assets/js/generate_schedules.js?v=20250116_001"></script>
+        <script src="/assets/js/manual_schedules.js?v=20250116_001"></script>
         <!-- Add these to your head section -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

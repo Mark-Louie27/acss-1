@@ -14,15 +14,21 @@ class PublicController
     public function __construct()
     {
         error_log("Public Controller instantiated");
-        $this->db = (new Database())->connect();
-        if ($this->db === null) {
-            error_log("Failed to connect to the database in Public Controller");
-            die("Database connection failed. Please try again later.");
-        }
+        try {
+            $this->db = (new Database())->connect();
+            if ($this->db === null) {
+                throw new Exception("Database connection returned null");
+            }
+            $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $this->schedulingService = new SchedulingService($this->db);
-        $this->pdfService = new PdfService();
-        $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->schedulingService = new SchedulingService($this->db);
+            $this->pdfService = new PdfService();
+
+            error_log("Public Controller initialized successfully");
+        } catch (Exception $e) {
+            error_log("Public Controller initialization failed: " . $e->getMessage());
+            // Don't die here, let the methods handle it gracefully
+        }
     }
 
     public function showHomepage()
@@ -139,80 +145,122 @@ class PublicController
 
     public function searchSchedules()
     {
-        $currentSemester = $this->getCurrentSemester();
-
-        $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
-        $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : $currentSemester['semester_id'];
-        $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
-        $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
-        $section_id = isset($_POST['section_id']) ? (int)$_POST['section_id'] : 0;
-        $search = isset($_POST['search']) ? trim($_POST['search']) : '';
-
-        $query = "
-                SELECT 
-                    s.schedule_id, 
-                    c.course_code, 
-                    c.course_name, 
-                    sec.section_name,
-                    sec.year_level,
-                    COALESCE(r.room_name, 'Online') AS room_name, 
-                    r.building, 
-                    s.day_of_week, 
-                    s.start_time, 
-                    s.end_time, 
-                    s.schedule_type, 
-                    TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,
-                    d.department_name,
-                    col.college_name
-                FROM schedules s
-                JOIN courses c ON s.course_id = c.course_id
-                JOIN sections sec ON s.section_id = sec.section_id
-                JOIN semesters sem ON s.semester_id = sem.semester_id
-                LEFT JOIN classrooms r ON s.room_id = r.room_id
-                JOIN faculty f ON s.faculty_id = f.faculty_id
-                JOIN users u ON f.user_id = u.user_id
-                JOIN departments d ON sec.department_id = d.department_id
-                JOIN colleges col ON d.college_id = col.college_id
-                WHERE s.is_public = 1
-                AND sem.semester_id = ?
-                AND (? = 0 OR col.college_id = ?)
-                AND (? = 0 OR d.department_id = ?)
-                AND (? = '' OR sec.year_level = ?)
-                AND (? = 0 OR sec.section_id = ?)
-                AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
-                ORDER BY c.course_code, sec.section_name, s.start_time, FIELD(s.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
-            ";
-
+        // Production-safe error handling
         try {
+            // Check database connection first
+            if ($this->db === null) {
+                throw new Exception("Database connection is null");
+            }
+
+            $currentSemester = $this->getCurrentSemester();
+
+            // Validate current semester exists
+            if (empty($currentSemester) || !isset($currentSemester['semester_id'])) {
+                error_log("CRITICAL: No current semester found in database");
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'schedules' => [],
+                    'total' => 0,
+                    'page' => 1,
+                    'per_page' => 10,
+                    'error' => 'No active semester is currently set. Please contact administrator.'
+                ]);
+                exit;
+            }
+
+            // Safely get and sanitize parameters
+            $college_id = filter_input(INPUT_POST, 'college_id', FILTER_VALIDATE_INT) ?: 0;
+            $semester_id = filter_input(INPUT_POST, 'semester_id', FILTER_VALIDATE_INT) ?: (int)$currentSemester['semester_id'];
+            $department_id = filter_input(INPUT_POST, 'department_id', FILTER_VALIDATE_INT) ?: 0;
+            $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
+            $section_id = filter_input(INPUT_POST, 'section_id', FILTER_VALIDATE_INT) ?: 0;
+            $search = isset($_POST['search']) ? trim($_POST['search']) : '';
+
+            // Build query with named parameters for safety
+            $query = "
+            SELECT 
+                s.schedule_id, 
+                c.course_code, 
+                c.course_name, 
+                sec.section_name,
+                sec.year_level,
+                COALESCE(r.room_name, 'Online') AS room_name, 
+                COALESCE(r.building, '') AS building, 
+                s.day_of_week, 
+                s.start_time, 
+                s.end_time, 
+                s.schedule_type, 
+                TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,
+                d.department_name,
+                col.college_name
+            FROM schedules s
+            INNER JOIN courses c ON s.course_id = c.course_id
+            INNER JOIN sections sec ON s.section_id = sec.section_id
+            INNER JOIN semesters sem ON s.semester_id = sem.semester_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            INNER JOIN faculty f ON s.faculty_id = f.faculty_id
+            INNER JOIN users u ON f.user_id = u.user_id
+            INNER JOIN departments d ON sec.department_id = d.department_id
+            INNER JOIN colleges col ON d.college_id = col.college_id
+            WHERE s.is_public = 1
+            AND sem.semester_id = :semester_id
+        ";
+
+            $params = [':semester_id' => $semester_id];
+
+            // Dynamically add filters only if they're set
+            if ($college_id > 0) {
+                $query .= " AND col.college_id = :college_id";
+                $params[':college_id'] = $college_id;
+            }
+
+            if ($department_id > 0) {
+                $query .= " AND d.department_id = :department_id";
+                $params[':department_id'] = $department_id;
+            }
+
+            if (!empty($year_level)) {
+                $query .= " AND sec.year_level = :year_level";
+                $params[':year_level'] = $year_level;
+            }
+
+            if ($section_id > 0) {
+                $query .= " AND sec.section_id = :section_id";
+                $params[':section_id'] = $section_id;
+            }
+
+            if (!empty($search)) {
+                $query .= " AND (
+                c.course_code LIKE :search 
+                OR c.course_name LIKE :search 
+                OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search
+            )";
+                $params[':search'] = '%' . $search . '%';
+            }
+
+            $query .= " ORDER BY c.course_code, sec.section_name, s.start_time, 
+                    FIELD(s.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')";
+
             $stmt = $this->db->prepare($query);
-            $searchPattern = '%' . $search . '%';
 
-            $stmt->execute([
-                $semester_id,
-                $college_id,
-                $college_id,
-                $department_id,
-                $department_id,
-                $year_level,
-                $year_level,
-                $section_id,
-                $section_id,
-                $searchPattern,
-                $searchPattern,
-                $searchPattern
-            ]);
+            if (!$stmt) {
+                throw new Exception("Failed to prepare SQL statement");
+            }
 
+            $stmt->execute($params);
             $rawSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // GROUP BY: course + section + time + room → collect days
+            // GROUP schedules by course + section + time + room
             $grouped = [];
             foreach ($rawSchedules as $sch) {
-                $key = $sch['course_code'] . '|' .
-                    $sch['section_name'] . '|' .
-                    $sch['start_time'] . '|' .
-                    $sch['end_time'] . '|' .
-                    $sch['room_name'] . '|' .
-                    $sch['instructor_name'];
+                $key = implode('|', [
+                    $sch['course_code'],
+                    $sch['section_name'],
+                    $sch['start_time'],
+                    $sch['end_time'],
+                    $sch['room_name'],
+                    $sch['instructor_name']
+                ]);
 
                 if (!isset($grouped[$key])) {
                     $grouped[$key] = $sch;
@@ -221,29 +269,40 @@ class PublicController
                 $grouped[$key]['days'][] = $sch['day_of_week'];
             }
 
-            // FORMAT DAYS using SchedulingService
+            // FORMAT DAYS
             $formattedSchedules = [];
             foreach ($grouped as $item) {
                 $dayString = implode(', ', $item['days']);
-                $item['formatted_days'] = $this->schedulingService->formatScheduleDays($dayString);
-                unset($item['days'], $item['day_of_week']); // Remove raw
+
+                // Check if schedulingService exists
+                if ($this->schedulingService && method_exists($this->schedulingService, 'formatScheduleDays')) {
+                    $item['formatted_days'] = $this->schedulingService->formatScheduleDays($dayString);
+                } else {
+                    // Fallback formatting if service is unavailable
+                    $item['formatted_days'] = $this->fallbackFormatDays($dayString);
+                }
+
+                unset($item['days'], $item['day_of_week']);
                 $formattedSchedules[] = $item;
             }
 
-            // Sort by formatted days + time
+            // Sort schedules
             usort($formattedSchedules, function ($a, $b) {
                 $daysOrder = ['MWF' => 1, 'TTH' => 2, 'MW' => 3, 'THF' => 4, 'MTHF' => 5, 'TWTHF' => 6];
-                $aKey = $a['formatted_days'];
-                $bKey = $b['formatted_days'];
-                $aOrder = $daysOrder[$aKey] ?? 99;
-                $bOrder = $daysOrder[$bKey] ?? 99;
-                if ($aOrder !== $bOrder) return $aOrder <=> $bOrder;
-                return $a['start_time'] <=> $b['start_time'];
+                $aOrder = $daysOrder[$a['formatted_days']] ?? 99;
+                $bOrder = $daysOrder[$b['formatted_days']] ?? 99;
+
+                if ($aOrder !== $bOrder) {
+                    return $aOrder <=> $bOrder;
+                }
+                return strcmp($a['start_time'], $b['start_time']);
             });
 
+            // Pagination
             $total = count($formattedSchedules);
             $perPage = 10;
-            $page = isset($_POST['page']) ? max(1, (int)$_POST['page']) : 1;
+            $page = filter_input(INPUT_POST, 'page', FILTER_VALIDATE_INT) ?: 1;
+            $page = max(1, $page);
             $offset = ($page - 1) * $perPage;
             $pagedSchedules = array_slice($formattedSchedules, $offset, $perPage);
 
@@ -252,18 +311,63 @@ class PublicController
                 'schedules' => $pagedSchedules,
                 'total' => $total,
                 'page' => $page,
-                'per_page' => $perPage,
-                'debug' => [
-                    'raw_count' => count($rawSchedules),
-                    'grouped_count' => count($formattedSchedules)
-                ]
+                'per_page' => $perPage
             ]);
         } catch (PDOException $e) {
-            error_log("Search Schedules Error: " . $e->getMessage());
+            error_log("PUBLIC SEARCH ERROR [PDO]: " . $e->getMessage());
+            error_log("Query params: " . json_encode($params ?? []));
+
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Database error.']);
+            http_response_code(500);
+            echo json_encode([
+                'schedules' => [],
+                'total' => 0,
+                'page' => 1,
+                'per_page' => 10,
+                'error' => 'Unable to load schedules at this time. Please try again later.'
+            ]);
+        } catch (Exception $e) {
+            error_log("PUBLIC SEARCH ERROR [General]: " . $e->getMessage());
+            error_log("Stack: " . $e->getTraceAsString());
+
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode([
+                'schedules' => [],
+                'total' => 0,
+                'page' => 1,
+                'per_page' => 10,
+                'error' => 'An unexpected error occurred. Please contact support.'
+            ]);
         }
         exit;
+    }
+
+    /**
+     * Fallback day formatting if SchedulingService is unavailable
+     */
+    private function fallbackFormatDays($dayString)
+    {
+        $days = array_map('trim', explode(',', $dayString));
+        $days = array_unique($days);
+
+        // Simple abbreviation mapping
+        $abbrev = [
+            'Monday' => 'M',
+            'Tuesday' => 'T',
+            'Wednesday' => 'W',
+            'Thursday' => 'Th',
+            'Friday' => 'F',
+            'Saturday' => 'S',
+            'Sunday' => 'Su'
+        ];
+
+        $formatted = [];
+        foreach ($days as $day) {
+            $formatted[] = $abbrev[$day] ?? substr($day, 0, 1);
+        }
+
+        return implode('', $formatted);
     }
 
     private function getCurrentSemester()
@@ -279,99 +383,241 @@ class PublicController
 
     public function downloadSchedulePdf()
     {
-        // FIX: Properly capture POST parameters with isset() instead of ?? operator
-        $currentSemester = $this->getCurrentSemester();
-
-        $college_id = isset($_POST['college_id']) ? (int)$_POST['college_id'] : 0;
-        $semester_id = isset($_POST['semester_id']) ? (int)$_POST['semester_id'] : (int)$currentSemester['semester_id'];
-        $department_id = isset($_POST['department_id']) ? (int)$_POST['department_id'] : 0;
-        $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
-        $section_id = isset($_POST['section_id']) ? (int)$_POST['section_id'] : 0;
-        $search = isset($_POST['search']) ? trim($_POST['search']) : '';
-
-        // Debug logging
-        error_log("PDF Download Filters - College: $college_id, Dept: $department_id, Year: $year_level, Section: $section_id, Search: $search");
-
-        $query = "
-        SELECT 
-            c.course_code, c.course_name, sec.section_name, sec.year_level,
-            COALESCE(r.room_name, 'Online') AS room_name,
-            s.day_of_week, s.start_time, s.end_time,
-            TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,
-            d.department_name, col.college_name
-        FROM schedules s
-        JOIN courses c ON s.course_id = c.course_id
-        JOIN sections sec ON s.section_id = sec.section_id
-        JOIN semesters sem ON s.semester_id = sem.semester_id
-        LEFT JOIN classrooms r ON s.room_id = r.room_id
-        JOIN faculty f ON s.faculty_id = f.faculty_id
-        JOIN users u ON f.user_id = u.user_id
-        JOIN departments d ON sec.department_id = d.department_id
-        JOIN colleges col ON d.college_id = col.college_id
-        WHERE s.is_public = 1
-          AND sem.semester_id = ?
-          AND (? = 0 OR col.college_id = ?)
-          AND (? = 0 OR d.department_id = ?)
-          AND (? = '' OR sec.year_level = ?)
-          AND (? = 0 OR sec.section_id = ?)
-          AND (c.course_code LIKE ? OR c.course_name LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
-        ORDER BY c.course_code, sec.section_name, s.start_time
-    ";
-
-        $stmt = $this->db->prepare($query);
-        $searchPattern = '%' . $search . '%';
-        $stmt->execute([
-            $semester_id,
-            $college_id,
-            $college_id,
-            $department_id,
-            $department_id,
-            $year_level,
-            $year_level,
-            $section_id,
-            $section_id,
-            $searchPattern,
-            $searchPattern,
-            $searchPattern
-        ]);
-
-        $rawSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Debug logging
-        error_log("PDF Download - Raw schedules count: " . count($rawSchedules));
-
-        // GROUP + FORMAT DAYS
-        $grouped = [];
-        foreach ($rawSchedules as $sch) {
-            $key = $sch['course_code'] . '|' . $sch['section_name'] . '|' . $sch['start_time'] . '|' . $sch['end_time'] . '|' . $sch['room_name'] . '|' . $sch['instructor_name'];
-            if (!isset($grouped[$key])) {
-                $grouped[$key] = $sch;
-                $grouped[$key]['days'] = [];
+        try {
+            // Check database connection
+            if ($this->db === null) {
+                throw new Exception("Database connection is null");
             }
-            $grouped[$key]['days'][] = $sch['day_of_week'];
+
+            // Check PDF service
+            if ($this->pdfService === null) {
+                throw new Exception("PDF service is not initialized");
+            }
+
+            $currentSemester = $this->getCurrentSemester();
+
+            // Validate current semester
+            if (empty($currentSemester) || !isset($currentSemester['semester_id'])) {
+                error_log("PDF Download Error: No current semester found");
+                die("Error: No active semester configured. Please contact administrator.");
+            }
+
+            // Get and validate parameters - using filter_input for safety
+            $college_id = filter_input(INPUT_POST, 'college_id', FILTER_VALIDATE_INT) ?: 0;
+            $semester_id = filter_input(INPUT_POST, 'semester_id', FILTER_VALIDATE_INT) ?: (int)$currentSemester['semester_id'];
+            $department_id = filter_input(INPUT_POST, 'department_id', FILTER_VALIDATE_INT) ?: 0;
+            $year_level = isset($_POST['year_level']) ? trim($_POST['year_level']) : '';
+            $section_id = filter_input(INPUT_POST, 'section_id', FILTER_VALIDATE_INT) ?: 0;
+            $search = isset($_POST['search']) ? trim($_POST['search']) : '';
+
+            // Debug logging
+            error_log("PDF Download - Filters: college=$college_id, dept=$department_id, year=$year_level, section=$section_id, search=$search, semester=$semester_id");
+
+            // Build query with named parameters
+            $query = "
+            SELECT 
+                c.course_code, 
+                c.course_name, 
+                sec.section_name, 
+                sec.year_level,
+                COALESCE(r.room_name, 'Online') AS room_name,
+                COALESCE(r.building, '') AS building,
+                s.day_of_week, 
+                s.start_time, 
+                s.end_time,
+                TRIM(CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name)) AS instructor_name,
+                d.department_name, 
+                col.college_name
+            FROM schedules s
+            INNER JOIN courses c ON s.course_id = c.course_id
+            INNER JOIN sections sec ON s.section_id = sec.section_id
+            INNER JOIN semesters sem ON s.semester_id = sem.semester_id
+            LEFT JOIN classrooms r ON s.room_id = r.room_id
+            INNER JOIN faculty f ON s.faculty_id = f.faculty_id
+            INNER JOIN users u ON f.user_id = u.user_id
+            INNER JOIN departments d ON sec.department_id = d.department_id
+            INNER JOIN colleges col ON d.college_id = col.college_id
+            WHERE s.is_public = 1
+            AND sem.semester_id = :semester_id
+        ";
+
+            $params = [':semester_id' => $semester_id];
+
+            // Add optional filters dynamically
+            if ($college_id > 0) {
+                $query .= " AND col.college_id = :college_id";
+                $params[':college_id'] = $college_id;
+            }
+
+            if ($department_id > 0) {
+                $query .= " AND d.department_id = :department_id";
+                $params[':department_id'] = $department_id;
+            }
+
+            if (!empty($year_level)) {
+                $query .= " AND sec.year_level = :year_level";
+                $params[':year_level'] = $year_level;
+            }
+
+            if ($section_id > 0) {
+                $query .= " AND sec.section_id = :section_id";
+                $params[':section_id'] = $section_id;
+            }
+
+            if (!empty($search)) {
+                $query .= " AND (
+                c.course_code LIKE :search 
+                OR c.course_name LIKE :search 
+                OR CONCAT(u.first_name, ' ', u.last_name) LIKE :search
+            )";
+                $params[':search'] = '%' . $search . '%';
+            }
+
+            $query .= " ORDER BY c.course_code, sec.section_name, s.start_time";
+
+            $stmt = $this->db->prepare($query);
+
+            if (!$stmt) {
+                throw new Exception("Failed to prepare SQL statement");
+            }
+
+            $stmt->execute($params);
+            $rawSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            error_log("PDF Download - Raw schedules count: " . count($rawSchedules));
+
+            if (empty($rawSchedules)) {
+                error_log("PDF Download - No schedules found with current filters");
+                die("No schedules found matching your criteria. Please adjust your filters and try again.");
+            }
+
+            // GROUP + FORMAT DAYS
+            $grouped = [];
+            foreach ($rawSchedules as $sch) {
+                $key = implode('|', [
+                    $sch['course_code'],
+                    $sch['section_name'],
+                    $sch['start_time'],
+                    $sch['end_time'],
+                    $sch['room_name'],
+                    $sch['instructor_name']
+                ]);
+
+                if (!isset($grouped[$key])) {
+                    $grouped[$key] = $sch;
+                    $grouped[$key]['days'] = [];
+                }
+                $grouped[$key]['days'][] = $sch['day_of_week'];
+            }
+
+            $schedules = [];
+            foreach ($grouped as $item) {
+                $dayString = implode(', ', $item['days']);
+
+                // Format days with fallback
+                if ($this->schedulingService && method_exists($this->schedulingService, 'formatScheduleDays')) {
+                    $item['formatted_days'] = $this->schedulingService->formatScheduleDays($dayString);
+                } else {
+                    $item['formatted_days'] = $this->fallbackFormatDays($dayString);
+                }
+
+                unset($item['days'], $item['day_of_week']);
+                $schedules[] = $item;
+            }
+
+            error_log("PDF Download - Grouped schedules count: " . count($schedules));
+
+            // BUILD WEEKLY GRID
+            $timeSlots = $this->generateTimeSlots();
+            $weeklyGrid = $this->buildWeeklyGrid($schedules, $timeSlots);
+
+            // GET FILTER LABELS
+            $filters = $this->getFilterLabels($college_id, $department_id, $year_level, $section_id, $search);
+
+            // GENERATE PDF
+            error_log("PDF Download - Generating HTML");
+            $html = $this->generateWeeklyPdfHtml($weeklyGrid, $timeSlots, $currentSemester, $filters);
+
+            error_log("PDF Download - Converting HTML to PDF");
+            $pdfData = $this->pdfService->generateFromHtml($html);
+
+            if (empty($pdfData)) {
+                throw new Exception("PDF generation returned empty data");
+            }
+
+            error_log("PDF Download - Sending PDF to browser");
+            $filename = "PRMSU_Schedule_" . date('Y-m-d') . ".pdf";
+            $this->pdfService->sendAsDownload($pdfData, $filename);
+        } catch (PDOException $e) {
+            error_log("PDF Download PDO Error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            error_log("Query params: " . json_encode($params ?? []));
+
+            http_response_code(500);
+            die("Database error occurred while generating PDF. Please try again later.");
+        } catch (Exception $e) {
+            error_log("PDF Download Error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+
+            http_response_code(500);
+            die("Error generating PDF: " . $e->getMessage() . ". Please contact support if this persists.");
         }
+    }
 
-        $schedules = [];
-        foreach ($grouped as $item) {
-            $dayString = implode(', ', $item['days']);
-            $item['formatted_days'] = $this->schedulingService->formatScheduleDays($dayString);
-            unset($item['days'], $item['day_of_week']);
-            $schedules[] = $item;
+    /**
+     * Safe version of buildWeeklyGrid with error handling
+     */
+    private function buildWeeklyGrid($schedules, $timeSlots)
+    {
+        try {
+            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            $grid = [];
+
+            // Initialize grid
+            foreach ($timeSlots as $slot) {
+                $grid[$slot] = array_fill_keys($days, null);
+            }
+
+            foreach ($schedules as $sch) {
+                // Validate schedule has required fields
+                if (!isset($sch['start_time'], $sch['end_time'], $sch['formatted_days'])) {
+                    error_log("Invalid schedule data: " . json_encode($sch));
+                    continue;
+                }
+
+                // Parse start and end times
+                $start = date('g:i A', strtotime($sch['start_time']));
+                $end = date('g:i A', strtotime($sch['end_time']));
+
+                // Find affected time slots
+                $affectedSlots = $this->findAffectedTimeSlots($start, $end, $timeSlots);
+
+                if (empty($affectedSlots)) {
+                    error_log("No affected slots found for schedule: {$sch['course_code']} at $start - $end");
+                    continue;
+                }
+
+                // Expand day abbreviations to full day names
+                $dayList = $this->expandDays($sch['formatted_days']);
+
+                // Place schedule in grid (only in first slot to avoid duplication)
+                foreach ($dayList as $day) {
+                    if (in_array($day, $days) && isset($affectedSlots[0])) {
+                        $grid[$affectedSlots[0]][$day] = $sch;
+                    }
+                }
+            }
+
+            return $grid;
+        } catch (Exception $e) {
+            error_log("Error building weekly grid: " . $e->getMessage());
+            // Return empty grid as fallback
+            $grid = [];
+            foreach ($timeSlots as $slot) {
+                $grid[$slot] = array_fill_keys(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], null);
+            }
+            return $grid;
         }
-
-        // BUILD WEEKLY GRID
-        $timeSlots = $this->generateTimeSlots(); // 7:00 AM - 9:00 PM
-        $weeklyGrid = $this->buildWeeklyGrid($schedules, $timeSlots);
-
-        // GET FILTER LABELS
-        $filters = $this->getFilterLabels($college_id, $department_id, $year_level, $section_id, $search);
-
-        // GENERATE PDF
-        $html = $this->generateWeeklyPdfHtml($weeklyGrid, $timeSlots, $currentSemester, $filters);
-        $pdfData = $this->pdfService->generateFromHtml($html);
-
-        $filename = "PRMSU_Schedule_" . date('Y-m-d') . ".pdf";
-        $this->pdfService->sendAsDownload($pdfData, $filename);
     }
 
     private function generateTimeSlots()
@@ -386,42 +632,6 @@ class PublicController
             $start += 1800;
         }
         return $slots;
-    }
-
-    private function buildWeeklyGrid($schedules, $timeSlots)
-    {
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        $grid = [];
-
-        foreach ($timeSlots as $slot) {
-            $grid[$slot] = array_fill_keys($days, null);
-        }
-
-        foreach ($schedules as $sch) {
-            // Parse start and end times
-            $start = date('g:i A', strtotime($sch['start_time']));
-            $end = date('g:i A', strtotime($sch['end_time']));
-
-            // Find all time slots that this schedule spans
-            $affectedSlots = $this->findAffectedTimeSlots($start, $end, $timeSlots);
-
-            if (empty($affectedSlots)) continue;
-
-            $dayList = $this->expandDays($sch['formatted_days']);
-
-            foreach ($affectedSlots as $slotKey) {
-                foreach ($dayList as $day) {
-                    if (in_array($day, $days)) {
-                        // Only place the schedule in the first slot to avoid duplication
-                        if ($slotKey === $affectedSlots[0]) {
-                            $grid[$slotKey][$day] = $sch;
-                        }
-                    }
-                }
-            }
-        }
-
-        return $grid;
     }
 
     private function findAffectedTimeSlots($startTime, $endTime, $slots)

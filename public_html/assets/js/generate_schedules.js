@@ -759,193 +759,218 @@ function parseDays(dayCode) {
   return uniqueDays.length > 0 ? uniqueDays : ['Monday'];
 }
 
-// ✅ UPDATED: updateUIAfterGeneration with better logging
-async function updateUIAfterGeneration(responseData, loadingOverlay, startTime) {
+async function updateUIAfterGeneration(
+  responseData,
+  loadingOverlay,
+  startTime
+) {
   try {
-    console.log("🎨 ===== STARTING ENHANCED UI UPDATE =====");
-    console.log("📦 Response schedules count:", responseData.schedules?.length || 0);
-    console.log("📚 Available sections:", window.sectionsData?.length || 0);
+    console.log("🎨 ===== STARTING UI UPDATE =====");
+    console.log("📦 Response schedules:", responseData.schedules?.length || 0);
 
-    await new Promise(resolve => requestAnimationFrame(resolve));
-
+    // Validate response
     if (!responseData.schedules || !Array.isArray(responseData.schedules)) {
-      console.error("❌ Invalid schedules in response!");
-      throw new Error("No valid schedules returned from server");
+      throw new Error("Invalid schedules in response");
     }
 
     if (responseData.schedules.length === 0) {
-      console.warn("⚠️ Server returned 0 schedules!");
-      showValidationToast(["No schedules were generated."]);
+      console.warn("⚠️ No schedules generated");
       if (loadingOverlay) loadingOverlay.classList.add("hidden");
+      showValidationToast(["No schedules were generated."]);
       return;
     }
 
-    console.log("🔄 Transforming schedules with enhanced parser...");
-    console.log("📋 Sample backend schedule:", JSON.stringify(responseData.schedules[0], null, 2));
-    
-    // Transform all schedules
+    // ✅ CRITICAL: Transform backend schedules to frontend format
+    console.log("🔄 Transforming schedules...");
     const transformedSchedules = [];
+
     responseData.schedules.forEach((backendSchedule, index) => {
       const transformed = transformBackendSchedule(backendSchedule, index);
       if (transformed && Array.isArray(transformed)) {
         transformedSchedules.push(...transformed);
-        console.log(`  ✅ Schedule ${index + 1} (${backendSchedule.course_code}): ${transformed.length} entries created`);
       }
     });
 
-    console.log(`✅ TRANSFORMATION COMPLETE:`);
-    console.log(`   Backend schedules: ${responseData.schedules.length}`);
-    console.log(`   Frontend schedules: ${transformedSchedules.length}`);
-    console.log(`   Expansion ratio: ${(transformedSchedules.length / responseData.schedules.length).toFixed(2)}x`);
-    console.log(`   Unique sections: ${new Set(transformedSchedules.map(s => s.section_name)).size}`);
-    console.log(`   Unique days: ${new Set(transformedSchedules.map(s => s.day_of_week)).size}`);
+    console.log(
+      `✅ Transformed: ${transformedSchedules.length} schedule entries`
+    );
 
     if (transformedSchedules.length === 0) {
-      console.error("❌ NO SCHEDULES AFTER TRANSFORMATION!");
-      throw new Error("Schedule transformation failed - no valid schedules created");
+      throw new Error("Schedule transformation failed");
     }
 
-    // Show sample transformed schedule
-    console.log("📋 Sample transformed schedule:", JSON.stringify(transformedSchedules[0], null, 2));
-
-    // Store transformed schedules
+    // ✅ CRITICAL: Store globally IMMEDIATELY
     window.scheduleData = transformedSchedules;
-    console.log(`✅ STORED ${window.scheduleData.length} SCHEDULES IN window.scheduleData`);
+    console.log(`✅ Stored ${window.scheduleData.length} schedules globally`);
 
-    // Update generation results
+    // ✅ Update generation results display
     const generationResults = document.getElementById("generation-results");
     if (generationResults) {
       generationResults.classList.remove("hidden");
       const totalCoursesEl = document.getElementById("total-courses");
       const totalSectionsEl = document.getElementById("total-sections");
       const successRateEl = document.getElementById("success-rate");
-      if (totalCoursesEl) totalCoursesEl.textContent = responseData.totalCourses || responseData.schedules.length;
-      if (totalSectionsEl) totalSectionsEl.textContent = new Set(transformedSchedules.map(s => s.section_name)).size;
-      if (successRateEl) successRateEl.textContent = responseData.successRate || "100%";
+
+      if (totalCoursesEl) {
+        totalCoursesEl.textContent =
+          responseData.totalCourses || responseData.schedules.length;
+      }
+      if (totalSectionsEl) {
+        const uniqueSections = new Set(
+          transformedSchedules.map((s) => s.section_name)
+        ).size;
+        totalSectionsEl.textContent = uniqueSections;
+      }
+      if (successRateEl) {
+        successRateEl.textContent = responseData.successRate || "100%";
+      }
     }
 
-    // Update completion status
+    // ✅ Update completion status
     updateScheduleCompletionStatus(responseData);
 
-    // Force grid update with multiple attempts
-    console.log("🔄 Forcing grid update...");
-    
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      console.log(`🔄 Grid update attempt ${attempt}/${3}...`);
-      
-      if (typeof safeUpdateScheduleDisplay === 'function') {
+    // ✅ CRITICAL: Wait for DOM to be ready
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // ✅ FORCE IMMEDIATE GRID UPDATE - Multiple attempts for reliability
+    console.log("🔄 Forcing immediate grid update...");
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      console.log(`   Attempt ${attempt}/2...`);
+
+      // Update all grids
+      if (typeof safeUpdateScheduleDisplay === "function") {
         safeUpdateScheduleDisplay(window.scheduleData);
       }
-      
-      if (typeof updateManualGrid === 'function') {
+
+      if (typeof updateManualGrid === "function") {
         updateManualGrid(window.scheduleData);
       }
-      
-      if (typeof updateViewGrid === 'function') {
+
+      if (typeof updateViewGrid === "function") {
         updateViewGrid(window.scheduleData);
       }
-      
-      if (attempt < 3) {
-        await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Small delay between attempts
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
     }
 
-    // Verify grids were populated
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const manualGrid = document.getElementById("schedule-grid");
-    if (manualGrid) {
-      const scheduleCards = manualGrid.querySelectorAll('.schedule-card');
-      console.log(`📊 Manual grid verification: ${scheduleCards.length} schedule cards found`);
-      
-      if (scheduleCards.length === 0) {
-        console.warn("⚠️ Manual grid is empty, attempting emergency rebuild...");
-        if (typeof emergencyGridRebuild === 'function') {
-          emergencyGridRebuild(window.scheduleData);
-        }
-      } else {
-        console.log(`✅ Grid successfully populated with ${scheduleCards.length} cards`);
-      }
-    }
-
-    // Reinitialize drag and drop
-    if (typeof initializeDragAndDrop === 'function') {
-      initializeDragAndDrop();
-      console.log("✅ Drag and drop initialized");
-    }
-
-    // Hide loading
-    const totalTime = performance.now() - startTime;
-    console.log(`✨ All updates completed in ${totalTime.toFixed(2)}ms`);
-    
+    // ✅ Hide loading overlay
     if (loadingOverlay) {
       loadingOverlay.classList.add("hidden");
     }
 
-    // Show notification
-    const uniqueSections = new Set(transformedSchedules.map(s => s.section_name)).size;
-    await new Promise(resolve => setTimeout(resolve, 100));
-    showCompletionToast("success", "Schedules generated successfully!", [
+    const totalTime = performance.now() - startTime;
+    console.log(`✅ UI updated in ${totalTime.toFixed(2)}ms`);
+
+    // ✅ Show success notification
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const uniqueSections = new Set(
+      transformedSchedules.map((s) => s.section_name)
+    ).size;
+
+    showCompletionToast("success", "Schedules Generated!", [
       `${transformedSchedules.length} schedule entries created`,
       `${responseData.schedules.length} courses across ${uniqueSections} sections`,
-      `Displaying on ${new Set(transformedSchedules.map(s => s.day_of_week)).size} days`,
     ]);
 
-    // Auto-switch to manual tab
-    console.log("🔀 Switching to manual tab in 800ms...");
+    // ✅ CRITICAL: Auto-switch to manual tab with proper verification
+    console.log("🔀 Switching to manual tab...");
     setTimeout(async () => {
-      if (typeof switchTab === 'function') {
-        switchTab('manual');
+      if (typeof switchTab === "function") {
+        switchTab("manual");
         console.log("✅ Switched to manual tab");
-        
-        // Post-switch refresh
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
+
+        // ✅ CRITICAL: Force refresh after tab switch
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
         console.log("🔄 Post-switch refresh...");
-        if (typeof safeUpdateScheduleDisplay === 'function') {
-          safeUpdateScheduleDisplay(window.scheduleData);
-        }
-        if (typeof updateManualGrid === 'function') {
+
+        // Refresh grids again
+        if (typeof updateManualGrid === "function") {
           updateManualGrid(window.scheduleData);
         }
-        if (typeof initializeDragAndDrop === 'function') {
+
+        if (typeof initializeDragAndDrop === "function") {
           initializeDragAndDrop();
         }
-        
-        // Final verification
-        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // ✅ VERIFY schedules are visible
+        await new Promise((resolve) => setTimeout(resolve, 200));
         const finalGrid = document.getElementById("schedule-grid");
+
         if (finalGrid) {
-          const finalCards = finalGrid.querySelectorAll('.schedule-card');
-          console.log(`📊 FINAL VERIFICATION: ${finalCards.length} schedule cards visible`);
-          
-          if (finalCards.length === 0) {
-            console.error("❌ Schedules still not visible after all attempts!");
-            console.log("🚨 Triggering emergency rebuild...");
-            if (typeof emergencyGridRebuild === 'function') {
+          const scheduleCards = finalGrid.querySelectorAll(".schedule-card");
+          console.log(
+            `📊 Final verification: ${scheduleCards.length} schedule cards visible`
+          );
+
+          if (scheduleCards.length === 0) {
+            console.error("❌ Schedules not visible! Emergency rebuild...");
+
+            // Emergency rebuild
+            if (typeof emergencyGridRebuild === "function") {
               emergencyGridRebuild(window.scheduleData);
+            } else {
+              // Manual emergency rebuild
+              console.log("🚨 Performing manual emergency rebuild...");
+              updateManualGrid(window.scheduleData);
+              await new Promise((resolve) => setTimeout(resolve, 200));
+              initializeDragAndDrop();
             }
           } else {
-            console.log("✅✅✅ SUCCESS! All schedules are now visible!");
+            console.log("✅✅✅ SUCCESS! All schedules visible!");
           }
         }
-        
-        console.log("🎉 ===== UPDATE PROCESS COMPLETE =====");
       }
-    }, 800);
-
+    }, 500);
   } catch (error) {
-    console.error("❌❌❌ CRITICAL ERROR during UI update:", error);
-    console.error("Stack trace:", error.stack);
-    console.error("Response data:", responseData);
-    hideLoadingAndShowError(loadingOverlay, "Error updating display: " + error.message);
+    console.error("❌ Error in updateUIAfterGeneration:", error);
+    console.error("Stack:", error.stack);
+    hideLoadingAndShowError(
+      loadingOverlay,
+      "Error displaying schedules: " + error.message
+    );
   }
 }
 
-console.log("✅ Enhanced schedule transformer loaded - handles sections and multiple time slots");
+window.emergencyGridRebuild = function (schedules) {
+  console.log("🚨 EMERGENCY GRID REBUILD");
 
-// Step 11: Auto-switch to manual tab to show the schedules
-console.log("🔀 Auto-switching to manual tab...");
+  if (!schedules || schedules.length === 0) {
+    console.error("❌ No schedules to rebuild");
+    return;
+  }
+
+  const manualGrid = document.getElementById("schedule-grid");
+  if (!manualGrid) {
+    console.error("❌ Manual grid not found");
+    return;
+  }
+
+  // Clear grid
+  manualGrid.innerHTML =
+    '<div class="col-span-8 text-center py-4 text-gray-500">Building schedule grid...</div>';
+
+  // Force immediate rebuild
+  setTimeout(() => {
+    if (typeof updateManualGrid === "function") {
+      updateManualGrid(schedules);
+      console.log("✅ Emergency rebuild complete");
+
+      // Reinitialize drag and drop
+      setTimeout(() => {
+        if (typeof initializeDragAndDrop === "function") {
+          initializeDragAndDrop();
+          console.log("✅ Drag and drop reinitialized");
+        }
+      }, 100);
+    }
+  }, 100);
+};
+
 setTimeout(() => {
   if (typeof switchTab === 'function') {
     switchTab('manual');
@@ -963,6 +988,11 @@ setTimeout(() => {
     console.warn("⚠️ switchTab function not available");
   }
 }, 800);
+
+// Make functions globally available
+window.updateUIAfterGeneration = updateUIAfterGeneration;
+window.safeUpdateScheduleDisplay = safeUpdateScheduleDisplay;
+window.emergencyGridRebuild = emergencyGridRebuild;
 
 // Helper function to hide loading and show error
 function hideLoadingAndShowError(loadingOverlay, message) {

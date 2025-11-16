@@ -8,12 +8,17 @@ let isUpdatingGrids = false;
 // Enhanced Drag and Drop with Conflict Detection
 let draggedElement = null;
 let originalPosition = null;
+let dragGhost = null;
+let isValidatingConflicts = false;
+let validationCache = new Map();
+let lastValidationTime = 0;
+const VALIDATION_THROTTLE = 500; // ms
 
 function handleDragStart(e) {
   draggedElement = e.target.closest(".schedule-card");
   if (!draggedElement) return;
 
-  // Store original position for revert if needed
+  // Store original position
   originalPosition = {
     day: draggedElement.closest(".drop-zone").dataset.day,
     startTime: draggedElement.closest(".drop-zone").dataset.startTime,
@@ -23,44 +28,101 @@ function handleDragStart(e) {
 
   e.dataTransfer.setData("text/plain", draggedElement.dataset.scheduleId);
   e.dataTransfer.effectAllowed = "move";
-  draggedElement.classList.add("dragging", "opacity-50");
+
+  // ✅ SMOOTH: Add dragging class with transition
+  draggedElement.classList.add("dragging");
+  draggedElement.style.opacity = "0.5";
+  draggedElement.style.transform = "scale(0.95)";
+
+  // Create ghost element for better visual feedback
+  createDragGhost(draggedElement);
 
   console.log("🚀 Drag started:", {
     scheduleId: draggedElement.dataset.scheduleId,
-    originalPosition: originalPosition,
+    from: `${originalPosition.day} ${originalPosition.startTime}`,
   });
 }
 
+// ✅ NEW: Create smooth drag ghost
+function createDragGhost(element) {
+  dragGhost = element.cloneNode(true);
+  dragGhost.style.position = "fixed";
+  dragGhost.style.pointerEvents = "none";
+  dragGhost.style.opacity = "0.8";
+  dragGhost.style.zIndex = "9999";
+  dragGhost.style.transform = "rotate(2deg)";
+  dragGhost.style.boxShadow = "0 10px 25px rgba(0,0,0,0.3)";
+  document.body.appendChild(dragGhost);
+}
+
+// ✅ SMOOTH: Enhanced drag end
 function handleDragEnd(e) {
   if (draggedElement) {
-    draggedElement.classList.remove("dragging", "opacity-50");
+    draggedElement.classList.remove("dragging");
+    draggedElement.style.opacity = "";
+    draggedElement.style.transform = "";
   }
+
+  // Remove ghost
+  if (dragGhost && dragGhost.parentNode) {
+    dragGhost.remove();
+  }
+
   draggedElement = null;
   originalPosition = null;
+  dragGhost = null;
+  isValidatingConflicts = false;
 
+  // Clean up all visual indicators
   document.querySelectorAll(".drop-zone.drag-over").forEach((zone) => {
     zone.classList.remove("drag-over");
   });
 
   document.querySelectorAll(".drop-zone.conflict").forEach((zone) => {
-    zone.classList.remove("conflict");
+    zone.classList.remove(
+      "conflict",
+      "conflict-high",
+      "conflict-medium",
+      "conflict-low"
+    );
+  });
+
+  // Remove tooltips
+  document.querySelectorAll(".conflict-tooltip").forEach((tooltip) => {
+    tooltip.remove();
   });
 
   console.log("🏁 Drag ended");
 }
 
+// ✅ SMOOTH: Optimized drag enter
 function handleDragEnter(e) {
   const dropZone = e.target.closest(".drop-zone");
   if (dropZone && draggedElement) {
     dropZone.classList.add("drag-over");
-
-    // Check for conflicts in real-time
-    checkDropZoneConflicts(dropZone);
-
+    
+    // ✅ THROTTLED: Check conflicts less frequently
+    throttledConflictCheck(dropZone);
+    
     e.preventDefault();
   }
 }
 
+// ✅ NEW: Throttled conflict checking
+function throttledConflictCheck(dropZone) {
+  const now = Date.now();
+  
+  // Skip if we just validated recently
+  if (now - lastValidationTime < VALIDATION_THROTTLE) {
+    return;
+  }
+  
+  if (!isValidatingConflicts) {
+    checkDropZoneConflicts(dropZone);
+  }
+}
+
+// ✅ SMOOTH: Keep drag over
 function handleDragOver(e) {
   if (e.target.classList.contains("drop-zone")) {
     e.preventDefault();
@@ -68,13 +130,19 @@ function handleDragOver(e) {
   }
 }
 
+// ✅ SMOOTH: Clean drag leave
 function handleDragLeave(e) {
-  if (e.target.classList.contains("drop-zone")) {
-    e.target.classList.remove("drag-over");
-    e.target.classList.remove("conflict");
+  const dropZone = e.target.closest(".drop-zone");
+  if (dropZone) {
+    // Only remove if we're actually leaving (not entering a child)
+    if (!dropZone.contains(e.relatedTarget)) {
+      dropZone.classList.remove("drag-over");
+      removeConflictTooltip(dropZone);
+    }
   }
 }
 
+// ✅ OPTIMIZED: Faster drop handling
 async function handleDrop(e) {
   e.preventDefault();
   const dropZone = e.target.closest(".drop-zone");
@@ -98,13 +166,41 @@ async function handleDrop(e) {
     newEndTime,
   });
 
-  // Check for conflicts using your PHP function
-  const conflicts = await checkScheduleConflicts(
+  // ✅ OPTIMIZED: Quick cache check first
+  const cacheKey = `${scheduleId}-${newDay}-${newStartTime}-${newEndTime}`;
+  
+  if (validationCache.has(cacheKey)) {
+    const cachedResult = validationCache.get(cacheKey);
+    if (cachedResult.length > 0) {
+      console.warn("❌ Conflicts detected (cached):", cachedResult);
+      showDropConflicts(cachedResult);
+      revertDrag();
+      return;
+    }
+  }
+
+  // Show loading indicator
+  showLoadingIndicator(dropZone);
+
+  // Check for conflicts
+  const conflicts = await checkScheduleConflictsOptimized(
     scheduleId,
     newDay,
     newStartTime,
     newEndTime
   );
+
+  // Hide loading
+  hideLoadingIndicator(dropZone);
+
+  // Cache the result
+  validationCache.set(cacheKey, conflicts);
+  
+  // Clear old cache entries (keep only last 50)
+  if (validationCache.size > 50) {
+    const firstKey = validationCache.keys().next().value;
+    validationCache.delete(firstKey);
+  }
 
   if (conflicts.length > 0) {
     console.warn("❌ Conflicts detected:", conflicts);
@@ -115,6 +211,163 @@ async function handleDrop(e) {
 
   // If no conflicts, proceed with the move
   performScheduleMove(scheduleId, newDay, newStartTime, newEndTime, dropZone);
+}
+
+// ✅ NEW: Show loading indicator
+function showLoadingIndicator(dropZone) {
+  const indicator = document.createElement('div');
+  indicator.className = 'drop-loading-indicator';
+  indicator.innerHTML = '<i class="fas fa-spinner fa-spin text-yellow-500"></i>';
+  indicator.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;';
+  dropZone.appendChild(indicator);
+}
+
+// ✅ NEW: Hide loading indicator
+function hideLoadingIndicator(dropZone) {
+  const indicator = dropZone.querySelector('.drop-loading-indicator');
+  if (indicator) indicator.remove();
+}
+
+let conflictCheckTimeout = null;
+async function checkScheduleConflictsOptimized(
+  scheduleId,
+  newDay,
+  newStartTime,
+  newEndTime
+) {
+  // Clear any pending checks
+  if (conflictCheckTimeout) {
+    clearTimeout(conflictCheckTimeout);
+  }
+
+  return new Promise((resolve) => {
+    const currentSchedule = window.scheduleData.find(
+      (s) => s.schedule_id == scheduleId
+    );
+
+    if (!currentSchedule) {
+      resolve([]);
+      return;
+    }
+
+    // ✅ CLIENT-SIDE VALIDATION FIRST (instant)
+    const clientConflicts = checkClientSideConflicts(
+      currentSchedule,
+      newDay,
+      newStartTime + ":00",
+      newEndTime + ":00"
+    );
+
+    if (clientConflicts.length > 0) {
+      console.log("⚡ Client-side conflicts found (instant):", clientConflicts);
+      resolve(clientConflicts);
+      return;
+    }
+
+    // ✅ SERVER-SIDE VALIDATION (only if client check passes)
+    conflictCheckTimeout = setTimeout(() => {
+      const formData = new URLSearchParams({
+        action: "check_drag_conflicts",
+        schedule_id: scheduleId,
+        section_id: currentSchedule.section_id || "",
+        faculty_id: currentSchedule.faculty_id || "",
+        room_id: currentSchedule.room_id || "",
+        day_of_week: newDay,
+        start_time: newStartTime + ":00",
+        end_time: newEndTime + ":00",
+        semester_id: window.currentSemester?.semester_id || "",
+      });
+
+      fetch("/chair/generate-schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData,
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          if (result.success && result.conflicts) {
+            resolve(result.conflicts);
+          } else {
+            resolve([]);
+          }
+        })
+        .catch((error) => {
+          console.error("Conflict check error:", error);
+          resolve([]); // Allow drop if check fails
+        });
+    }, 150); // Slight delay to debounce
+  });
+}
+
+// ✅ NEW: Client-side conflict checking (instant)
+function checkClientSideConflicts(
+  currentSchedule,
+  newDay,
+  newStartTime,
+  newEndTime
+) {
+  const conflicts = [];
+  const currentSemesterId = window.currentSemester?.semester_id;
+
+  if (!currentSemesterId) return conflicts;
+
+  // Convert times to minutes for comparison
+  const toMinutes = (timeStr) => {
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const newStart = toMinutes(newStartTime);
+  const newEnd = toMinutes(newEndTime);
+
+  // Check against all schedules in memory
+  window.scheduleData.forEach((schedule) => {
+    // Skip self
+    if (schedule.schedule_id == currentSchedule.schedule_id) return;
+
+    // Same semester and day check
+    if (schedule.semester_id != currentSemesterId) return;
+    if (schedule.day_of_week !== newDay) return;
+
+    const schedStart = toMinutes(schedule.start_time);
+    const schedEnd = toMinutes(schedule.end_time);
+
+    // Time overlap check
+    const hasOverlap = newStart < schedEnd && newEnd > schedStart;
+
+    if (!hasOverlap) return;
+
+    // Check for actual conflicts
+    const sameSection = schedule.section_name === currentSchedule.section_name;
+    const sameFaculty = schedule.faculty_name === currentSchedule.faculty_name;
+    const sameRoom = schedule.room_name === currentSchedule.room_name;
+
+    if (sameSection) {
+      conflicts.push({
+        type: "section",
+        severity: "high",
+        message: `Section ${schedule.section_name} already has ${schedule.course_code} at this time`,
+      });
+    }
+
+    if (sameFaculty) {
+      conflicts.push({
+        type: "faculty",
+        severity: "high",
+        message: `Faculty ${schedule.faculty_name} is teaching ${schedule.course_code} at this time`,
+      });
+    }
+
+    if (sameRoom && schedule.room_name !== "Online") {
+      conflicts.push({
+        type: "room",
+        severity: "medium",
+        message: `Room ${schedule.room_name} is occupied by ${schedule.course_code} at this time`,
+      });
+    }
+  });
+
+  return conflicts;
 }
 
 function checkScheduleConflicts(scheduleId, newDay, newStartTime, newEndTime) {
@@ -252,28 +505,120 @@ function showDropZoneConflictTooltip(dropZone, conflicts) {
   dropZone.appendChild(tooltip);
 }
 
+function showDropZoneConflictTooltip(dropZone, conflicts) {
+  removeConflictTooltip(dropZone);
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "conflict-tooltip";
+
+  // Group by severity
+  const highConflicts = conflicts.filter((c) => c.severity === "high");
+  const mediumConflicts = conflicts.filter((c) => c.severity === "medium");
+  const lowConflicts = conflicts.filter((c) => c.severity === "low");
+
+  let tooltipContent =
+    '<div class="font-semibold mb-1 text-xs">⚠️ Conflicts:</div>';
+
+  if (highConflicts.length > 0) {
+    tooltipContent += '<div class="text-red-700 text-xs">';
+    highConflicts.slice(0, 2).forEach((conflict) => {
+      tooltipContent += `<div>• ${conflict.message}</div>`;
+    });
+    tooltipContent += "</div>";
+  }
+
+  if (mediumConflicts.length > 0) {
+    tooltipContent += '<div class="text-orange-600 text-xs mt-1">';
+    mediumConflicts.slice(0, 1).forEach((conflict) => {
+      tooltipContent += `<div>• ${conflict.message}</div>`;
+    });
+    tooltipContent += "</div>";
+  }
+
+  tooltip.innerHTML = tooltipContent;
+
+  // Style based on severity
+  if (highConflicts.length > 0) {
+    tooltip.classList.add("bg-red-100", "border-red-300", "text-red-800");
+    dropZone.classList.add("conflict-high");
+  } else if (mediumConflicts.length > 0) {
+    tooltip.classList.add(
+      "bg-orange-100",
+      "border-orange-300",
+      "text-orange-800"
+    );
+    dropZone.classList.add("conflict-medium");
+  } else {
+    tooltip.classList.add(
+      "bg-yellow-100",
+      "border-yellow-300",
+      "text-yellow-800"
+    );
+    dropZone.classList.add("conflict-low");
+  }
+
+  tooltip.classList.add(
+    "border",
+    "rounded",
+    "p-2",
+    "shadow-lg",
+    "absolute",
+    "bottom-full",
+    "left-0",
+    "mb-2",
+    "z-50",
+    "max-w-xs",
+    "text-xs"
+  );
+  dropZone.appendChild(tooltip);
+}
+
 function removeConflictTooltip(dropZone) {
   const existingTooltip = dropZone.querySelector(".conflict-tooltip");
   if (existingTooltip) {
     existingTooltip.remove();
   }
-}
-
-// Show drop conflicts to user
-function showDropConflicts(conflicts) {
-  const conflictMessages = conflicts.map((c) => c.message).join("\n• ");
-  showNotification(
-    `Cannot move schedule due to conflicts:\n• ${conflictMessages}`,
-    "error",
-    8000
+  dropZone.classList.remove(
+    "conflict",
+    "conflict-high",
+    "conflict-medium",
+    "conflict-low"
   );
 }
 
-// Revert drag to original position
+function showDropConflicts(conflicts) {
+  const conflictMessages = conflicts.map((c) => c.message).join("\n• ");
+  showNotification(
+    `Cannot move schedule:\n• ${conflictMessages}`,
+    "error",
+    5000
+  );
+}
+
+function updateScheduleDisplaySmooth(schedules) {
+  // Add transition class
+  const grid = document.getElementById("schedule-grid");
+  if (grid) {
+    grid.style.transition = "opacity 0.2s";
+    grid.style.opacity = "0.7";
+  }
+
+  // Update
+  setTimeout(() => {
+    safeUpdateScheduleDisplay(schedules);
+
+    if (grid) {
+      grid.style.opacity = "1";
+    }
+  }, 100);
+}
+
+
+// Revert drag
 function revertDrag() {
   if (originalPosition && originalPosition.element) {
     originalPosition.element.classList.remove("opacity-50");
-    showNotification("Schedule reverted due to conflicts", "warning", 3000);
+    console.log("↩️ Schedule reverted to original position");
   }
 }
 
@@ -371,14 +716,18 @@ function saveScheduleMoveToServer(
 }
 
 async function checkDropZoneConflicts(dropZone) {
-  if (!draggedElement) return;
+  if (!draggedElement || isValidatingConflicts) return;
+
+  isValidatingConflicts = true;
+  lastValidationTime = Date.now();
 
   const scheduleId = draggedElement.dataset.scheduleId;
   const newDay = dropZone.dataset.day;
   const newStartTime = dropZone.dataset.startTime;
   const newEndTime = dropZone.dataset.endTime;
 
-  const conflicts = await checkScheduleConflicts(
+  // ✅ Use optimized conflict check
+  const conflicts = await checkScheduleConflictsOptimized(
     scheduleId,
     newDay,
     newStartTime,
@@ -389,9 +738,16 @@ async function checkDropZoneConflicts(dropZone) {
     dropZone.classList.add("conflict");
     showDropZoneConflictTooltip(dropZone, conflicts);
   } else {
-    dropZone.classList.remove("conflict");
+    dropZone.classList.remove(
+      "conflict",
+      "conflict-high",
+      "conflict-medium",
+      "conflict-low"
+    );
     removeConflictTooltip(dropZone);
   }
+
+  isValidatingConflicts = false;
 }
 
 // Initialize enhanced drag and drop
@@ -399,36 +755,36 @@ function initializeDragAndDrop() {
   const dropZones = document.querySelectorAll(".drop-zone");
   const draggables = document.querySelectorAll(".schedule-card.draggable");
 
-  console.log("🔄 Initializing drag and drop:", {
+  console.log("🔄 Initializing smooth drag and drop:", {
     dropZones: dropZones.length,
     draggables: draggables.length,
   });
 
-  // Remove existing event listeners
+  // Remove existing listeners (prevent duplicates)
   dropZones.forEach((zone) => {
-    zone.removeEventListener("dragover", handleDragOver);
-    zone.removeEventListener("dragenter", handleDragEnter);
-    zone.removeEventListener("dragleave", handleDragLeave);
-    zone.removeEventListener("drop", handleDrop);
+    const newZone = zone.cloneNode(true);
+    zone.parentNode.replaceChild(newZone, zone);
   });
 
   draggables.forEach((draggable) => {
-    draggable.removeEventListener("dragstart", handleDragStart);
-    draggable.removeEventListener("dragend", handleDragEnd);
+    const newDraggable = draggable.cloneNode(true);
+    draggable.parentNode.replaceChild(newDraggable, draggable);
   });
 
-  // Add new event listeners
-  dropZones.forEach((zone) => {
+  // Add new listeners to fresh elements
+  document.querySelectorAll(".drop-zone").forEach((zone) => {
     zone.addEventListener("dragover", handleDragOver);
     zone.addEventListener("dragenter", handleDragEnter);
     zone.addEventListener("dragleave", handleDragLeave);
     zone.addEventListener("drop", handleDrop);
   });
 
-  draggables.forEach((draggable) => {
+  document.querySelectorAll(".schedule-card.draggable").forEach((draggable) => {
     draggable.addEventListener("dragstart", handleDragStart);
     draggable.addEventListener("dragend", handleDragEnd);
   });
+
+  console.log("✅ Smooth drag and drop initialized");
 }
 
 function validateFieldRealTime(fieldType, value, relatedFields = {}) {
@@ -602,34 +958,6 @@ function handleDrop(e) {
   }
 }
 
-function initializeDragAndDrop() {
-  const dropZones = document.querySelectorAll(".drop-zone");
-  const draggables = document.querySelectorAll(".draggable");
-  console.log("Initializing drag and drop:", {
-    dropZones: dropZones.length,
-    draggables: draggables.length,
-  });
-
-  dropZones.forEach((zone) => {
-    zone.removeEventListener("dragover", handleDragOver);
-    zone.removeEventListener("dragenter", handleDragEnter);
-    zone.removeEventListener("dragleave", handleDragLeave);
-    zone.removeEventListener("drop", handleDrop);
-
-    zone.addEventListener("dragover", handleDragOver);
-    zone.addEventListener("dragenter", handleDragEnter);
-    zone.addEventListener("dragleave", handleDragLeave);
-    zone.addEventListener("drop", handleDrop);
-  });
-
-  draggables.forEach((draggable) => {
-    draggable.removeEventListener("dragstart", handleDragStart);
-    draggable.removeEventListener("dragend", handleDragEnd);
-
-    draggable.addEventListener("dragstart", handleDragStart);
-    draggable.addEventListener("dragend", handleDragEnd);
-  });
-}
 
 // Open delete ALL schedules modal
 function deleteAllSchedules() {
@@ -2410,17 +2738,72 @@ function refreshManualView() {
   location.reload();
 }
 
+window.safeUpdateScheduleDisplay = function (schedules) {
+  console.log(
+    "🔄 safeUpdateScheduleDisplay called with",
+    schedules?.length || 0,
+    "schedules"
+  );
+
+  // Validate input
+  if (!schedules || !Array.isArray(schedules)) {
+    console.warn("⚠️ Invalid schedules data");
+    schedules = [];
+  }
+
+  // ✅ CRITICAL: Store globally
+  window.scheduleData = schedules;
+  console.log("✅ Stored in window.scheduleData");
+
+  // Get grid elements
+  const manualGrid = document.getElementById("schedule-grid");
+  const viewGrid = document.getElementById("timetableGrid");
+
+  console.log("📍 Grids found:", {
+    manual: !!manualGrid,
+    view: !!viewGrid,
+  });
+
+  // Update manual grid
+  if (manualGrid) {
+    try {
+      console.log("🔨 Updating manual grid...");
+      if (typeof updateManualGrid === "function") {
+        updateManualGrid(schedules);
+        console.log("✅ Manual grid updated");
+      } else {
+        console.error("❌ updateManualGrid function not found");
+      }
+    } catch (error) {
+      console.error("❌ Error updating manual grid:", error);
+    }
+  }
+
+  // Update view grid
+  if (viewGrid) {
+    try {
+      console.log("🔨 Updating view grid...");
+      if (typeof updateViewGrid === "function") {
+        updateViewGrid(schedules);
+        console.log("✅ View grid updated");
+      } else {
+        console.error("❌ updateViewGrid function not found");
+      }
+    } catch (error) {
+      console.error("❌ Error updating view grid:", error);
+    }
+  }
+
+  console.log("🎯 safeUpdateScheduleDisplay completed");
+};
+
 // Initialize event listeners
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("Manual schedules JS loaded");
-  console.log("Current semester:", window.currentSemester);
-  console.log("Schedule data count:", window.scheduleData?.length || 0);
+  
 
   // ✅ CHECK IF FACULTY DATA IS PRESENT
   if (!window.faculty || window.faculty.length === 0) {
-    console.error("❌ CRITICAL: No faculty data loaded!");
-    console.log("jsData:", window.jsData);
-    console.log("jsData.faculty:", window.jsData?.faculty);
+    
 
     // Try to get faculty from jsData
     if (window.jsData && window.jsData.faculty) {
@@ -3737,59 +4120,94 @@ function handleTabSwitch(tabName) {
   }
 }
 
-// ✅ OVERRIDE: Enhanced switchTab function
 (function () {
   const originalSwitchTab = window.switchTab;
 
   window.switchTab = function (tabName) {
-    console.log("🔀 switchTab called:", tabName);
+    console.log("🔀 Enhanced switchTab:", tabName);
 
-    // UI updates
-    document.querySelectorAll(".tab-button").forEach((btn) => {
-      btn.classList.remove("bg-yellow-500", "text-white");
-      btn.classList.add(
-        "text-gray-700",
-        "hover:text-gray-900",
-        "hover:bg-gray-100"
-      );
-    });
+    // Call original switchTab if it exists
+    if (typeof originalSwitchTab === "function") {
+      originalSwitchTab(tabName);
+    } else {
+      // Fallback implementation
+      document.querySelectorAll(".tab-button").forEach((btn) => {
+        btn.classList.remove("bg-yellow-500", "text-white");
+        btn.classList.add(
+          "text-gray-700",
+          "hover:text-gray-900",
+          "hover:bg-gray-100"
+        );
+      });
 
-    const targetTab = document.getElementById(`tab-${tabName}`);
-    if (targetTab) {
-      targetTab.classList.add("bg-yellow-500", "text-white");
-      targetTab.classList.remove(
-        "text-gray-700",
-        "hover:text-gray-900",
-        "hover:bg-gray-100"
+      const targetTab = document.getElementById(`tab-${tabName}`);
+      if (targetTab) {
+        targetTab.classList.add("bg-yellow-500", "text-white");
+        targetTab.classList.remove(
+          "text-gray-700",
+          "hover:text-gray-900",
+          "hover:bg-gray-100"
+        );
+      }
+
+      document.querySelectorAll(".tab-content").forEach((content) => {
+        content.classList.add("hidden");
+      });
+
+      const targetContent = document.getElementById(`content-${tabName}`);
+      if (targetContent) {
+        targetContent.classList.remove("hidden");
+      }
+
+      const url = new URL(window.location);
+      url.searchParams.set(
+        "tab",
+        tabName === "schedule" ? "schedule-list" : tabName
       );
+      window.history.pushState({}, "", url);
     }
 
-    document.querySelectorAll(".tab-content").forEach((content) => {
-      content.classList.add("hidden");
-    });
+    // ✅ CRITICAL: Force grid update after tab switch
+    if (
+      (tabName === "manual" || tabName === "schedule") &&
+      window.scheduleData &&
+      window.scheduleData.length > 0
+    ) {
+      console.log(
+        `🔄 Forcing ${tabName} grid update with ${window.scheduleData.length} schedules`
+      );
 
-    const targetContent = document.getElementById(`content-${tabName}`);
-    if (targetContent) {
-      targetContent.classList.remove("hidden");
+      // Use requestAnimationFrame for smooth rendering
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (tabName === "manual" && typeof updateManualGrid === "function") {
+            updateManualGrid(window.scheduleData);
+            console.log("✅ Manual grid force updated");
+
+            // Reinitialize drag and drop
+            setTimeout(() => {
+              if (typeof initializeDragAndDrop === "function") {
+                initializeDragAndDrop();
+                console.log("✅ Drag and drop reinitialized");
+              }
+            }, 100);
+          } else if (
+            tabName === "schedule" &&
+            typeof updateViewGrid === "function"
+          ) {
+            updateViewGrid(window.scheduleData);
+            console.log("✅ View grid force updated");
+          }
+        }, 100);
+      });
     }
-
-    // Update URL
-    const url = new URL(window.location);
-    url.searchParams.set(
-      "tab",
-      tabName === "schedule" ? "schedule-list" : tabName
-    );
-    window.history.pushState({}, "", url);
-
-    // ✅ CRITICAL: Handle schedule loading
-    handleTabSwitch(tabName);
   };
+
+  console.log("✅ Enhanced switchTab installed");
 })();
 
 // ✅ ENHANCED: DOMContentLoaded with better initialization
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("✅ Manual schedules JS loaded");
-  console.log("📊 Initial schedule count:", window.scheduleData?.length || 0);
 
   // Check faculty data
   if (!window.faculty || window.faculty.length === 0) {
@@ -3806,12 +4224,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ✅ Initial display if schedules exist
   if (window.scheduleData && window.scheduleData.length > 0) {
-    console.log("📊 Displaying initial schedules...");
+    
     requestAnimationFrame(() => {
       safeUpdateScheduleDisplay(window.scheduleData);
       setTimeout(() => {
         initializeDragAndDrop();
-        console.log("✅ Initial schedules displayed");
+        
       }, 100);
     });
   }

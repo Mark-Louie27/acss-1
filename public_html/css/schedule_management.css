@@ -553,3 +553,146 @@
 .grid-day-cell {
   /* These are now handled by the main grid styles above */
 }
+
+/* Smooth dragging animations */
+.schedule-card.draggable {
+  transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+  cursor: grab !important;
+}
+
+.schedule-card.draggable:active {
+  cursor: grabbing !important;
+}
+
+.schedule-card.dragging {
+  opacity: 0.5 !important;
+  transform: scale(0.95) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Drop zone hover effects */
+.drop-zone {
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.drop-zone.drag-over {
+  background-color: rgba(251, 191, 36, 0.1) !important;
+  border: 2px dashed #fbbf24 !important;
+  transform: scale(1.02);
+}
+
+/* Conflict indicators */
+.drop-zone.conflict {
+  animation: pulse-conflict 0.5s ease-in-out;
+}
+
+.drop-zone.conflict-high {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  border: 2px solid #ef4444 !important;
+}
+
+.drop-zone.conflict-medium {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+  border: 2px solid #f97316 !important;
+}
+
+.drop-zone.conflict-low {
+  background-color: rgba(234, 179, 8, 0.1) !important;
+  border: 2px solid #eab308 !important;
+}
+
+/* Conflict tooltip */
+.conflict-tooltip {
+  animation: fadeIn 0.2s ease;
+  pointer-events: none;
+  white-space: normal;
+  word-wrap: break-word;
+  max-width: 250px;
+  font-size: 11px;
+  line-height: 1.4;
+  z-index: 100;
+}
+
+.conflict-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid currentColor;
+}
+
+/* Loading indicator */
+.drop-loading-indicator {
+  animation: fadeIn 0.2s ease;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-conflict {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+/* Smooth grid updates */
+#schedule-grid {
+  transition: opacity 0.2s ease;
+}
+
+/* Add button hover effect */
+.drop-zone button {
+  transition: all 0.2s ease;
+}
+
+.drop-zone button:hover {
+  transform: scale(1.1);
+}
+
+/* Schedule card hover in grid */
+.schedule-card:not(.dragging):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Prevent text selection during drag */
+.dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+  .conflict-tooltip {
+    font-size: 10px;
+    max-width: 200px;
+    padding: 6px;
+  }
+  
+  .schedule-card.dragging {
+    transform: scale(0.9) !important;
+  }
+}

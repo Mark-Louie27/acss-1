@@ -2736,14 +2736,6 @@ class ChairController extends BaseController
                         }
                     }
 
-                    // Sort time slots by usage (prefer less-used slots)
-                    usort(
-                        $filteredTimeSlots,
-                        fn($a, $b) =>
-                        $this->isTimeSlotUsed($a[0], $a[1], $targetDays, $usedTimeSlots) <=>
-                            $this->isTimeSlotUsed($b[0], $b[1], $targetDays, $usedTimeSlots)
-                    );
-
                     $durationData = $this->calculateCourseDuration($courseDetails);
                     $lectureDuration = $hasLecture ? ($lectureHours > 0 ? $lectureHours / count($targetDays) : $units / count($targetDays)) : 0;
                     $labDuration = $hasLab ? ($labHours > 0 ? $labHours / count($targetDays) : $units / count($targetDays)) : 0;
@@ -3327,6 +3319,7 @@ class ChairController extends BaseController
                         'day' => $lecture['day_of_week']
                     ];
 
+                    error_log("⚠️ LECTURE+LAB SAME TIME: $courseCode (Section: $sectionName) has lecture and lab at SAME TIME on {$lecture['day_of_week']}");
                 }
             }
         }
@@ -3350,6 +3343,9 @@ class ChairController extends BaseController
                 error_log("   - $type: $count");
             }
         }
+
+        error_log("========================================");
+
         return $conflicts;
     }
 
@@ -3477,8 +3473,7 @@ class ChairController extends BaseController
                             $schedules,
                             $roomPreference,
                             $component,
-                            $collegeId,
-                            $subjectType
+                            $collegeId
                         );
 
                         if (!$testRoom || !$testRoom['room_id']) {
@@ -3603,9 +3598,9 @@ class ChairController extends BaseController
         return count($scheduledSections) === count($sectionsForCourse);
     }
 
-    private function getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $roomPreference = 'classroom', $component = null, $collegeId = null, $subjectType = null)
+    private function getSpecificRoomType($departmentId, $maxStudents, $day, $startTime, $endTime, $schedules, $roomPreference = 'classroom', $component = null, $collegeId = null)
     {
-        error_log("getSpecificRoomType: Looking for {$roomPreference} room for {$component} on $day at $startTime-$endTime, Subject Type: $subjectType");
+        error_log("getSpecificRoomType: Looking for {$roomPreference} room for {$component} on $day at $startTime-$endTime");
 
         $params = [
             ':capacity' => $maxStudents,
@@ -3620,7 +3615,7 @@ class ChairController extends BaseController
         if ($roomPreference === 'laboratory') {
             error_log("LABORATORY SEARCH: Checking lab rooms with shared=1 support");
 
-            // Priority 1: Department-owned lab rooms (reuse your existing logic)
+            // Priority 1: Department-owned lab rooms
             $stmt = $this->db->prepare("
             SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id, r.shared,
                    'DEPARTMENT_OWNED' as access_type
@@ -3643,13 +3638,21 @@ class ChairController extends BaseController
 
             // Check department-owned labs first
             foreach ($departmentLabs as $room) {
-                if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                // ENHANCED: Check both in-memory schedules AND pending room assignments
+                if (
+                    !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                    !$this->hasRoomAssignmentConflict($roomAssignments, $room['room_id'], $day, $startTime, $endTime)
+                ) {
                     error_log("Assigned DEPARTMENT LAB: {$room['room_name']} for {$component}");
                     return $room;
+                } else {
+                    error_log("CONFLICT: Department lab {$room['room_name']} is occupied on $day at $startTime-$endTime");
                 }
             }
 
             // Priority 2: SHARED lab rooms from other departments (shared=1)
+            error_log("No department labs available, checking SHARED labs (shared=1) from other departments");
+
             $stmt = $this->db->prepare("
             SELECT r.room_id, r.room_name, r.capacity, r.room_type, r.department_id, r.shared,
                    d.department_name, 'SHARED_LAB' as access_type
@@ -3673,15 +3676,21 @@ class ChairController extends BaseController
             $sharedLabs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($sharedLabs as $room) {
-                if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
-                    error_log("Assigned SHARED LAB: {$room['room_name']} from {$room['department_name']} for {$component}");
+                // ENHANCED: Check both conflict types for shared labs
+                if (
+                    !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                    !$this->hasRoomAssignmentConflict($roomAssignments, $room['room_id'], $day, $startTime, $endTime)
+                ) {
+                    error_log("Assigned SHARED LAB: {$room['room_name']} from {$room['department_name']} department for {$component}");
                     return $room;
+                } else {
+                    error_log("CONFLICT: Shared lab {$room['room_name']} is occupied on $day at $startTime-$endTime");
                 }
             }
 
             error_log("No lab rooms available (department or shared) for {$component} on $day at $startTime-$endTime");
         } else {
-            // REGULAR CLASSROOM SEARCH (non-lab) - reuse your existing logic
+            // REGULAR CLASSROOM SEARCH (non-lab)
             $roomTypeCondition = ($roomPreference === 'classroom')
                 ? "AND (r.room_type NOT LIKE '%lab%' AND r.room_name NOT LIKE '%lab%')"
                 : "";
@@ -3707,7 +3716,11 @@ class ChairController extends BaseController
             $departmentRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($departmentRooms as $room) {
-                if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                // ENHANCED: Check both conflict types
+                if (
+                    !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                    !$this->hasRoomAssignmentConflict($roomAssignments, $room['room_id'], $day, $startTime, $endTime)
+                ) {
                     error_log("Assigned department {$roomPreference}: {$room['room_name']} for {$component}");
                     return $room;
                 }
@@ -3738,7 +3751,11 @@ class ChairController extends BaseController
                 $sharedClassrooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 foreach ($sharedClassrooms as $room) {
-                    if (!$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime)) {
+                    // ENHANCED: Check both conflict types
+                    if (
+                        !$this->hasRoomConflict($schedules, $room['room_id'], $day, $startTime, $endTime) &&
+                        !$this->hasRoomAssignmentConflict($roomAssignments, $room['room_id'], $day, $startTime, $endTime)
+                    ) {
                         error_log("Assigned SHARED classroom: {$room['room_name']} from {$room['department_name']} for {$component}");
                         return $room;
                     }
@@ -3748,24 +3765,6 @@ class ChairController extends BaseController
 
         error_log("No {$roomPreference} rooms available for {$component} on $day at $startTime-$endTime");
         return ['room_id' => null, 'room_name' => 'Online', 'capacity' => $maxStudents];
-    }
-
-    private function isLabRoom($roomId)
-    {
-        try {
-            $stmt = $this->db->prepare("
-            SELECT room_type, room_name FROM classrooms WHERE room_id = :room_id
-        ");
-            $stmt->execute([':room_id' => $roomId]);
-            $room = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            return ($room &&
-                (stripos($room['room_type'], 'lab') !== false ||
-                    stripos($room['room_name'], 'lab') !== false));
-        } catch (Exception $e) {
-            error_log("Error checking room type: " . $e->getMessage());
-            return false;
-        }
     }
 
     private function hasRoomAssignmentConflict(&$roomAssignments, $roomId, $day, $startTime, $endTime)

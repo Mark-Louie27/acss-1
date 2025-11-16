@@ -670,67 +670,6 @@ function getSettingsImagePath($path)
                     </button>
                 </div>
             </form>
-
-            <!-- Download Customization Form
-            <div id="downloadForm" class="download-form">
-                <h4 class="text-md font-semibold mb-4 gold-gradient-text">Customize Your Schedule PDF</h4>
-                <form id="downloadScheduleForm" method="POST" action="/public/download-schedule-pdf">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="download_college" class="block text-sm font-medium text-gray-700 mb-2">College</label>
-                            <select id="download_college" name="college_id" class="form-input pl-10 py-3">
-                                <option value="0">All Colleges</option>
-                                <?php foreach ($colleges as $college): ?>
-                                    <option value="<?= $college['college_id'] ?>"><?= $college['college_name'] ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="download_department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                            <select id="download_department" name="department_id" class="form-input pl-10 py-3">
-                                <option value="0">All Departments</option>
-                                <?php foreach ($departments as $department): ?>
-                                    <option value="<?= $department['department_id'] ?>"><?= $department['department_name'] ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="download_program" class="block text-sm font-medium text-gray-700 mb-2">Program</label>
-                            <select id="download_program" name="program_id" class="form-input pl-10 py-3">
-                                <option value="0">All Programs</option>
-                                <?php foreach ($programs as $program): ?>
-                                    <option value="<?= $program['program_id'] ?>"><?= $program['program_name'] ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="download_year_level" class="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
-                            <select id="download_year_level" name="year_level" class="form-input pl-10 py-3">
-                                <option value="">All Levels</option>
-                                <option value="1st Year">1st Year</option>
-                                <option value="2nd Year">2nd Year</option>
-                                <option value="3rd Year">3rd Year</option>
-                                <option value="4th Year">4th Year</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="download_semester" class="block text-sm font-medium text-gray-700 mb-2">Semester</label>
-                            <select id="download_semester" name="semester_id" class="form-input pl-10 py-3">
-                                <option value="0">All Semesters</option>
-                                <?php $semesters = $this->fetchSemesters();
-                                foreach ($semesters as $semester): ?>
-                                    <option value="<?= $semester['semester_id'] ?>"><?= $semester['semester_name'] . ' ' . $semester['academic_year'] ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn-primary mt-4 w-full">
-                        <i class="fas fa-download mr-2"></i> Download PDF
-                    </button>
-                    <button type="button" class="btn-secondary mt-2 w-full" onclick="closeDownloadForm()">Cancel</button>
-                </form>
-            </div>
-             -->
         </div>
 
         <!-- Schedule Table -->
@@ -1053,10 +992,16 @@ function getSettingsImagePath($path)
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
-                        console.error('Error:', data.error);
+                        console.error('Server Error:', data.error);
+                        showError('Failed to load schedules: ' + (data.debug || data.error));
                         updateScheduleResults([]);
                         updatePagination(0, 0, 0);
                     } else {
@@ -1065,10 +1010,23 @@ function getSettingsImagePath($path)
                     }
                 })
                 .catch(error => {
-                    console.error('Fetch error:', error);
+                    console.error('Fetch Error:', error);
+                    showError('Network error occurred. Please check your connection and try again.');
                     updateScheduleResults([]);
                     updatePagination(0, 0, 0);
                 });
+        }
+
+        function showError(message) {
+            const tbody = document.getElementById('schedule-table-body');
+            tbody.innerHTML = `
+        <tr>
+            <td colspan="5" class="px-6 py-4 text-center text-red-500">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                ${message}
+            </td>
+        </tr>
+    `;
         }
 
         function updateScheduleResults(schedules) {
