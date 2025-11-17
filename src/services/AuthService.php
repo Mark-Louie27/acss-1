@@ -557,14 +557,19 @@ class AuthService
     public function submitAdmission($data)
     {
         try {
+            error_log("=== START submitAdmission ===");
+            error_log("Received data: " . json_encode($data));
+
             // Start transaction
             if (!$this->db->beginTransaction()) {
                 throw new Exception("Failed to start transaction");
             }
+            error_log("Transaction started");
 
             // Check if Dean is selected
             $isDean = in_array(4, $data['roles'] ?? []);
             $isProgramChair = in_array(5, $data['roles'] ?? []);
+            error_log("isDean: " . ($isDean ? 'true' : 'false') . ", isProgramChair: " . ($isProgramChair ? 'true' : 'false'));
 
             // Validate required fields - adjust based on role
             $required_fields = ['employee_id', 'username', 'password', 'email', 'first_name', 'last_name', 'college_id', 'role_id'];
@@ -576,9 +581,11 @@ class AuthService
 
             foreach ($required_fields as $field) {
                 if (empty($data[$field])) {
+                    error_log("Missing required field: $field");
                     throw new Exception("Missing required field: $field");
                 }
             }
+            error_log("All required fields validated");
 
             // Check for duplicates in both admissions and users tables
             if ($this->checkAdmissionExists($data['employee_id'], $data['username'], $data['email'])) {
@@ -592,6 +599,7 @@ class AuthService
             if ($this->userModel->emailExists($data['email'])) {
                 throw new Exception("Email {$data['email']} already exists in active users");
             }
+            error_log("No duplicates found");
 
             // Check for existing college-level roles (Dean)
             if ($isDean) {
@@ -607,40 +615,42 @@ class AuthService
                     error_log("Checking for existing Program Chair in department_id: " . $deptId);
                     $existingChair = $this->checkExistingProgramChair($deptId);
                     if ($existingChair) {
-                        error_log("Found existing Program Chair: " . json_encode($existingChair));
                         throw new Exception("A Program Chair already exists for this department: {$existingChair['first_name']} {$existingChair['last_name']} (Employee ID: {$existingChair['employee_id']})");
-                    } else {
-                        error_log("No existing Program Chair found for department_id: " . $deptId);
                     }
                 }
             }
 
-            // For single department roles (not Program Chair), check if role already exists in department
-            if (!$isDean && !$isProgramChair && !empty($data['department_id'])) {
-                $existingRole = $this->checkExistingDepartmentRole($data['role_id'], $data['department_id']);
-                if ($existingRole) {
-                    $roleName = $this->getRoleNames($data['role_id']);
-                    throw new Exception("A {$roleName} already exists for this department: {$existingRole['first_name']} {$existingRole['last_name']} (Employee ID: {$existingRole['employee_id']})");
+            // For single department roles (not Dean or Program Chair), check if role already exists
+            if (!$isDean && !$isProgramChair && !empty($data['department_id']) && !empty($data['role_id'])) {
+                // Only check for roles that should be unique (Admin, Dean, Program Chair, Director)
+                if (in_array($data['role_id'], [1, 3, 4, 5])) {
+                    $existingRole = $this->checkExistingDepartmentRole($data['role_id'], $data['department_id']);
+                    if ($existingRole) {
+                        $roleNames = $this->getRoleNames([$data['role_id']]);
+                        $roleName = $roleNames[0] ?? 'User';
+                        throw new Exception("A {$roleName} already exists for this department: {$existingRole['first_name']} {$existingRole['last_name']} (Employee ID: {$existingRole['employee_id']})");
+                    }
                 }
             }
+            error_log("Role validation passed");
 
             // Handle department_id for Dean - can be NULL
             $departmentId = $isDean ? ($data['department_id'] ?? null) : $data['department_id'];
+            error_log("Department ID to use: " . ($departmentId ?? 'NULL'));
 
             // Insert into admissions table
             $query = "
-                INSERT INTO admissions (
-                    employee_id, username, password_hash, email, phone, title, first_name, middle_name,
-                    last_name, suffix, role_id, department_id, college_id, academic_rank, 
-                    employment_type, classification, status, submitted_at
-                ) VALUES (
-                    :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
-                    :last_name, :suffix, :role_id, :department_id, :college_id, :academic_rank,
-                    :employment_type, :classification, 'pending', NOW()
-                )";
+            INSERT INTO admissions (
+                employee_id, username, password_hash, email, phone, title, first_name, middle_name,
+                last_name, suffix, role_id, department_id, college_id, academic_rank, 
+                employment_type, classification, status, submitted_at
+            ) VALUES (
+                :employee_id, :username, :password_hash, :email, :phone, :title, :first_name, :middle_name,
+                :last_name, :suffix, :role_id, :department_id, :college_id, :academic_rank,
+                :employment_type, :classification, 'pending', NOW()
+            )";
 
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([
+            $params = [
                 ':employee_id' => $data['employee_id'],
                 ':username' => $data['username'],
                 ':password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
@@ -657,9 +667,25 @@ class AuthService
                 ':academic_rank' => $data['academic_rank'] ?? null,
                 ':employment_type' => $data['employment_type'] ?? null,
                 ':classification' => $data['classification'] ?? null
-            ]);
+            ];
+
+            error_log("Executing INSERT with params: " . json_encode($params));
+
+            $stmt = $this->db->prepare($query);
+            $result = $stmt->execute($params);
+
+            if (!$result) {
+                $errorInfo = $stmt->errorInfo();
+                error_log("INSERT failed: " . json_encode($errorInfo));
+                throw new Exception("Failed to insert admission: " . ($errorInfo[2] ?? 'Unknown error'));
+            }
 
             $admissionId = $this->db->lastInsertId();
+            error_log("Admission inserted successfully with ID: " . $admissionId);
+
+            if (empty($admissionId) || $admissionId == 0) {
+                throw new Exception("Failed to get admission ID after insert");
+            }
 
             // Insert roles into admission_roles
             if (!empty($data['roles'])) {
@@ -667,7 +693,7 @@ class AuthService
                 $roleStmt = $this->db->prepare($roleQuery);
                 foreach ($data['roles'] as $roleId) {
                     $roleStmt->execute([':admission_id' => $admissionId, ':role_id' => $roleId]);
-                    error_log("submitAdmission: Assigned role_id=$roleId to admission_id=$admissionId");
+                    error_log("Assigned role_id=$roleId to admission_id=$admissionId");
                 }
             }
 
@@ -683,21 +709,34 @@ class AuthService
                         ':department_id' => $deptId,
                         ':is_primary' => $isPrimary
                     ]);
+                    error_log("Assigned department $deptId to admission $admissionId (Primary: " . ($isPrimary ? 'Yes' : 'No') . ")");
                 }
             }
 
             $this->db->commit();
+            error_log("Transaction committed successfully");
 
             // Send notification email to admin
-            $this->sendAdmissionNotification($data);
+            try {
+                $this->sendAdmissionNotification($data);
+                error_log("Notification email sent");
+            } catch (Exception $emailError) {
+                error_log("Failed to send notification email: " . $emailError->getMessage());
+                // Don't throw - email failure shouldn't fail the admission
+            }
 
             $this->logAuthAction(null, 'admission_submitted', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], $data['employee_id']);
+            error_log("=== END submitAdmission SUCCESS ===");
+
             return true;
         } catch (Exception $e) {
-            if ($this->db->inTransaction()) {
+            if ($this->db && $this->db->inTransaction()) {
                 $this->db->rollBack();
+                error_log("Transaction rolled back");
             }
-            error_log("Error during admission submission for employee_id {$data['employee_id']}: " . $e->getMessage());
+            error_log("=== END submitAdmission FAILED ===");
+            error_log("Error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             throw $e;
         }
     }
@@ -728,29 +767,49 @@ class AuthService
     /**
      * Send notification email to admin about new admission
      */
+    /**
+     * Send notification email to admin about new admission
+     */
     private function sendAdmissionNotification($data)
     {
         try {
             $emailService = new EmailService();
             $adminEmails = $this->getAdminEmails();
 
+            // Get role names properly
+            $roleNames = $this->getRoleNames($data['roles'] ?? []);
+            $rolesString = implode(', ', $roleNames);
+
+            // Get college and department names safely
+            $collegeName = $this->getCollegeName($data['college_id']);
+            $departmentName = !empty($data['department_id']) ? $this->getDepartmentName($data['department_id']) : 'N/A';
+
             $subject = "New User Admission Request - " . $data['employee_id'];
             $message = "
-            A new user has submitted an admission request:\n\n
-            Name: {$data['first_name']} {$data['last_name']}\n
-            Employee ID: {$data['employee_id']}\n
-            Email: {$data['email']}\n
-            College: " . $this->getCollegeName($data['college_id']) . "\n
-            Department: " . $this->getDepartmentName($data['department_id']) . "\n
-            Roles: " . implode(', ', $this->getRoleNames($data['roles'])) . "\n\n
-            Please review and approve/reject this admission request in the admin panel.
+A new user has submitted an admission request:
+
+Name: {$data['first_name']} {$data['last_name']}
+Employee ID: {$data['employee_id']}
+Email: {$data['email']}
+College: {$collegeName}
+Department: {$departmentName}
+Roles: {$rolesString}
+
+Please review and approve/reject this admission request in the admin panel.
         ";
+
+            if (empty($adminEmails)) {
+                error_log("No admin emails found for notification");
+                return;
+            }
 
             foreach ($adminEmails as $adminEmail) {
                 $emailService->sendEmail($adminEmail, $subject, $message);
+                error_log("Notification email sent to: " . $adminEmail);
             }
         } catch (Exception $e) {
             error_log("Error sending admission notification: " . $e->getMessage());
+            // Don't throw - let the admission succeed even if email fails
         }
     }
 
@@ -809,12 +868,29 @@ class AuthService
     public function getRoleNames($roleIds)
     {
         try {
-            if (empty($roleIds)) return ['Unknown Role'];
+            // Handle empty input
+            if (empty($roleIds)) {
+                return ['Unknown Role'];
+            }
+
+            // Convert single integer to array
+            if (!is_array($roleIds)) {
+                $roleIds = [$roleIds];
+            }
+
+            // Filter out empty values and ensure integers
+            $roleIds = array_filter(array_map('intval', $roleIds));
+
+            if (empty($roleIds)) {
+                return ['Unknown Role'];
+            }
 
             $placeholders = str_repeat('?,', count($roleIds) - 1) . '?';
             $stmt = $this->db->prepare("SELECT role_name FROM roles WHERE role_id IN ($placeholders)");
-            $stmt->execute($roleIds);
-            return $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $stmt->execute(array_values($roleIds));
+            $names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            return !empty($names) ? $names : ['Unknown Role'];
         } catch (PDOException $e) {
             error_log("Error getting role names: " . $e->getMessage());
             return ['Unknown Role'];

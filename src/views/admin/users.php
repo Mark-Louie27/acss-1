@@ -803,7 +803,7 @@ ob_start();
                 <button onclick="closeAdmissionReviewModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                     Cancel
                 </button>
-                <button onclick="confirmRejectAdmission()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                <button onclick="rejectAdmission()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                     Reject Admission
                 </button>
                 <button onclick="confirmApproveAdmission()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">

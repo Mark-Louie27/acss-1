@@ -61,6 +61,21 @@ function getSettingsImagePath($path)
 $registrationSuccess = false;
 $successMessage = '';
 
+// Initialize variables - will be set by controller if successful
+if (!isset($registrationSuccess)) {
+    $registrationSuccess = false;
+}
+if (!isset($successMessage)) {
+    $successMessage = '';
+}
+
+// Log for debugging
+if ($registrationSuccess) {
+    error_log("register.php: Rendering with registrationSuccess=true, message=" . $successMessage);
+} else {
+    error_log("register.php: Rendering with registrationSuccess=false");
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
     // This means we're processing a form submission that didn't have errors
     $registrationSuccess = true;
@@ -521,7 +536,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 
                         <!-- Password -->
                         <div class="input-group">
-                            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password <span class="text-red-500">*</span></label>
+                            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                                Password (minimum 6 characters) <span class="text-red-500">*</span>
+                            </label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <svg class="h-5 w-5 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -529,10 +546,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                                     </svg>
                                 </div>
                                 <input type="password" id="password" name="password" required
+                                    minlength="6"
                                     class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-md shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                                    placeholder="Enter your password">
+                                    placeholder="Enter your password (minimum 6 characters)">
+
+                                <!-- Add after password input -->
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Password must be at least 6 characters long
+                                </p>
                             </div>
                         </div>
+
 
                         <!-- Confirm Password -->
                         <div class="input-group">
@@ -1355,6 +1379,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 
             <?php if (isset($_POST['college_id']) && !empty($_POST['college_id'])): ?>
                 loadDepartments();
+            <?php endif; ?>
+        });
+
+        // Auto-show modal if this is a successful registration
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Checking registration success status...');
+            <?php if ($registrationSuccess): ?>
+                console.log('Registration successful, showing modal with message: <?php echo addslashes($successMessage); ?>');
+                showApprovalModal('<?php echo addslashes($successMessage); ?>');
+            <?php else: ?>
+                console.log('Not a successful registration');
             <?php endif; ?>
         });
     </script>

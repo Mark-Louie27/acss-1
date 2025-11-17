@@ -202,9 +202,10 @@ class AuthController
 
             if (empty($errors)) {
                 try {
+                    error_log("Attempting to submit admission for employee_id: " . $data['employee_id']);
+
                     if ($this->authService->submitAdmission($data)) {
-                        // Set success state
-                        $registrationSuccess = true;
+                        error_log("Submission successful - preparing success response");
 
                         // Generate success message
                         $isDean = in_array(4, $data['roles']);
@@ -218,21 +219,34 @@ class AuthController
                             $successMessage = "Registration submitted successfully. Your account is pending admin approval.";
                         }
 
+                        // CRITICAL: Set these as explicit variables for the view
+                        $registrationSuccess = true;
+
+                        error_log("Success message: " . $successMessage);
+                        error_log("About to render view with registrationSuccess=true");
+
                         // Clear the form data
                         $_POST = [];
 
-                        // Re-render the form (this will trigger the modal via JavaScript)
+                        // Re-render the form with success state
                         require_once __DIR__ . '/../views/auth/register.php';
                         exit;
                     } else {
+                        error_log("submitAdmission returned false");
                         $error = "Registration failed. Employee ID or email may already be in use.";
                         require_once __DIR__ . '/../views/auth/register.php';
                     }
                 } catch (Exception $e) {
                     $error = $e->getMessage();
                     error_log("Registration exception: " . $e->getMessage());
+                    error_log("Stack trace: " . $e->getTraceAsString());
                     require_once __DIR__ . '/../views/auth/register.php';
                 }
+            } else {
+                // Display validation errors
+                error_log("Validation errors: " . implode(', ', $errors));
+                $error = implode('<br>', $errors);
+                require_once __DIR__ . '/../views/auth/register.php';
             }
         } else {
             require_once __DIR__ . '/../views/auth/register.php';
