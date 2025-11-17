@@ -2958,8 +2958,6 @@ if ($userDepartmentId) {
                 navigationState.schedulesExist = true;
                 navigationState.hasGeneratedSchedules = true;
 
-                // Update UI to show proceed button and disable generate tab
-                showProceedToManualButton();
                 updateTabAccessibility();
 
                 // Store in session storage to persist across page refreshes
@@ -2982,48 +2980,6 @@ if ($userDepartmentId) {
 
                 // Switch to generate tab automatically
                 setTimeout(() => switchTab('generate'), 1000);
-            }
-
-            // Show proceed to manual button after generation
-            function showProceedToManualButton() {
-                const generateContent = document.getElementById('content-generate');
-                if (!generateContent) return;
-
-                // Remove existing proceed button if any
-                const existingButton = document.getElementById('proceed-to-manual-btn');
-                if (existingButton) existingButton.remove();
-
-                // Create proceed button
-                const proceedButton = document.createElement('div');
-                proceedButton.id = 'proceed-to-manual-btn';
-                proceedButton.className = 'mt-6 p-6 bg-green-50 border border-green-200 rounded-lg text-center';
-                proceedButton.innerHTML = `
-                    <div class="flex items-center justify-center mb-4">
-                        <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
-                        <h3 class="text-lg font-semibold text-green-800">Schedules Generated Successfully!</h3>
-                    </div>
-                    <p class="text-green-700 mb-4">You can now proceed to manually edit and refine the generated schedules.</p>
-                    <button onclick="proceedToManualEdit()" 
-                            class="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg shadow-sm transition-all duration-200 transform hover:scale-105">
-                        <i class="fas fa-edit mr-2"></i>
-                        Proceed to Manual Edit
-                    </button>
-                `;
-
-                // Insert after the generate form
-                const generateForm = generateContent.querySelector('#generate-form');
-                if (generateForm) {
-                    generateForm.parentNode.insertBefore(proceedButton, generateForm.nextSibling);
-                }
-            }
-
-            // Proceed to manual edit function
-            function proceedToManualEdit() {
-                // Switch to manual tab
-                switchTab('manual');
-
-                // Show notification
-                showNotification('Now in Manual Edit mode. You can drag and drop to modify schedules.', 'success');
             }
 
             // Check for existing schedules on page load

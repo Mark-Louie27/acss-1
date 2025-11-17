@@ -3,22 +3,16 @@ let currentSemesterCourses = {};
 let validationTimeout;
 let currentDeleteScheduleId = null;
 const DEBOUNCE_DELAY = 300;
-let isUpdatingGrids = false;
 
 // Enhanced Drag and Drop with Conflict Detection
 let draggedElement = null;
 let originalPosition = null;
-let dragGhost = null;
-let isValidatingConflicts = false;
-let validationCache = new Map();
-let lastValidationTime = 0;
-const VALIDATION_THROTTLE = 500; // ms
 
 function handleDragStart(e) {
   draggedElement = e.target.closest(".schedule-card");
   if (!draggedElement) return;
 
-  // Store original position
+  // Store original position for revert if needed
   originalPosition = {
     day: draggedElement.closest(".drop-zone").dataset.day,
     startTime: draggedElement.closest(".drop-zone").dataset.startTime,
@@ -28,101 +22,44 @@ function handleDragStart(e) {
 
   e.dataTransfer.setData("text/plain", draggedElement.dataset.scheduleId);
   e.dataTransfer.effectAllowed = "move";
-
-  // ✅ SMOOTH: Add dragging class with transition
-  draggedElement.classList.add("dragging");
-  draggedElement.style.opacity = "0.5";
-  draggedElement.style.transform = "scale(0.95)";
-
-  // Create ghost element for better visual feedback
-  createDragGhost(draggedElement);
+  draggedElement.classList.add("dragging", "opacity-50");
 
   console.log("🚀 Drag started:", {
     scheduleId: draggedElement.dataset.scheduleId,
-    from: `${originalPosition.day} ${originalPosition.startTime}`,
+    originalPosition: originalPosition,
   });
 }
 
-// ✅ NEW: Create smooth drag ghost
-function createDragGhost(element) {
-  dragGhost = element.cloneNode(true);
-  dragGhost.style.position = "fixed";
-  dragGhost.style.pointerEvents = "none";
-  dragGhost.style.opacity = "0.8";
-  dragGhost.style.zIndex = "9999";
-  dragGhost.style.transform = "rotate(2deg)";
-  dragGhost.style.boxShadow = "0 10px 25px rgba(0,0,0,0.3)";
-  document.body.appendChild(dragGhost);
-}
-
-// ✅ SMOOTH: Enhanced drag end
 function handleDragEnd(e) {
   if (draggedElement) {
-    draggedElement.classList.remove("dragging");
-    draggedElement.style.opacity = "";
-    draggedElement.style.transform = "";
+    draggedElement.classList.remove("dragging", "opacity-50");
   }
-
-  // Remove ghost
-  if (dragGhost && dragGhost.parentNode) {
-    dragGhost.remove();
-  }
-
   draggedElement = null;
   originalPosition = null;
-  dragGhost = null;
-  isValidatingConflicts = false;
 
-  // Clean up all visual indicators
   document.querySelectorAll(".drop-zone.drag-over").forEach((zone) => {
     zone.classList.remove("drag-over");
   });
 
   document.querySelectorAll(".drop-zone.conflict").forEach((zone) => {
-    zone.classList.remove(
-      "conflict",
-      "conflict-high",
-      "conflict-medium",
-      "conflict-low"
-    );
-  });
-
-  // Remove tooltips
-  document.querySelectorAll(".conflict-tooltip").forEach((tooltip) => {
-    tooltip.remove();
+    zone.classList.remove("conflict");
   });
 
   console.log("🏁 Drag ended");
 }
 
-// ✅ SMOOTH: Optimized drag enter
 function handleDragEnter(e) {
   const dropZone = e.target.closest(".drop-zone");
   if (dropZone && draggedElement) {
     dropZone.classList.add("drag-over");
-    
-    // ✅ THROTTLED: Check conflicts less frequently
-    throttledConflictCheck(dropZone);
-    
+
+    // Check for conflicts in real-time
+    checkDropZoneConflicts(dropZone);
+
     e.preventDefault();
   }
 }
 
-// ✅ NEW: Throttled conflict checking
-function throttledConflictCheck(dropZone) {
-  const now = Date.now();
-  
-  // Skip if we just validated recently
-  if (now - lastValidationTime < VALIDATION_THROTTLE) {
-    return;
-  }
-  
-  if (!isValidatingConflicts) {
-    checkDropZoneConflicts(dropZone);
-  }
-}
-
-// ✅ SMOOTH: Keep drag over
 function handleDragOver(e) {
   if (e.target.classList.contains("drop-zone")) {
     e.preventDefault();
@@ -130,19 +67,13 @@ function handleDragOver(e) {
   }
 }
 
-// ✅ SMOOTH: Clean drag leave
 function handleDragLeave(e) {
-  const dropZone = e.target.closest(".drop-zone");
-  if (dropZone) {
-    // Only remove if we're actually leaving (not entering a child)
-    if (!dropZone.contains(e.relatedTarget)) {
-      dropZone.classList.remove("drag-over");
-      removeConflictTooltip(dropZone);
-    }
+  if (e.target.classList.contains("drop-zone")) {
+    e.target.classList.remove("drag-over");
+    e.target.classList.remove("conflict");
   }
 }
 
-// ✅ OPTIMIZED: Faster drop handling
 async function handleDrop(e) {
   e.preventDefault();
   const dropZone = e.target.closest(".drop-zone");
@@ -166,41 +97,13 @@ async function handleDrop(e) {
     newEndTime,
   });
 
-  // ✅ OPTIMIZED: Quick cache check first
-  const cacheKey = `${scheduleId}-${newDay}-${newStartTime}-${newEndTime}`;
-  
-  if (validationCache.has(cacheKey)) {
-    const cachedResult = validationCache.get(cacheKey);
-    if (cachedResult.length > 0) {
-      console.warn("❌ Conflicts detected (cached):", cachedResult);
-      showDropConflicts(cachedResult);
-      revertDrag();
-      return;
-    }
-  }
-
-  // Show loading indicator
-  showLoadingIndicator(dropZone);
-
-  // Check for conflicts
-  const conflicts = await checkScheduleConflictsOptimized(
+  // Check for conflicts using your PHP function
+  const conflicts = await checkScheduleConflicts(
     scheduleId,
     newDay,
     newStartTime,
     newEndTime
   );
-
-  // Hide loading
-  hideLoadingIndicator(dropZone);
-
-  // Cache the result
-  validationCache.set(cacheKey, conflicts);
-  
-  // Clear old cache entries (keep only last 50)
-  if (validationCache.size > 50) {
-    const firstKey = validationCache.keys().next().value;
-    validationCache.delete(firstKey);
-  }
 
   if (conflicts.length > 0) {
     console.warn("❌ Conflicts detected:", conflicts);
@@ -211,163 +114,6 @@ async function handleDrop(e) {
 
   // If no conflicts, proceed with the move
   performScheduleMove(scheduleId, newDay, newStartTime, newEndTime, dropZone);
-}
-
-// ✅ NEW: Show loading indicator
-function showLoadingIndicator(dropZone) {
-  const indicator = document.createElement('div');
-  indicator.className = 'drop-loading-indicator';
-  indicator.innerHTML = '<i class="fas fa-spinner fa-spin text-yellow-500"></i>';
-  indicator.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;';
-  dropZone.appendChild(indicator);
-}
-
-// ✅ NEW: Hide loading indicator
-function hideLoadingIndicator(dropZone) {
-  const indicator = dropZone.querySelector('.drop-loading-indicator');
-  if (indicator) indicator.remove();
-}
-
-let conflictCheckTimeout = null;
-async function checkScheduleConflictsOptimized(
-  scheduleId,
-  newDay,
-  newStartTime,
-  newEndTime
-) {
-  // Clear any pending checks
-  if (conflictCheckTimeout) {
-    clearTimeout(conflictCheckTimeout);
-  }
-
-  return new Promise((resolve) => {
-    const currentSchedule = window.scheduleData.find(
-      (s) => s.schedule_id == scheduleId
-    );
-
-    if (!currentSchedule) {
-      resolve([]);
-      return;
-    }
-
-    // ✅ CLIENT-SIDE VALIDATION FIRST (instant)
-    const clientConflicts = checkClientSideConflicts(
-      currentSchedule,
-      newDay,
-      newStartTime + ":00",
-      newEndTime + ":00"
-    );
-
-    if (clientConflicts.length > 0) {
-      console.log("⚡ Client-side conflicts found (instant):", clientConflicts);
-      resolve(clientConflicts);
-      return;
-    }
-
-    // ✅ SERVER-SIDE VALIDATION (only if client check passes)
-    conflictCheckTimeout = setTimeout(() => {
-      const formData = new URLSearchParams({
-        action: "check_drag_conflicts",
-        schedule_id: scheduleId,
-        section_id: currentSchedule.section_id || "",
-        faculty_id: currentSchedule.faculty_id || "",
-        room_id: currentSchedule.room_id || "",
-        day_of_week: newDay,
-        start_time: newStartTime + ":00",
-        end_time: newEndTime + ":00",
-        semester_id: window.currentSemester?.semester_id || "",
-      });
-
-      fetch("/chair/generate-schedules", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
-      })
-        .then((response) => response.json())
-        .then((result) => {
-          if (result.success && result.conflicts) {
-            resolve(result.conflicts);
-          } else {
-            resolve([]);
-          }
-        })
-        .catch((error) => {
-          console.error("Conflict check error:", error);
-          resolve([]); // Allow drop if check fails
-        });
-    }, 150); // Slight delay to debounce
-  });
-}
-
-// ✅ NEW: Client-side conflict checking (instant)
-function checkClientSideConflicts(
-  currentSchedule,
-  newDay,
-  newStartTime,
-  newEndTime
-) {
-  const conflicts = [];
-  const currentSemesterId = window.currentSemester?.semester_id;
-
-  if (!currentSemesterId) return conflicts;
-
-  // Convert times to minutes for comparison
-  const toMinutes = (timeStr) => {
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-  };
-
-  const newStart = toMinutes(newStartTime);
-  const newEnd = toMinutes(newEndTime);
-
-  // Check against all schedules in memory
-  window.scheduleData.forEach((schedule) => {
-    // Skip self
-    if (schedule.schedule_id == currentSchedule.schedule_id) return;
-
-    // Same semester and day check
-    if (schedule.semester_id != currentSemesterId) return;
-    if (schedule.day_of_week !== newDay) return;
-
-    const schedStart = toMinutes(schedule.start_time);
-    const schedEnd = toMinutes(schedule.end_time);
-
-    // Time overlap check
-    const hasOverlap = newStart < schedEnd && newEnd > schedStart;
-
-    if (!hasOverlap) return;
-
-    // Check for actual conflicts
-    const sameSection = schedule.section_name === currentSchedule.section_name;
-    const sameFaculty = schedule.faculty_name === currentSchedule.faculty_name;
-    const sameRoom = schedule.room_name === currentSchedule.room_name;
-
-    if (sameSection) {
-      conflicts.push({
-        type: "section",
-        severity: "high",
-        message: `Section ${schedule.section_name} already has ${schedule.course_code} at this time`,
-      });
-    }
-
-    if (sameFaculty) {
-      conflicts.push({
-        type: "faculty",
-        severity: "high",
-        message: `Faculty ${schedule.faculty_name} is teaching ${schedule.course_code} at this time`,
-      });
-    }
-
-    if (sameRoom && schedule.room_name !== "Online") {
-      conflicts.push({
-        type: "room",
-        severity: "medium",
-        message: `Room ${schedule.room_name} is occupied by ${schedule.course_code} at this time`,
-      });
-    }
-  });
-
-  return conflicts;
 }
 
 function checkScheduleConflicts(scheduleId, newDay, newStartTime, newEndTime) {
@@ -505,120 +251,28 @@ function showDropZoneConflictTooltip(dropZone, conflicts) {
   dropZone.appendChild(tooltip);
 }
 
-function showDropZoneConflictTooltip(dropZone, conflicts) {
-  removeConflictTooltip(dropZone);
-
-  const tooltip = document.createElement("div");
-  tooltip.className = "conflict-tooltip";
-
-  // Group by severity
-  const highConflicts = conflicts.filter((c) => c.severity === "high");
-  const mediumConflicts = conflicts.filter((c) => c.severity === "medium");
-  const lowConflicts = conflicts.filter((c) => c.severity === "low");
-
-  let tooltipContent =
-    '<div class="font-semibold mb-1 text-xs">⚠️ Conflicts:</div>';
-
-  if (highConflicts.length > 0) {
-    tooltipContent += '<div class="text-red-700 text-xs">';
-    highConflicts.slice(0, 2).forEach((conflict) => {
-      tooltipContent += `<div>• ${conflict.message}</div>`;
-    });
-    tooltipContent += "</div>";
-  }
-
-  if (mediumConflicts.length > 0) {
-    tooltipContent += '<div class="text-orange-600 text-xs mt-1">';
-    mediumConflicts.slice(0, 1).forEach((conflict) => {
-      tooltipContent += `<div>• ${conflict.message}</div>`;
-    });
-    tooltipContent += "</div>";
-  }
-
-  tooltip.innerHTML = tooltipContent;
-
-  // Style based on severity
-  if (highConflicts.length > 0) {
-    tooltip.classList.add("bg-red-100", "border-red-300", "text-red-800");
-    dropZone.classList.add("conflict-high");
-  } else if (mediumConflicts.length > 0) {
-    tooltip.classList.add(
-      "bg-orange-100",
-      "border-orange-300",
-      "text-orange-800"
-    );
-    dropZone.classList.add("conflict-medium");
-  } else {
-    tooltip.classList.add(
-      "bg-yellow-100",
-      "border-yellow-300",
-      "text-yellow-800"
-    );
-    dropZone.classList.add("conflict-low");
-  }
-
-  tooltip.classList.add(
-    "border",
-    "rounded",
-    "p-2",
-    "shadow-lg",
-    "absolute",
-    "bottom-full",
-    "left-0",
-    "mb-2",
-    "z-50",
-    "max-w-xs",
-    "text-xs"
-  );
-  dropZone.appendChild(tooltip);
-}
-
 function removeConflictTooltip(dropZone) {
   const existingTooltip = dropZone.querySelector(".conflict-tooltip");
   if (existingTooltip) {
     existingTooltip.remove();
   }
-  dropZone.classList.remove(
-    "conflict",
-    "conflict-high",
-    "conflict-medium",
-    "conflict-low"
-  );
 }
 
+// Show drop conflicts to user
 function showDropConflicts(conflicts) {
   const conflictMessages = conflicts.map((c) => c.message).join("\n• ");
   showNotification(
-    `Cannot move schedule:\n• ${conflictMessages}`,
+    `Cannot move schedule due to conflicts:\n• ${conflictMessages}`,
     "error",
-    5000
+    8000
   );
 }
 
-function updateScheduleDisplaySmooth(schedules) {
-  // Add transition class
-  const grid = document.getElementById("schedule-grid");
-  if (grid) {
-    grid.style.transition = "opacity 0.2s";
-    grid.style.opacity = "0.7";
-  }
-
-  // Update
-  setTimeout(() => {
-    safeUpdateScheduleDisplay(schedules);
-
-    if (grid) {
-      grid.style.opacity = "1";
-    }
-  }, 100);
-}
-
-
-// Revert drag
+// Revert drag to original position
 function revertDrag() {
   if (originalPosition && originalPosition.element) {
     originalPosition.element.classList.remove("opacity-50");
-    console.log("↩️ Schedule reverted to original position");
+    showNotification("Schedule reverted due to conflicts", "warning", 3000);
   }
 }
 
@@ -716,18 +370,14 @@ function saveScheduleMoveToServer(
 }
 
 async function checkDropZoneConflicts(dropZone) {
-  if (!draggedElement || isValidatingConflicts) return;
-
-  isValidatingConflicts = true;
-  lastValidationTime = Date.now();
+  if (!draggedElement) return;
 
   const scheduleId = draggedElement.dataset.scheduleId;
   const newDay = dropZone.dataset.day;
   const newStartTime = dropZone.dataset.startTime;
   const newEndTime = dropZone.dataset.endTime;
 
-  // ✅ Use optimized conflict check
-  const conflicts = await checkScheduleConflictsOptimized(
+  const conflicts = await checkScheduleConflicts(
     scheduleId,
     newDay,
     newStartTime,
@@ -738,16 +388,9 @@ async function checkDropZoneConflicts(dropZone) {
     dropZone.classList.add("conflict");
     showDropZoneConflictTooltip(dropZone, conflicts);
   } else {
-    dropZone.classList.remove(
-      "conflict",
-      "conflict-high",
-      "conflict-medium",
-      "conflict-low"
-    );
+    dropZone.classList.remove("conflict");
     removeConflictTooltip(dropZone);
   }
-
-  isValidatingConflicts = false;
 }
 
 // Initialize enhanced drag and drop
@@ -755,36 +398,36 @@ function initializeDragAndDrop() {
   const dropZones = document.querySelectorAll(".drop-zone");
   const draggables = document.querySelectorAll(".schedule-card.draggable");
 
-  console.log("🔄 Initializing smooth drag and drop:", {
+  console.log("🔄 Initializing drag and drop:", {
     dropZones: dropZones.length,
     draggables: draggables.length,
   });
 
-  // Remove existing listeners (prevent duplicates)
+  // Remove existing event listeners
   dropZones.forEach((zone) => {
-    const newZone = zone.cloneNode(true);
-    zone.parentNode.replaceChild(newZone, zone);
+    zone.removeEventListener("dragover", handleDragOver);
+    zone.removeEventListener("dragenter", handleDragEnter);
+    zone.removeEventListener("dragleave", handleDragLeave);
+    zone.removeEventListener("drop", handleDrop);
   });
 
   draggables.forEach((draggable) => {
-    const newDraggable = draggable.cloneNode(true);
-    draggable.parentNode.replaceChild(newDraggable, draggable);
+    draggable.removeEventListener("dragstart", handleDragStart);
+    draggable.removeEventListener("dragend", handleDragEnd);
   });
 
-  // Add new listeners to fresh elements
-  document.querySelectorAll(".drop-zone").forEach((zone) => {
+  // Add new event listeners
+  dropZones.forEach((zone) => {
     zone.addEventListener("dragover", handleDragOver);
     zone.addEventListener("dragenter", handleDragEnter);
     zone.addEventListener("dragleave", handleDragLeave);
     zone.addEventListener("drop", handleDrop);
   });
 
-  document.querySelectorAll(".schedule-card.draggable").forEach((draggable) => {
+  draggables.forEach((draggable) => {
     draggable.addEventListener("dragstart", handleDragStart);
     draggable.addEventListener("dragend", handleDragEnd);
   });
-
-  console.log("✅ Smooth drag and drop initialized");
 }
 
 function validateFieldRealTime(fieldType, value, relatedFields = {}) {
@@ -958,6 +601,34 @@ function handleDrop(e) {
   }
 }
 
+function initializeDragAndDrop() {
+  const dropZones = document.querySelectorAll(".drop-zone");
+  const draggables = document.querySelectorAll(".draggable");
+  console.log("Initializing drag and drop:", {
+    dropZones: dropZones.length,
+    draggables: draggables.length,
+  });
+
+  dropZones.forEach((zone) => {
+    zone.removeEventListener("dragover", handleDragOver);
+    zone.removeEventListener("dragenter", handleDragEnter);
+    zone.removeEventListener("dragleave", handleDragLeave);
+    zone.removeEventListener("drop", handleDrop);
+
+    zone.addEventListener("dragover", handleDragOver);
+    zone.addEventListener("dragenter", handleDragEnter);
+    zone.addEventListener("dragleave", handleDragLeave);
+    zone.addEventListener("drop", handleDrop);
+  });
+
+  draggables.forEach((draggable) => {
+    draggable.removeEventListener("dragstart", handleDragStart);
+    draggable.removeEventListener("dragend", handleDragEnd);
+
+    draggable.addEventListener("dragstart", handleDragStart);
+    draggable.addEventListener("dragend", handleDragEnd);
+  });
+}
 
 // Open delete ALL schedules modal
 function deleteAllSchedules() {
@@ -2238,269 +1909,77 @@ function openAddModal() {
   console.log("=== END OPEN ADD MODAL DEBUG ===");
 }
 
-// ✅ FIXED: Enhanced editSchedule function with proper field population
-
 function editSchedule(scheduleId) {
   console.log("=== EDIT SCHEDULE DEBUG ===");
-  console.log("Editing schedule ID:", scheduleId);
-  console.log("Total schedules in window.scheduleData:", window.scheduleData?.length || 0);
+  console.log("Editing schedule:", scheduleId);
+  console.log("Faculty data available:", window.faculty?.length || 0);
 
-  // Find the schedule
   const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
-  
   if (!schedule) {
-    console.error("❌ Schedule not found:", scheduleId);
-    console.log("Available schedule IDs:", window.scheduleData?.map(s => s.schedule_id));
+    console.error("Schedule not found:", scheduleId);
     showNotification("Schedule not found", "error");
     return;
   }
 
-  console.log("✅ Found schedule:", schedule);
+  resetConflictField("course-code");
+  resetConflictField("course-name");
 
-  // Reset any previous conflict warnings
-  if (typeof resetConflictField === 'function') {
-    resetConflictField("course-code");
-    resetConflictField("course-name");
-  }
+  console.log("Found schedule:", schedule);
 
-  // Check semester match
   if (schedule.semester_id != window.currentSemester?.semester_id) {
     showNotification("Can only edit schedules from current semester", "error");
     return;
   }
 
-  // Build course mappings if not already done
-  if (typeof buildCurrentSemesterCourseMappings === 'function') {
-    buildCurrentSemesterCourseMappings();
-  }
+  buildCurrentSemesterCourseMappings();
 
-  // Set modal title and ID
   document.getElementById("modal-title").textContent = "Edit Schedule";
   document.getElementById("schedule-id").value = schedule.schedule_id;
+  document.getElementById("course-code").value = schedule.course_code || "";
+  document.getElementById("course-name").value = schedule.course_name || "";
+  document.getElementById("room-name").value = schedule.room_name || "";
+  document.getElementById("section-name").value = schedule.section_name || "";
 
-  // ✅ CRITICAL FIX 1: Populate course fields
-  const courseCodeInput = document.getElementById("course-code");
-  const courseNameInput = document.getElementById("course-name");
-  
-  if (courseCodeInput) {
-    courseCodeInput.value = schedule.course_code || "";
-    console.log("✅ Set course code:", schedule.course_code);
-  }
-  
-  if (courseNameInput) {
-    courseNameInput.value = schedule.course_name || schedule.course_code || "";
-    console.log("✅ Set course name:", schedule.course_name);
-  }
-
-  // ✅ CRITICAL FIX 2: Populate and verify faculty dropdown
+  // ✅ POPULATE FACULTY DROPDOWN FOR EDIT
   const facultySelect = document.getElementById("faculty-name");
   if (facultySelect) {
-    console.log("📋 Faculty dropdown options:", facultySelect.options.length);
-    
-    // First, ensure faculty dropdown is populated
-    if (facultySelect.options.length <= 1) {
-      console.warn("⚠️ Faculty dropdown is empty, repopulating...");
-      facultySelect.innerHTML = '<option value="">Select Faculty</option>';
-      
-      if (window.faculty && window.faculty.length > 0) {
-        window.faculty.forEach((fac) => {
-          const option = document.createElement("option");
-          option.value = fac.name;
-          option.textContent = fac.name;
-          option.setAttribute("data-faculty-id", fac.faculty_id);
-          facultySelect.appendChild(option);
-        });
-        console.log("✅ Repopulated faculty dropdown with", window.faculty.length, "members");
-      } else {
-        console.error("❌ No faculty data available!");
-      }
+    facultySelect.innerHTML = '<option value="">Select Faculty</option>';
+
+    if (window.faculty && window.faculty.length > 0) {
+      window.faculty.forEach((fac) => {
+        const option = document.createElement("option");
+        option.value = fac.name;
+        option.textContent = fac.name;
+        option.setAttribute("data-faculty-id", fac.faculty_id);
+        facultySelect.appendChild(option);
+      });
+
+      // Set the current faculty value
+      facultySelect.value = schedule.faculty_name || "";
+      console.log("✅ Set faculty to:", schedule.faculty_name);
+    } else {
+      console.error("❌ No faculty available for editing");
     }
-    
-    // Set the value
-    const facultyName = schedule.faculty_name || schedule.instructor || "";
-    facultySelect.value = facultyName;
-    console.log("✅ Set faculty:", facultyName);
-    
-    // Verify the value was set
-    if (facultySelect.value !== facultyName && facultyName) {
-      console.warn("⚠️ Faculty value not found in dropdown, adding it...");
-      const option = document.createElement("option");
-      option.value = facultyName;
-      option.textContent = facultyName;
-      facultySelect.appendChild(option);
-      facultySelect.value = facultyName;
-    }
-    
-    console.log("✅ Final faculty value:", facultySelect.value);
-  } else {
-    console.error("❌ Faculty select element not found!");
   }
 
-  // ✅ CRITICAL FIX 3: Populate and verify room dropdown
-  const roomSelect = document.getElementById("room-name");
-  if (roomSelect) {
-    console.log("🏫 Room dropdown options:", roomSelect.options.length);
-    
-    // Ensure room dropdown has options
-    if (roomSelect.options.length <= 1) {
-      console.warn("⚠️ Room dropdown is empty, repopulating...");
-      roomSelect.innerHTML = '<option value="Online">Online</option>';
-      
-      if (window.classrooms && window.classrooms.length > 0) {
-        window.classrooms.forEach((room) => {
-          const option = document.createElement("option");
-          option.value = room.room_name;
-          option.textContent = room.room_name;
-          roomSelect.appendChild(option);
-        });
-        console.log("✅ Repopulated room dropdown with", window.classrooms.length, "rooms");
-      }
-    }
-    
-    const roomName = schedule.room_name || "Online";
-    roomSelect.value = roomName;
-    console.log("✅ Set room:", roomName);
-    
-    // Verify and add if missing
-    if (roomSelect.value !== roomName && roomName !== "Online") {
-      console.warn("⚠️ Room value not found in dropdown, adding it...");
-      const option = document.createElement("option");
-      option.value = roomName;
-      option.textContent = roomName;
-      roomSelect.appendChild(option);
-      roomSelect.value = roomName;
-    }
-    
-    console.log("✅ Final room value:", roomSelect.value);
-  } else {
-    console.error("❌ Room select element not found!");
-  }
-
-  // ✅ CRITICAL FIX 4: Populate and verify section dropdown
-  const sectionSelect = document.getElementById("section-name");
-  if (sectionSelect) {
-    console.log("📚 Section dropdown options:", sectionSelect.options.length);
-    
-    // Ensure section dropdown has options
-    if (sectionSelect.options.length <= 1) {
-      console.warn("⚠️ Section dropdown is empty, repopulating...");
-      sectionSelect.innerHTML = '<option value="">Select Section</option>';
-      
-      if (window.sectionsData && window.sectionsData.length > 0) {
-        // Group by year level
-        const sectionsByYear = {};
-        window.sectionsData.forEach((section) => {
-          const yearLevel = section.year_level || "Unknown";
-          if (!sectionsByYear[yearLevel]) {
-            sectionsByYear[yearLevel] = [];
-          }
-          sectionsByYear[yearLevel].push(section);
-        });
-        
-        // Add sections grouped by year
-        Object.keys(sectionsByYear).sort().forEach((yearLevel) => {
-          const optgroup = document.createElement("optgroup");
-          optgroup.label = yearLevel;
-          
-          sectionsByYear[yearLevel].forEach((section) => {
-            const option = document.createElement("option");
-            option.value = section.section_name;
-            option.textContent = `${section.section_name} (${section.current_students}/${section.max_students})`;
-            option.setAttribute("data-year-level", section.year_level);
-            option.setAttribute("data-max-students", section.max_students);
-            option.setAttribute("data-current-students", section.current_students);
-            optgroup.appendChild(option);
-          });
-          
-          sectionSelect.appendChild(optgroup);
-        });
-        console.log("✅ Repopulated section dropdown with", window.sectionsData.length, "sections");
-      }
-    }
-    
-    const sectionName = schedule.section_name || "";
-    sectionSelect.value = sectionName;
-    console.log("✅ Set section:", sectionName);
-    
-    // Verify and add if missing
-    if (sectionSelect.value !== sectionName && sectionName) {
-      console.warn("⚠️ Section value not found in dropdown, adding it...");
-      const option = document.createElement("option");
-      option.value = sectionName;
-      option.textContent = sectionName;
-      sectionSelect.appendChild(option);
-      sectionSelect.value = sectionName;
-    }
-    
-    console.log("✅ Final section value:", sectionSelect.value);
-  } else {
-    console.error("❌ Section select element not found!");
-  }
-
-  // ✅ Set day and time fields
   const day = schedule.day_of_week || "Monday";
-  const modalDay = document.getElementById("modal-day");
-  const daySelect = document.getElementById("day-select");
-  
-  if (modalDay) modalDay.value = day;
-  if (daySelect) daySelect.value = day;
-  console.log("✅ Set day:", day);
+  document.getElementById("modal-day").value = day;
+  document.getElementById("day-select").value = day;
 
-  // Parse and set times
-  const startTime = schedule.start_time ? schedule.start_time.substring(0, 5) : "07:30";
-  const endTime = schedule.end_time ? schedule.end_time.substring(0, 5) : "08:30";
-  
-  const modalStartTime = document.getElementById("modal-start-time");
-  const modalEndTime = document.getElementById("modal-end-time");
-  const startTimeSelect = document.getElementById("start-time");
-  const endTimeSelect = document.getElementById("end-time");
-  
-  if (modalStartTime) modalStartTime.value = startTime;
-  if (modalEndTime) modalEndTime.value = endTime;
-  if (startTimeSelect) startTimeSelect.value = startTime;
-  
-  // Update end time options based on start time
-  if (startTimeSelect && typeof updateEndTimeOptions === 'function') {
-    updateEndTimeOptions();
-  }
-  
-  if (endTimeSelect) endTimeSelect.value = endTime;
-  
-  console.log("✅ Set times:", startTime, "-", endTime);
+  const startTime = schedule.start_time
+    ? schedule.start_time.substring(0, 5)
+    : "07:30";
+  const endTime = schedule.end_time
+    ? schedule.end_time.substring(0, 5)
+    : "08:30";
+  document.getElementById("modal-start-time").value = startTime;
+  document.getElementById("modal-end-time").value = endTime;
+  document.getElementById("start-time").value = startTime;
+  document.getElementById("end-time").value = endTime;
 
-  // ✅ Set schedule type
-  const scheduleTypeSelect = document.getElementById("schedule-type");
-  if (scheduleTypeSelect) {
-    const scheduleType = schedule.schedule_type || "f2f";
-    scheduleTypeSelect.value = scheduleType;
-    console.log("✅ Set schedule type:", scheduleType);
-  }
-
-  // Set current editing ID
-  window.currentEditingId = scheduleId;
-  console.log("✅ Set currentEditingId:", scheduleId);
-
-  // Show the modal
+  currentEditingId = scheduleId;
   showModal();
-  
-  console.log("=== EDIT SCHEDULE SETUP COMPLETE ===");
-  
-  // ✅ VERIFICATION: Log all form values after setup
-  setTimeout(() => {
-    console.log("📋 FORM VERIFICATION:");
-    console.log("  Course Code:", document.getElementById("course-code")?.value);
-    console.log("  Course Name:", document.getElementById("course-name")?.value);
-    console.log("  Faculty:", document.getElementById("faculty-name")?.value);
-    console.log("  Section:", document.getElementById("section-name")?.value);
-    console.log("  Room:", document.getElementById("room-name")?.value);
-    console.log("  Day:", document.getElementById("day-select")?.value);
-    console.log("  Start Time:", document.getElementById("start-time")?.value);
-    console.log("  End Time:", document.getElementById("end-time")?.value);
-  }, 100);
 }
-
-
-console.log("✅ Fixed edit schedule functions loaded");
 
 function showModal() {
   const modal = document.getElementById("schedule-modal");
@@ -2738,72 +2217,17 @@ function refreshManualView() {
   location.reload();
 }
 
-window.safeUpdateScheduleDisplay = function (schedules) {
-  console.log(
-    "🔄 safeUpdateScheduleDisplay called with",
-    schedules?.length || 0,
-    "schedules"
-  );
-
-  // Validate input
-  if (!schedules || !Array.isArray(schedules)) {
-    console.warn("⚠️ Invalid schedules data");
-    schedules = [];
-  }
-
-  // ✅ CRITICAL: Store globally
-  window.scheduleData = schedules;
-  console.log("✅ Stored in window.scheduleData");
-
-  // Get grid elements
-  const manualGrid = document.getElementById("schedule-grid");
-  const viewGrid = document.getElementById("timetableGrid");
-
-  console.log("📍 Grids found:", {
-    manual: !!manualGrid,
-    view: !!viewGrid,
-  });
-
-  // Update manual grid
-  if (manualGrid) {
-    try {
-      console.log("🔨 Updating manual grid...");
-      if (typeof updateManualGrid === "function") {
-        updateManualGrid(schedules);
-        console.log("✅ Manual grid updated");
-      } else {
-        console.error("❌ updateManualGrid function not found");
-      }
-    } catch (error) {
-      console.error("❌ Error updating manual grid:", error);
-    }
-  }
-
-  // Update view grid
-  if (viewGrid) {
-    try {
-      console.log("🔨 Updating view grid...");
-      if (typeof updateViewGrid === "function") {
-        updateViewGrid(schedules);
-        console.log("✅ View grid updated");
-      } else {
-        console.error("❌ updateViewGrid function not found");
-      }
-    } catch (error) {
-      console.error("❌ Error updating view grid:", error);
-    }
-  }
-
-  console.log("🎯 safeUpdateScheduleDisplay completed");
-};
-
 // Initialize event listeners
 document.addEventListener("DOMContentLoaded", function () {
-  
+  console.log("Manual schedules JS loaded");
+  console.log("Current semester:", window.currentSemester);
+  console.log("Schedule data count:", window.scheduleData?.length || 0);
 
   // ✅ CHECK IF FACULTY DATA IS PRESENT
   if (!window.faculty || window.faculty.length === 0) {
-    
+    console.error("❌ CRITICAL: No faculty data loaded!");
+    console.log("jsData:", window.jsData);
+    console.log("jsData.faculty:", window.jsData?.faculty);
 
     // Try to get faculty from jsData
     if (window.jsData && window.jsData.faculty) {
@@ -3141,24 +2565,17 @@ function updateEndTimeOptions() {
   updateTimeFields();
 }
 
-function timeToMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function minutesToTime(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
-
 function formatDuration(minutes) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  if (hours === 0) return `${mins}min`;
-  if (mins === 0) return `${hours}hr`;
-  return `${hours}hr ${mins}min`;
+
+  if (hours === 0) {
+    return `${mins}min`;
+  } else if (mins === 0) {
+    return `${hours}h`;
+  } else {
+    return `${hours}h ${mins}m`;
+  }
 }
 
 // Enhanced formatTime function
@@ -3173,41 +2590,6 @@ function formatTime(timeString) {
   });
 }
 
-function calculateDurationMinutes(startTime, endTime) {
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-  return end - start;
-}
-
-function calculateSlotSpan(
-  scheduleStart,
-  scheduleEnd,
-  timeSlots,
-  currentSlotIndex
-) {
-  const startMin = timeToMinutes(scheduleStart);
-  const endMin = timeToMinutes(scheduleEnd);
-
-  let spanCount = 0;
-
-  // Count how many slots from currentSlotIndex onwards are covered by this schedule
-  for (let i = currentSlotIndex; i < timeSlots.length; i++) {
-    const slot = timeSlots[i];
-    const slotStartMin = timeToMinutes(slot[0]);
-    const slotEndMin = timeToMinutes(slot[1]);
-
-    // Check if this slot overlaps with the schedule
-    if (slotStartMin >= startMin && slotEndMin <= endMin) {
-      spanCount++;
-    } else if (slotStartMin >= endMin) {
-      // We've passed the schedule's end time
-      break;
-    }
-  }
-
-  return Math.max(1, spanCount);
-}
-
 // IMPROVED: Safe update schedule display with better error handling
 function safeUpdateScheduleDisplay(schedules) {
   console.log(
@@ -3218,7 +2600,7 @@ function safeUpdateScheduleDisplay(schedules) {
 
   // Validate input
   if (!schedules) {
-    console.warn("⚠️ No schedules provided");
+    console.warn("⚠️ No schedules provided to safeUpdateScheduleDisplay");
     schedules = [];
   }
 
@@ -3227,19 +2609,15 @@ function safeUpdateScheduleDisplay(schedules) {
     schedules = [];
   }
 
-  // ✅ CRITICAL: Store globally FIRST
+  // Store in global variable
   window.scheduleData = schedules;
-  console.log(
-    "✅ Stored",
-    schedules.length,
-    "schedules in window.scheduleData"
-  );
+  console.log("✅ Stored schedules in window.scheduleData");
 
-  // ✅ Update both grids immediately
+  // Check if grids exist
   const manualGrid = document.getElementById("schedule-grid");
   const viewGrid = document.getElementById("timetableGrid");
 
-  console.log("📍 Grid elements found:", {
+  console.log("📍 Grid elements:", {
     manualGrid: !!manualGrid,
     viewGrid: !!viewGrid,
   });
@@ -3249,10 +2627,13 @@ function safeUpdateScheduleDisplay(schedules) {
     try {
       console.log("🔨 Updating manual grid...");
       updateManualGrid(schedules);
-      console.log("✅ Manual grid updated");
+      console.log("✅ Manual grid updated successfully");
     } catch (error) {
       console.error("❌ Error updating manual grid:", error);
+      console.error("Stack:", error.stack);
     }
+  } else {
+    console.warn("⚠️ Manual grid element not found (ID: schedule-grid)");
   }
 
   // Update view grid
@@ -3260,58 +2641,18 @@ function safeUpdateScheduleDisplay(schedules) {
     try {
       console.log("🔨 Updating view grid...");
       updateViewGrid(schedules);
-      console.log("✅ View grid updated");
+      console.log("✅ View grid updated successfully");
     } catch (error) {
       console.error("❌ Error updating view grid:", error);
+      console.error("Stack:", error.stack);
     }
+  } else {
+    console.warn("⚠️ View grid element not found (ID: timetableGrid)");
   }
 
+  // Log completion
   console.log("🎯 safeUpdateScheduleDisplay completed");
-}
-
-function forceGridRefresh() {
-  console.log("🔄 Force grid refresh called");
-
-  if (!window.scheduleData || window.scheduleData.length === 0) {
-    console.warn("⚠️ No schedule data to refresh");
-    return;
-  }
-
-  console.log(
-    "📊 Refreshing grids with",
-    window.scheduleData.length,
-    "schedules"
-  );
-
-  // Clear and rebuild both grids
-  const manualGrid = document.getElementById("schedule-grid");
-  const viewGrid = document.getElementById("timetableGrid");
-
-  if (manualGrid) {
-    manualGrid.innerHTML =
-      '<div class="col-span-8 text-center py-4">Loading schedules...</div>';
-    setTimeout(() => {
-      updateManualGrid(window.scheduleData);
-      console.log("✅ Manual grid force refreshed");
-    }, 50);
-  }
-
-  if (viewGrid) {
-    viewGrid.innerHTML =
-      '<div class="col-span-8 text-center py-4">Loading schedules...</div>';
-    setTimeout(() => {
-      updateViewGrid(window.scheduleData);
-      console.log("✅ View grid force refreshed");
-    }, 50);
-  }
-
-  // Reinitialize drag and drop after refresh
-  setTimeout(() => {
-    if (typeof initializeDragAndDrop === "function") {
-      initializeDragAndDrop();
-      console.log("✅ Drag and drop reinitialized");
-    }
-  }, 200);
+  console.log("📊 Final schedule count:", window.scheduleData?.length || 0);
 }
 
 // Generate time slots based on actual schedules with 30-minute granularity
@@ -3321,7 +2662,7 @@ function generateDynamicTimeSlotsFromSchedules(schedules) {
 
   // Collect all unique time points from schedules
   const timePointsSet = new Set([defaultStart, defaultEnd]);
-  
+
   schedules.forEach((schedule) => {
     if (schedule.start_time) {
       timePointsSet.add(schedule.start_time.substring(0, 5));
@@ -3346,7 +2687,7 @@ function generateDynamicTimeSlotsFromSchedules(schedules) {
 
   // Build time slot intervals with 30-minute granularity
   const timeSlots = [];
-  
+
   if (timePoints.length < 2) {
     // Fallback to 30-minute intervals
     const toMinutes = (t) => {
@@ -3354,7 +2695,9 @@ function generateDynamicTimeSlotsFromSchedules(schedules) {
       return parseInt(h) * 60 + parseInt(m);
     };
     const fromMinutes = (m) => {
-      const hh = Math.floor(m / 60).toString().padStart(2, "0");
+      const hh = Math.floor(m / 60)
+        .toString()
+        .padStart(2, "0");
       const mm = (m % 60).toString().padStart(2, "0");
       return `${hh}:${mm}`;
     };
@@ -3367,20 +2710,22 @@ function generateDynamicTimeSlotsFromSchedules(schedules) {
     // Create 30-minute intervals between min and max times
     const minTime = timePoints[0];
     const maxTime = timePoints[timePoints.length - 1];
-    
+
     const toMinutes = (t) => {
       const [h, m] = t.split(":");
       return parseInt(h) * 60 + parseInt(m);
     };
     const fromMinutes = (m) => {
-      const hh = Math.floor(m / 60).toString().padStart(2, "0");
+      const hh = Math.floor(m / 60)
+        .toString()
+        .padStart(2, "0");
       const mm = (m % 60).toString().padStart(2, "0");
       return `${hh}:${mm}`;
     };
-    
+
     const startMin = toMinutes(minTime);
     const endMin = toMinutes(maxTime);
-    
+
     for (let m = startMin; m < endMin; m += 30) {
       timeSlots.push([fromMinutes(m), fromMinutes(m + 30)]);
     }
@@ -3408,11 +2753,11 @@ function isTimeInScheduleRange(checkTime, scheduleStart, scheduleEnd) {
     const [h, m] = t.split(":").map(Number);
     return h * 60 + m;
   };
-  
+
   const check = toMinutes(checkTime);
   const start = toMinutes(scheduleStart);
   const end = toMinutes(scheduleEnd);
-  
+
   return check >= start && check < end;
 }
 
@@ -3439,7 +2784,7 @@ function createScheduleCardForManual(schedule, rowSpan) {
   card.dataset.yearLevel = schedule.year_level || "";
   card.dataset.sectionName = schedule.section_name || "";
   card.dataset.roomName = schedule.room_name || "Online";
-  
+
   // Make the card span multiple rows
   card.style.gridRow = `span ${rowSpan}`;
   const minHeight = rowSpan * 60;
@@ -3451,7 +2796,9 @@ function createScheduleCardForManual(schedule, rowSpan) {
         ${escapeHtml(schedule.course_code) || ""}
       </div>
       <div class="flex space-x-1 flex-shrink-0 ml-1">
-        <button onclick="editSchedule('${schedule.schedule_id || ""}')" class="text-yellow-600 hover:text-yellow-700 no-print">
+        <button onclick="editSchedule('${
+          schedule.schedule_id || ""
+        }')" class="text-yellow-600 hover:text-yellow-700 no-print">
           <i class="fas fa-edit text-xs"></i>
         </button>
         <button onclick="openDeleteSingleModal(
@@ -3459,8 +2806,16 @@ function createScheduleCardForManual(schedule, rowSpan) {
           '${escapeHtml(schedule.course_code) || ""}', 
           '${escapeHtml(schedule.section_name) || ""}', 
           '${escapeHtml(schedule.day_of_week) || ""}', 
-          '${schedule.start_time ? formatTime(schedule.start_time.substring(0, 5)) : ""}', 
-          '${schedule.end_time ? formatTime(schedule.end_time.substring(0, 5)) : ""}'
+          '${
+            schedule.start_time
+              ? formatTime(schedule.start_time.substring(0, 5))
+              : ""
+          }', 
+          '${
+            schedule.end_time
+              ? formatTime(schedule.end_time.substring(0, 5))
+              : ""
+          }'
         )" class="text-red-600 hover:text-red-700 no-print">
           <i class="fas fa-trash text-xs"></i>
         </button>
@@ -3478,7 +2833,9 @@ function createScheduleCardForManual(schedule, rowSpan) {
     <div class="text-xs font-medium mt-1">
       ${
         schedule.start_time && schedule.end_time
-          ? `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}`
+          ? `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(
+              schedule.end_time.substring(0, 5)
+            )}`
           : ""
       }
     </div>
@@ -3494,8 +2851,6 @@ function updateManualGrid(schedules) {
   const manualGrid = document.getElementById("schedule-grid");
   if (!manualGrid) return;
 
-  console.log("🔨 updateManualGrid called with", schedules.length, "schedules");
-
   manualGrid.innerHTML = "";
 
   const timeSlots = generateDynamicTimeSlotsFromSchedules(schedules);
@@ -3509,122 +2864,86 @@ function updateManualGrid(schedules) {
     "Sunday",
   ];
 
-  // Build schedule lookup
+  // Track which cells are occupied by spanning schedules
+  const occupiedCells = {};
+
+  // Pre-process schedules
   const scheduleLookup = {};
   schedules.forEach((schedule) => {
     const day = schedule.day_of_week;
     const start = schedule.start_time
       ? schedule.start_time.substring(0, 5)
       : "";
+    const end = schedule.end_time ? schedule.end_time.substring(0, 5) : "";
 
     if (!scheduleLookup[day]) {
-      scheduleLookup[day] = {};
+      scheduleLookup[day] = [];
     }
-    if (!scheduleLookup[day][start]) {
-      scheduleLookup[day][start] = [];
-    }
-    scheduleLookup[day][start].push(schedule);
-  });
 
-  // Track occupied cells
-  const occupiedCells = {};
+    scheduleLookup[day].push({
+      schedule: schedule,
+      start: start,
+      end: end,
+    });
+  });
 
   timeSlots.forEach((time, timeIndex) => {
     const row = document.createElement("div");
-    row.className =
-      "grid grid-cols-8 min-h-[60px] hover:bg-gray-50 transition-colors duration-200 border-b border-gray-100";
+    row.className = `grid grid-cols-8 min-h-[60px] hover:bg-gray-50 transition-colors duration-200`;
 
-    // ✅ SMART TIME LABEL: Check if ANY schedule starts at this time across all days
-    let anyScheduleStartsHere = false;
-    let sampleSchedule = null;
-
-    days.forEach((day) => {
-      if (scheduleLookup[day] && scheduleLookup[day][time[0]]) {
-        anyScheduleStartsHere = true;
-        if (!sampleSchedule) {
-          sampleSchedule = scheduleLookup[day][time[0]][0];
-        }
-      }
-    });
-
-    // Time cell with conditional styling
+    // Time cell
     const timeCell = document.createElement("div");
     timeCell.className =
-      "px-3 py-3 text-sm font-medium border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-center justify-center";
-
-    if (anyScheduleStartsHere && sampleSchedule) {
-      // Highlight time when schedule starts
-      const scheduleEnd = sampleSchedule.end_time.substring(0, 5);
-      const duration = timeToMinutes(scheduleEnd) - timeToMinutes(time[0]);
-      const durationLabel = formatDuration(duration);
-
-      timeCell.className += " bg-blue-50 border-l-4 border-blue-500";
-      timeCell.innerHTML = `
-        <div class="flex flex-col items-center w-full">
-          <div class="font-bold text-blue-700 text-base">${formatTime(
-            time[0]
-          )}</div>
-          <div class="text-[10px] text-gray-500 mt-0.5 hidden sm:block">${durationLabel}</div>
-        </div>
-      `;
-    } else {
-      // Regular time slot
-      timeCell.className += " text-gray-500";
-      timeCell.innerHTML = `
-        <span class="text-xs hidden sm:inline">${formatTime(time[0])}</span>
-        <span class="text-[10px] sm:hidden">${time[0]}</span>
-      `;
-    }
-
+      "px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10 flex items-start";
+    timeCell.innerHTML = `
+      <span class="text-sm hidden sm:block">${formatTime(
+        time[0]
+      )} - ${formatTime(time[1])}</span>
+      <span class="text-xs sm:hidden">${time[0]}-${time[1]}</span>
+    `;
     row.appendChild(timeCell);
 
-    // Day cells (rest of the code remains the same)
+    // Day cells
     days.forEach((day) => {
       const cellKey = `${day}-${timeIndex}`;
 
+      // Check if this cell is already occupied by a spanning schedule
       if (occupiedCells[cellKey]) {
+        // Skip this cell - it's part of a schedule that spans multiple rows
         return;
       }
 
       const cell = document.createElement("div");
-      cell.className =
-        "px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[60px]";
+      cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 relative drop-zone min-h-[60px]`;
       cell.dataset.day = day;
       cell.dataset.startTime = time[0];
       cell.dataset.endTime = time[1];
 
-      const schedulesStartingHere = [];
+      // Find schedules that START in this time slot
+      const schedulesInSlot = [];
+      if (scheduleLookup[day]) {
+        scheduleLookup[day].forEach((scheduleData) => {
+          if (scheduleData.start === time[0]) {
+            const rowSpan = calculateRowSpan(
+              scheduleData.start,
+              scheduleData.end
+            );
 
-      if (scheduleLookup[day] && scheduleLookup[day][time[0]]) {
-        scheduleLookup[day][time[0]].forEach((schedule) => {
-          const scheduleStart = schedule.start_time.substring(0, 5);
-          const scheduleEnd = schedule.end_time.substring(0, 5);
+            // Mark the cells this schedule will occupy
+            for (let i = 0; i < rowSpan; i++) {
+              const occupyKey = `${day}-${timeIndex + i}`;
+              occupiedCells[occupyKey] = true;
+            }
 
-          const spanCount = calculateSlotSpan(
-            scheduleStart,
-            scheduleEnd,
-            timeSlots,
-            timeIndex
-          );
-
-          for (let i = 0; i < spanCount; i++) {
-            const occupyKey = `${day}-${timeIndex + i}`;
-            occupiedCells[occupyKey] = {
-              scheduleId: schedule.schedule_id,
-              courseCode: schedule.course_code,
-              slotIndex: i,
-              totalSpan: spanCount,
-            };
+            schedulesInSlot.push({
+              schedule: scheduleData.schedule,
+              rowSpan: rowSpan,
+            });
           }
-
-          schedulesStartingHere.push({
-            schedule: schedule,
-            spanCount: spanCount,
-          });
         });
       }
 
-      if (schedulesStartingHere.length === 0) {
+      if (schedulesInSlot.length === 0) {
         const addButton = document.createElement("button");
         addButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
         addButton.className =
@@ -3635,10 +2954,10 @@ function updateManualGrid(schedules) {
         const container = document.createElement("div");
         container.className = "space-y-1 p-1 h-full";
 
-        schedulesStartingHere.forEach((scheduleData) => {
+        schedulesInSlot.forEach((scheduleData) => {
           const scheduleCard = createScheduleCardForManual(
             scheduleData.schedule,
-            scheduleData.spanCount
+            scheduleData.rowSpan
           );
           container.appendChild(scheduleCard);
         });
@@ -3652,13 +2971,7 @@ function updateManualGrid(schedules) {
     manualGrid.appendChild(row);
   });
 
-  console.log("✅ Manual grid updated with smart time labels");
-
-  setTimeout(() => {
-    if (typeof initializeDragAndDrop === "function") {
-      initializeDragAndDrop();
-    }
-  }, 100);
+  initializeDragAndDrop();
 }
 
 function createScheduleItemForView(schedule, rowSpan) {
@@ -3680,7 +2993,7 @@ function createScheduleItemForView(schedule, rowSpan) {
   item.dataset.yearLevel = schedule.year_level || "";
   item.dataset.sectionName = schedule.section_name || "";
   item.dataset.roomName = schedule.room_name || "Online";
-  
+
   // Make the card span multiple rows
   const minHeight = rowSpan * 60;
   item.style.minHeight = `${minHeight}px`;
@@ -3701,7 +3014,9 @@ function createScheduleItemForView(schedule, rowSpan) {
     <div class="text-xs font-medium mt-1">
       ${
         schedule.start_time && schedule.end_time
-          ? `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}`
+          ? `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(
+              schedule.end_time.substring(0, 5)
+            )}`
           : ""
       }
     </div>
@@ -3734,7 +3049,9 @@ function updateViewGrid(schedules) {
   const scheduleLookup = {};
   schedules.forEach((schedule) => {
     const day = schedule.day_of_week;
-    const start = schedule.start_time ? schedule.start_time.substring(0, 5) : "";
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
 
     if (!scheduleLookup[day]) {
       scheduleLookup[day] = {};
@@ -3759,7 +3076,7 @@ function updateViewGrid(schedules) {
     // Day cells
     days.forEach((day) => {
       const cellKey = `${day}-${timeIndex}`;
-      
+
       if (occupiedCells[cellKey]) {
         return;
       }
@@ -3783,13 +3100,13 @@ function updateViewGrid(schedules) {
           const start = schedule.start_time.substring(0, 5);
           const end = schedule.end_time.substring(0, 5);
           const rowSpan = calculateRowSpan(start, end);
-          
+
           // Mark occupied cells
           for (let i = 0; i < rowSpan; i++) {
             const occupyKey = `${day}-${timeIndex + i}`;
             occupiedCells[occupyKey] = true;
           }
-          
+
           const scheduleItem = createScheduleItemForView(schedule, rowSpan);
           container.appendChild(scheduleItem);
         });
@@ -3899,7 +3216,137 @@ function createDynamicScheduleCard(schedule, isStartCell) {
   return card;
 }
 
+function updateViewGrid(schedules) {
+  const viewGrid = document.getElementById("timetableGrid");
+  if (!viewGrid) return;
 
+  viewGrid.innerHTML = "";
+
+  const timeSlots = generateDynamicTimeSlots();
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  // Pre-process schedules for view grid
+  const scheduleLookup = {};
+  schedules.forEach((schedule) => {
+    const day = schedule.day_of_week;
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
+
+    if (!scheduleLookup[day]) {
+      scheduleLookup[day] = {};
+    }
+    if (!scheduleLookup[day][start]) {
+      scheduleLookup[day][start] = [];
+    }
+    scheduleLookup[day][start].push(schedule);
+  });
+
+  timeSlots.forEach((time) => {
+    const duration =
+      (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) /
+      1000;
+    const rowSpan = Math.max(1, duration / 1800);
+    const minHeight = rowSpan * 60;
+
+    const row = document.createElement("div");
+    row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
+    row.style.gridRow = `span ${rowSpan}`;
+
+    // Time cell
+    const timeCell = document.createElement("div");
+    timeCell.className =
+      "px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center";
+    timeCell.style.gridRow = `span ${rowSpan}`;
+    timeCell.textContent = `${formatTime(time[0])} - ${formatTime(time[1])}`;
+    row.appendChild(timeCell);
+
+    // Day cells
+    days.forEach((day) => {
+      const cell = document.createElement("div");
+      cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative schedule-cell`;
+      cell.dataset.day = day;
+      cell.dataset.startTime = time[0];
+      cell.dataset.endTime = time[1];
+
+      const daySchedules =
+        scheduleLookup[day] && scheduleLookup[day][time[0]]
+          ? scheduleLookup[day][time[0]]
+          : [];
+
+      if (daySchedules.length > 0) {
+        const container = document.createElement("div");
+        container.className = "schedules-container space-y-1";
+
+        daySchedules.forEach((schedule) => {
+          const scheduleItem = createDynamicScheduleItem(schedule);
+          container.appendChild(scheduleItem);
+        });
+
+        cell.appendChild(container);
+      }
+
+      row.appendChild(cell);
+    });
+
+    viewGrid.appendChild(row);
+  });
+}
+
+function createDynamicScheduleItem(schedule) {
+  const colors = [
+    "bg-blue-100 border-blue-300 text-blue-800",
+    "bg-green-100 border-green-300 text-green-800",
+    "bg-purple-100 border-purple-300 text-purple-800",
+    "bg-orange-100 border-orange-300 text-orange-800",
+    "bg-pink-100 border-pink-300 text-pink-800",
+  ];
+
+  const colorIndex = schedule.schedule_id
+    ? schedule.schedule_id % colors.length
+    : Math.floor(Math.random() * colors.length);
+  const colorClass = colors[colorIndex];
+
+  const item = document.createElement("div");
+  item.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 mb-1 schedule-item`;
+  item.dataset.yearLevel = schedule.year_level || "";
+  item.dataset.sectionName = schedule.section_name || "";
+  item.dataset.roomName = schedule.room_name || "Online";
+
+  item.innerHTML = `
+        <div class="font-semibold text-xs truncate mb-1">
+            ${schedule.course_code || ""}
+        </div>
+        <div class="text-xs opacity-90 truncate mb-1">
+            ${schedule.section_name || ""}
+        </div>
+        <div class="text-xs opacity-75 truncate">
+            ${schedule.faculty_name || ""}
+        </div>
+        <div class="text-xs opacity-75 truncate">
+            ${schedule.room_name || "Online"}
+        </div>
+        <div class="text-xs font-medium mt-1">
+            ${
+              schedule.start_time && schedule.end_time
+                ? `${formatTime(
+                    schedule.start_time.substring(0, 5)
+                  )} - ${formatTime(schedule.end_time.substring(0, 5))}`
+                : ""
+            }
+        </div>
+    `;
+
+  return item;
+}
 
 // Update your existing openAddModalForSlot to set times properly
 function openAddModalForSlot(day, startTime, endTime) {
@@ -4065,176 +3512,139 @@ function syncGridWithSchedules(schedules) {
   initializeDragAndDrop();
 }
 
+// Add this function at the end of your manual_schedules.js file
 
+// Enhanced tab switch handler for automatic schedule loading
 function handleTabSwitch(tabName) {
-  console.log("🔀 Tab switched to:", tabName);
+  console.log("Tab switched to:", tabName);
 
+  // Check if we're switching to manual or schedule view tabs
   if (tabName === "manual" || tabName === "schedule") {
     // Check if schedules exist
     if (window.scheduleData && window.scheduleData.length > 0) {
-      
-
-      // Force immediate update
-      requestAnimationFrame(() => {
-        safeUpdateScheduleDisplay(window.scheduleData);
-
-        // Additional refresh after a short delay
-        setTimeout(() => {
-          console.log("🔄 Secondary refresh...");
-          if (tabName === "manual") {
-            updateManualGrid(window.scheduleData);
-          } else {
-            updateViewGrid(window.scheduleData);
-          }
-
-          // Reinitialize drag and drop
-          if (
-            tabName === "manual" &&
-            typeof initializeDragAndDrop === "function"
-          ) {
-            setTimeout(() => {
-              initializeDragAndDrop();
-              console.log("✅ Drag and drop reinitialized");
-            }, 100);
-          }
-        }, 200);
-      });
-    } else {
-      console.warn("⚠️ No schedules available");
-      // Show empty state
-      const grid =
-        tabName === "manual"
-          ? document.getElementById("schedule-grid")
-          : document.getElementById("timetableGrid");
-
-      if (grid) {
-        grid.innerHTML = `
-          <div class="col-span-8 text-center py-8 text-gray-500">
-            <i class="fas fa-calendar-times text-4xl mb-3"></i>
-            <p>No schedules generated yet</p>
-            <p class="text-sm mt-2">Go to Generate tab to create schedules</p>
-          </div>
-        `;
-      }
-    }
-  }
-}
-
-(function () {
-  const originalSwitchTab = window.switchTab;
-
-  window.switchTab = function (tabName) {
-    console.log("🔀 Enhanced switchTab:", tabName);
-
-    // Call original switchTab if it exists
-    if (typeof originalSwitchTab === "function") {
-      originalSwitchTab(tabName);
-    } else {
-      // Fallback implementation
-      document.querySelectorAll(".tab-button").forEach((btn) => {
-        btn.classList.remove("bg-yellow-500", "text-white");
-        btn.classList.add(
-          "text-gray-700",
-          "hover:text-gray-900",
-          "hover:bg-gray-100"
-        );
-      });
-
-      const targetTab = document.getElementById(`tab-${tabName}`);
-      if (targetTab) {
-        targetTab.classList.add("bg-yellow-500", "text-white");
-        targetTab.classList.remove(
-          "text-gray-700",
-          "hover:text-gray-900",
-          "hover:bg-gray-100"
-        );
-      }
-
-      document.querySelectorAll(".tab-content").forEach((content) => {
-        content.classList.add("hidden");
-      });
-
-      const targetContent = document.getElementById(`content-${tabName}`);
-      if (targetContent) {
-        targetContent.classList.remove("hidden");
-      }
-
-      const url = new URL(window.location);
-      url.searchParams.set(
-        "tab",
-        tabName === "schedule" ? "schedule-list" : tabName
-      );
-      window.history.pushState({}, "", url);
-    }
-
-    // ✅ CRITICAL: Force grid update after tab switch
-    if (
-      (tabName === "manual" || tabName === "schedule") &&
-      window.scheduleData &&
-      window.scheduleData.length > 0
-    ) {
       console.log(
-        `🔄 Forcing ${tabName} grid update with ${window.scheduleData.length} schedules`
+        `Loading ${window.scheduleData.length} schedules for ${tabName} tab`
       );
 
       // Use requestAnimationFrame for smooth rendering
       requestAnimationFrame(() => {
         setTimeout(() => {
-          if (tabName === "manual" && typeof updateManualGrid === "function") {
-            updateManualGrid(window.scheduleData);
-            console.log("✅ Manual grid force updated");
+          // Update the display
+          safeUpdateScheduleDisplay(window.scheduleData);
 
-            // Reinitialize drag and drop
+          // Reinitialize drag and drop for manual tab
+          if (tabName === "manual") {
             setTimeout(() => {
-              if (typeof initializeDragAndDrop === "function") {
-                initializeDragAndDrop();
-                console.log("✅ Drag and drop reinitialized");
-              }
+              initializeDragAndDrop();
+              console.log("✅ Drag and drop reinitialized");
             }, 100);
-          } else if (
-            tabName === "schedule" &&
-            typeof updateViewGrid === "function"
-          ) {
-            updateViewGrid(window.scheduleData);
-            console.log("✅ View grid force updated");
           }
-        }, 100);
+
+          console.log("✅ Schedules loaded successfully");
+        }, 50);
       });
+    } else {
+      console.log("⚠️ No schedules available to display");
     }
+  }
+}
+
+// Override the global switchTab function to include our handler
+(function () {
+  // Store the original switchTab if it exists
+  const originalSwitchTab = window.switchTab;
+
+  // Create new switchTab function
+  window.switchTab = function (tabName) {
+    console.log("switchTab called with:", tabName);
+
+    // Perform the tab switch UI updates
+    performTabSwitch(tabName);
+
+    // Handle schedule loading
+    handleTabSwitch(tabName);
   };
 
-  console.log("✅ Enhanced switchTab installed");
+  // Helper function for tab UI updates
+  function performTabSwitch(tabName) {
+    // Remove active classes from all tabs
+    document.querySelectorAll(".tab-button").forEach((btn) => {
+      btn.classList.remove("bg-yellow-500", "text-white");
+      btn.classList.add(
+        "text-gray-700",
+        "hover:text-gray-900",
+        "hover:bg-gray-100"
+      );
+    });
+
+    // Add active class to selected tab
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    if (targetTab) {
+      targetTab.classList.add("bg-yellow-500", "text-white");
+      targetTab.classList.remove(
+        "text-gray-700",
+        "hover:text-gray-900",
+        "hover:bg-gray-100"
+      );
+    }
+
+    // Hide all tab contents
+    document.querySelectorAll(".tab-content").forEach((content) => {
+      content.classList.add("hidden");
+    });
+
+    // Show selected tab content
+    const targetContent = document.getElementById(`content-${tabName}`);
+    if (targetContent) {
+      targetContent.classList.remove("hidden");
+    }
+
+    // Update URL
+    const url = new URL(window.location);
+    url.searchParams.set(
+      "tab",
+      tabName === "schedule" ? "schedule-list" : tabName
+    );
+    window.history.pushState({}, "", url);
+  }
 })();
 
-// ✅ ENHANCED: DOMContentLoaded with better initialization
+// Also update the DOMContentLoaded event listener
 document.addEventListener("DOMContentLoaded", function () {
+  console.log("Manual schedules JS loaded");
+  console.log("Current semester:", window.currentSemester);
+  console.log("Schedule data count:", window.scheduleData?.length || 0);
 
-  // Check faculty data
+  // Check if faculty data is present
   if (!window.faculty || window.faculty.length === 0) {
-    console.error("❌ No faculty data loaded");
+    console.error("❌ CRITICAL: No faculty data loaded!");
     if (window.jsData && window.jsData.faculty) {
       window.faculty = window.jsData.faculty;
       console.log("✅ Recovered faculty from jsData:", window.faculty.length);
     }
   } else {
-    console.log("✅ Faculty data loaded:", window.faculty.length, "members");
+    console.log(
+      "✅ Faculty data loaded successfully:",
+      window.faculty.length,
+      "members"
+    );
   }
 
   buildCurrentSemesterCourseMappings();
 
-  // ✅ Initial display if schedules exist
+  // Initial display of schedules if they exist
   if (window.scheduleData && window.scheduleData.length > 0) {
-    
+    console.log("📊 Initial schedule display...");
     requestAnimationFrame(() => {
       safeUpdateScheduleDisplay(window.scheduleData);
       setTimeout(() => {
         initializeDragAndDrop();
-        
+        console.log("✅ Initial schedules displayed");
       }, 100);
     });
   }
 
-  // Attach filter listeners
+  // Attach event listeners to filter controls
   const filters = [
     "filter-year-manual",
     "filter-section-manual",
@@ -4250,7 +3660,16 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Modal event listeners
+  // Attach event listeners to tab buttons directly
+  document.querySelectorAll(".tab-button").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      const tabName = button.id.replace("tab-", "");
+      window.switchTab(tabName);
+    });
+  });
+
+  // Modal click outside to close
   const modal = document.getElementById("schedule-modal");
   if (modal) {
     modal.addEventListener("click", function (e) {
@@ -4258,6 +3677,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // Delete modal click outside to close
   const deleteModal = document.getElementById("delete-confirmation-modal");
   if (deleteModal) {
     deleteModal.addEventListener("click", function (e) {
@@ -4268,99 +3688,94 @@ document.addEventListener("DOMContentLoaded", function () {
   // Real-time validation setup
   setupRealtimeValidation();
 
-  console.log("✅ Manual schedules initialized");
+  console.log("✅ Manual schedules initialized successfully");
 });
-
-// ✅ EXPOSE functions globally for access from generate_schedules.js
-window.safeUpdateScheduleDisplay = safeUpdateScheduleDisplay;
-window.forceGridRefresh = forceGridRefresh;
-window.handleTabSwitch = handleTabSwitch;
 
 // Helper function to setup real-time validation
 function setupRealtimeValidation() {
-  const facultySelect = document.getElementById('faculty-name');
+  const facultySelect = document.getElementById("faculty-name");
   if (facultySelect) {
-    facultySelect.addEventListener('change', (e) => {
-      validateFieldRealTime('faculty_name', e.target.value, {
-        day_of_week: document.getElementById('day-select')?.value || '',
-        start_time: document.getElementById('start-time')?.value + ':00' || '',
-        end_time: document.getElementById('end-time')?.value + ':00' || ''
+    facultySelect.addEventListener("change", (e) => {
+      validateFieldRealTime("faculty_name", e.target.value, {
+        day_of_week: document.getElementById("day-select")?.value || "",
+        start_time: document.getElementById("start-time")?.value + ":00" || "",
+        end_time: document.getElementById("end-time")?.value + ":00" || "",
       });
     });
   }
 
-  const roomSelect = document.getElementById('room-name');
+  const roomSelect = document.getElementById("room-name");
   if (roomSelect) {
-    roomSelect.addEventListener('change', (e) => {
-      validateFieldRealTime('room_name', e.target.value, {
-        day_of_week: document.getElementById('day-select')?.value || '',
-        start_time: document.getElementById('start-time')?.value + ':00' || '',
-        end_time: document.getElementById('end-time')?.value + ':00' || ''
+    roomSelect.addEventListener("change", (e) => {
+      validateFieldRealTime("room_name", e.target.value, {
+        day_of_week: document.getElementById("day-select")?.value || "",
+        start_time: document.getElementById("start-time")?.value + ":00" || "",
+        end_time: document.getElementById("end-time")?.value + ":00" || "",
       });
     });
   }
 
-  const sectionSelect = document.getElementById('section-name');
+  const sectionSelect = document.getElementById("section-name");
   if (sectionSelect) {
-    sectionSelect.addEventListener('change', (e) => {
-      validateFieldRealTime('section_name', e.target.value);
+    sectionSelect.addEventListener("change", (e) => {
+      validateFieldRealTime("section_name", e.target.value);
       handleSectionChange();
     });
   }
 
-  const daySelect = document.getElementById('day-select');
+  const daySelect = document.getElementById("day-select");
   if (daySelect) {
-    daySelect.addEventListener('change', (e) => {
+    daySelect.addEventListener("change", (e) => {
       updateDayField();
-      validateFieldRealTime('day_of_week', e.target.value, {
-        faculty_name: document.getElementById('faculty-name')?.value || '',
-        room_name: document.getElementById('room-name')?.value || '',
-        start_time: document.getElementById('start-time')?.value + ':00' || '',
-        end_time: document.getElementById('end-time')?.value + ':00' || ''
+      validateFieldRealTime("day_of_week", e.target.value, {
+        faculty_name: document.getElementById("faculty-name")?.value || "",
+        room_name: document.getElementById("room-name")?.value || "",
+        start_time: document.getElementById("start-time")?.value + ":00" || "",
+        end_time: document.getElementById("end-time")?.value + ":00" || "",
       });
     });
   }
 
-  const startTimeSelect = document.getElementById('start-time');
+  const startTimeSelect = document.getElementById("start-time");
   if (startTimeSelect) {
-    startTimeSelect.addEventListener('change', (e) => {
+    startTimeSelect.addEventListener("change", (e) => {
       updateTimeFields();
-      validateFieldRealTime('start_time', e.target.value + ':00', {
-        day_of_week: document.getElementById('day-select')?.value || '',
-        faculty_name: document.getElementById('faculty-name')?.value || '',
-        room_name: document.getElementById('room-name')?.value || ''
+      validateFieldRealTime("start_time", e.target.value + ":00", {
+        day_of_week: document.getElementById("day-select")?.value || "",
+        faculty_name: document.getElementById("faculty-name")?.value || "",
+        room_name: document.getElementById("room-name")?.value || "",
       });
     });
   }
 
-  const endTimeSelect = document.getElementById('end-time');
+  const endTimeSelect = document.getElementById("end-time");
   if (endTimeSelect) {
-    endTimeSelect.addEventListener('change', (e) => {
+    endTimeSelect.addEventListener("change", (e) => {
       updateTimeFields();
-      validateFieldRealTime('end_time', e.target.value + ':00', {
-        day_of_week: document.getElementById('day-select')?.value || '',
-        start_time: document.getElementById('start-time')?.value + ':00' || '',
-        faculty_name: document.getElementById('faculty-name')?.value || '',
-        room_name: document.getElementById('room-name')?.value || ''
+      validateFieldRealTime("end_time", e.target.value + ":00", {
+        day_of_week: document.getElementById("day-select")?.value || "",
+        start_time: document.getElementById("start-time")?.value + ":00" || "",
+        faculty_name: document.getElementById("faculty-name")?.value || "",
+        room_name: document.getElementById("room-name")?.value || "",
       });
     });
   }
 
-  const courseCodeInput = document.getElementById('course-code');
+  const courseCodeInput = document.getElementById("course-code");
   if (courseCodeInput) {
-    courseCodeInput.addEventListener('blur', syncCourseName);
-    courseCodeInput.addEventListener('input', function() {
-      resetConflictField('course-code');
-      resetConflictField('course-name');
+    courseCodeInput.addEventListener("blur", syncCourseName);
+    courseCodeInput.addEventListener("input", function () {
+      resetConflictField("course-code");
+      resetConflictField("course-name");
     });
   }
 
-  const courseNameInput = document.getElementById('course-name');
+  const courseNameInput = document.getElementById("course-name");
   if (courseNameInput) {
-    courseNameInput.addEventListener('blur', syncCourseCode);
-    courseNameInput.addEventListener('input', function() {
-      resetConflictField('course-code');
-      resetConflictField('course-name');
+    courseNameInput.addEventListener("blur", syncCourseCode);
+    courseNameInput.addEventListener("input", function () {
+      resetConflictField("course-code");
+      resetConflictField("course-name");
     });
   }
 }

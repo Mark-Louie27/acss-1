@@ -766,7 +766,7 @@ async function updateUIAfterGeneration(
       return;
     }
 
-    // ✅ CRITICAL: Transform backend schedules to frontend format
+    // ✅ Transform backend schedules
     console.log("🔄 Transforming schedules...");
     const transformedSchedules = [];
 
@@ -789,61 +789,40 @@ async function updateUIAfterGeneration(
     window.scheduleData = transformedSchedules;
     console.log(`✅ Stored ${window.scheduleData.length} schedules globally`);
 
-    // ✅ Update generation results display
-    const generationResults = document.getElementById("generation-results");
-    if (generationResults) {
-      generationResults.classList.remove("hidden");
-      const totalCoursesEl = document.getElementById("total-courses");
-      const totalSectionsEl = document.getElementById("total-sections");
-      const successRateEl = document.getElementById("success-rate");
-
-      if (totalCoursesEl) {
-        totalCoursesEl.textContent =
-          responseData.totalCourses || responseData.schedules.length;
-      }
-      if (totalSectionsEl) {
-        const uniqueSections = new Set(
-          transformedSchedules.map((s) => s.section_name)
-        ).size;
-        totalSectionsEl.textContent = uniqueSections;
-      }
-      if (successRateEl) {
-        successRateEl.textContent = responseData.successRate || "100%";
-      }
+    // Show incomplete banner BEFORE grid updates
+    if (
+      responseData.unassignedCourses &&
+      responseData.unassignedCourses.length > 0
+    ) {
+      console.log(
+        "⚠️ Incomplete schedules:",
+        responseData.unassignedCourses.length
+      );
+      showIncompleteScheduleBanner(responseData);
     }
 
-    // ✅ Update completion status
-    updateScheduleCompletionStatus(responseData);
+    // Update generation results
+    updateGenerationResults(responseData, transformedSchedules);
 
-    // ✅ CRITICAL: Wait for DOM to be ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // ✅ WAIT for DOM and update grids (MULTIPLE ATTEMPTS)
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
-    // ✅ FORCE IMMEDIATE GRID UPDATE - Multiple attempts for reliability
     console.log("🔄 Forcing immediate grid update...");
 
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      console.log(`   Attempt ${attempt}/2...`);
-
-      // Update all grids
-      if (typeof safeUpdateScheduleDisplay === "function") {
-        safeUpdateScheduleDisplay(window.scheduleData);
-      }
-
-      if (typeof updateManualGrid === "function") {
-        updateManualGrid(window.scheduleData);
-      }
-
-      if (typeof updateViewGrid === "function") {
-        updateViewGrid(window.scheduleData);
-      }
-
-      // Small delay between attempts
-      if (attempt < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
+    // Attempt 1: Direct update
+    if (typeof window.safeUpdateScheduleDisplay === "function") {
+      window.safeUpdateScheduleDisplay(window.scheduleData);
     }
 
-    // ✅ Hide loading overlay
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Attempt 2: Verify and retry
+    console.log("🔄 Secondary grid update...");
+    if (typeof window.safeUpdateScheduleDisplay === "function") {
+      window.safeUpdateScheduleDisplay(window.scheduleData);
+    }
+
+    // Hide loading
     if (loadingOverlay) {
       loadingOverlay.classList.add("hidden");
     }
@@ -851,8 +830,7 @@ async function updateUIAfterGeneration(
     const totalTime = performance.now() - startTime;
     console.log(`✅ UI updated in ${totalTime.toFixed(2)}ms`);
 
-    // ✅ Show success notification
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Show success notification
     const uniqueSections = new Set(
       transformedSchedules.map((s) => s.section_name)
     ).size;
@@ -860,67 +838,303 @@ async function updateUIAfterGeneration(
     showCompletionToast("success", "Schedules Generated!", [
       `${transformedSchedules.length} schedule entries created`,
       `${responseData.schedules.length} courses across ${uniqueSections} sections`,
+      responseData.unassignedCourses?.length > 0
+        ? `⚠️ ${responseData.unassignedCourses.length} courses need manual scheduling`
+        : "All courses scheduled successfully!",
     ]);
 
-    // ✅ CRITICAL: Auto-switch to manual tab with proper verification
+    // ✅ AUTO-SWITCH to manual tab with verification
     console.log("🔀 Switching to manual tab...");
-    setTimeout(async () => {
-      if (typeof switchTab === "function") {
-        switchTab("manual");
-        console.log("✅ Switched to manual tab");
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // ✅ CRITICAL: Force refresh after tab switch
-        await new Promise((resolve) => setTimeout(resolve, 300));
+    if (typeof switchTab === "function") {
+      switchTab("manual");
+      console.log("✅ Switched to manual tab");
 
-        console.log("🔄 Post-switch refresh...");
+      // Post-switch refresh
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-        // Refresh grids again
-        if (typeof updateManualGrid === "function") {
-          updateManualGrid(window.scheduleData);
-        }
+      console.log("🔄 Post-switch refresh...");
+      if (typeof window.safeUpdateScheduleDisplay === "function") {
+        window.safeUpdateScheduleDisplay(window.scheduleData);
+      }
 
-        if (typeof initializeDragAndDrop === "function") {
+      if (typeof initializeDragAndDrop === "function") {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        initializeDragAndDrop();
+      }
+
+      // ✅ VERIFICATION: Check if schedules are visible
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const finalGrid = document.getElementById("schedule-grid");
+
+      if (finalGrid) {
+        const scheduleCards = finalGrid.querySelectorAll(".schedule-card");
+        console.log(
+          `📊 Final verification: ${scheduleCards.length} schedule cards visible`
+        );
+
+        if (scheduleCards.length === 0) {
+          console.error("❌ Schedules not visible! Emergency rebuild...");
+          // Force one more update
+          window.safeUpdateScheduleDisplay(window.scheduleData);
+          await new Promise((resolve) => setTimeout(resolve, 200));
           initializeDragAndDrop();
-        }
-
-        // ✅ VERIFY schedules are visible
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        const finalGrid = document.getElementById("schedule-grid");
-
-        if (finalGrid) {
-          const scheduleCards = finalGrid.querySelectorAll(".schedule-card");
-          console.log(
-            `📊 Final verification: ${scheduleCards.length} schedule cards visible`
-          );
-
-          if (scheduleCards.length === 0) {
-            console.error("❌ Schedules not visible! Emergency rebuild...");
-
-            // Emergency rebuild
-            if (typeof emergencyGridRebuild === "function") {
-              emergencyGridRebuild(window.scheduleData);
-            } else {
-              // Manual emergency rebuild
-              console.log("🚨 Performing manual emergency rebuild...");
-              updateManualGrid(window.scheduleData);
-              await new Promise((resolve) => setTimeout(resolve, 200));
-              initializeDragAndDrop();
-            }
-          } else {
-            console.log("✅✅✅ SUCCESS! All schedules visible!");
-          }
+        } else {
+          console.log("✅✅✅ SUCCESS! All schedules visible!");
         }
       }
-    }, 500);
+    }
   } catch (error) {
     console.error("❌ Error in updateUIAfterGeneration:", error);
-    console.error("Stack:", error.stack);
     hideLoadingAndShowError(
       loadingOverlay,
       "Error displaying schedules: " + error.message
     );
   }
 }
+
+function updateGenerationResults(responseData, transformedSchedules) {
+  const generationResults = document.getElementById("generation-results");
+  if (!generationResults) return;
+
+  generationResults.classList.remove("hidden");
+
+  const totalCoursesEl = document.getElementById("total-courses");
+  const totalSectionsEl = document.getElementById("total-sections");
+  const successRateEl = document.getElementById("success-rate");
+
+  if (totalCoursesEl) {
+    totalCoursesEl.textContent =
+      responseData.totalCourses || responseData.schedules.length;
+  }
+
+  if (totalSectionsEl) {
+    const uniqueSections = new Set(
+      transformedSchedules.map((s) => s.section_name)
+    ).size;
+    totalSectionsEl.textContent = uniqueSections;
+  }
+
+  if (successRateEl) {
+    successRateEl.textContent = responseData.successRate || "100%";
+  }
+}
+
+// ===== FIX 8: Enhanced Tab Switch Handler =====
+window.addEventListener("DOMContentLoaded", function () {
+  console.log("🚀 generate_schedules.js loaded");
+
+  // Override switchTab to force grid refresh
+  const originalSwitchTab = window.switchTab;
+
+  window.switchTab = function (tabName) {
+    console.log("🔀 Enhanced switchTab called:", tabName);
+
+    // Call original
+    if (typeof originalSwitchTab === "function") {
+      originalSwitchTab(tabName);
+    }
+
+    // Force grid refresh for manual and schedule tabs
+    if (
+      (tabName === "manual" || tabName === "schedule") &&
+      window.scheduleData &&
+      window.scheduleData.length > 0
+    ) {
+      console.log("🔄 Forcing grid refresh for", tabName, "tab");
+
+      setTimeout(() => {
+        if (typeof window.safeUpdateScheduleDisplay === "function") {
+          window.safeUpdateScheduleDisplay(window.scheduleData);
+
+          // Reinitialize drag and drop for manual tab
+          if (
+            tabName === "manual" &&
+            typeof initializeDragAndDrop === "function"
+          ) {
+            setTimeout(() => {
+              initializeDragAndDrop();
+              console.log("✅ Drag and drop reinitialized");
+            }, 100);
+          }
+        }
+      }, 200);
+    }
+  };
+
+  console.log("✅ Enhanced switchTab installed");
+});
+
+function showIncompleteScheduleBanner(responseData) {
+  console.log("⚠️ Showing incomplete schedule banner");
+
+  // Remove existing banner
+  const existingBanner = document.getElementById("incomplete-schedule-banner");
+  if (existingBanner) {
+    existingBanner.remove();
+  }
+
+  if (
+    !responseData.unassignedCourses ||
+    responseData.unassignedCourses.length === 0
+  ) {
+    return;
+  }
+
+  // Find insertion point (after nav tabs, before tab content)
+  const navTabs = document.querySelector("nav.flex.space-x-1");
+  if (!navTabs) {
+    console.warn("⚠️ Nav tabs not found for banner insertion");
+    return;
+  }
+
+  const banner = document.createElement("div");
+  banner.id = "incomplete-schedule-banner";
+  banner.className =
+    "mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg shadow-sm";
+
+  banner.innerHTML = `
+    <div class="flex items-start">
+      <div class="flex-shrink-0">
+        <i class="fas fa-exclamation-triangle text-yellow-600 text-xl"></i>
+      </div>
+      <div class="ml-3 flex-1">
+        <h3 class="text-sm font-semibold text-yellow-800">⚠️ Incomplete Schedule Generation</h3>
+        <div class="mt-2 text-sm text-yellow-700">
+          <p class="mb-2"><strong>${
+            responseData.unassignedCourses.length
+          }</strong> course(s) could not be scheduled automatically:</p>
+          <ul class="list-disc list-inside ml-2 max-h-32 overflow-y-auto">
+            ${responseData.unassignedCourses
+              .map(
+                (c) => `
+              <li class="py-1">
+                <strong>${escapeHtml(c.course_code)}</strong> - ${escapeHtml(
+                  c.course_name || ""
+                )}
+                ${
+                  c.curriculum_year
+                    ? `(Year: ${escapeHtml(c.curriculum_year)})`
+                    : ""
+                }
+              </li>
+            `
+              )
+              .join("")}
+          </ul>
+          <div class="mt-3 p-2 bg-yellow-100 rounded">
+            <p class="text-xs">
+              <strong>Success Rate:</strong> ${
+                responseData.successRate || "0%"
+              } 
+              (${
+                (responseData.totalCourses || 0) -
+                responseData.unassignedCourses.length
+              } of ${responseData.totalCourses || 0} courses scheduled)
+            </p>
+          </div>
+        </div>
+        <div class="mt-3 flex space-x-2">
+          <button onclick="switchTab('manual')" class="text-sm font-medium px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded transition-colors">
+            <i class="fas fa-edit mr-1"></i>Go to Manual Edit
+          </button>
+          <button onclick="tryRegenerateIncomplete()" class="text-sm font-medium px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors">
+            <i class="fas fa-sync-alt mr-1"></i>Try Regenerate
+          </button>
+        </div>
+      </div>
+      <div class="flex-shrink-0 ml-3">
+        <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-yellow-600 hover:text-yellow-800">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Insert after nav tabs
+  if (navTabs.parentElement) {
+    navTabs.parentElement.insertBefore(banner, navTabs.nextSibling);
+    console.log("✅ Incomplete schedule banner displayed");
+  }
+}
+
+window.tryRegenerateIncomplete = function () {
+  console.log("🔄 Attempting to regenerate incomplete schedules...");
+
+  const form = document.getElementById("generate-form");
+  if (!form) {
+    showValidationToast(["Generate form not found"]);
+    return;
+  }
+
+  const formData = new FormData(form);
+  const curriculumId = formData.get("curriculum_id");
+
+  if (!curriculumId) {
+    showValidationToast(["Please select a curriculum first"]);
+    return;
+  }
+
+  // Show loading
+  const loadingOverlay = document.getElementById("loading-overlay");
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove("hidden");
+  }
+
+  // Call generate with force flag
+  const data = {
+    action: "generate_schedule",
+    curriculum_id: curriculumId,
+    semester_id: formData.get("semester_id"),
+    force_regenerate: "true",
+  };
+
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(data),
+  })
+    .then((response) => response.json())
+    .then((result) => {
+      if (loadingOverlay) loadingOverlay.classList.add("hidden");
+
+      if (result.success) {
+        // Transform and update
+        const transformedSchedules = [];
+        result.schedules.forEach((s, i) => {
+          const transformed = transformBackendSchedule(s, i);
+          if (transformed && Array.isArray(transformed)) {
+            transformedSchedules.push(...transformed);
+          }
+        });
+
+        window.scheduleData = transformedSchedules;
+        window.safeUpdateScheduleDisplay(window.scheduleData);
+
+        if (result.unassignedCourses && result.unassignedCourses.length > 0) {
+          showIncompleteScheduleBanner(result);
+          showCompletionToast("warning", "Partial Success", [
+            `${result.unassignedCourses.length} courses still need manual scheduling`,
+          ]);
+        } else {
+          const banner = document.getElementById("incomplete-schedule-banner");
+          if (banner) banner.remove();
+          showCompletionToast("success", "All Courses Scheduled!", [
+            "Successfully scheduled all remaining courses",
+          ]);
+        }
+      } else {
+        showValidationToast([result.message || "Regeneration failed"]);
+      }
+    })
+    .catch((error) => {
+      if (loadingOverlay) loadingOverlay.classList.add("hidden");
+      console.error("Regeneration error:", error);
+      showValidationToast(["Error during regeneration: " + error.message]);
+    });
+};
+
 
 window.emergencyGridRebuild = function (schedules) {
   console.log("🚨 EMERGENCY GRID REBUILD");
