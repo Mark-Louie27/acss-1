@@ -498,17 +498,12 @@ class PublicController
             $this->pdfService->sendAsDownload($pdfData, $filename);
         } catch (PDOException $e) {
             error_log("PDF Download PDO Error: " . $e->getMessage());
-            error_log("Stack trace: " . $e->getTraceAsString());
-            error_log("Query params: " . json_encode($params ?? []));
-
             http_response_code(500);
             die("Database error occurred while generating PDF. Please try again later.");
         } catch (Exception $e) {
             error_log("PDF Download Error: " . $e->getMessage());
-            error_log("Stack trace: " . $e->getTraceAsString());
-
             http_response_code(500);
-            die("Error generating PDF: " . $e->getMessage() . ". Please contact support if this persists.");
+            die("Error generating PDF: " . $e->getMessage());
         }
     }
 
@@ -520,6 +515,7 @@ class PublicController
         try {
             $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
             $grid = [];
+            $occupiedSlots = []; // Track which slots are occupied by multi-slot schedules
 
             // Initialize grid
             foreach ($timeSlots as $slot) {
@@ -537,7 +533,7 @@ class PublicController
                 $start = date('g:i A', strtotime($sch['start_time']));
                 $end = date('g:i A', strtotime($sch['end_time']));
 
-                // Find affected time slots
+                // Find ALL affected time slots for this schedule
                 $affectedSlots = $this->findAffectedTimeSlots($start, $end, $timeSlots);
 
                 if (empty($affectedSlots)) {
@@ -545,18 +541,31 @@ class PublicController
                     continue;
                 }
 
+                // Calculate row span (how many 30-minute slots this schedule covers)
+                $rowSpan = count($affectedSlots);
+                $sch['row_span'] = $rowSpan;
+
                 // Expand day abbreviations to full day names
                 $dayList = $this->expandDays($sch['formatted_days']);
 
-                // Place schedule in grid (only in first slot to avoid duplication)
+                // Place schedule in grid (only in first slot, mark others as occupied)
+                $firstSlot = $affectedSlots[0];
+
                 foreach ($dayList as $day) {
-                    if (in_array($day, $days) && isset($affectedSlots[0])) {
-                        $grid[$affectedSlots[0]][$day] = $sch;
+                    if (in_array($day, $days)) {
+                        // Only place the schedule card in the FIRST slot
+                        $grid[$firstSlot][$day] = $sch;
+
+                        // Mark all other slots as occupied (so they don't show content)
+                        for ($i = 1; $i < count($affectedSlots); $i++) {
+                            $occupiedKey = $affectedSlots[$i] . '|' . $day;
+                            $occupiedSlots[$occupiedKey] = true;
+                        }
                     }
                 }
             }
 
-            return $grid;
+            return ['grid' => $grid, 'occupied' => $occupiedSlots];
         } catch (Exception $e) {
             error_log("Error building weekly grid: " . $e->getMessage());
             // Return empty grid as fallback
@@ -564,7 +573,7 @@ class PublicController
             foreach ($timeSlots as $slot) {
                 $grid[$slot] = array_fill_keys(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], null);
             }
-            return $grid;
+            return ['grid' => $grid, 'occupied' => []];
         }
     }
 
@@ -594,8 +603,9 @@ class PublicController
             $slotStartTimestamp = strtotime($slotStart);
             $slotEndTimestamp = strtotime($slotEnd);
 
-            // Check if the schedule overlaps with this time slot
-            if ($startTimestamp <= $slotStartTimestamp && $endTimestamp > $slotStartTimestamp) {
+            // Check if this slot is within the schedule's time range
+            // A slot is affected if it starts at or after schedule start AND starts before schedule end
+            if ($slotStartTimestamp >= $startTimestamp && $slotStartTimestamp < $endTimestamp) {
                 $affectedSlots[] = $slot;
             }
         }
@@ -663,8 +673,11 @@ class PublicController
         return $labels;
     }
 
-    private function generateWeeklyPdfHtml($grid, $timeSlots, $semester, $filters)
+    private function generateWeeklyPdfHtml($gridData, $timeSlots, $semester, $filters)
     {
+        $grid = $gridData['grid'];
+        $occupiedSlots = $gridData['occupied'];
+
         $university = "President Ramon Magsaysay State University";
         $campus = "Iba Campus";
         $system = "Automated Classroom Scheduling System (ACSS)";
@@ -676,269 +689,330 @@ class PublicController
         $logoData = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : '';
         $logo = $logoData ? 'data:image/png;base64,' . $logoData : '';
 
-        ob_start(); ?>
-        <!DOCTYPE html>
-        <html>
+        ob_start();
+        ?>
+                <!DOCTYPE html>
+                <html>
 
-        <head>
-            <meta charset="UTF-8">
-            <title>Weekly Schedule - <?= htmlspecialchars($university) ?></title>
-            <style>
-                @page {
-                    margin: 15mm;
-                }
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Weekly Schedule - <?= htmlspecialchars($university) ?></title>
+                    <style>
+                        @page {
+                            margin: 15mm;
+                        }
 
-                body {
-                    font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif;
-                    font-size: 9pt;
-                    color: #2c3e50;
-                    line-height: 1.4;
-                    margin: 0;
-                }
+                        body {
+                            font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif;
+                            font-size: 9pt;
+                            color: #2c3e50;
+                            line-height: 1.4;
+                            margin: 0;
+                        }
 
-                .container {
-                    width: 100%;
-                }
+                        .container {
+                            width: 100%;
+                        }
 
-                .header {
-                    text-align: center;
-                    border-bottom: 3px solid #DA9100;
-                    padding-bottom: 12px;
-                    margin-bottom: 15px;
-                }
+                        .header {
+                            text-align: center;
+                            border-bottom: 3px solid #DA9100;
+                            padding-bottom: 12px;
+                            margin-bottom: 15px;
+                        }
 
-                .logo {
-                    height: 60px;
-                    width: auto;
-                    margin-bottom: 8px;
-                }
+                        .logo {
+                            height: 60px;
+                            width: auto;
+                            margin-bottom: 8px;
+                        }
 
-                .university {
-                    font-size: 16pt;
-                    font-weight: bold;
-                    color: #DA9100;
-                    margin: 0;
-                }
+                        .university {
+                            font-size: 16pt;
+                            font-weight: bold;
+                            color: #DA9100;
+                            margin: 0;
+                        }
 
-                .campus {
-                    font-size: 12pt;
-                    color: #555;
-                    margin: 3px 0;
-                }
+                        .campus {
+                            font-size: 12pt;
+                            color: #555;
+                            margin: 3px 0;
+                        }
 
-                .title {
-                    font-size: 14pt;
-                    font-weight: bold;
-                    color: #2c3e50;
-                    margin: 8px 0 4px;
-                }
+                        .title {
+                            font-size: 14pt;
+                            font-weight: bold;
+                            color: #2c3e50;
+                            margin: 8px 0 4px;
+                        }
 
-                .meta {
-                    font-size: 9pt;
-                    color: #7f8c8d;
-                    margin: 2px 0;
-                }
+                        .meta {
+                            font-size: 9pt;
+                            color: #7f8c8d;
+                            margin: 2px 0;
+                        }
 
-                .legend {
-                    float: right;
-                    font-size: 8pt;
-                    background: #f8f9fa;
-                    padding: 8px 12px;
-                    border-radius: 6px;
-                    border: 1px solid #eee;
-                    margin-bottom: 15px;
-                }
+                        .legend {
+                            float: right;
+                            font-size: 8pt;
+                            background: #f8f9fa;
+                            padding: 8px 12px;
+                            border-radius: 6px;
+                            border: 1px solid #eee;
+                            margin-bottom: 15px;
+                        }
 
-                .legend-item {
-                    display: inline-block;
-                    margin-right: 12px;
-                }
+                        .legend-item {
+                            display: inline-block;
+                            margin-right: 12px;
+                        }
 
-                .legend-color {
-                    display: inline-block;
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 2px;
-                    margin-right: 5px;
-                    vertical-align: middle;
-                }
+                        .legend-color {
+                            display: inline-block;
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 2px;
+                            margin-right: 5px;
+                            vertical-align: middle;
+                        }
 
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 10px;
-                    table-layout: fixed;
-                }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 10px;
+                            table-layout: fixed;
+                        }
 
-                th,
-                td {
-                    border: 1px solid #ddd;
-                    padding: 8px 4px;
-                    text-align: center;
-                    vertical-align: middle;
-                    min-height: 60px;
-                    font-size: 8pt;
-                }
+                        th,
+                        td {
+                            border: 1px solid #ddd;
+                            padding: 8px 4px;
+                            text-align: center;
+                            vertical-align: top;
+                            font-size: 8pt;
+                        }
 
-                th {
-                    background: #f8f9fa;
-                    font-weight: bold;
-                    color: #2c3e50;
-                    font-size: 9pt;
-                    height: 40px;
-                }
+                        th {
+                            background: #f8f9fa;
+                            font-weight: bold;
+                            color: #2c3e50;
+                            font-size: 9pt;
+                            height: 40px;
+                        }
 
-                .time-col {
-                    background: #eef5db !important;
-                    font-weight: bold;
-                    width: 10%;
-                    font-size: 7.5pt;
-                    white-space: nowrap;
-                    vertical-align: middle;
-                }
+                        .time-col {
+                            background: #eef5db !important;
+                            font-weight: bold;
+                            width: 10%;
+                            font-size: 7.5pt;
+                            white-space: nowrap;
+                            vertical-align: middle;
+                        }
 
-                .mwf {
-                    background-color: #d4edda !important;
-                    border-left: 3px solid #28a745;
-                }
+                        .time-col.has-schedule {
+                            background: #d4e9ff !important;
+                            border-left: 4px solid #0066cc;
+                            font-size: 8pt;
+                        }
 
-                .tth {
-                    background-color: #d1ecf1 !important;
-                    border-left: 3px solid #17a2b8;
-                }
+                        .time-col.empty {
+                            background: #f8f9fa !important;
+                            color: #ccc;
+                        }
 
-                .mw {
-                    background-color: #fff3cd !important;
-                    border-left: 3px solid #ffc107;
-                }
+                        /* Schedule color classes */
+                        .mwf {
+                            background-color: #d4edda !important;
+                            border-left: 3px solid #28a745;
+                        }
 
-                .thf {
-                    background-color: #f8d7da !important;
-                    border-left: 3px solid #dc3545;
-                }
+                        .tth {
+                            background-color: #d1ecf1 !important;
+                            border-left: 3px solid #17a2b8;
+                        }
 
-                .single {
-                    background-color: #e2e3e5 !important;
-                    border-left: 3px solid #6c757d;
-                }
+                        .mw {
+                            background-color: #fff3cd !important;
+                            border-left: 3px solid #ffc107;
+                        }
 
-                .course-code {
-                    font-weight: bold;
-                    font-size: 9pt;
-                    color: #2c3e50;
-                    margin-bottom: 2px;
-                }
+                        .thf {
+                            background-color: #f8d7da !important;
+                            border-left: 3px solid #dc3545;
+                        }
 
-                .section {
-                    font-size: 8pt;
-                    color: #495057;
-                    margin-bottom: 2px;
-                }
+                        .single {
+                            background-color: #e2e3e5 !important;
+                            border-left: 3px solid #6c757d;
+                        }
 
-                .instructor {
-                    font-size: 7.5pt;
-                    color: #6c757d;
-                    font-style: italic;
-                    margin-bottom: 2px;
-                }
+                        .course-code {
+                            font-weight: bold;
+                            font-size: 9pt;
+                            color: #2c3e50;
+                            margin-bottom: 2px;
+                        }
 
-                .room {
-                    font-size: 7pt;
-                    color: #495057;
-                }
+                        .section {
+                            font-size: 8pt;
+                            color: #495057;
+                            margin-bottom: 2px;
+                        }
 
-                .footer {
-                    position: fixed;
-                    bottom: 0;
-                    left: 0;
-                    right: 0;
-                    height: 40px;
-                    border-top: 1px solid #eee;
-                    text-align: center;
-                    font-size: 8pt;
-                    color: #7f8c8d;
-                    padding-top: 8px;
-                    background: white;
-                }
+                        .instructor {
+                            font-size: 7.5pt;
+                            color: #6c757d;
+                            font-style: italic;
+                            margin-bottom: 2px;
+                        }
 
-                .page-number:after {
-                    content: counter(page);
-                }
-            </style>
-        </head>
+                        .room {
+                            font-size: 7pt;
+                            color: #495057;
+                            margin-bottom: 3px;
+                        }
 
-        <body>
-            <div class="container">
-                <div class="header">
-                    <?php if ($logo): ?>
-                        <img src="<?= $logo ?>" class="logo" alt="Logo">
-                    <?php endif; ?>
-                    <div class="university"><?= htmlspecialchars($university) ?></div>
-                    <div class="campus"><?= htmlspecialchars($campus) ?></div>
-                    <div class="title">WEEKLY CLASS SCHEDULE</div>
-                    <div class="meta"><?= htmlspecialchars($semesterName) ?></div>
-                    <div class="meta"><?= htmlspecialchars($filterText) ?></div>
-                    <div class="meta">Generated: <?= $generated ?></div>
-                </div>
+                        .time-range {
+                            font-size: 7pt;
+                            color: #0066cc;
+                            font-weight: bold;
+                            border-top: 1px solid #ddd;
+                            padding-top: 3px;
+                            margin-top: 3px;
+                        }
 
-                <div class="legend">
-                    <div class="legend-item"><span class="legend-color" style="background:#d4edda"></span>MWF</div>
-                    <div class="legend-item"><span class="legend-color" style="background:#d1ecf1"></span>TTH</div>
-                    <div class="legend-item"><span class="legend-color" style="background:#fff3cd"></span>MW</div>
-                    <div class="legend-item"><span class="legend-color" style="background:#f8d7da"></span>THF</div>
-                    <div class="legend-item"><span class="legend-color" style="background:#e2e3e5"></span>Single</div>
-                </div>
-                <div style="clear:both;"></div>
+                        .occupied-cell {
+                            background-color: #f8f9fa !important;
+                            border-top: none !important;
+                        }
 
-                <table>
-                    <thead>
-                        <tr>
-                            <th class="time-col">TIME</th>
-                            <th>MONDAY</th>
-                            <th>TUESDAY</th>
-                            <th>WEDNESDAY</th>
-                            <th>THURSDAY</th>
-                            <th>FRIDAY</th>
-                            <th>SATURDAY</th>
-                            <th>SUNDAY</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($timeSlots as $slot): ?>
-                            <tr>
-                                <td class="time-col"><?= htmlspecialchars($slot) ?></td>
-                                <?php foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $day):
-                                    $sch = $grid[$slot][$day] ?? null;
-                                    $bg = $sch ? $this->getDayColorClass($sch['formatted_days']) : '';
+                        .footer {
+                            position: fixed;
+                            bottom: 0;
+                            left: 0;
+                            right: 0;
+                            height: 40px;
+                            border-top: 1px solid #eee;
+                            text-align: center;
+                            font-size: 8pt;
+                            color: #7f8c8d;
+                            padding-top: 8px;
+                            background: white;
+                        }
+
+                        .page-number:after {
+                            content: counter(page);
+                        }
+                    </style>
+                </head>
+
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <?php if ($logo): ?>
+                                <img src="<?= $logo ?>" class="logo" alt="Logo">
+                            <?php endif; ?>
+                            <div class="university"><?= htmlspecialchars($university) ?></div>
+                            <div class="campus"><?= htmlspecialchars($campus) ?></div>
+                            <div class="title">WEEKLY CLASS SCHEDULE</div>
+                            <div class="meta"><?= htmlspecialchars($semesterName) ?></div>
+                            <div class="meta"><?= htmlspecialchars($filterText) ?></div>
+                            <div class="meta">Generated: <?= $generated ?></div>
+                        </div>
+
+                        <div class="legend">
+                            <div class="legend-item"><span class="legend-color" style="background:#d4edda"></span>MWF</div>
+                            <div class="legend-item"><span class="legend-color" style="background:#d1ecf1"></span>TTH</div>
+                            <div class="legend-item"><span class="legend-color" style="background:#fff3cd"></span>MW</div>
+                            <div class="legend-item"><span class="legend-color" style="background:#f8d7da"></span>THF</div>
+                            <div class="legend-item"><span class="legend-color" style="background:#e2e3e5"></span>Single</div>
+                        </div>
+                        <div style="clear:both;"></div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="time-col">TIME</th>
+                                    <th>MONDAY</th>
+                                    <th>TUESDAY</th>
+                                    <th>WEDNESDAY</th>
+                                    <th>THURSDAY</th>
+                                    <th>FRIDAY</th>
+                                    <th>SATURDAY</th>
+                                    <th>SUNDAY</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($timeSlots as $slot):
+                                    // Check if any schedule starts in this slot
+                                    $hasScheduleStarting = false;
+                                    $sampleSchedule = null;
+
+                                    foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $day) {
+                                        if (!empty($grid[$slot][$day])) {
+                                            $hasScheduleStarting = true;
+                                            $sampleSchedule = $grid[$slot][$day];
+                                            break;
+                                        }
+                                    }
                                 ?>
-                                    <td class="<?= $bg ?>">
-                                        <?php if ($sch): ?>
-                                            <div class="course-code"><?= htmlspecialchars($sch['course_code']) ?></div>
-                                            <div class="section"><?= htmlspecialchars($sch['section_name']) ?></div>
-                                            <div class="instructor"><?= htmlspecialchars($sch['instructor_name']) ?></div>
-                                            <div class="room"><?= htmlspecialchars($sch['room_name']) ?></div>
-                                        <?php endif; ?>
-                                    </td>
+                                    <tr>
+                                        <td class="time-col <?= $hasScheduleStarting ? 'has-schedule' : 'empty' ?>">
+                                            <?php if ($hasScheduleStarting && $sampleSchedule): ?>
+                                                <strong><?= htmlspecialchars($slot) ?></strong><br>
+                                                <small style="color:#0066cc;">to</small><br>
+                                                <strong><?= date('g:i A', strtotime($sampleSchedule['end_time'])) ?></strong>
+                                            <?php else: ?>
+                                                <span style="color:#ccc;"><?= htmlspecialchars($slot) ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <?php foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $day):
+                                            $occupiedKey = $slot . '|' . $day;
+                                            $isOccupied = isset($occupiedSlots[$occupiedKey]);
+                                            $sch = $grid[$slot][$day] ?? null;
+
+                                            if ($isOccupied):
+                                                // This cell is part of a schedule from above, skip it
+                                        ?>
+                                                <td class="occupied-cell"></td>
+                                            <?php elseif ($sch):
+                                                $bg = $this->getDayColorClass($sch['formatted_days']);
+                                                $rowSpan = $sch['row_span'] ?? 1;
+                                            ?>
+                                                <td class="<?= $bg ?>" rowspan="<?= $rowSpan ?>">
+                                                    <div class="course-code"><?= htmlspecialchars($sch['course_code']) ?></div>
+                                                    <div class="section"><?= htmlspecialchars($sch['section_name']) ?></div>
+                                                    <div class="instructor"><?= htmlspecialchars($sch['instructor_name']) ?></div>
+                                                    <div class="room"><?= htmlspecialchars($sch['room_name']) ?></div>
+                                                    <div class="time-range">
+                                                        <?= date('g:i A', strtotime($sch['start_time'])) ?> -
+                                                        <?= date('g:i A', strtotime($sch['end_time'])) ?>
+                                                    </div>
+                                                </td>
+                                            <?php else: ?>
+                                                <td></td>
+                                            <?php endif; ?>
+                                        <?php endforeach; ?>
+                                    </tr>
                                 <?php endforeach; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                            </tbody>
+                        </table>
 
-                <div class="footer">
-                    <?= htmlspecialchars($system) ?> | Page <span class="page-number"></span>
-                </div>
-            </div>
+                        <div class="footer">
+                            <?= htmlspecialchars($system) ?> | Page <span class="page-number"></span>
+                        </div>
+                    </div>
 
-            <script type="text/php">
-                if (isset($pdf)) {
-                $pdf->page_text(750, 570, "Page {PAGE_NUM} of {PAGE_COUNT}", null, 8, array(0,0,0));
-            }
-        </script>
-        </body>
+                    <script type="text/php">
+                        if (isset($pdf)) {
+                    $pdf->page_text(750, 570, "Page {PAGE_NUM} of {PAGE_COUNT}", null, 8, array(0,0,0));
+                }
+            </script>
+                </body>
 
-        </html>
-<?php
+                </html>
+        <?php
         return ob_get_clean();
     }
 
