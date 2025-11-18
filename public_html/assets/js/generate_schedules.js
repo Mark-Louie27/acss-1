@@ -789,39 +789,6 @@ async function updateUIAfterGeneration(
     window.scheduleData = transformedSchedules;
     console.log(`✅ Stored ${window.scheduleData.length} schedules globally`);
 
-    // Show incomplete banner BEFORE grid updates
-    if (
-      responseData.unassignedCourses &&
-      responseData.unassignedCourses.length > 0
-    ) {
-      console.log(
-        "⚠️ Incomplete schedules:",
-        responseData.unassignedCourses.length
-      );
-      showIncompleteScheduleBanner(responseData);
-    }
-
-    // Update generation results
-    updateGenerationResults(responseData, transformedSchedules);
-
-    // ✅ WAIT for DOM and update grids (MULTIPLE ATTEMPTS)
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    console.log("🔄 Forcing immediate grid update...");
-
-    // Attempt 1: Direct update
-    if (typeof window.safeUpdateScheduleDisplay === "function") {
-      window.safeUpdateScheduleDisplay(window.scheduleData);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Attempt 2: Verify and retry
-    console.log("🔄 Secondary grid update...");
-    if (typeof window.safeUpdateScheduleDisplay === "function") {
-      window.safeUpdateScheduleDisplay(window.scheduleData);
-    }
-
     // Hide loading
     if (loadingOverlay) {
       loadingOverlay.classList.add("hidden");
@@ -841,50 +808,23 @@ async function updateUIAfterGeneration(
       responseData.unassignedCourses?.length > 0
         ? `⚠️ ${responseData.unassignedCourses.length} courses need manual scheduling`
         : "All courses scheduled successfully!",
+      "Page will refresh in 2 seconds...",
     ]);
 
-    // ✅ AUTO-SWITCH to manual tab with verification
-    console.log("🔀 Switching to manual tab...");
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // ✅ AUTO-REFRESH: Redirect to manual tab with page reload
+    console.log("🔄 Preparing to refresh page...");
 
-    if (typeof switchTab === "function") {
-      switchTab("manual");
-      console.log("✅ Switched to manual tab");
+    // Wait 2 seconds to let user see the success message
+    setTimeout(() => {
+      console.log("🔄 Refreshing page and switching to manual tab...");
 
-      // Post-switch refresh
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Set the tab parameter in URL
+      const url = new URL(window.location);
+      url.searchParams.set("tab", "manual");
 
-      console.log("🔄 Post-switch refresh...");
-      if (typeof window.safeUpdateScheduleDisplay === "function") {
-        window.safeUpdateScheduleDisplay(window.scheduleData);
-      }
-
-      if (typeof initializeDragAndDrop === "function") {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        initializeDragAndDrop();
-      }
-
-      // ✅ VERIFICATION: Check if schedules are visible
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      const finalGrid = document.getElementById("schedule-grid");
-
-      if (finalGrid) {
-        const scheduleCards = finalGrid.querySelectorAll(".schedule-card");
-        console.log(
-          `📊 Final verification: ${scheduleCards.length} schedule cards visible`
-        );
-
-        if (scheduleCards.length === 0) {
-          console.error("❌ Schedules not visible! Emergency rebuild...");
-          // Force one more update
-          window.safeUpdateScheduleDisplay(window.scheduleData);
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          initializeDragAndDrop();
-        } else {
-          console.log("✅✅✅ SUCCESS! All schedules visible!");
-        }
-      }
-    }
+      // Reload the page with the new URL
+      window.location.href = url.toString();
+    }, 2000);
   } catch (error) {
     console.error("❌ Error in updateUIAfterGeneration:", error);
     hideLoadingAndShowError(

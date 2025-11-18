@@ -1069,12 +1069,12 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                                 $curriculumExists = $stmt->fetchColumn() > 0;
                                 $setupStatus['curriculum'] = $curriculumExists;
 
-                                // Check courses in curriculum (MORE DETAILED)
+                                // Check courses in curriculum
                                 $stmt = $db->prepare("
-                            SELECT COUNT(*) FROM curriculum_courses cc
-                            JOIN curricula c ON cc.curriculum_id = c.curriculum_id
-                            WHERE c.department_id = :dept_id AND c.status = 'Active'
-                        ");
+                                    SELECT COUNT(*) FROM curriculum_courses cc
+                                    JOIN curricula c ON cc.curriculum_id = c.curriculum_id
+                                    WHERE c.department_id = :dept_id AND c.status = 'Active'
+                                ");
                                 $stmt->execute([':dept_id' => $userDepartmentId]);
                                 $coursesCount = $stmt->fetchColumn();
                                 $coursesInCurriculum = $coursesCount > 0;
@@ -1082,32 +1082,52 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 
                                 // Check faculty
                                 $stmt = $db->prepare("
-                            SELECT COUNT(*) FROM faculty_departments fd
-                            WHERE fd.department_id = :dept_id AND (fd.is_active = 1 OR fd.is_active IS NULL)
-                        ");
+                                    SELECT COUNT(*) FROM faculty_departments fd
+                                    WHERE fd.department_id = :dept_id AND (fd.is_active = 1 OR fd.is_active IS NULL)
+                                ");
                                 $stmt->execute([':dept_id' => $userDepartmentId]);
                                 $setupStatus['faculty'] = $stmt->fetchColumn() > 0;
 
                                 // Check classrooms
                                 $stmt = $db->prepare("
-                            SELECT COUNT(*) FROM classrooms 
-                            WHERE (department_id = :dept_id OR shared = 1) AND availability = 'available'
-                        ");
+                                    SELECT COUNT(*) FROM classrooms 
+                                    WHERE (department_id = :dept_id OR shared = 1) AND availability = 'available'
+                                ");
                                 $stmt->execute([':dept_id' => $userDepartmentId]);
                                 $setupStatus['classrooms'] = $stmt->fetchColumn() > 0;
 
-                                // Check sections
-                                $currentSemester = $_SESSION['current_semester'] ?? null;
-                                if ($currentSemester) {
+                                // ✅ FIXED: Check sections - Get current semester properly
+                                $currentSemester = $_SESSION['selected_semester'] ?? null;
+
+                                if (!$currentSemester) {
                                     $stmt = $db->prepare("
-                                SELECT COUNT(*) FROM sections 
-                                WHERE department_id = :dept_id AND semester_id = :sem_id AND is_active = 1
-                            ");
+                                    SELECT semester_id, semester_name, academic_year, is_current 
+                                    FROM semesters 
+                                    WHERE is_current = 1 
+                                    LIMIT 1
+                                ");
+                                    $stmt->execute();
+                                    $currentSemester = $stmt->fetch(PDO::FETCH_ASSOC);
+                                }
+
+                                if ($currentSemester && isset($currentSemester['semester_id'])) {
+                                    $stmt = $db->prepare("
+                                        SELECT COUNT(*) FROM sections 
+                                        WHERE department_id = :dept_id 
+                                        AND semester_id = :sem_id 
+                                        AND is_active = 1
+                                    ");
                                     $stmt->execute([
                                         ':dept_id' => $userDepartmentId,
                                         ':sem_id' => $currentSemester['semester_id']
                                     ]);
-                                    $setupStatus['sections'] = $stmt->fetchColumn() > 0;
+                                    $sectionCount = $stmt->fetchColumn();
+                                    $setupStatus['sections'] = $sectionCount > 0;
+
+                                    error_log("Layout: Sections check - Dept: $userDepartmentId, Semester: {$currentSemester['semester_id']}, Count: $sectionCount");
+                                } else {
+                                    error_log("Layout: No current semester found for section check!");
+                                    $setupStatus['sections'] = false;
                                 }
                             } catch (PDOException $e) {
                                 error_log("Setup status check error: " . $e->getMessage());

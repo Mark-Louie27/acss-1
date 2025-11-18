@@ -49,6 +49,14 @@ class AuthService
 
                 $this->logAuthAction($user['user_id'], 'login_success', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT']);
 
+                // ✅ ADD THESE LINES HERE - Clear previous semester selections
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                unset($_SESSION['selected_semester_id']);
+                unset($_SESSION['selected_semester']);
+                unset($_SESSION['is_historical_view']);
+
                 return [
                     'user_id' => $user['user_id'],
                     'employee_id' => $user['employee_id'],
@@ -59,8 +67,7 @@ class AuthService
                     'middle_name' => $user['middle_name'] ?? '',
                     'suffix' => $user['suffix'] ?? '',
                     'email' => $user['email'],
-                  
-                    'roles' => $roles,  // CHANGED: Array of all roles, not single role_name
+                    'roles' => $roles,
                     'department_id' => $user['department_id'],
                     'college_id' => $user['college_id'],
                     'profile_picture' => $user['profile_picture'] ?? null,
@@ -945,7 +952,25 @@ Please review and approve/reject this admission request in the admin panel.
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
-        session_unset();
+
+        // ✅ Explicitly unset all session variables first
+        $_SESSION = array();
+
+        // ✅ Destroy the session cookie
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params["path"],
+                $params["domain"],
+                $params["secure"],
+                $params["httponly"]
+            );
+        }
+
+        // Destroy the session
         session_destroy();
     }
 

@@ -196,11 +196,14 @@ class ChairController extends BaseController
             $semester = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($semester) {
+                // Set historical flag correctly
+                $_SESSION['is_historical_view'] = !($semester['is_current'] == 1);
                 return $semester;
             }
         }
 
-        // Fall back to current semester
+        // Fall back to current semester - never historical
+        $_SESSION['is_historical_view'] = false;
         return $this->getCurrentSemester();
     }
 
@@ -290,10 +293,16 @@ class ChairController extends BaseController
             // Get all available semesters for the dropdown
             $availableSemesters = $this->getAvailableSemesters();
 
-            // Determine if viewing historical data
-            $isHistoricalView = !$currentSemester['is_current'];
+            // ✅ FIX: Determine if viewing historical data - check BOTH is_current flag AND session flag
+            $isHistoricalView = isset($_SESSION['is_historical_view']) && $_SESSION['is_historical_view'] === true;
 
-            error_log("dashboard: Department fetched - department_id: $departmentId");
+            // ✅ ADD: If semester is marked as current in DB, force isHistoricalView to false
+            if (isset($currentSemester['is_current']) && $currentSemester['is_current'] == 1) {
+                $isHistoricalView = false;
+                unset($_SESSION['is_historical_view']); // Clear the session flag
+            }
+
+            error_log("Dashboard: Semester {$currentSemester['semester_name']} {$currentSemester['academic_year']} - is_current in DB: " . ($currentSemester['is_current'] ?? 'NULL') . ", isHistoricalView: " . ($isHistoricalView ? 'TRUE' : 'FALSE'));
 
             // Get department name
             $deptStmt = $this->db->prepare("SELECT department_name FROM departments WHERE department_id = ?");
@@ -383,7 +392,7 @@ class ChairController extends BaseController
             JOIN programs p ON c.department_id = p.department_id 
             WHERE c.department_id = ?
             ORDER BY c.curriculum_name
-        ");
+            ");
             $curriculaStmt->execute([$departmentId]);
             $curricula = $curriculaStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -392,7 +401,7 @@ class ChairController extends BaseController
             // Get my schedules (filtered by chair's faculty_id)
             $chairFacultyIdStmt = $this->db->prepare("
             SELECT faculty_id FROM faculty WHERE user_id = ?
-        ");
+            ");
             $chairFacultyIdStmt->execute([$chairId]);
             $chairFacultyId = $chairFacultyIdStmt->fetchColumn();
 
@@ -433,7 +442,7 @@ class ChairController extends BaseController
             GROUP BY c.course_id, s.faculty_id, s.start_time, s.end_time, s.schedule_type, sec.section_name, r.room_name
             ORDER BY s.created_at DESC
             LIMIT 5
-        ");
+            ");
 
             $params = [$chairFacultyId];
             if ($currentSemesterId) {
@@ -454,22 +463,22 @@ class ChairController extends BaseController
             // Get schedule distribution data for chart - FIXED
             $scheduleDistStmt = $this->db->prepare("
             SELECT s.day_of_week, COUNT(*) as count 
-            FROM schedules s 
-            JOIN courses c ON s.course_id = c.course_id 
-            WHERE c.department_id = ?
-            " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
-            GROUP BY s.day_of_week
-            ORDER BY 
-                CASE s.day_of_week 
-                    WHEN 'Monday' THEN 1
-                    WHEN 'Tuesday' THEN 2
-                    WHEN 'Wednesday' THEN 3
-                    WHEN 'Thursday' THEN 4
-                    WHEN 'Friday' THEN 5
-                    WHEN 'Saturday' THEN 6
-                    WHEN 'Sunday' THEN 7
-                END
-        ");
+                FROM schedules s 
+                JOIN courses c ON s.course_id = c.course_id 
+                WHERE c.department_id = ?
+                " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
+                GROUP BY s.day_of_week
+                ORDER BY 
+                    CASE s.day_of_week 
+                        WHEN 'Monday' THEN 1
+                        WHEN 'Tuesday' THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday' THEN 4
+                        WHEN 'Friday' THEN 5
+                        WHEN 'Saturday' THEN 6
+                        WHEN 'Sunday' THEN 7
+                    END
+            ");
 
             $params = [$departmentId];
             if ($currentSemesterId) {
@@ -560,21 +569,23 @@ class ChairController extends BaseController
 
             error_log("Dashboard: Detected $conflictCount actual conflicts");
 
-            // Get unassigned courses count
+            // Get unassigned courses count - FIXED to use active curriculum and current semester
             $unassignedCoursesStmt = $this->db->prepare("
                 SELECT COUNT(DISTINCT c.course_id) as unassigned_count
                 FROM courses c
+                JOIN curriculum_courses cc ON c.course_id = cc.course_id
+                JOIN curricula cur ON cc.curriculum_id = cur.curriculum_id
                 LEFT JOIN schedules s ON c.course_id = s.course_id 
-                    " . ($currentSemesterId ? "AND s.semester_id = ?" : "") . "
-                WHERE c.department_id = ?
+                    " . ($currentSemesterId ? "AND s.semester_id = :semester_id" : "") . "
+                WHERE c.department_id = :department_id
+                AND cur.status = 'active'
                 AND s.schedule_id IS NULL
             ");
 
-            $params = [];
+            $params = [':department_id' => $departmentId];
             if ($currentSemesterId) {
-                $params[] = $currentSemesterId;
+                $params[':semester_id'] = $currentSemesterId;
             }
-            $params[] = $departmentId;
             $unassignedCoursesStmt->execute($params);
             $unassignedCourses = $unassignedCoursesStmt->fetchColumn();
 
