@@ -4199,6 +4199,8 @@ class ChairController extends BaseController
             '12:30:00',
             '13:00:00',
             '14:30:00',
+            '15:00:00',
+            '15:30:00',
             '16:00:00',
             '17:30:00' // Added more options
         ];
@@ -4211,7 +4213,7 @@ class ChairController extends BaseController
                 $endTimestamp = $startTimestamp + ($duration * 3600);
                 $endTime = date('H:i:s', $endTimestamp);
 
-                if ($endTimestamp <= strtotime('19:00:00')) {
+                if ($endTimestamp <= strtotime('17:30:00')) {
                     $slots[] = [$start, $endTime, $duration];
                 }
             }
@@ -9077,6 +9079,7 @@ class ChairController extends BaseController
                 AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
             GROUP BY 
                 u.user_id,
+                u.title,
                 u.employee_id,
                 u.first_name,
                 u.last_name,
