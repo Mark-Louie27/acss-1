@@ -628,7 +628,7 @@ ob_start();
                                 ${includable.map(result => `
                                     <tr class="hover:bg-gray-50 transition-all duration-200">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.employee_id || 'N/A'}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.title || 'N/A'} ${result.first_name} ${result.middle_name || ''} ${result.last_name} ${result.suffix || ''}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-dark">${result.title ? result.title + ' ' : ''}${result.first_name} ${result.middle_name || ''} ${result.last_name} ${result.suffix || ''}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.college_name || 'N/A'}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-dark">${result.department_names || 'N/A'}</td>
                                         <td class="px-6 py-4 text-sm text-gray-dark specialization">${result.specialization || 'N/A'}</td>

@@ -138,10 +138,10 @@ class DeanController extends BaseController
 
         // Get college details for the dean
         $query = "
-    SELECT d.college_id, c.college_name 
-    FROM deans d
-    JOIN colleges c ON d.college_id = c.college_id
-    WHERE d.user_id = :user_id AND d.is_current = 1";
+        SELECT d.college_id, c.college_name 
+        FROM deans d
+        JOIN colleges c ON d.college_id = c.college_id
+        WHERE d.user_id = :user_id AND d.is_current = 1";
         $stmt = $this->db->prepare($query);
         $stmt->execute([':user_id' => $userId]);
         $college = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -242,27 +242,27 @@ class DeanController extends BaseController
     private function getFacultyWorkloadDistribution($collegeId)
     {
         $query = "
-    SELECT 
-        CONCAT(u.first_name, ' ', u.last_name) as faculty_name,
-        d.department_name,
-        COUNT(DISTINCT s.schedule_id) as class_count,
-        SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) as total_hours,
-        CASE 
-            WHEN SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) < 12 THEN 'Underutilized'
-            WHEN SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) BETWEEN 12 AND 24 THEN 'Optimal'
-            ELSE 'Overloaded'
-        END as workload_status
-    FROM faculty f
-    JOIN users u ON f.user_id = u.user_id
-    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
-    JOIN departments d ON fd.department_id = d.department_id
-    LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
-        AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
-    WHERE d.college_id = :college_id
-    GROUP BY f.faculty_id, u.first_name, u.last_name, d.department_name
-    ORDER BY total_hours DESC
-    LIMIT 15
-    ";
+        SELECT 
+            CONCAT(u.first_name, ' ', u.last_name) as faculty_name,
+            d.department_name, d.department_code,
+            COUNT(DISTINCT s.schedule_id) as class_count,
+            SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) as total_hours,
+            CASE 
+                WHEN SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) < 12 THEN 'Underutilized'
+                WHEN SUM(TIMESTAMPDIFF(MINUTE, s.start_time, s.end_time) / 60.0) BETWEEN 12 AND 24 THEN 'Optimal'
+                ELSE 'Overloaded'
+            END as workload_status
+        FROM faculty f
+        JOIN users u ON f.user_id = u.user_id
+        JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
+        JOIN departments d ON fd.department_id = d.department_id
+        LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+            AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
+        WHERE d.college_id = :college_id
+        GROUP BY f.faculty_id, u.first_name, u.last_name, d.department_name
+        ORDER BY total_hours DESC
+        LIMIT 15
+        ";
 
         $stmt = $this->db->prepare($query);
         $stmt->execute([':college_id' => $collegeId]);
@@ -276,22 +276,23 @@ class DeanController extends BaseController
     private function getDepartmentPerformance($collegeId)
     {
         $query = "
-    SELECT 
-        d.department_name,
-        COUNT(DISTINCT f.faculty_id) as faculty_count,
-        COUNT(DISTINCT s.schedule_id) as schedule_count,
-        COUNT(DISTINCT c.course_id) as course_count,
-        ROUND(COUNT(DISTINCT s.schedule_id) / NULLIF(COUNT(DISTINCT f.faculty_id), 0), 2) as avg_load_per_faculty
-    FROM departments d
-    LEFT JOIN faculty_departments fd ON d.department_id = fd.department_id
-    LEFT JOIN faculty f ON fd.faculty_id = f.faculty_id
-    LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
-        AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
-    LEFT JOIN courses c ON d.department_id = c.department_id
-    WHERE d.college_id = :college_id
-    GROUP BY d.department_id, d.department_name
-    ORDER BY d.department_name
-    ";
+        SELECT 
+            d.department_name,
+            d.department_code,
+            COUNT(DISTINCT f.faculty_id) as faculty_count,
+            COUNT(DISTINCT s.schedule_id) as schedule_count,
+            COUNT(DISTINCT c.course_id) as course_count,
+            ROUND(COUNT(DISTINCT s.schedule_id) / NULLIF(COUNT(DISTINCT f.faculty_id), 0), 2) as avg_load_per_faculty
+        FROM departments d
+        LEFT JOIN faculty_departments fd ON d.department_id = fd.department_id
+        LEFT JOIN faculty f ON fd.faculty_id = f.faculty_id
+        LEFT JOIN schedules s ON f.faculty_id = s.faculty_id 
+            AND s.semester_id = (SELECT semester_id FROM semesters WHERE is_current = 1 LIMIT 1)
+        LEFT JOIN courses c ON d.department_id = c.department_id
+        WHERE d.college_id = :college_id
+        GROUP BY d.department_id, d.department_name
+        ORDER BY d.department_name
+        ";
 
         $stmt = $this->db->prepare($query);
         $stmt->execute([':college_id' => $collegeId]);
@@ -366,6 +367,7 @@ class DeanController extends BaseController
     SELECT 
         d.department_id,
         d.department_name,
+        d.department_code,
         COUNT(DISTINCT fd.faculty_id) as faculty_count,
         COUNT(DISTINCT c.course_id) as course_count,
         COUNT(DISTINCT s.schedule_id) as active_schedules

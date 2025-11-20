@@ -7,9 +7,7 @@ ob_start();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
@@ -96,36 +94,42 @@ ob_start();
             animation: fadeInUp 0.6s ease-out forwards;
         }
 
-        .chart-container {
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .workload-bar {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            overflow: hidden;
             position: relative;
-            padding: 24px;
-            border-radius: 20px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.9) 100%);
         }
 
-        .workload-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 12px;
+        .workload-fill {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.5s ease;
+        }
+
+        .stat-item {
+            padding: 12px;
             border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #fbbf24;
         }
 
-        .workload-light {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
+        .progress-ring {
+            transform: rotate(-90deg);
         }
 
-        .workload-moderate {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: white;
-        }
-
-        .workload-heavy {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: white;
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.5s ease;
         }
 
         .action-button {
@@ -150,26 +154,6 @@ ob_start();
         .action-button:hover::before {
             width: 300px;
             height: 300px;
-        }
-
-        .summary-stat {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(245, 158, 11, 0.1);
-        }
-
-        .summary-stat:last-child {
-            border-bottom: none;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
     </style>
 </head>
@@ -283,63 +267,222 @@ ob_start();
         <!-- Main Content Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <!-- Left Column - Charts -->
+            <!-- Left Column - Stats Cards -->
             <div class="lg:col-span-2 space-y-8">
 
-                <!-- Faculty Workload Chart -->
+                <!-- Faculty Workload Overview Card -->
                 <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.5s">
-                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                    <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-900 mb-1">Faculty Workload Distribution</h3>
-                            <p class="text-sm text-gray-500">Teaching hours per faculty member</p>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">Faculty Workload Overview</h3>
+                            <p class="text-sm text-gray-500">Teaching load distribution across faculty</p>
                         </div>
-                        <div class="flex flex-wrap gap-2">
-                            <span class="workload-badge workload-light text-xs">
-                                <i class="fas fa-circle mr-1"></i> &lt;12h
+                        <div class="flex gap-2">
+                            <span class="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">
+                                <i class="fas fa-circle text-[6px] mr-1"></i> Light
                             </span>
-                            <span class="workload-badge workload-moderate text-xs">
-                                <i class="fas fa-circle mr-1"></i> 12-24h
+                            <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold">
+                                <i class="fas fa-circle text-[6px] mr-1"></i> Optimal
                             </span>
-                            <span class="workload-badge workload-heavy text-xs">
-                                <i class="fas fa-circle mr-1"></i> &gt;24h
+                            <span class="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-semibold">
+                                <i class="fas fa-circle text-[6px] mr-1"></i> Heavy
                             </span>
                         </div>
                     </div>
-                    <div class="chart-container">
-                        <?php if (!empty($facultyWorkload)): ?>
-                            <canvas id="facultyWorkloadChart" style="height: 320px;"></canvas>
-                        <?php else: ?>
-                            <div class="h-64 flex items-center justify-center text-gray-400">
-                                <div class="text-center">
-                                    <i class="fas fa-user-clock text-4xl mb-2"></i>
-                                    <p>No faculty workload data available</p>
+
+                    <?php if (!empty($facultyWorkload)): ?>
+                        <div class="space-y-4">
+                            <?php
+                            $workloadStats = [
+                                'light' => 0,
+                                'optimal' => 0,
+                                'heavy' => 0,
+                                'total_hours' => 0
+                            ];
+
+                            foreach ($facultyWorkload as $faculty) {
+                                $hours = $faculty['total_hours'] ?? 0;
+                                $workloadStats['total_hours'] += $hours;
+                                if ($hours < 12) $workloadStats['light']++;
+                                elseif ($hours <= 24) $workloadStats['optimal']++;
+                                else $workloadStats['heavy']++;
+                            }
+                            $avgHours = count($facultyWorkload) > 0 ? round($workloadStats['total_hours'] / count($facultyWorkload), 1) : 0;
+                            ?>
+
+                            <!-- Summary Stats -->
+                            <div class="grid grid-cols-3 gap-4 mb-6">
+                                <div class="stat-item text-center">
+                                    <div class="text-3xl font-bold text-gray-900"><?php echo $workloadStats['light']; ?></div>
+                                    <div class="text-xs text-gray-600 mt-1">Light Load (&lt;12h)</div>
+                                </div>
+                                <div class="stat-item text-center" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-color: #3b82f6;">
+                                    <div class="text-3xl font-bold text-gray-900"><?php echo $workloadStats['optimal']; ?></div>
+                                    <div class="text-xs text-gray-600 mt-1">Optimal (12-24h)</div>
+                                </div>
+                                <div class="stat-item text-center" style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-color: #ef4444;">
+                                    <div class="text-3xl font-bold text-gray-900"><?php echo $workloadStats['heavy']; ?></div>
+                                    <div class="text-xs text-gray-600 mt-1">Heavy Load (&gt;24h)</div>
                                 </div>
                             </div>
-                        <?php endif; ?>
-                    </div>
+
+                            <!-- Faculty List -->
+                            <div class="space-y-3">
+                                <?php foreach (array_slice($facultyWorkload, 0, 8) as $faculty): ?>
+                                    <?php
+                                    $hours = round($faculty['total_hours'] ?? 0, 1);
+                                    $maxHours = 40;
+                                    $percentage = min(($hours / $maxHours) * 100, 100);
+
+                                    if ($hours < 12) {
+                                        $color = 'bg-green-500';
+                                        $bgColor = 'bg-green-50';
+                                        $borderColor = 'border-green-200';
+                                        $textColor = 'text-green-700';
+                                    } elseif ($hours <= 24) {
+                                        $color = 'bg-blue-500';
+                                        $bgColor = 'bg-blue-50';
+                                        $borderColor = 'border-blue-200';
+                                        $textColor = 'text-blue-700';
+                                    } else {
+                                        $color = 'bg-red-500';
+                                        $bgColor = 'bg-red-50';
+                                        $borderColor = 'border-red-200';
+                                        $textColor = 'text-red-700';
+                                    }
+                                    ?>
+                                    <div class="<?php echo $bgColor; ?> <?php echo $borderColor; ?> border rounded-xl p-4 hover:shadow-md transition-all">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg flex items-center justify-center shadow-md">
+                                                    <i class="fas fa-user-tie text-white text-sm"></i>
+                                                </div>
+                                                <div>
+                                                    <p class="font-bold text-gray-900"><?php echo htmlspecialchars($faculty['faculty_name']); ?></p>
+                                                    <p class="text-xs text-gray-700">
+                                                        <i class="fas fa-building text-[8px] mr-1"></i>
+                                                        <?php echo htmlspecialchars($faculty['department_name']); ?>
+                                                      
+                                                    </p>
+                                                    <p class="text-xs text-gray-700">                                       
+                                                        <?php echo htmlspecialchars($faculty['department_code']); ?>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="text-2xl font-bold <?php echo $textColor; ?>"><?php echo $hours; ?>h</div>
+                                                <div class="text-xs text-gray-500"><?php echo $faculty['class_count']; ?> classes</div>
+                                            </div>
+                                        </div>
+                                        <div class="workload-bar">
+                                            <div class="workload-fill <?php echo $color; ?>" style="width: <?php echo $percentage; ?>%"></div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+
+                            <?php if (count($facultyWorkload) > 8): ?>
+                                <a href="/dean/faculty" class="block text-center text-sm font-semibold text-yellow-600 hover:text-yellow-700 mt-4">
+                                    View All Faculty (<?php echo count($facultyWorkload); ?>) →
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center py-12 text-gray-400">
+                            <i class="fas fa-user-clock text-5xl mb-3 opacity-50"></i>
+                            <p class="font-semibold">No faculty workload data</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
-                <!-- Classroom Utilization Chart -->
+                <!-- Classroom Utilization Card -->
                 <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
                     <div class="flex items-center justify-between mb-6">
                         <div>
-                            <h3 class="text-xl font-bold text-gray-900 mb-1">Classroom Utilization Rate</h3>
-                            <p class="text-sm text-gray-500">Percentage of classroom usage</p>
+                            <h3 class="text-xl font-bold text-gray-900 mb-1">Classroom Utilization</h3>
+                            <p class="text-sm text-gray-500">Usage rate across all classrooms</p>
                         </div>
-                        <i class="fas fa-door-open text-yellow-600 text-xl"></i>
+                        <i class="fas fa-door-open text-yellow-600 text-2xl"></i>
                     </div>
-                    <div class="chart-container">
-                        <?php if (!empty($classroomUtilization)): ?>
-                            <canvas id="classroomUtilizationChart" style="height: 280px;"></canvas>
-                        <?php else: ?>
-                            <div class="h-64 flex items-center justify-center text-gray-400">
-                                <div class="text-center">
-                                    <i class="fas fa-door-open text-4xl mb-2"></i>
-                                    <p>No classroom data available</p>
-                                </div>
+
+                    <?php if (!empty($classroomUtilization)): ?>
+                        <?php
+                        $avgUtilization = array_sum(array_column($classroomUtilization, 'utilization_rate')) / count($classroomUtilization);
+                        $highUsage = count(array_filter($classroomUtilization, fn($r) => $r['utilization_rate'] >= 60));
+                        $lowUsage = count(array_filter($classroomUtilization, fn($r) => $r['utilization_rate'] < 30));
+                        ?>
+
+                        <!-- Summary Grid -->
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div class="text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
+                                <div class="text-3xl font-bold text-yellow-700"><?php echo round($avgUtilization, 1); ?>%</div>
+                                <div class="text-xs text-gray-600 mt-1">Avg Utilization</div>
                             </div>
-                        <?php endif; ?>
-                    </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
+                                <div class="text-3xl font-bold text-red-700"><?php echo $highUsage; ?></div>
+                                <div class="text-xs text-gray-600 mt-1">High Usage (&gt;60%)</div>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                                <div class="text-3xl font-bold text-green-700"><?php echo $lowUsage; ?></div>
+                                <div class="text-xs text-gray-600 mt-1">Low Usage (&lt;30%)</div>
+                            </div>
+                        </div>
+
+                        <!-- Room List -->
+                        <div class="space-y-3">
+                            <?php foreach (array_slice($classroomUtilization, 0, 6) as $room): ?>
+                                <?php
+                                $rate = $room['utilization_rate'];
+                                if ($rate < 30) {
+                                    $color = 'bg-green-500';
+                                    $bgColor = 'bg-green-50';
+                                    $textColor = 'text-green-700';
+                                    $label = 'Available';
+                                } elseif ($rate < 60) {
+                                    $color = 'bg-yellow-500';
+                                    $bgColor = 'bg-yellow-50';
+                                    $textColor = 'text-yellow-700';
+                                    $label = 'Moderate';
+                                } else {
+                                    $color = 'bg-red-500';
+                                    $bgColor = 'bg-red-50';
+                                    $textColor = 'text-red-700';
+                                    $label = 'High Usage';
+                                }
+                                ?>
+                                <div class="<?php echo $bgColor; ?> rounded-xl p-4 border border-gray-200">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg flex items-center justify-center">
+                                                <i class="fas fa-door-open text-white text-sm"></i>
+                                            </div>
+                                            <div>
+                                                <p class="font-bold text-gray-900"><?php echo htmlspecialchars($room['room_name']); ?></p>
+                                                <p class="text-xs text-gray-600">
+                                                    <?php echo htmlspecialchars($room['room_type']); ?> • Cap: <?php echo $room['capacity']; ?>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-2xl font-bold <?php echo $textColor; ?>"><?php echo round($rate, 1); ?>%</div>
+                                            <div class="text-xs <?php echo $textColor; ?> font-semibold"><?php echo $label; ?></div>
+                                        </div>
+                                    </div>
+                                    <div class="workload-bar">
+                                        <div class="workload-fill <?php echo $color; ?>" style="width: <?php echo $rate; ?>%"></div>
+                                    </div>
+                                    <div class="text-xs text-gray-600 mt-2">
+                                        <?php echo $room['scheduled_classes']; ?> classes • <?php echo $room['time_slots_used']; ?> time slots
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center py-12 text-gray-400">
+                            <i class="fas fa-door-open text-5xl mb-3 opacity-50"></i>
+                            <p class="font-semibold">No classroom data</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Department Overview -->
@@ -358,6 +501,7 @@ ob_start();
                                         </div>
                                         <div>
                                             <p class="font-bold text-gray-900"><?php echo htmlspecialchars($dept['department_name']); ?></p>
+                                            <p class="font-bold text-gray-700"><?php echo htmlspecialchars($dept['department_code']); ?></p>
                                             <p class="text-sm text-gray-600">
                                                 <i class="fas fa-users text-xs mr-1"></i><?php echo $dept['faculty_count']; ?> faculty •
                                                 <i class="fas fa-calendar text-xs mr-1"></i><?php echo $dept['active_schedules']; ?> schedules
@@ -417,8 +561,50 @@ ob_start();
                     </div>
                 <?php endif; ?>
 
+                <!-- Department Performance Card -->
+                <?php if (!empty($departmentPerformance)): ?>
+                    <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-gray-900">Department Performance</h3>
+                            <i class="fas fa-chart-line text-yellow-600"></i>
+                        </div>
+                        <div class="space-y-4">
+                            <?php foreach ($departmentPerformance as $dept): ?>
+                                <?php
+                                $loadPerFaculty = $dept['avg_load_per_faculty'] ?? 0;
+                                $efficiency = $loadPerFaculty >= 3 ? 'High' : ($loadPerFaculty >= 2 ? 'Good' : 'Low');
+                                $efficiencyColor = $loadPerFaculty >= 3 ? 'text-green-600' : ($loadPerFaculty >= 2 ? 'text-blue-600' : 'text-yellow-600');
+                                ?>
+                                <div class="p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <p class="font-bold text-gray-900 text-sm"><?php echo htmlspecialchars($dept['department_name']); ?></p>
+                                        <p class="font-bold text-gray-900 text-sm"><?php echo htmlspecialchars($dept['department_code']); ?></p>
+                                        <span class="px-2 py-1 <?php echo $efficiencyColor; ?> bg-white rounded-lg text-xs font-semibold border">
+                                            <?php echo $efficiency; ?>
+                                        </span>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 text-center">
+                                        <div>
+                                            <div class="text-xl font-bold text-gray-900"><?php echo $dept['faculty_count']; ?></div>
+                                            <div class="text-[10px] text-gray-500">Faculty</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xl font-bold text-gray-900"><?php echo $dept['schedule_count']; ?></div>
+                                            <div class="text-[10px] text-gray-500">Schedules</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xl font-bold text-gray-900"><?php echo number_format($loadPerFaculty, 1); ?></div>
+                                            <div class="text-[10px] text-gray-500">Avg Load</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <!-- Quick Actions -->
-                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.6s">
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.7s">
                     <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                         <i class="fas fa-bolt text-yellow-600"></i>
                         Quick Actions
@@ -438,19 +624,23 @@ ob_start();
                             <i class="fas fa-users mr-2"></i>
                             Manage Faculty
                         </a>
+
+                        <a href="/dean/classrooms" class="action-button w-full bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 px-4 py-3 rounded-xl transition duration-200 flex items-center justify-center font-semibold">
+                            <i class="fas fa-door-open mr-2"></i>
+                            Manage Rooms
+                        </a>
                     </div>
                 </div>
 
                 <!-- Recent Activity -->
-                <div class="glass-card rounded-3xl p-6 animate-slide-in" style="animation-delay: 1.1s">
+                <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.8s">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Recent Activity</h3>
-                        <i class="fas fa-bell text-orange-600 text-xl"></i>
+                        <h3 class="text-lg font-bold text-gray-900">Recent Activity</h3>
+                        <i class="fas fa-bell text-yellow-600"></i>
                     </div>
                     <div class="space-y-3" id="activityFeed">
                         <?php if (!empty($activities)): ?>
                             <?php
-                            // Helper function to get activity icon
                             function getActivityIcon($source)
                             {
                                 $icons = [
@@ -463,7 +653,6 @@ ob_start();
                                 return $icons[$source] ?? 'fa-bolt';
                             }
 
-                            // Helper function to get activity color
                             function getActivityColor($source)
                             {
                                 $colors = [
@@ -476,40 +665,40 @@ ob_start();
                                 return $colors[$source] ?? 'from-orange-500 to-orange-600';
                             }
                             ?>
-                            <?php foreach (array_slice($activities, 0, 8) as $index => $activity): ?>
+                            <?php foreach (array_slice($activities, 0, 6) as $activity): ?>
                                 <?php
                                 $source = $activity['source'] ?? 'activity_log';
                                 $icon = getActivityIcon($source);
                                 $color = getActivityColor($source);
                                 ?>
-                                <div class="dept-card p-4 rounded-xl flex items-start gap-3 hover:shadow-md transition-all">
-                                    <div class="w-10 h-10 bg-gradient-to-br <?php echo $color; ?> rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                                <div class="p-3 bg-gray-50 rounded-xl flex items-start gap-3 hover:shadow-md transition-all border border-gray-100">
+                                    <div class="w-10 h-10 bg-gradient-to-br <?php echo $color; ?> rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
                                         <i class="fas <?php echo $icon; ?> text-white text-sm"></i>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <p class="text-sm text-gray-900 font-semibold line-clamp-2">
+                                        <p class="text-xs text-gray-900 font-semibold line-clamp-2">
                                             <?php echo htmlspecialchars($activity['description'] ?? 'Activity'); ?>
                                         </p>
-                                        <div class="flex items-center gap-3 mt-1">
+                                        <div class="flex items-center gap-2 mt-1">
                                             <?php if (!empty($activity['department_name'])): ?>
-                                                <span class="text-xs text-purple-600 font-medium">
-                                                    <i class="fas fa-building text-xs mr-1"></i>
-                                                    <?php echo htmlspecialchars($activity['department_name']); ?>
+                                                <span class="text-[10px] text-purple-600 font-medium">
+                                                    <i class="fas fa-building text-[8px] mr-1"></i>
+                                                    <?php echo htmlspecialchars(substr($activity['department_name'], 0, 15)); ?>
                                                 </span>
                                             <?php endif; ?>
-                                            <span class="text-xs text-gray-500 flex items-center gap-1">
-                                                <i class="fas fa-clock text-xs"></i>
+                                            <span class="text-[10px] text-gray-500">
+                                                <i class="fas fa-clock text-[8px]"></i>
                                                 <?php
                                                 $timestamp = strtotime($activity['created_at'] ?? 'now');
                                                 $now = time();
                                                 $diff = $now - $timestamp;
 
                                                 if ($diff < 3600) {
-                                                    echo floor($diff / 60) . ' min ago';
+                                                    echo floor($diff / 60) . 'm';
                                                 } elseif ($diff < 86400) {
-                                                    echo floor($diff / 3600) . ' hrs ago';
+                                                    echo floor($diff / 3600) . 'h';
                                                 } else {
-                                                    echo date('M d, h:i A', $timestamp);
+                                                    echo floor($diff / 86400) . 'd';
                                                 }
                                                 ?>
                                             </span>
@@ -517,183 +706,124 @@ ob_start();
                                     </div>
                                 </div>
                             <?php endforeach; ?>
-                            <a href="/dean/activities" class="block text-center text-sm font-semibold text-purple-600 hover:text-purple-700 mt-4 transition-colors">
+                            <a href="/dean/activities" class="block text-center text-sm font-semibold text-yellow-600 hover:text-yellow-700 mt-4 transition-colors">
                                 View All Activity →
                             </a>
                         <?php else: ?>
                             <div class="text-center py-8 text-gray-400">
                                 <i class="fas fa-inbox text-4xl mb-2 opacity-50"></i>
                                 <p class="text-sm font-semibold">No recent activity</p>
-                                <p class="text-xs mt-1">Activities will appear here as they occur</p>
+                                <p class="text-xs mt-1">Activities will appear here</p>
                             </div>
                         <?php endif; ?>
                     </div>
                 </div>
+
+                <!-- Recent Schedule Changes -->
+                <?php if (!empty($recentScheduleChanges)): ?>
+                    <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 0.9s">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-bold text-gray-900">Schedule Changes</h3>
+                            <i class="fas fa-history text-yellow-600"></i>
+                        </div>
+                        <div class="space-y-3">
+                            <?php foreach ($recentScheduleChanges as $change): ?>
+                                <div class="p-3 bg-blue-50 rounded-xl border border-blue-100 hover:shadow-md transition-all">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-calendar-day text-white text-xs"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="font-bold text-gray-900 text-sm">
+                                                <?php echo htmlspecialchars($change['course_code']); ?>
+                                            </p>
+                                            <p class="text-xs text-gray-600 line-clamp-1">
+                                                <?php echo htmlspecialchars($change['faculty_name']); ?>
+                                            </p>
+                                            <div class="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
+                                                <span><i class="fas fa-door-open mr-1"></i><?php echo htmlspecialchars($change['room_name'] ?? 'TBA'); ?></span>
+                                                <span><i class="fas fa-clock mr-1"></i><?php echo date('g:i A', strtotime($change['start_time'])); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Faculty Distribution -->
+                <?php if (!empty($facultyDistribution)): ?>
+                    <div class="glass-card rounded-2xl p-6 fade-in" style="animation-delay: 1.0s">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-bold text-gray-900">Faculty Distribution</h3>
+                            <i class="fas fa-user-tie text-yellow-600"></i>
+                        </div>
+                        <div class="space-y-3">
+                            <?php
+                            $totalFaculty = array_sum(array_column($facultyDistribution, 'count'));
+                            foreach ($facultyDistribution as $type):
+                                $percentage = $totalFaculty > 0 ? round(($type['count'] / $totalFaculty) * 100, 1) : 0;
+                                $colorClass = match (strtolower($type['employment_type'])) {
+                                    'full-time', 'full time', 'permanent' => 'from-green-500 to-green-600',
+                                    'part-time', 'part time' => 'from-blue-500 to-blue-600',
+                                    'contractual', 'contract' => 'from-yellow-500 to-yellow-600',
+                                    default => 'from-gray-500 to-gray-600'
+                                };
+                            ?>
+                                <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-10 h-10 bg-gradient-to-br <?php echo $colorClass; ?> rounded-lg flex items-center justify-center shadow-md">
+                                                <i class="fas fa-user text-white text-sm"></i>
+                                            </div>
+                                            <div>
+                                                <p class="font-bold text-gray-900"><?php echo htmlspecialchars($type['employment_type']); ?></p>
+                                                <p class="text-xs text-gray-500"><?php echo $percentage; ?>% of total</p>
+                                            </div>
+                                        </div>
+                                        <span class="text-2xl font-bold text-gray-900"><?php echo $type['count']; ?></span>
+                                    </div>
+                                    <div class="workload-bar">
+                                        <div class="workload-fill bg-gradient-to-r <?php echo $colorClass; ?>" style="width: <?php echo $percentage; ?>%"></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
     <script>
+        // Add smooth animations on scroll
         document.addEventListener('DOMContentLoaded', function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            }, {
+                threshold: 0.1
+            });
 
-            // Faculty Workload Chart
-            const workloadCtx = document.getElementById('facultyWorkloadChart');
-            if (workloadCtx) {
-                <?php if (!empty($facultyWorkload)): ?>
-                    const facultyNames = <?php echo json_encode(array_map(function ($f) {
-                                                return strlen($f['faculty_name']) > 20 ? substr($f['faculty_name'], 0, 20) . '...' : $f['faculty_name'];
-                                            }, $facultyWorkload)); ?>;
-                    const teachingHours = <?php echo json_encode(array_map(function ($f) {
-                                                return round($f['total_hours'] ?? 0, 1);
-                                            }, $facultyWorkload)); ?>;
+            document.querySelectorAll('.fade-in').forEach((el) => {
+                observer.observe(el);
+            });
 
-                    const workloadColors = teachingHours.map(hours => {
-                        if (hours < 12) return '#10b981';
-                        if (hours <= 24) return '#3b82f6';
-                        return '#ef4444';
-                    });
-
-                    new Chart(workloadCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: facultyNames,
-                            datasets: [{
-                                label: 'Teaching Hours',
-                                data: teachingHours,
-                                backgroundColor: workloadColors,
-                                borderRadius: 8,
-                                barThickness: 24
-                            }]
-                        },
-                        options: {
-                            indexAxis: 'y',
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                },
-                                tooltip: {
-                                    backgroundColor: '#1f2937',
-                                    padding: 12,
-                                    titleColor: '#f3f4f6',
-                                    bodyColor: '#d1d5db',
-                                    borderColor: '#f59e0b',
-                                    borderWidth: 1,
-                                    cornerRadius: 8,
-                                    callbacks: {
-                                        label: function(ctx) {
-                                            const hours = ctx.parsed.x;
-                                            let status = hours < 12 ? 'Light Load' : hours <= 24 ? 'Optimal Load' : 'Heavy Load';
-                                            return [`${hours}h per week`, status];
-                                        }
-                                    }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    beginAtZero: true,
-                                    grid: {
-                                        color: '#f3f4f6',
-                                        drawBorder: false
-                                    },
-                                    ticks: {
-                                        callback: v => v + 'h',
-                                        color: '#6b7280'
-                                    }
-                                },
-                                y: {
-                                    grid: {
-                                        display: false
-                                    },
-                                    ticks: {
-                                        color: '#374151',
-                                        font: {
-                                            size: 11
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                <?php endif; ?>
-            }
-
-            // Classroom Utilization Chart
-            const classroomCtx = document.getElementById('classroomUtilizationChart');
-            if (classroomCtx) {
-                <?php if (!empty($classroomUtilization)): ?>
-                    const roomNames = <?php echo json_encode(array_map(function ($r) {
-                                            return strlen($r['room_name']) > 15 ? substr($r['room_name'], 0, 15) . '...' : $r['room_name'];
-                                        }, $classroomUtilization)); ?>;
-                    const utilRates = <?php echo json_encode(array_column($classroomUtilization, 'utilization_rate')); ?>;
-
-                    const utilColors = utilRates.map(rate => {
-                        if (rate < 30) return '#10b981';
-                        if (rate < 60) return '#f59e0b';
-                        return '#ef4444';
-                    });
-
-                    new Chart(classroomCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: roomNames,
-                            datasets: [{
-                                label: 'Utilization %',
-                                data: utilRates,
-                                backgroundColor: utilColors,
-                                borderRadius: 8,
-                                barThickness: 22
-                            }]
-                        },
-                        options: {
-                            indexAxis: 'y',
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                },
-                                tooltip: {
-                                    backgroundColor: '#1f2937',
-                                    padding: 12,
-                                    borderColor: '#f59e0b',
-                                    borderWidth: 1,
-                                    cornerRadius: 8,
-                                    callbacks: {
-                                        label: ctx => `${ctx.parsed.x}% utilized`
-                                    }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    beginAtZero: true,
-                                    max: 100,
-                                    grid: {
-                                        color: '#f3f4f6',
-                                        drawBorder: false
-                                    },
-                                    ticks: {
-                                        callback: v => v + '%',
-                                        color: '#6b7280'
-                                    }
-                                },
-                                y: {
-                                    grid: {
-                                        display: false
-                                    },
-                                    ticks: {
-                                        color: '#374151',
-                                        font: {
-                                            size: 11
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                <?php endif; ?>
-            }
+            // Animate workload bars on load
+            setTimeout(() => {
+                document.querySelectorAll('.workload-fill').forEach(bar => {
+                    const width = bar.style.width;
+                    bar.style.width = '0';
+                    setTimeout(() => {
+                        bar.style.width = width;
+                    }, 100);
+                });
+            }, 300);
         });
     </script>
 

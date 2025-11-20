@@ -8999,15 +8999,15 @@ class ChairController extends BaseController
             SELECT 
                 u.user_id,
                 u.employee_id,
-                u.title,
+                COALESCE(u.title, '') as title, 
                 u.first_name,
                 u.middle_name,
                 u.last_name,
-                u.suffix,
+                COALESCE(u.suffix, '') as suffix,
                 r.role_name,
-                f.academic_rank,
-                f.employment_type,
-                d.department_name,
+                COALESCE(f.academic_rank, 'N/A') as academic_rank,
+                COALESCE(f.employment_type, 'N/A') as employment_type,
+                COALESCE(d.department_name, 'N/A') as department_name,
                 c.college_name,
                 pc.program_id,
                 p.program_name,
@@ -9049,45 +9049,39 @@ class ChairController extends BaseController
             SELECT 
                 u.user_id,
                 u.employee_id,
-                u.title,
+                COALESCE(u.title, '') as title,
                 u.first_name,
-                u.middle_name,
+                COALESCE(u.middle_name, '') as middle_name,
                 u.last_name,
-                u.suffix,
+                COALESCE(u.suffix, '') as suffix,
                 r.role_name,
-                f.academic_rank,
-                f.employment_type,
-                d.department_name,
-                c.college_name,
-                GROUP_CONCAT(d.department_id SEPARATOR ', ') AS department_ids
+                COALESCE(f.academic_rank, 'N/A') as academic_rank,
+                COALESCE(f.employment_type, 'N/A') as employment_type,
+                COALESCE(d.department_name, 'N/A') as department_name,
+                COALESCE(c.college_name, 'N/A') as college_name,
+                COALESCE(cs.course_name, 'N/A') as specialization,
+                GROUP_CONCAT(COALESCE(d.department_id, 'N/A') SEPARATOR ', ') AS department_ids
             FROM 
                 users u
                 LEFT JOIN roles r ON u.role_id = r.role_id
                 LEFT JOIN faculty f ON u.user_id = f.user_id
                 LEFT JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
                 LEFT JOIN departments d ON fd.department_id = d.department_id
-                LEFT JOIN colleges c ON d.college_id = c.college_id OR u.college_id = c.college_id
+                LEFT JOIN colleges c ON (d.college_id = c.college_id OR u.college_id = c.college_id)
+                LEFT JOIN specializations sp ON f.faculty_id = sp.faculty_id AND sp.is_primary_specialization = 1
+                LEFT JOIN courses cs ON sp.course_id = cs.course_id
             WHERE 
-                u.role_id IN (1, 2, 3, 4, 5, 6) -- Include Program Chairs (5) and Faculty (6)
+                u.role_id IN (1, 2, 3, 4, 5, 6)
                 AND u.user_id NOT IN (
-                    SELECT u.user_id 
-                    FROM users u
-                    LEFT JOIN faculty f ON u.user_id = f.user_id
-                    JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id 
-                    WHERE fd.department_id = :department_id
+                    SELECT u2.user_id 
+                    FROM users u2
+                    LEFT JOIN faculty f2 ON u2.user_id = f2.user_id
+                    LEFT JOIN faculty_departments fd2 ON f2.faculty_id = fd2.faculty_id 
+                    WHERE fd2.department_id = :department_id
                 )
                 AND (u.first_name LIKE :name1 OR u.last_name LIKE :name2 OR CONCAT(u.first_name, ' ', u.last_name) LIKE :name3)
             GROUP BY 
-                u.user_id,
-                u.title,
-                u.employee_id,
-                u.first_name,
-                u.last_name,
-                r.role_name,
-                f.academic_rank,
-                f.employment_type,
-                d.department_name,
-                c.college_name
+                u.user_id
             ORDER BY u.last_name, u.first_name
             LIMIT 10";
             $includableParams = [
@@ -9158,31 +9152,31 @@ class ChairController extends BaseController
             error_log("faculty: No department assigned for chair_id=$chairId");
         }
 
+        // In faculty() function, update the $fetchFaculty query:
         $fetchFaculty = function ($collegeId, $departmentId) {
             $baseUrl = $this->baseUrl;
             $query = "
             SELECT 
                 u.user_id, 
                 u.employee_id,
-                u.title, 
+                COALESCE(u.title, '') as title, 
                 u.first_name,
-                u.middle_name, 
+                COALESCE(u.middle_name, '') as middle_name, 
                 u.last_name,
-                u.suffix, 
-                f.academic_rank, 
-                f.employment_type, 
-                c.course_name AS specialization,
-                COALESCE(u.profile_picture) AS profile_picture,
-                GROUP_CONCAT(d.department_name SEPARATOR ', ') AS department_names, 
-                c2.college_name
+                COALESCE(u.suffix, '') as suffix, 
+                COALESCE(f.academic_rank, 'N/A') as academic_rank, 
+                COALESCE(f.employment_type, 'N/A') as employment_type, 
+                COALESCE(c.course_name, 'N/A') AS specialization,
+                COALESCE(u.profile_picture, '') AS profile_picture,
+                COALESCE(GROUP_CONCAT(DISTINCT d.department_name SEPARATOR ', '), 'N/A') AS department_names, 
+                COALESCE(c2.college_name, 'N/A') as college_name
             FROM 
                 faculty f 
                 JOIN users u ON f.user_id = u.user_id 
                 JOIN faculty_departments fd ON f.faculty_id = fd.faculty_id
                 JOIN departments d ON fd.department_id = d.department_id
-                JOIN colleges c2 ON d.college_id = c2.college_id
-                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id 
-                AND s.is_primary_specialization = 1
+                LEFT JOIN colleges c2 ON d.college_id = c2.college_id
+                LEFT JOIN specializations s ON f.faculty_id = s.faculty_id AND s.is_primary_specialization = 1
                 LEFT JOIN courses c ON s.course_id = c.course_id
             WHERE 
                 fd.department_id = :department_id
@@ -9194,7 +9188,7 @@ class ChairController extends BaseController
             $stmt->execute([':department_id' => $departmentId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($results as &$result) {
-                if ($result['profile_picture'] && $result['profile_picture']) {
+                if ($result['profile_picture']) {
                     $result['profile_picture'] = $baseUrl . $result['profile_picture'];
                 }
             }
