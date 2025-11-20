@@ -349,12 +349,7 @@ ob_start();
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                     <h2 class="text-xl font-semibold text-gray-900">Faculty Teaching Load Details</h2>
                     <div class="mt-2 md:mt-0 flex space-x-2">
-                        <button onclick="exportToExcel()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                            <i class="fas fa-file-excel mr-2"></i>Export Excel
-                        </button>
-                        <button onclick="window.print()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                            <i class="fas fa-print mr-2"></i>Print
-                        </button>
+                       
                     </div>
                 </div>
 
@@ -370,7 +365,7 @@ ob_start();
                             <?php foreach ($departments ?? [] as $dept): ?>
                                 <option value="<?php echo $dept['department_id']; ?>"
                                     <?php echo ($selectedDepartment ?? 'all') == $dept['department_id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($dept['department_name']); ?>
+                                    <?php echo htmlspecialchars($dept['department_name']) . ' (' . htmlspecialchars($dept['department_code']) . ')'; ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -440,8 +435,9 @@ ob_start();
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap">
+                                    <td class="px-4 py-3 whitespace-nowrap text-center hidden md:table-cell">
                                         <div class="text-sm text-gray-900"><?php echo htmlspecialchars($faculty['department_name']); ?></div>
+                                        <div class="text-sm text-gray-900"><?php echo htmlspecialchars($faculty['department_code']); ?></div>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center hidden md:table-cell">
                                         <div class="text-sm text-gray-900"><?php echo htmlspecialchars($faculty['academic_rank']); ?></div>

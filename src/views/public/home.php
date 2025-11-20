@@ -496,7 +496,7 @@ function getSettingsImagePath($path)
                 </a>
 
                 <div class="border-t pt-4 mt-6">
-                    <a href="/auth/login" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition mb-2">
+                    <a href="/login" class="flex items-center p-3 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-lg transition mb-2">
                         <i class="fas fa-sign-in-alt mr-3"></i>
                         <span>Login</span>
                     </a>
@@ -574,7 +574,7 @@ function getSettingsImagePath($path)
 
                 <!-- Desktop Navigation -->
                 <nav class="desktop-nav flex space-x-3">
-                    <a href="/auth/login" class="bg-white hover:bg-gray-50 text-yellow-700 py-2 px-4 sm:px-5 rounded-lg flex items-center transition-all shadow-md hover:shadow-lg nav-link text-sm sm:text-base">
+                    <a href="/login" class="bg-white hover:bg-gray-50 text-yellow-700 py-2 px-4 sm:px-5 rounded-lg flex items-center transition-all shadow-md hover:shadow-lg nav-link text-sm sm:text-base">
                         <i class="fas fa-sign-in-alt mr-2"></i>
                         <span>Login</span>
                     </a>
@@ -619,7 +619,7 @@ function getSettingsImagePath($path)
                         <select id="department" name="department_id" class="form-input pl-10 py-3">
                             <option value="">All Departments</option>
                             <?php foreach ($departments as $department): ?>
-                                <option value="<?= $department['department_id'] ?>"><?= $department['department_name'] ?></option>
+                                <option value="<?= $department['department_id'] ?>"><?= $department['department_name'] ?> (<?= $department['department_code'] ?>)</option>
                             <?php endforeach; ?>
                         </select>
                         <div class="form-input-icon">

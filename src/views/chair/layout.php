@@ -1115,7 +1115,7 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
                                         SELECT COUNT(*) FROM sections 
                                         WHERE department_id = :dept_id 
                                         AND semester_id = :sem_id 
-                                        AND is_active = 1
+                                        
                                     ");
                                     $stmt->execute([
                                         ':dept_id' => $userDepartmentId,

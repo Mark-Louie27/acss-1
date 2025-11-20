@@ -243,7 +243,7 @@ ob_start();
                         <optgroup label="<?php echo $collegeName; ?>">
                             <?php foreach ($collegeDepts as $dept): ?>
                                 <option value="<?php echo $dept['department_id']; ?>">
-                                    <?php echo htmlspecialchars($dept['department_name']); ?>
+                                    <?php echo htmlspecialchars($dept['department_name']) . (isset($dept['department_code']) && !empty($dept['department_code']) ? ' (' . htmlspecialchars($dept['department_code']) . ')' : ''); ?>
                                 </option>
                             <?php endforeach; ?>
                         </optgroup>

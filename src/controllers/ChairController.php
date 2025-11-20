@@ -7354,6 +7354,14 @@ class ChairController extends BaseController
 
             // Get active semester (current or selected)
             $currentSemester = $this->getActiveSemester();
+            // ✅ FIX: If no semester in session or semester doesn't exist, force to current
+            if (!$currentSemester) {
+                error_log("sections: No valid semester found, forcing to current");
+                unset($_SESSION['selected_semester_id']);
+                unset($_SESSION['selected_semester']);
+                unset($_SESSION['is_historical_view']);
+                $currentSemester = $this->getCurrentSemester();
+            }
             $isHistoricalView = !$currentSemester['is_current'];
 
             if (!$currentSemester) {
@@ -7371,9 +7379,6 @@ class ChairController extends BaseController
                 require_once __DIR__ . '/../views/chair/sections.php';
                 return;
             }
-
-            // Auto-transition sections from previous semesters to inactive
-            $this->autoTransitionSections($departmentId, $currentSemester);
 
             // Handle POST requests for add/remove/edit/reuse
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -7395,24 +7400,22 @@ class ChairController extends BaseController
                 unset($_SESSION['success'], $_SESSION['error'], $_SESSION['info']);
             }
 
-            // Fetch sections for SELECTED semester
             $query = "
-        SELECT s.*, p.program_name
-        FROM sections s
-        JOIN programs p ON s.department_id = p.department_id
-        WHERE s.department_id = :department_id
-        AND s.is_active = 1
-        AND s.semester_id = :semester_id
-        ORDER BY
-            CASE s.year_level
-                WHEN '1st Year' THEN 1
-                WHEN '2nd Year' THEN 2
-                WHEN '3rd Year' THEN 3
-                WHEN '4th Year' THEN 4
-                ELSE 5
-            END,
-            s.section_name
-    ";
+    SELECT s.*, p.program_name
+    FROM sections s
+    JOIN programs p ON s.department_id = p.department_id
+    WHERE s.department_id = :department_id
+    AND s.semester_id = :semester_id  -- Rely only on semester_id
+    ORDER BY
+        CASE s.year_level
+            WHEN '1st Year' THEN 1
+            WHEN '2nd Year' THEN 2
+            WHEN '3rd Year' THEN 3
+            WHEN '4th Year' THEN 4
+            ELSE 5
+        END,
+        s.section_name
+";
 
             $stmt = $this->db->prepare($query);
             $stmt->execute([
@@ -7420,6 +7423,18 @@ class ChairController extends BaseController
                 ':semester_id' => $currentSemester['semester_id']
             ]);
             $currentSemesterSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // ✅ FIX: Add detailed logging
+            error_log("sections: Query executed - department_id=$departmentId, semester_id={$currentSemester['semester_id']}");
+            error_log("sections: Found " . count($currentSemesterSections) . " sections");
+
+            if (empty($currentSemesterSections)) {
+                error_log("sections: WARNING - No sections found for this semester. Checking if sections exist at all...");
+                $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM sections WHERE department_id = :department_id AND is_active = 1");
+                $checkStmt->execute([':department_id' => $departmentId]);
+                $totalSections = $checkStmt->fetchColumn();
+                error_log("sections: Total active sections in department: $totalSections");
+            }
 
             // Group sections...
             $groupedCurrentSections = [
@@ -7459,7 +7474,7 @@ class ChairController extends BaseController
                 ELSE 5
             END,
             s.section_name
-    ";
+        ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
                 ':department_id' => $departmentId,

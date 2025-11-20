@@ -84,7 +84,7 @@ ob_start();
             <select id="department-filter" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 flex-1 md:max-w-xs">
                 <option value="">All Departments</option>
                 <?php foreach ($departments as $dept): ?>
-                    <option value="<?= $dept['department_id'] ?>"><?= htmlspecialchars($dept['department_name']) ?></option>
+                    <option value="<?= $dept['department_id'] ?>"><?php echo htmlspecialchars($dept['department_name']) . ' (' . htmlspecialchars($dept['department_code']) . ')'; ?></option>
                 <?php endforeach; ?>
             </select>
             <input type="text" id="search-schedule" placeholder="Search by course code, section, or room..." class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 flex-1">

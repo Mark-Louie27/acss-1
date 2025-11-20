@@ -1097,7 +1097,7 @@ class DeanController extends BaseController
 
             // Get all departments for the filter dropdown
             $departmentsStmt = $this->db->prepare("
-            SELECT department_id, department_name 
+            SELECT department_id, department_name, department_code 
             FROM departments 
             WHERE college_id = ? 
             ORDER BY department_name
@@ -1123,6 +1123,7 @@ class DeanController extends BaseController
                     COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
                     COALESCE(u.suffix, '')) AS faculty_name,
                 d.department_name,
+                d.department_code,
                 d.department_id,
                 COUNT(DISTINCT s.schedule_id) as total_schedules,
                 COUNT(DISTINCT s.course_id) as total_courses,
@@ -1197,6 +1198,7 @@ class DeanController extends BaseController
                     'faculty_id' => $faculty['faculty_id'],
                     'faculty_name' => trim($faculty['faculty_name']),
                     'department_name' => $faculty['department_name'],
+                    'department_code' => $faculty['department_code'],
                     'department_id' => $faculty['department_id'],
                     'academic_rank' => $faculty['academic_rank'] ?? 'Not Specified',
                     'employment_type' => $faculty['employment_type'] ?? 'Regular',
@@ -1808,7 +1810,7 @@ class DeanController extends BaseController
 
         // Fetch departments with college name
         $stmt = $this->db->prepare("
-        SELECT d.department_id, d.department_name
+        SELECT d.department_id, d.department_name, d.department_code
         FROM departments d
         JOIN colleges c ON d.college_id = c.college_id
         WHERE d.college_id = :college_id

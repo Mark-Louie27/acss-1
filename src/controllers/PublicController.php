@@ -51,7 +51,7 @@ class PublicController
 
     private function fetchDepartments()
     {
-        $query = "SELECT department_id, department_name, college_id FROM departments WHERE college_id IS NOT NULL ORDER BY department_name";
+        $query = "SELECT department_id, department_name, department_code, college_id FROM departments WHERE college_id IS NOT NULL ORDER BY department_name";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -85,7 +85,7 @@ class PublicController
             }
 
             $stmt = $this->db->prepare("
-                SELECT department_id, department_name 
+                SELECT department_id, department_name, department_code 
                 FROM departments 
                 WHERE college_id = :college_id 
                 ORDER BY department_name

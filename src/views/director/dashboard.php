@@ -160,8 +160,8 @@ ob_start();
                                 <i class="fas fa-user-shield text-2xl"></i>
                             </div>
                             <div>
-                                <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Director Dashboard</h1>
-                                <p class="text-white/80 text-sm mt-1">PRMSU Scheduling System</p>
+                                <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Director Instructions Dashboard</h1>
+                                <p class="text-white/80 text-sm mt-1">Automated Classroom Scheduling System</p>
                             </div>
                         </div>
                         <h3 class="text-xl font-semibold mb-2">Welcome back! 👋</h3>

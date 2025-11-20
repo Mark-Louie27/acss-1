@@ -1,5 +1,9 @@
 <?php
 
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../src/services/BackupSchedulerService.php';
 
@@ -9,13 +13,28 @@ require_once __DIR__ . '/../src/middleware/AuthMiddleware.php';
 // Load environment
 Dotenv\Dotenv::createImmutable(__DIR__ . '/../')->load();
 
-// Initialize secure session
-session_start([
-    'cookie_lifetime' => 86400,
-    'cookie_secure' => isset($_SERVER['HTTPS']),
-    'cookie_httponly' => true,
-    'use_strict_mode' => true
-]);
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0, // Session cookie (until browser closes)
+        'path' => '/',
+        'domain' => $_SERVER['HTTP_HOST'] ?? 'localhost',
+        'secure' => isset($_SERVER['HTTPS']),
+        'httponly' => true,
+        'samesite' => 'Lax' // Allows cross-tab navigation
+    ]);
+
+    session_name('APP_SESSION_' . md5(__DIR__)); // Unique session name per installation
+    session_start();
+
+    // Regenerate session ID periodically to prevent fixation
+    if (!isset($_SESSION['created'])) {
+        session_regenerate_id(true);
+        $_SESSION['created'] = time();
+    } elseif (time() - $_SESSION['created'] > 1800) { // 30 minutes
+        session_regenerate_id(true);
+        $_SESSION['created'] = time();
+    }
+}
 
 $backupScheduler = new \App\Services\BackupSchedulerService();
 $backupScheduler->checkAndRunBackup();

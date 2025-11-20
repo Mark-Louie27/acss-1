@@ -558,7 +558,7 @@ class DirectorController
 
             // Fetch all departments with college name
             $stmt = $this->db->prepare("
-                SELECT d.department_id, d.department_name, c.college_id, c.college_name
+                SELECT d.department_id, d.department_name, d.department_code, c.college_id, c.college_name
                 FROM departments d
                 JOIN colleges c ON d.college_id = c.college_id
                 ORDER BY c.college_name, d.department_name
@@ -570,7 +570,7 @@ class DirectorController
             $stmt = $this->db->prepare("
                 SELECT 
                     GROUP_CONCAT(DISTINCT s.schedule_id) as schedule_ids,
-                    s.department_id, d.department_name, c.college_name,
+                    s.department_id, d.department_name, d.department_code, c.college_name,
                     s.start_time, s.end_time, co.course_code, cl.room_name,
                     sec.section_name, s.schedule_type, s.status,
                     CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.middle_name, ' ', u.last_name) AS faculty_name, 
@@ -671,8 +671,9 @@ class DirectorController
             $collegesStmt = $this->db->query("SELECT college_id, college_name FROM colleges ORDER BY college_name");
             $colleges = $collegesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Get all departments for the filter dropdown
-            $departmentsStmt = $this->db->query("SELECT department_id, department_name, college_id FROM departments ORDER BY department_name");
+            // Get all departments for the filter dropdown (ensure department_code is not null)
+            // Use COALESCE to return an empty string when department_code is NULL (you can change '' to 'N/A' if preferred)
+            $departmentsStmt = $this->db->query("SELECT department_id, department_name, COALESCE(department_code, '') AS department_code, college_id FROM departments ORDER BY department_name");
             $departments = $departmentsStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Get ALL faculty across ALL colleges with their schedules
@@ -693,6 +694,7 @@ class DirectorController
                     COALESCE(u.middle_name, ''), ' ', u.last_name, ' ', 
                     COALESCE(u.suffix, '')) AS faculty_name,
                 d.department_name,
+                d.department_code,
                 d.department_id,
                 c.college_name,
                 c.college_id,
@@ -771,6 +773,7 @@ class DirectorController
                     'faculty_id' => $faculty['faculty_id'],
                     'faculty_name' => trim($faculty['faculty_name']),
                     'department_name' => $faculty['department_name'],
+                    'department_code' => $faculty['department_code'],
                     'department_id' => $faculty['department_id'],
                     'college_name' => $faculty['college_name'],
                     'college_id' => $faculty['college_id'],
@@ -941,6 +944,7 @@ class DirectorController
             SELECT f.faculty_id, 
                    CONCAT(COALESCE(u.title, ''), ' ', u.first_name, ' ', u.last_name) AS faculty_name,
                    d.department_name,
+                   d.department_code,
                    c.college_name,
                    f.employment_type,
                    f.academic_rank
