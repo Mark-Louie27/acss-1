@@ -169,3 +169,61 @@
 [2025-11-03 23:41:23] Cleaning up old backups...
 [2025-11-03 23:41:23] No old backups to clean up
 [2025-11-03 23:41:23] ✓ SUCCESS: Database backup created successfully: backup_acss1_2025-11-03_23-41-22.sql.zip (32.41 KB)
+[2025-11-20 23:23:36] ========================================
+[2025-11-20 23:23:36] Starting automated database backup...
+[2025-11-20 23:23:36] ========================================
+[2025-11-20 23:23:36] Database: acss1
+[2025-11-20 23:23:36] Tables to backup: 46
+[2025-11-20 23:23:36] Backing up table 1/46: academic_calendar
+[2025-11-20 23:23:36] Backing up table 2/46: activity_logs
+[2025-11-20 23:23:36] Backing up table 3/46: admission_departments
+[2025-11-20 23:23:36] Backing up table 4/46: admission_roles
+[2025-11-20 23:23:36] Backing up table 5/46: admissions
+[2025-11-20 23:23:36] Backing up table 6/46: auth_logs
+[2025-11-20 23:23:36] Backing up table 7/46: chair_departments
+[2025-11-20 23:23:36] Backing up table 8/46: classroom_departments
+[2025-11-20 23:23:36] Backing up table 9/46: classrooms
+[2025-11-20 23:23:36] Backing up table 10/46: colleges
+[2025-11-20 23:23:36] Backing up table 11/46: course_offerings
+[2025-11-20 23:23:36] Backing up table 12/46: courses
+[2025-11-20 23:23:36] Backing up table 13/46: curricula
+[2025-11-20 23:23:36] Backing up table 14/46: curriculum_approvals
+[2025-11-20 23:23:36] Backing up table 15/46: curriculum_courses
+[2025-11-20 23:23:36] Backing up table 16/46: curriculum_group_courses
+[2025-11-20 23:23:36] Backing up table 17/46: curriculum_programs
+[2025-11-20 23:23:36] Backing up table 18/46: curriculum_versions
+[2025-11-20 23:23:36] Backing up table 19/46: deans
+[2025-11-20 23:23:36] Backing up table 20/46: department_instructors
+[2025-11-20 23:23:36] Backing up table 21/46: departments
+[2025-11-20 23:23:36] Backing up table 22/46: faculty
+[2025-11-20 23:23:36] Backing up table 23/46: faculty_departments
+[2025-11-20 23:23:36] Backing up table 24/46: faculty_requests
+[2025-11-20 23:23:36] Backing up table 25/46: prerequisite_chains
+[2025-11-20 23:23:36] Backing up table 26/46: program_chairs
+[2025-11-20 23:23:36] Backing up table 27/46: program_requirements
+[2025-11-20 23:23:36] Backing up table 28/46: programs
+[2025-11-20 23:23:36] Backing up table 29/46: reports
+[2025-11-20 23:23:36] Backing up table 30/46: roles
+[2025-11-20 23:23:36] Backing up table 31/46: room_reservations
+[2025-11-20 23:23:36] Backing up table 32/46: schedule_deadlines
+[2025-11-20 23:23:36] Backing up table 33/46: schedule_requests
+[2025-11-20 23:23:36] Backing up table 34/46: schedules
+[2025-11-20 23:23:36] Backing up table 35/46: section_courses
+[2025-11-20 23:23:36] Backing up table 36/46: sections
+[2025-11-20 23:23:36] Backing up table 37/46: semesters
+[2025-11-20 23:23:36] Backing up table 38/46: specializations
+[2025-11-20 23:23:36] Backing up table 39/46: subject_groups
+[2025-11-20 23:23:36] Backing up table 40/46: system_settings
+[2025-11-20 23:23:36] Backing up table 41/46: teaching_loads
+[2025-11-20 23:23:36] Backing up table 42/46: user_metadata
+[2025-11-20 23:23:36] Backing up table 43/46: user_roles
+[2025-11-20 23:23:36] Backing up table 44/46: users
+[2025-11-20 23:23:37] Backing up table 45/46: vpaa
+[2025-11-20 23:23:37] Backing up table 46/46: vw_subject_types
+[2025-11-20 23:23:37] Writing backup file...
+[2025-11-20 23:23:37] Backup file created: 338.98 KB
+[2025-11-20 23:23:37] Compressing backup...
+[2025-11-20 23:23:37] Backup compressed: 41.12 KB
+[2025-11-20 23:23:37] Cleaning up old backups...
+[2025-11-20 23:23:37] No old backups to clean up
+[2025-11-20 23:23:37] ✓ SUCCESS: Database backup created successfully: backup_acss1_2025-11-20_23-23-36.sql.zip (41.12 KB)

@@ -548,15 +548,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                                 <input type="password" id="password" name="password" required
                                     minlength="6"
                                     class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-md shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                                    placeholder="Enter your password (minimum 6 characters)">
+                                    placeholder="Enter your password (minimum 6 characters)"
+                                    oninput="validatePasswordLength(); validatePasswords();">
 
-                                <!-- Add after password input -->
-                                <p class="mt-1 text-xs text-gray-500">
-                                    Password must be at least 6 characters long
-                                </p>
+                                <!-- Password length error message -->
+                                <div id="password-length-error" class="hidden mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                    <div class="flex items-center">
+                                        <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                        </svg>
+                                        <span class="text-red-700 text-sm">Password must be at least 6 characters long</span>
+                                    </div>
+                                </div>
+
+                                <!-- Password strength indicator -->
+                                <div id="password-strength" class="mt-2">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="flex-1 bg-gray-200 rounded-full h-2">
+                                            <div id="password-strength-bar" class="h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                        </div>
+                                        <span id="password-strength-text" class="text-xs text-gray-500">Weak</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-
 
                         <!-- Confirm Password -->
                         <div class="input-group">
@@ -971,9 +986,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
             <?php endif; ?>
         });
 
-        // Step navigation
+        // Add this function to validate password length
+        function validatePasswordLength() {
+            const password = document.getElementById('password');
+            const passwordError = document.getElementById('password-length-error');
+
+            if (password.value.length > 0 && password.value.length < 6) {
+                password.classList.add('border-red-500', 'bg-red-50');
+                if (passwordError) {
+                    passwordError.classList.remove('hidden');
+                }
+                return false;
+            } else {
+                password.classList.remove('border-red-500', 'bg-red-50');
+                if (passwordError) {
+                    passwordError.classList.add('hidden');
+                }
+                return true;
+            }
+        }
+
+        // Enhanced step validation for Step 2
+        function validateStep2() {
+            let isValid = true;
+
+            // Validate required fields
+            const requiredInputs = document.querySelectorAll('.form-step[data-step="2"] [required]');
+            requiredInputs.forEach(input => {
+                if (!input.value.trim()) {
+                    input.classList.add('border-red-500');
+                    isValid = false;
+                } else {
+                    input.classList.remove('border-red-500');
+                }
+            });
+
+            // Validate password length
+            const password = document.getElementById('password');
+            if (password.value && password.value.length < 6) {
+                password.classList.add('border-red-500', 'bg-red-50');
+                document.getElementById('password-length-error').classList.remove('hidden');
+                isValid = false;
+            }
+
+            // Validate password match
+            const confirmPassword = document.getElementById('confirm_password');
+            if (password.value !== confirmPassword.value) {
+                document.getElementById('password-error').classList.remove('hidden');
+                password.classList.add('border-red-500', 'bg-red-50');
+                confirmPassword.classList.add('border-red-500', 'bg-red-50');
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Update the nextStep function to use specific validation for step 2
         function nextStep() {
-            if (validateStep(currentStep)) {
+            let isValid = true;
+
+            if (currentStep === 2) {
+                isValid = validateStep2();
+            } else {
+                isValid = validateStep(currentStep);
+            }
+
+            if (isValid) {
                 document.querySelector(`.form-step[data-step="${currentStep}"]`).classList.remove('active');
                 document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('completed');
                 document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('active');
@@ -988,6 +1066,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                     top: 0,
                     behavior: 'smooth'
                 });
+            } else {
+                // Show specific error message for step 2
+                if (currentStep === 2) {
+                    alert('Please fix the password issues:\n- Password must be at least 6 characters\n- Passwords must match');
+                } else {
+                    alert('Please fill in all required fields.');
+                }
             }
         }
 
@@ -1055,6 +1140,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 
             return isValid;
         }
+
+        // Password strength indicator
+        function updatePasswordStrength() {
+            const password = document.getElementById('password').value;
+            const strengthBar = document.getElementById('password-strength-bar');
+            const strengthText = document.getElementById('password-strength-text');
+
+            let strength = 0;
+            let color = 'bg-red-500';
+            let text = 'Weak';
+
+            if (password.length >= 6) {
+                strength = 50;
+                color = 'bg-yellow-500';
+                text = 'Fair';
+            }
+
+            if (password.length >= 8) {
+                strength = 75;
+                color = 'bg-green-500';
+                text = 'Good';
+            }
+
+            if (password.length >= 10 && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password)) {
+                strength = 100;
+                color = 'bg-green-600';
+                text = 'Strong';
+            }
+
+            strengthBar.style.width = strength + '%';
+            strengthBar.className = `h-2 rounded-full transition-all duration-300 ${color}`;
+            strengthText.textContent = text;
+            strengthText.className = `text-xs ${color.replace('bg-', 'text-')}`;
+        }
+
+        // Update the password input to include strength checking
+        document.getElementById('password').addEventListener('input', function() {
+            validatePasswordLength();
+            validatePasswords();
+            updatePasswordStrength();
+        });
 
         function validatePasswords() {
             const password = document.getElementById('password');
@@ -1311,8 +1437,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 
         // Form submission validation
         $('#registration-form').on('submit', function(e) {
-            if (!validateStep(3)) {
+            // Validate all steps first
+            if (!validateStep(1) || !validateStep2() || !validateStep(3)) {
                 e.preventDefault();
+                alert('Please fix all validation errors before submitting.');
+                return false;
+            }
+
+            // Specific password validation
+            const password = document.getElementById('password').value;
+            if (password.length < 6) {
+                e.preventDefault();
+                document.getElementById('password-length-error').classList.remove('hidden');
+                document.getElementById('password').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                alert('Password must be at least 6 characters long.');
                 return false;
             }
 

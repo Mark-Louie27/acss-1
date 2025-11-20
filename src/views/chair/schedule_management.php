@@ -1125,7 +1125,7 @@ if ($userDepartmentId) {
         </div>
 
         <!-- Regenerate Confirmation Modal -->
-        <div id="regenerate-confirmation-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div id="regenerate-confirmation-modal" class="fixed inset-0 bg-black/70 opacity-30 backdrop-blur-sm hidden items-center justify-center z-50">
             <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 transform transition-all">
                 <div class="flex items-center justify-between mb-6">
                     <div class="flex items-center">

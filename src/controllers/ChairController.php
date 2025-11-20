@@ -1315,7 +1315,6 @@ class ChairController extends BaseController
             FROM sections s
             WHERE s.department_id = :department_id 
             AND s.semester_id = :semester_id
-            AND s.is_active = 1
             ORDER BY FIELD(s.year_level, '1st Year', '2nd Year', '3rd Year', '4th Year'), s.section_name
         ");
             $stmt->execute([
@@ -1591,7 +1590,7 @@ class ChairController extends BaseController
             $departmentId = $this->currentDepartmentId ?: $this->getChairDepartment($chairId);
             $semesterId = $this->getCurrentSemester()['semester_id'];
 
-            // Use your existing conflict check with all parameters
+            // ✅ FIXED: Use correct parameter order
             $conflicts = $this->checkScheduleConflicts(
                 $schedule['section_id'],
                 $schedule['faculty_id'],
@@ -1599,8 +1598,8 @@ class ChairController extends BaseController
                 $dayOfWeek,
                 $startTime,
                 $endTime,
-                $scheduleId, // exclude current schedule
-                $semesterId
+                $semesterId,    // ✅ Correct position
+                $scheduleId     // ✅ Correct position - exclude current schedule
             );
 
             if (!empty($conflicts)) {
@@ -1648,6 +1647,7 @@ class ChairController extends BaseController
         }
         exit;
     }
+
 
     public function checkDragConflicts()
     {
@@ -1846,7 +1846,6 @@ class ChairController extends BaseController
         return $stmt->fetch(PDO::FETCH_ASSOC) !== false;
     }
 
-    // Enhanced conflict detection with day pattern support
     private function checkScheduleConflicts($sectionId, $facultyId, $roomId, $dayOfWeek, $startTime, $endTime, $semesterId, $excludeScheduleId = null)
     {
         $conflicts = [];
@@ -1859,21 +1858,45 @@ class ChairController extends BaseController
         }
 
         foreach ($daysToCheck as $day) {
-            // Check section conflicts
-            $sectionConflicts = $this->checkEntityConflicts('section_id', $sectionId, $day, $startTime, $endTime, $semesterId, $excludeScheduleId);
+            // Check section conflicts - FIXED: Correct parameter order
+            $sectionConflicts = $this->checkEntityConflicts(
+                'section_id',
+                $sectionId,
+                $day,
+                $startTime,
+                $endTime,
+                $semesterId,        // ✅ semesterId before excludeScheduleId
+                $excludeScheduleId  // ✅ excludeScheduleId last
+            );
             if (!empty($sectionConflicts)) {
                 $conflicts = array_merge($conflicts, $sectionConflicts);
             }
 
-            // Check faculty conflicts
-            $facultyConflicts = $this->checkEntityConflicts('faculty_id', $facultyId, $day, $startTime, $endTime, $semesterId, $excludeScheduleId);
+            // Check faculty conflicts - FIXED: Correct parameter order
+            $facultyConflicts = $this->checkEntityConflicts(
+                'faculty_id',
+                $facultyId,
+                $day,
+                $startTime,
+                $endTime,
+                $semesterId,        // ✅ semesterId before excludeScheduleId
+                $excludeScheduleId  // ✅ excludeScheduleId last
+            );
             if (!empty($facultyConflicts)) {
                 $conflicts = array_merge($conflicts, $facultyConflicts);
             }
 
             // Check room conflicts (only if room is specified and not online)
             if ($roomId) {
-                $roomConflicts = $this->checkEntityConflicts('room_id', $roomId, $day, $startTime, $endTime, $semesterId, $excludeScheduleId);
+                $roomConflicts = $this->checkEntityConflicts(
+                    'room_id',
+                    $roomId,
+                    $day,
+                    $startTime,
+                    $endTime,
+                    $semesterId,        // ✅ semesterId before excludeScheduleId
+                    $excludeScheduleId  // ✅ excludeScheduleId last
+                );
                 if (!empty($roomConflicts)) {
                     $conflicts = array_merge($conflicts, $roomConflicts);
                 }
@@ -1883,9 +1906,15 @@ class ChairController extends BaseController
         return array_unique($conflicts);
     }
 
-    private function checkEntityConflicts($entityField, $entityId, $dayOfWeek, $startTime, $endTime, $excludeScheduleId, $semesterId)
+    private function checkEntityConflicts($entityField, $entityId, $dayOfWeek, $startTime, $endTime, $semesterId, $excludeScheduleId = null)
     {
         $conflicts = [];
+
+        // ✅ Skip check if entityId is null (e.g., room not assigned)
+        if ($entityId === null || $entityId === '') {
+            error_log("checkEntityConflicts: Skipping check for $entityField - entity ID is null");
+            return $conflicts;
+        }
 
         $sql = "
         SELECT 
@@ -1909,7 +1938,7 @@ class ChairController extends BaseController
         AND (
             (s.start_time < :end_time AND s.end_time > :start_time)
         )
-        ";
+    ";
 
         $params = [
             ':entity_id' => $entityId,
@@ -1919,22 +1948,41 @@ class ChairController extends BaseController
             ':end_time' => $endTime
         ];
 
-        if ($excludeScheduleId) {
+        // ✅ CRITICAL: Always exclude the current schedule when editing
+        if ($excludeScheduleId !== null && $excludeScheduleId !== '' && $excludeScheduleId > 0) {
             $sql .= " AND s.schedule_id != :exclude_schedule_id";
             $params[':exclude_schedule_id'] = $excludeScheduleId;
+            error_log("checkEntityConflicts: Excluding schedule_id: $excludeScheduleId from conflict check");
+        } else {
+            error_log("checkEntityConflicts: WARNING - No schedule excluded (this is OK for new schedules)");
         }
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        $existingSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $existingSchedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($existingSchedules as $schedule) {
-            $entityType = $this->getEntityType($entityField);
-            $conflicts[] = "{$entityType} conflict: {$schedule['course_code']} with {$schedule['section_name']} at {$schedule['start_time']}-{$schedule['end_time']}";
+            error_log("checkEntityConflicts: Found " . count($existingSchedules) . " potential conflicts for $entityField=$entityId on $dayOfWeek $startTime-$endTime (excluding schedule #$excludeScheduleId)");
+
+            foreach ($existingSchedules as $schedule) {
+                $entityType = $this->getEntityType($entityField);
+                $conflictMsg = "{$entityType} conflict: {$schedule['course_code']} ({$schedule['section_name']}) with {$schedule['faculty_name']} on {$schedule['day_of_week']} at {$schedule['start_time']}-{$schedule['end_time']} [Schedule ID: {$schedule['schedule_id']}]";
+                error_log("checkEntityConflicts: CONFLICT DETECTED - $conflictMsg");
+                $conflicts[] = $conflictMsg;
+            }
+
+            if (empty($conflicts)) {
+                error_log("checkEntityConflicts: ✅ No conflicts found for $entityField");
+            }
+        } catch (PDOException $e) {
+            error_log("checkEntityConflicts ERROR: " . $e->getMessage());
+            error_log("checkEntityConflicts SQL: $sql");
+            error_log("checkEntityConflicts Params: " . json_encode($params));
         }
 
         return $conflicts;
     }
+
 
     private function getEntityType($entityField)
     {
@@ -2051,8 +2099,8 @@ class ChairController extends BaseController
                     $day,
                     $data['start_time'],
                     $data['end_time'],
-                    null, // No schedule_id for new schedule
-                    $currentSemester['semester_id']
+                    $currentSemester['semester_id'],  // ✅ Correct position
+                    null                               // ✅ No schedule to exclude (new schedule)
                 );
 
                 if (!empty($conflicts)) {
@@ -2113,13 +2161,27 @@ class ChairController extends BaseController
         try {
             $scheduleId = $data['schedule_id'] ?? null;
 
-            if (!$scheduleId) {
-                echo json_encode(['success' => false, 'message' => 'Missing schedule ID']);
+            // ✅ CRITICAL: Validate schedule_id properly
+            if (!$scheduleId || $scheduleId === 'null' || $scheduleId === 'undefined') {
+                error_log("handleUpdateSchedule: Invalid schedule_id: " . var_export($scheduleId, true));
+                echo json_encode(['success' => false, 'message' => 'Missing or invalid schedule ID']);
                 return;
             }
 
+            // Convert to integer
+            $scheduleId = (int)$scheduleId;
+
+            if ($scheduleId <= 0) {
+                error_log("handleUpdateSchedule: schedule_id must be positive, got: $scheduleId");
+                echo json_encode(['success' => false, 'message' => 'Invalid schedule ID']);
+                return;
+            }
+
+            error_log("handleUpdateSchedule: Starting update for schedule_id=$scheduleId");
+
             // Verify schedule belongs to department
             if (!$this->verifyScheduleOwnership($scheduleId, $departmentId)) {
+                error_log("handleUpdateSchedule: Schedule $scheduleId not found or access denied for department $departmentId");
                 echo json_encode(['success' => false, 'message' => 'Schedule not found or access denied']);
                 return;
             }
@@ -2151,6 +2213,7 @@ class ChairController extends BaseController
             }
 
             if (!$courseId) {
+                error_log("handleUpdateSchedule: Course not found: " . $data['course_code']);
                 echo json_encode(['success' => false, 'message' => 'Invalid course code: ' . $data['course_code']]);
                 return;
             }
@@ -2166,6 +2229,7 @@ class ChairController extends BaseController
             }
 
             if (!$facultyId) {
+                error_log("handleUpdateSchedule: Faculty not found: " . $data['faculty_name']);
                 echo json_encode(['success' => false, 'message' => 'Invalid faculty name: ' . $data['faculty_name']]);
                 return;
             }
@@ -2181,6 +2245,7 @@ class ChairController extends BaseController
             }
 
             if (!$sectionId) {
+                error_log("handleUpdateSchedule: Section not found: " . $data['section_name']);
                 echo json_encode(['success' => false, 'message' => 'Invalid section name: ' . $data['section_name']]);
                 return;
             }
@@ -2197,7 +2262,9 @@ class ChairController extends BaseController
                 }
             }
 
-            // Check for conflicts (excluding current schedule)
+            error_log("handleUpdateSchedule: Checking conflicts for schedule_id=$scheduleId, section=$sectionId, faculty=$facultyId, room=$roomId, day={$data['day_of_week']}, time={$data['start_time']}-{$data['end_time']}, semester={$currentSemester['semester_id']}");
+
+            // ✅ FIXED: Check for conflicts with CORRECT parameter order and proper schedule exclusion
             $conflicts = $this->checkScheduleConflicts(
                 $sectionId,
                 $facultyId,
@@ -2205,18 +2272,29 @@ class ChairController extends BaseController
                 $data['day_of_week'],
                 $data['start_time'],
                 $data['end_time'],
-                $scheduleId, // Exclude current schedule
-                $currentSemester['semester_id']
+                $currentSemester['semester_id'],  // ✅ semesterId in correct position
+                $scheduleId                        // ✅ excludeScheduleId in correct position - MUST exclude itself!
             );
 
             if (!empty($conflicts)) {
+                error_log("handleUpdateSchedule: Conflicts found: " . json_encode($conflicts));
                 echo json_encode([
                     'success' => false,
                     'message' => 'Schedule conflicts detected',
-                    'conflicts' => $conflicts
+                    'conflicts' => $conflicts,
+                    'debug' => [
+                        'schedule_id' => $scheduleId,
+                        'section_id' => $sectionId,
+                        'faculty_id' => $facultyId,
+                        'room_id' => $roomId,
+                        'day_of_week' => $data['day_of_week'],
+                        'time_slot' => $data['start_time'] . '-' . $data['end_time']
+                    ]
                 ]);
                 return;
             }
+
+            error_log("handleUpdateSchedule: No conflicts found, proceeding with update");
 
             // Update the schedule
             $stmt = $this->db->prepare("
@@ -2231,11 +2309,11 @@ class ChairController extends BaseController
                 schedule_type = :schedule_type,
                 updated_at = NOW()
             WHERE schedule_id = :schedule_id
-        ");
+            ");
 
             $scheduleType = $data['schedule_type'] ?? 'f2f';
 
-            $stmt->execute([
+            $success = $stmt->execute([
                 ':course_id' => $courseId,
                 ':section_id' => $sectionId,
                 ':faculty_id' => $facultyId,
@@ -2247,8 +2325,20 @@ class ChairController extends BaseController
                 ':schedule_id' => $scheduleId
             ]);
 
+            if (!$success) {
+                error_log("handleUpdateSchedule: Database update failed: " . json_encode($stmt->errorInfo()));
+                echo json_encode(['success' => false, 'message' => 'Failed to update schedule in database']);
+                return;
+            }
+
+            error_log("handleUpdateSchedule: Schedule updated successfully");
+
             // Get the updated schedule with full details
             $updatedSchedule = $this->getScheduleById($scheduleId);
+
+            if (!$updatedSchedule) {
+                error_log("handleUpdateSchedule: WARNING - Could not fetch updated schedule");
+            }
 
             echo json_encode([
                 'success' => true,
@@ -2256,7 +2346,8 @@ class ChairController extends BaseController
                 'schedule' => $updatedSchedule
             ]);
         } catch (Exception $e) {
-            error_log("handleUpdateSchedule error: " . $e->getMessage());
+            error_log("handleUpdateSchedule ERROR: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             echo json_encode(['success' => false, 'message' => 'Error updating schedule: ' . $e->getMessage()]);
         }
     }
@@ -2591,6 +2682,14 @@ class ChairController extends BaseController
 
         $this->db->beginTransaction();
         try {
+            error_log("generateSchedules: Clearing existing schedules for Department $departmentId, Semester {$currentSemester['semester_id']}...");
+            $deletedCount = $this->deleteExistingSchedulesForRegeneration(
+                $departmentId,
+                $currentSemester['semester_id'],
+                $yearLevels
+            );
+            error_log("✅ Cleared $deletedCount existing schedules - starting fresh generation");
+
             $courses = $this->getCurriculumCourses($curriculumId);
             error_log("generateSchedules: Fetched " . count($courses) . " courses for curriculum $curriculumId");
 
@@ -3080,6 +3179,33 @@ class ChairController extends BaseController
             $this->db->rollBack();
             error_log("generateSchedules: Transaction rolled back due to error: " . $e->getMessage());
             return [];
+        }
+    }
+
+    private function deleteExistingSchedulesForRegeneration($departmentId, $semesterId, $yearLevels)
+    {
+        try {
+            // Build year level filter
+            $yearLevelPlaceholders = implode(',', array_fill(0, count($yearLevels), '?'));
+
+            // Delete schedules ONLY for this department, semester, and year levels
+            $sql = "DELETE s FROM schedules s
+                INNER JOIN sections sec ON s.section_id = sec.section_id
+                WHERE sec.department_id = ? 
+                AND s.semester_id = ?
+                AND sec.year_level IN ($yearLevelPlaceholders)";
+
+            $params = array_merge([$departmentId, $semesterId], $yearLevels);
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
+            $deletedCount = $stmt->rowCount();
+            error_log("✅ Deleted $deletedCount existing schedules for Department $departmentId, Semester $semesterId, Year Levels: " . implode(', ', $yearLevels));
+
+            return $deletedCount;
+        } catch (Exception $e) {
+            error_log("deleteExistingSchedulesForRegeneration: Error - " . $e->getMessage());
+            throw $e; // Re-throw to trigger rollback
         }
     }
 
@@ -7618,7 +7744,7 @@ class ChairController extends BaseController
                     WHERE department_id = :department_id
                     AND section_name = :section_name
                     AND academic_year = :academic_year
-                    AND is_active = 1
+                   
                     ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
@@ -7639,10 +7765,10 @@ class ChairController extends BaseController
             $query = "
                     INSERT INTO sections (
                     department_id, section_name, year_level, max_students, current_students,
-                    semester_id, semester, academic_year, is_active, created_at
+                    semester_id, semester, academic_year, created_at
                     ) VALUES (
                     :department_id, :section_name, :year_level, :max_students, :current_students,
-                    :semester_id, :semester, :academic_year, 1, NOW()
+                    :semester_id, :semester, :academic_year, NOW()
                     )
                     ";
             $stmt = $this->db->prepare($query);
@@ -7949,7 +8075,7 @@ class ChairController extends BaseController
         WHERE department_id = :department_id
         AND section_name = :section_name
         AND academic_year = :academic_year
-        AND is_active = 1
+       
         ";
             $stmt = $this->db->prepare($query);
             $stmt->execute([
@@ -7972,10 +8098,10 @@ class ChairController extends BaseController
             $query = "
         INSERT INTO sections (
         department_id, section_name, year_level, max_students,
-        semester_id, semester, academic_year, is_active, created_at
+        semester_id, semester, academic_year,  created_at
         ) VALUES (
         :department_id, :section_name, :year_level, :max_students,
-        :semester_id, :semester, :academic_year, 1, NOW()
+        :semester_id, :semester, :academic_year, NOW()
         )
         ";
             $stmt = $this->db->prepare($query);
@@ -8110,7 +8236,7 @@ class ChairController extends BaseController
                 WHERE department_id = :department_id
                 AND section_name = :section_name
                 AND academic_year = :academic_year
-                AND is_active = 1
+                
             ";
                 $stmt = $this->db->prepare($query);
                 $stmt->execute([
@@ -8128,10 +8254,10 @@ class ChairController extends BaseController
                 $query = "
                 INSERT INTO sections (
                     department_id, section_name, year_level, max_students, current_students,
-                    semester_id, semester, academic_year, is_active, created_at
+                    semester_id, semester, academic_year,  created_at
                 ) VALUES (
                     :department_id, :section_name, :year_level, :max_students, 0,
-                    :semester_id, :semester, :academic_year, 1, NOW()
+                    :semester_id, :semester, :academic_year,  NOW()
                 )
             ";
                 $stmt = $this->db->prepare($query);

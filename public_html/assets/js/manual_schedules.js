@@ -422,14 +422,23 @@ function openAddModal() {
   resetConflictField("course-name");
 
   document.getElementById("modal-title").textContent = "Add Schedule";
+
+  // ✅ CRITICAL: Clear the schedule ID and editing flag
   document.getElementById("schedule-id").value = "";
+  currentEditingId = null;
+  window.currentEditingId = null;
+
+  console.log(
+    "✅ Opening ADD modal - currentEditingId reset to:",
+    currentEditingId
+  );
+
   document.getElementById("modal-day").value = "Monday";
   document.getElementById("day-select").value = "Monday";
   document.getElementById("start-time").value = "07:30";
   document.getElementById("end-time").value = "08:30";
   document.getElementById("room-name").value = "Online";
   document.getElementById("schedule-type").value = "f2f";
-
   // Populate faculty dropdown
   const facultySelect = document.getElementById("faculty-name");
   if (facultySelect) {
@@ -445,8 +454,23 @@ function openAddModal() {
   }
 
   resetSectionFilter();
-  currentEditingId = null;
   showModal();
+}
+
+function closeModal() {
+  const modal = document.getElementById("schedule-modal");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+  const form = document.getElementById("schedule-form");
+  if (form) form.reset();
+
+  // ✅ CRITICAL: Reset editing ID when closing
+  currentEditingId = null;
+  window.currentEditingId = null;
+
+  console.log("✅ Modal closed - currentEditingId reset to:", currentEditingId);
 }
 
 function openAddModalForSlot(day, startTime, endTime) {
@@ -460,7 +484,7 @@ function openAddModalForSlot(day, startTime, endTime) {
 }
 
 function editSchedule(scheduleId) {
-  const schedule = window.scheduleData.find(s => s.schedule_id == scheduleId);
+  const schedule = window.scheduleData.find((s) => s.schedule_id == scheduleId);
   if (!schedule) {
     showNotification("Schedule not found", "error");
     return;
@@ -477,7 +501,20 @@ function editSchedule(scheduleId) {
   buildCurrentSemesterCourseMappings();
 
   document.getElementById("modal-title").textContent = "Edit Schedule";
-  document.getElementById("schedule-id").value = schedule.schedule_id;
+
+  // ✅ CRITICAL FIX: Set BOTH the hidden field AND the variable
+  document.getElementById("schedule-id").value = scheduleId; // ✅ Set hidden field
+  currentEditingId = scheduleId; // ✅ Set the variable
+
+  // Also set as window variable for safety
+  window.currentEditingId = scheduleId;
+
+  console.log("✅ Set currentEditingId:", currentEditingId);
+  console.log(
+    "✅ Hidden field value:",
+    document.getElementById("schedule-id").value
+  );
+
   document.getElementById("course-code").value = schedule.course_code || "";
   document.getElementById("course-name").value = schedule.course_name || "";
 
@@ -489,7 +526,7 @@ function editSchedule(scheduleId) {
   if (facultySelect) {
     if (facultySelect.options.length <= 1 && window.faculty) {
       facultySelect.innerHTML = '<option value="">Select Faculty</option>';
-      window.faculty.forEach(fac => {
+      window.faculty.forEach((fac) => {
         const option = document.createElement("option");
         option.value = fac.name;
         option.textContent = fac.name;
@@ -511,18 +548,28 @@ function editSchedule(scheduleId) {
   document.getElementById("modal-day").value = day;
   document.getElementById("day-select").value = day;
 
-  const startTime = schedule.start_time ? schedule.start_time.substring(0, 5) : "07:30";
-  const endTime = schedule.end_time ? schedule.end_time.substring(0, 5) : "08:30";
+  const startTime = schedule.start_time
+    ? schedule.start_time.substring(0, 5)
+    : "07:30";
+  const endTime = schedule.end_time
+    ? schedule.end_time.substring(0, 5)
+    : "08:30";
 
   document.getElementById("start-time").value = startTime;
   updateEndTimeOptions();
   document.getElementById("end-time").value = endTime;
   updateTimeFields();
 
-  document.getElementById("schedule-type").value = schedule.schedule_type || "f2f";
+  document.getElementById("schedule-type").value =
+    schedule.schedule_type || "f2f";
 
-  window.currentEditingId = scheduleId;
   showModal();
+
+  console.log("Editing schedule:", {
+    scheduleId: scheduleId,
+    currentEditingId: currentEditingId,
+    hiddenFieldValue: document.getElementById("schedule-id").value,
+  });
 }
 
 function showModal() {
@@ -531,17 +578,6 @@ function showModal() {
     modal.classList.remove("hidden");
     modal.classList.add("flex");
   }
-}
-
-function closeModal() {
-  const modal = document.getElementById("schedule-modal");
-  if (modal) {
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
-  }
-  const form = document.getElementById("schedule-form");
-  if (form) form.reset();
-  currentEditingId = null;
 }
 
 function handleScheduleSubmit(e) {
@@ -555,9 +591,26 @@ function handleScheduleSubmit(e) {
   }
 
   const formData = new FormData(document.getElementById("schedule-form"));
+
+  // ✅ CRITICAL FIX: Get schedule_id from BOTH sources
+  const scheduleIdFromForm = formData.get("schedule_id");
+  const scheduleIdFromVariable = currentEditingId || window.currentEditingId;
+
+  // Use whichever one has a value
+  const finalScheduleId = scheduleIdFromForm || scheduleIdFromVariable;
+
+  console.log("🔍 Schedule Submit Debug:", {
+    scheduleIdFromForm: scheduleIdFromForm,
+    scheduleIdFromVariable: scheduleIdFromVariable,
+    currentEditingId: currentEditingId,
+    windowCurrentEditingId: window.currentEditingId,
+    finalScheduleId: finalScheduleId,
+    isEditing: !!finalScheduleId,
+  });
+
   const data = {
-    action: currentEditingId ? "update_schedule" : "add_schedule",
-    schedule_id: formData.get("schedule_id"),
+    action: finalScheduleId ? "update_schedule" : "add_schedule", // ✅ Use finalScheduleId
+    schedule_id: finalScheduleId, // ✅ Use the final determined ID
     course_code: formData.get("course_code").trim(),
     course_name: formData.get("course_name").trim(),
     section_name: formData.get("section_name").trim(),
@@ -570,9 +623,12 @@ function handleScheduleSubmit(e) {
     semester_id: currentSemesterId,
   };
 
+  console.log("📤 Sending to server:", data);
+
   const submitButton = e.target.querySelector('button[type="submit"]');
   const originalText = submitButton.innerHTML;
-  submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
+  submitButton.innerHTML =
+    '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
   submitButton.disabled = true;
 
   fetch("/chair/generate-schedules", {
@@ -580,32 +636,66 @@ function handleScheduleSubmit(e) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(data),
   })
-    .then(response => response.json())
-    .then(result => {
+    .then((response) => response.json())
+    .then((result) => {
+      console.log("📥 Server response:", result);
+
       if (result.success) {
         closeModal();
         resetConflictStyles();
-        
+
         if (result.schedules && result.schedules.length > 0) {
-          result.schedules.forEach(schedule => {
-            if (currentEditingId) {
-              const index = window.scheduleData.findIndex(s => s.schedule_id == currentEditingId);
-              if (index !== -1) window.scheduleData[index] = { ...window.scheduleData[index], ...schedule };
+          result.schedules.forEach((schedule) => {
+            if (finalScheduleId) {
+              // Update existing schedule
+              const index = window.scheduleData.findIndex(
+                (s) => s.schedule_id == finalScheduleId
+              );
+              if (index !== -1)
+                window.scheduleData[index] = {
+                  ...window.scheduleData[index],
+                  ...schedule,
+                };
             } else {
-              window.scheduleData.push({ ...schedule, semester_id: currentSemesterId });
+              // Add new schedule
+              window.scheduleData.push({
+                ...schedule,
+                semester_id: currentSemesterId,
+              });
             }
           });
+        } else if (result.schedule && finalScheduleId) {
+          // Single schedule update
+          const index = window.scheduleData.findIndex(
+            (s) => s.schedule_id == finalScheduleId
+          );
+          if (index !== -1) {
+            window.scheduleData[index] = {
+              ...window.scheduleData[index],
+              ...result.schedule,
+            };
+          }
         }
 
-        showNotification(result.message || "Schedule saved successfully!", "success");
+        showNotification(
+          result.message || "Schedule saved successfully!",
+          "success"
+        );
         safeUpdateScheduleDisplay(window.scheduleData);
         initializeDragAndDrop();
         buildCurrentSemesterCourseMappings();
+
+        // ✅ Reset the editing ID
+        currentEditingId = null;
+        window.currentEditingId = null;
       } else {
         showNotification(result.message || "Failed to save schedule.", "error");
+        if (result.conflicts) {
+          console.error("Conflicts:", result.conflicts);
+        }
       }
     })
-    .catch(error => {
+    .catch((error) => {
       console.error("Error saving schedule:", error);
       showNotification("Error saving schedule: " + error.message, "error");
     })
