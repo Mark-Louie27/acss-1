@@ -821,7 +821,12 @@ function generateDynamicTimeSlotsFromSchedules(schedules) {
   return slots;
 }
 
-function createScheduleCardSpanning(schedule, rowSpan, isManual) {
+function createScheduleCardSpanning(
+  schedule,
+  rowSpan,
+  isManual,
+  isStartCell = true
+) {
   const colors = [
     "bg-blue-100 border-blue-300 text-blue-800",
     "bg-green-100 border-green-300 text-green-800",
@@ -834,24 +839,19 @@ function createScheduleCardSpanning(schedule, rowSpan, isManual) {
 
   const colorIndex = schedule.schedule_id
     ? schedule.schedule_id % colors.length
-    : 0;
+    : Math.floor(Math.random() * colors.length);
   const colorClass = colors[colorIndex];
 
   const card = document.createElement("div");
-  card.className = `schedule-card ${colorClass} p-3 rounded-lg border-l-4 ${
-    isManual ? "draggable cursor-move" : ""
-  } text-xs shadow-sm`;
 
-  // Calculate exact height based on row span
-  // Each slot is 60px, multiply by rowSpan, then subtract small amount for proper fit
-  const calculatedHeight = rowSpan * 60 - 6;
+  // Calculate proper height based on row span (80px per slot)
+  const cardHeight = rowSpan * 80;
 
-  card.style.height = `${calculatedHeight}px`;
-  card.style.minHeight = `${calculatedHeight}px`;
-  card.style.display = "flex";
-  card.style.flexDirection = "column";
-  card.style.justifyContent = "space-between";
-  card.style.overflow = "hidden";
+  card.className = `schedule-card ${colorClass} ${
+    isManual ? "draggable" : ""
+  } fade-in`;
+  card.style.minHeight = `${cardHeight}px`;
+  card.style.height = `${cardHeight}px`;
 
   if (isManual) {
     card.draggable = true;
@@ -861,60 +861,87 @@ function createScheduleCardSpanning(schedule, rowSpan, isManual) {
     card.dataset.roomName = schedule.room_name || "Online";
   }
 
+  // Only show full content for start cells
+  if (!isStartCell) {
+    card.style.opacity = "0.6";
+    card.innerHTML = `
+      <div style="text-align: center; padding: 20px; color: inherit; opacity: 0.6;">
+        <i class="fas fa-ellipsis-h" style="font-size: 18px;"></i>
+      </div>
+    `;
+    return card;
+  }
+
   const startTime = schedule.start_time
     ? formatTime(schedule.start_time.substring(0, 5))
     : "";
   const endTime = schedule.end_time
     ? formatTime(schedule.end_time.substring(0, 5))
     : "";
+  const duration = calculateDurationDisplay(
+    schedule.start_time,
+    schedule.end_time
+  );
 
   card.innerHTML = `
-    <div>
+    ${
+      isManual
+        ? `
+      <div class="schedule-card-actions">
+        <button onclick="editSchedule('${schedule.schedule_id || ""}')" 
+                class="text-yellow-600 hover:text-yellow-700" 
+                title="Edit Schedule">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button onclick="openDeleteSingleModal(
+          '${schedule.schedule_id || ""}', 
+          '${escapeHtml(schedule.course_code) || ""}', 
+          '${escapeHtml(schedule.section_name) || ""}', 
+          '${escapeHtml(schedule.day_of_week) || ""}', 
+          '${startTime}', 
+          '${endTime}'
+        )" class="text-red-600 hover:text-red-700" title="Delete Schedule">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    `
+        : ""
+    }
+    
+    <div class="schedule-card-header">
+      <div class="schedule-card-code">${
+        escapeHtml(schedule.course_code) || ""
+      }</div>
       ${
-        isManual
-          ? `
-        <div class="flex justify-between items-start mb-2">
-          <div class="font-bold truncate flex-1 text-sm">
-            ${escapeHtml(schedule.course_code) || ""}
-          </div>
-          <div class="flex space-x-1 flex-shrink-0 ml-2 no-print">
-            <button onclick="editSchedule('${schedule.schedule_id || ""}')" 
-                    class="text-yellow-600 hover:text-yellow-700 transition-colors">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button onclick="openDeleteSingleModal('${
-              schedule.schedule_id || ""
-            }', '${escapeHtml(schedule.course_code) || ""}', '${
-              escapeHtml(schedule.section_name) || ""
-            }', '${
-              escapeHtml(schedule.day_of_week) || ""
-            }', '${startTime}', '${endTime}')" 
-                    class="text-red-600 hover:text-red-700 transition-colors">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        </div>
-      `
-          : `
-        <div class="font-bold text-sm truncate">
-          ${escapeHtml(schedule.course_code) || ""}
-        </div>
-      `
+        schedule.course_name
+          ? `<div class="schedule-card-name">${escapeHtml(
+              schedule.course_name
+            )}</div>`
+          : ""
       }
-      <div class="space-y-1">
-        <div class="text-xs opacity-90 truncate">
-          ${escapeHtml(schedule.section_name) || ""}
-        </div>
-        <div class="text-xs opacity-75 truncate">
-          ${escapeHtml(schedule.faculty_name) || ""}
-        </div>
-        <div class="text-xs opacity-75 truncate">
-          ${escapeHtml(schedule.room_name) || "Online"}
-        </div>
+    </div>
+    
+    <div class="schedule-card-body">
+      <div class="schedule-card-info">
+        <i class="fas fa-users"></i>
+        <span>${escapeHtml(schedule.section_name) || "No Section"}</span>
+      </div>
+      <div class="schedule-card-info">
+        <i class="fas fa-chalkboard-teacher"></i>
+        <span>${escapeHtml(schedule.faculty_name) || "No Faculty"}</span>
+      </div>
+      <div class="schedule-card-info">
+        <i class="fas fa-door-open"></i>
+        <span>${escapeHtml(schedule.room_name) || "Online"}</span>
       </div>
     </div>
-    <div class="text-xs font-semibold border-t border-current border-opacity-20 pt-1 mt-1">
-      ${startTime} - ${endTime}
+    
+    <div class="schedule-card-time">
+      <div>
+        <i class="fas fa-clock"></i>
+        ${startTime} - ${endTime}
+      </div>
+      ${duration ? `<div class="schedule-card-duration">${duration}</div>` : ""}
     </div>
   `;
 
@@ -926,11 +953,8 @@ function createScheduleCardSpanning(schedule, rowSpan, isManual) {
   return card;
 }
 
-// ============================================
-// KEEP THE IMPROVED MANUAL GRID (NO CHANGES)
-// ============================================
 function updateManualGrid(schedules) {
-  console.log("🔨 updateManualGrid - Schedules:", schedules.length);
+  console.log("🔨 Updating manual grid with", schedules.length, "schedules");
 
   const manualGrid = document.getElementById("schedule-grid");
   if (!manualGrid) {
@@ -941,16 +965,27 @@ function updateManualGrid(schedules) {
   manualGrid.innerHTML = "";
 
   const timeSlots = generateDynamicTimeSlotsFromSchedules(schedules);
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
 
+  // Build schedule lookup by day and start time
   const scheduleLookup = {};
-  schedules.forEach(schedule => {
+  schedules.forEach((schedule) => {
     const day = schedule.day_of_week;
-    const start = schedule.start_time ? schedule.start_time.substring(0, 5) : "";
-    
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
+
     if (!scheduleLookup[day]) scheduleLookup[day] = {};
     if (!scheduleLookup[day][start]) scheduleLookup[day][start] = [];
-    
+
     scheduleLookup[day][start].push(schedule);
   });
 
@@ -960,15 +995,14 @@ function updateManualGrid(schedules) {
     const [slotStart, slotEnd] = timeSlot;
 
     const row = document.createElement("div");
-    row.className = "grid grid-cols-8 border-b border-gray-100";
-    row.style.minHeight = "60px";
+    row.className = "fade-in";
 
-    // Check if ANY schedule starts at this time slot
+    // Check if any schedule starts at this time
     let hasScheduleStarting = false;
     let sampleSchedule = null;
-    
-    days.forEach(day => {
-      if (scheduleLookup[day] && scheduleLookup[day][slotStart] && scheduleLookup[day][slotStart].length > 0) {
+
+    days.forEach((day) => {
+      if (scheduleLookup[day]?.[slotStart]?.length > 0) {
         hasScheduleStarting = true;
         if (!sampleSchedule) {
           sampleSchedule = scheduleLookup[day][slotStart][0];
@@ -978,50 +1012,58 @@ function updateManualGrid(schedules) {
 
     // TIME CELL
     const timeCell = document.createElement("div");
-    timeCell.className = "border-r border-gray-200 sticky left-0 z-10 flex items-center justify-center";
-    timeCell.style.minHeight = "60px";
-    
+    timeCell.className =
+      "border-r border-gray-200 sticky left-0 z-10 flex items-center justify-center";
+
     if (hasScheduleStarting && sampleSchedule) {
       const schedEnd = sampleSchedule.end_time.substring(0, 5);
       timeCell.className += " bg-blue-50 border-l-4 border-blue-500";
       timeCell.innerHTML = `
-        <div class="px-2 py-1 text-center">
-          <div class="text-sm font-bold text-blue-900">${formatTime(slotStart)}</div>
+        <div class="px-3 py-2 text-center">
+          <div class="text-sm font-bold text-blue-900">${formatTime(
+            slotStart
+          )}</div>
           <div class="text-[9px] text-blue-600 font-medium">to</div>
-          <div class="text-sm font-bold text-blue-900">${formatTime(schedEnd)}</div>
+          <div class="text-sm font-bold text-blue-900">${formatTime(
+            schedEnd
+          )}</div>
         </div>
       `;
     } else {
       timeCell.className += " bg-gray-50";
-      timeCell.innerHTML = `<span class="text-[10px] text-gray-300">${formatTime(slotStart)}</span>`;
+      timeCell.innerHTML = `
+        <span class="text-xs text-gray-400">${formatTime(slotStart)}</span>
+      `;
     }
-    
+
     row.appendChild(timeCell);
 
     // DAY CELLS
     days.forEach((day) => {
       const cellKey = `${day}-${timeIndex}`;
 
+      // Skip if this cell is already occupied by a multi-row schedule
       if (occupiedCells.has(cellKey)) {
         return;
       }
 
       const cell = document.createElement("div");
-      cell.className = "border-r border-gray-200 last:border-r-0 relative drop-zone";
-      cell.style.minHeight = "60px";
+      cell.className =
+        "border-r border-gray-200 last:border-r-0 relative drop-zone";
       cell.dataset.day = day;
       cell.dataset.startTime = slotStart;
       cell.dataset.endTime = slotEnd;
 
       const schedulesStartingHere = [];
 
-      if (scheduleLookup[day] && scheduleLookup[day][slotStart]) {
-        scheduleLookup[day][slotStart].forEach(schedule => {
+      // Find schedules that START at this time slot
+      if (scheduleLookup[day]?.[slotStart]) {
+        scheduleLookup[day][slotStart].forEach((schedule) => {
           const schedStart = schedule.start_time.substring(0, 5);
           const schedEnd = schedule.end_time.substring(0, 5);
-
           const rowSpan = calculateScheduleRowSpan(schedStart, schedEnd);
 
+          // Mark all cells this schedule will occupy
           for (let i = 0; i < rowSpan; i++) {
             const occupyKey = `${day}-${timeIndex + i}`;
             occupiedCells.add(occupyKey);
@@ -1034,19 +1076,23 @@ function updateManualGrid(schedules) {
         });
       }
 
+      // Render the cell
       if (schedulesStartingHere.length === 0) {
-        cell.className += " p-1";
+        // Empty cell - show add button
         const addButton = document.createElement("button");
-        addButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
-        addButton.className = "w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center";
-        addButton.style.minHeight = "54px";
+        addButton.innerHTML = '<i class="fas fa-plus"></i>';
+        addButton.className = "w-full h-full";
         addButton.onclick = () => openAddModalForSlot(day, slotStart, slotEnd);
         cell.appendChild(addButton);
       } else {
-        cell.className += " p-1";
-        
+        // Cell has schedules - render them
         schedulesStartingHere.forEach(({ schedule, rowSpan }) => {
-          const scheduleCard = createScheduleCardSpanning(schedule, rowSpan, true);
+          const scheduleCard = createScheduleCardSpanning(
+            schedule,
+            rowSpan,
+            true,
+            true
+          );
           cell.appendChild(scheduleCard);
         });
       }
@@ -1057,13 +1103,10 @@ function updateManualGrid(schedules) {
     manualGrid.appendChild(row);
   });
 
-  console.log("✅ Manual grid updated with", timeSlots.length, "time slots");
+  console.log("✅ Manual grid updated successfully");
   setTimeout(() => initializeDragAndDrop(), 100);
 }
 
-// ============================================
-// KEEP THE IMPROVED VIEW GRID (NO CHANGES)
-// ============================================
 function updateViewGrid(schedules) {
   const viewGrid = document.getElementById("timetableGrid");
   if (!viewGrid) return;
@@ -1071,18 +1114,28 @@ function updateViewGrid(schedules) {
   viewGrid.innerHTML = "";
 
   const timeSlots = generateDynamicTimeSlotsFromSchedules(schedules);
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
 
   const occupiedCells = new Set();
   const scheduleLookup = {};
-  
-  schedules.forEach(schedule => {
+
+  schedules.forEach((schedule) => {
     const day = schedule.day_of_week;
-    const start = schedule.start_time ? schedule.start_time.substring(0, 5) : "";
-    
+    const start = schedule.start_time
+      ? schedule.start_time.substring(0, 5)
+      : "";
+
     if (!scheduleLookup[day]) scheduleLookup[day] = {};
     if (!scheduleLookup[day][start]) scheduleLookup[day][start] = [];
-    
+
     scheduleLookup[day][start].push(schedule);
   });
 
@@ -1093,9 +1146,9 @@ function updateViewGrid(schedules) {
 
     let hasScheduleStarting = false;
     let sampleSchedule = null;
-    
-    days.forEach(day => {
-      if (scheduleLookup[day] && scheduleLookup[day][time[0]] && scheduleLookup[day][time[0]].length > 0) {
+
+    days.forEach((day) => {
+      if (scheduleLookup[day]?.[time[0]]?.length > 0) {
         hasScheduleStarting = true;
         if (!sampleSchedule) {
           sampleSchedule = scheduleLookup[day][time[0]][0];
@@ -1104,26 +1157,33 @@ function updateViewGrid(schedules) {
     });
 
     const timeCell = document.createElement("div");
-    timeCell.className = "border-r border-gray-200 flex items-center justify-center";
+    timeCell.className =
+      "border-r border-gray-200 flex items-center justify-center";
     timeCell.style.minHeight = "60px";
-    
+
     if (hasScheduleStarting && sampleSchedule) {
       const schedEnd = sampleSchedule.end_time.substring(0, 5);
       timeCell.className += " bg-blue-50 border-l-4 border-blue-500";
       timeCell.innerHTML = `
         <div class="px-2 py-1 text-center">
-          <div class="text-sm font-bold text-blue-900">${formatTime(time[0])}</div>
+          <div class="text-sm font-bold text-blue-900">${formatTime(
+            time[0]
+          )}</div>
           <div class="text-[9px] text-blue-600 font-medium">to</div>
-          <div class="text-sm font-bold text-blue-900">${formatTime(schedEnd)}</div>
+          <div class="text-sm font-bold text-blue-900">${formatTime(
+            schedEnd
+          )}</div>
         </div>
       `;
     } else {
       timeCell.className += " bg-gray-50";
-      timeCell.innerHTML = `<span class="text-[10px] text-gray-300">${formatTime(time[0])}</span>`;
+      timeCell.innerHTML = `<span class="text-[10px] text-gray-300">${formatTime(
+        time[0]
+      )}</span>`;
     }
     row.appendChild(timeCell);
 
-    days.forEach(day => {
+    days.forEach((day) => {
       const cellKey = `${day}-${timeIndex}`;
 
       if (occupiedCells.has(cellKey)) {
@@ -1131,16 +1191,17 @@ function updateViewGrid(schedules) {
       }
 
       const cell = document.createElement("div");
-      cell.className = "border-r border-gray-200 last:border-r-0 relative schedule-cell p-1";
+      cell.className =
+        "border-r border-gray-200 last:border-r-0 relative schedule-cell p-1";
       cell.style.minHeight = "60px";
       cell.dataset.day = day;
       cell.dataset.startTime = time[0];
       cell.dataset.endTime = time[1];
 
-      const daySchedules = scheduleLookup[day] && scheduleLookup[day][time[0]] ? scheduleLookup[day][time[0]] : [];
+      const daySchedules = scheduleLookup[day]?.[time[0]] || [];
 
       if (daySchedules.length > 0) {
-        daySchedules.forEach(schedule => {
+        daySchedules.forEach((schedule) => {
           const start = schedule.start_time.substring(0, 5);
           const end = schedule.end_time.substring(0, 5);
           const rowSpan = calculateScheduleRowSpan(start, end);
@@ -1150,7 +1211,12 @@ function updateViewGrid(schedules) {
             occupiedCells.add(occupyKey);
           }
 
-          const scheduleItem = createScheduleCardSpanning(schedule, rowSpan, false);
+          const scheduleItem = createScheduleCardSpanning(
+            schedule,
+            rowSpan,
+            false,
+            true
+          );
           cell.appendChild(scheduleItem);
         });
       }
@@ -1304,9 +1370,9 @@ function calculateDurationDisplay(startTime, endTime) {
   const hours = Math.floor(durationMin / 60);
   const minutes = durationMin % 60;
 
-  if (hours === 0) return `${minutes} mins`;
-  if (minutes === 0) return `${hours} hr${hours > 1 ? "s" : ""}`;
-  return `${hours} hr${hours > 1 ? "s" : ""} ${minutes} mins`;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
 }
 
 function calculateScheduleRowSpan(scheduleStart, scheduleEnd) {
@@ -1323,10 +1389,6 @@ function calculateScheduleRowSpan(scheduleStart, scheduleEnd) {
 
   // Each row represents 30 minutes
   const rowSpan = Math.ceil(durationMin / 30);
-
-  console.log(
-    `Schedule ${scheduleStart}-${scheduleEnd}: ${durationMin} mins = ${rowSpan} rows`
-  );
 
   return Math.max(1, rowSpan);
 }

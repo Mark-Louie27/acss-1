@@ -1038,38 +1038,42 @@ function getSettingsImagePath($path)
 
             if (schedules.length === 0) {
                 tbody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">
-                            No schedules found.
-                        </td>
-                    </tr>
-                `;
+            <tr>
+                <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                    No schedules found.
+                </td>
+            </tr>
+        `;
                 return;
             }
 
             schedules.forEach(schedule => {
+                // Format time display
+                const startTime = schedule.start_time || '07:30:00';
+                const endTime = schedule.end_time || '08:30:00';
+
                 const row = `
-                    <tr class="hover:bg-yellow-50 transition-colors schedule-card">
-                        <td class="px-4 py-3">
-                            <div class="font-medium text-gold-primary">${schedule.course_code}</div>
-                            <div class="text-sm text-gray-500">${schedule.course_name}</div>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-500">
-                            ${schedule.section_name}
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-500">
-                            <span class="px-2 py-1 rounded-full bg-gold-light text-gold-dark text-xs">
-                                ${schedule.formatted_days} ${schedule.start_time} - ${schedule.end_time}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-500">
-                            ${schedule.room_name ? schedule.room_name + ' (' + schedule.building + ')' : 'TBA'}
-                        </td>
-                        <td class="px-4 py-3 text-sm">
-                            ${schedule.instructor_name}
-                        </td>
-                    </tr>
-                `;
+            <tr class="hover:bg-yellow-50 transition-colors schedule-card">
+                <td class="px-4 py-3">
+                    <div class="font-medium text-gold-primary">${schedule.course_code}</div>
+                    <div class="text-sm text-gray-500">${schedule.course_name}</div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-500">
+                    ${schedule.section_name}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-500">
+                    <span class="px-2 py-1 rounded-full bg-gold-light text-gold-dark text-xs">
+                        ${schedule.formatted_days || 'Schedule'} ${startTime} - ${endTime}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-500">
+                    ${schedule.room_name ? schedule.room_name + (schedule.building ? ' (' + schedule.building + ')' : '') : 'TBA'}
+                </td>
+                <td class="px-4 py-3 text-sm">
+                    ${schedule.instructor_name}
+                </td>
+            </tr>
+        `;
                 tbody.insertAdjacentHTML('beforeend', row);
             });
         }

@@ -311,7 +311,168 @@ function updateScheduleCompletionStatus(data) {
   }
 }
 
-// FIXED: Main generate schedules function with proper async handling
+// ============================================
+// REGENERATE CONFIRMATION MODAL FUNCTIONS
+// ============================================
+
+// Check if schedules already exist before generating
+function checkExistingSchedulesBeforeGenerate() {
+  const hasExistingSchedules = window.scheduleData && window.scheduleData.length > 0;
+  
+  if (hasExistingSchedules) {
+    // Show confirmation modal
+    showRegenerateModal();
+    return true; // Prevent immediate generation
+  }
+  
+  return false; // Allow generation to proceed
+}
+
+// Show the regenerate confirmation modal
+function showRegenerateModal() {
+  const modal = document.getElementById("regenerate-confirmation-modal");
+  if (!modal) {
+    console.error("Regenerate modal not found");
+    return;
+  }
+
+  // Update statistics
+  updateRegenerateModalStats();
+
+  // Show modal
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  
+  console.log("✅ Regenerate confirmation modal shown");
+}
+
+// Close the regenerate confirmation modal
+function closeRegenerateModal() {
+  const modal = document.getElementById("regenerate-confirmation-modal");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+}
+
+// Update modal statistics based on current schedules
+function updateRegenerateModalStats() {
+  if (!window.scheduleData || window.scheduleData.length === 0) {
+    return;
+  }
+
+  // Calculate statistics
+  const uniqueCourses = new Set(window.scheduleData.map(s => s.course_code)).size;
+  const uniqueSections = new Set(window.scheduleData.map(s => s.section_name)).size;
+  const uniqueFaculty = new Set(window.scheduleData.map(s => s.faculty_name)).size;
+  const uniqueRooms = new Set(window.scheduleData.map(s => s.room_name)).size;
+
+  // Update modal content
+  const coursesCountEl = document.getElementById("current-courses-count");
+  const sectionsCountEl = document.getElementById("current-sections-count");
+  const facultyCountEl = document.getElementById("current-faculty-count");
+  const roomsCountEl = document.getElementById("current-rooms-count");
+
+  if (coursesCountEl) coursesCountEl.textContent = uniqueCourses;
+  if (sectionsCountEl) sectionsCountEl.textContent = uniqueSections;
+  if (facultyCountEl) facultyCountEl.textContent = uniqueFaculty;
+  if (roomsCountEl) roomsCountEl.textContent = uniqueRooms;
+}
+
+// Confirm regeneration and proceed
+function confirmRegenerate() {
+  console.log("✅ User confirmed schedule regeneration");
+  
+  closeRegenerateModal();
+  
+  // Show loading
+  const loadingOverlay = document.getElementById("loading-overlay");
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove("hidden");
+  }
+
+  // Small delay to show the loading animation
+  setTimeout(() => {
+    proceedWithGeneration();
+  }, 300);
+}
+
+// Proceed with actual schedule generation
+function proceedWithGeneration() {
+  const form = document.getElementById("generate-form");
+  if (!form) {
+    console.error("Generate form not found");
+    hideLoadingAndShowError(null, "Form not found");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const curriculumId = formData.get("curriculum_id");
+
+  const data = {
+    action: "generate_schedule",
+    curriculum_id: curriculumId,
+    semester_id: formData.get("semester_id"),
+    tab: "generate",
+    force_regenerate: "true" // Flag to indicate this is a regeneration
+  };
+
+  console.log("🚀 Proceeding with schedule generation:", data);
+  const startTime = performance.now();
+
+  fetch("/chair/generate-schedules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(data),
+  })
+    .then((response) => {
+      console.log("📡 Response received, status:", response.status);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      return response.text();
+    })
+    .then((text) => {
+      console.log("📄 Raw response received");
+
+      let responseData;
+      try {
+        responseData = JSON.parse(text);
+      } catch (e) {
+        console.error("❌ Invalid JSON response:", text.substring(0, 500));
+        throw new Error("Invalid response format: " + e.message);
+      }
+
+      const fetchTime = performance.now() - startTime;
+      console.log(`⏱️ Fetch completed in ${fetchTime.toFixed(2)}ms`);
+      console.log("📊 Generation response:", responseData);
+
+      if (responseData.success) {
+        console.log("🔄 Processing response data...");
+        updateUIAfterGeneration(responseData, document.getElementById("loading-overlay"), startTime);
+        setTimeout(() => onSchedulesGenerated(), 500);
+      } else {
+        hideLoadingAndShowError(
+          document.getElementById("loading-overlay"),
+          responseData.message || "Failed to generate schedules"
+        );
+      }
+    })
+    .catch((error) => {
+      console.error("❌ Error:", error);
+      hideLoadingAndShowError(
+        document.getElementById("loading-overlay"),
+        "Error generating schedules: " + error.message
+      );
+    });
+}
+
+// ============================================
+// MODIFIED GENERATE SCHEDULES FUNCTION
+// ============================================
+
+// Update the main generateSchedules function
 function generateSchedules() {
   const form = document.getElementById("generate-form");
   if (!form) {
@@ -357,80 +518,54 @@ function generateSchedules() {
 
   clearValidationErrors();
 
-  // Show loading overlay
+  // ✅ CHECK FOR EXISTING SCHEDULES
+  const hasExisting = checkExistingSchedulesBeforeGenerate();
+  if (hasExisting) {
+    return; // Stop here, modal will handle the rest
+  }
+
+  // If no existing schedules, proceed directly
+  console.log("No existing schedules, proceeding with generation");
+  
   const loadingOverlay = document.getElementById("loading-overlay");
   if (loadingOverlay) {
     loadingOverlay.classList.remove("hidden");
-    console.log("⏳ Loading overlay shown");
   }
 
-  const data = {
-    action: "generate_schedule",
-    curriculum_id: curriculumId,
-    semester_id: formData.get("semester_id"),
-    tab: "generate",
-  };
-
-  console.log("🚀 Sending data to backend:", data);
-  const startTime = performance.now();
-
-  fetch("/chair/generate-schedules", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams(data),
-  })
-    .then((response) => {
-      console.log("📡 Response received, status:", response.status);
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
-      return response.text();
-    })
-    .then((text) => {
-      console.log(
-        "📄 Raw response received (first 500 chars):",
-        text.substring(0, 500)
-      );
-
-      let responseData;
-      try {
-        responseData = JSON.parse(text);
-      } catch (e) {
-        console.error("❌ Invalid JSON response:", text);
-        throw new Error("Invalid response format: " + e.message);
-      }
-
-      const fetchTime = performance.now() - startTime;
-      console.log(`⏱️ Fetch completed in ${fetchTime.toFixed(2)}ms`);
-      console.log("📊 Generation response:", responseData);
-
-      if (responseData.success) {
-        // Keep loading visible during updates
-        console.log("🔄 Processing response data...");
-
-        // Step 1: Update schedule data
-        window.scheduleData = responseData.schedules || [];
-        console.log(`✅ Updated ${window.scheduleData.length} schedules`);
-
-        // Step 2: Update UI asynchronously with proper sequencing
-        updateUIAfterGeneration(responseData, loadingOverlay, startTime);
-        setTimeout(() => onSchedulesGenerated(), 500);
-      } else {
-        hideLoadingAndShowError(
-          loadingOverlay,
-          responseData.message || "Failed to generate schedules"
-        );
-      }
-    })
-    .catch((error) => {
-      console.error("❌ Error:", error);
-      hideLoadingAndShowError(
-        loadingOverlay,
-        "Error generating schedules: " + error.message
-      );
-    });
+  setTimeout(() => {
+    proceedWithGeneration();
+  }, 300);
 }
+
+// ============================================
+// EVENT LISTENERS
+// ============================================
+
+// Initialize event listeners
+document.addEventListener("DOMContentLoaded", () => {
+  // Close modal on ESC key
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      closeRegenerateModal();
+    }
+  });
+
+  // Close modal on backdrop click
+  const modal = document.getElementById("regenerate-confirmation-modal");
+  if (modal) {
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) {
+        closeRegenerateModal();
+      }
+    });
+  }
+});
+
+// Export functions to global scope
+window.showRegenerateModal = showRegenerateModal;
+window.closeRegenerateModal = closeRegenerateModal;
+window.confirmRegenerate = confirmRegenerate;
+window.checkExistingSchedulesBeforeGenerate = checkExistingSchedulesBeforeGenerate;
 
 // ✅ ENHANCED TRANSFORMER - Splits ALL time slots from combined strings
 
@@ -751,9 +886,6 @@ async function updateUIAfterGeneration(
   startTime
 ) {
   try {
-    console.log("🎨 ===== STARTING UI UPDATE =====");
-    console.log("📦 Response schedules:", responseData.schedules?.length || 0);
-
     // Validate response
     if (!responseData.schedules || !Array.isArray(responseData.schedules)) {
       throw new Error("Invalid schedules in response");

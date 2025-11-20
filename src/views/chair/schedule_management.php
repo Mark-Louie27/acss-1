@@ -1124,31 +1124,88 @@ if ($userDepartmentId) {
             </div>
         </div>
 
-        <style>
-            .conflict-tooltip {
-                position: absolute;
-                bottom: -25px;
-                left: 0;
-                background: #fee2e2;
-                color: #dc2626;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 12px;
-                white-space: nowrap;
-                z-index: 10;
-                border: 1px solid #fca5a5;
-            }
+        <!-- Regenerate Confirmation Modal -->
+        <div id="regenerate-confirmation-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 transform transition-all">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="bg-yellow-100 p-3 rounded-full mr-3">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">Regenerate Schedules?</h3>
+                    </div>
+                    <button type="button" onclick="closeRegenerateModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
 
-            .conflict-tooltip::after {
-                content: '';
-                position: absolute;
-                top: -5px;
-                left: 10px;
-                border: 5px solid transparent;
-                border-bottom-color: #fee2e2;
-            }
-        </style>
+                <div class="mb-6">
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-info-circle text-yellow-600"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-semibold text-yellow-800 mb-2">
+                                    Warning: This action will affect existing schedules
+                                </p>
+                                <ul class="list-disc list-inside text-sm text-yellow-700 space-y-1">
+                                    <li>All previously generated schedules will be <strong>replaced</strong></li>
+                                    <li>Any manual edits will be <strong>lost</strong></li>
+                                    <li>Faculty, room, and time assignments will be <strong>recalculated</strong></li>
+                                    <li>This action <strong>cannot be undone</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
 
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <i class="fas fa-lightbulb text-blue-600 mr-2 mt-1"></i>
+                            <div class="text-sm text-blue-800">
+                                <p class="font-semibold mb-1">Recommendation:</p>
+                                <p>Consider using the <strong>Manual Edit</strong> tab to make adjustments to existing schedules instead of regenerating completely.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="existing-schedules-info" class="mt-4 p-3 bg-gray-50 rounded-lg">
+                        <p class="text-sm font-medium text-gray-700 mb-2">Current Schedule Statistics:</p>
+                        <div class="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                            <div class="flex items-center">
+                                <i class="fas fa-book mr-2 text-blue-500"></i>
+                                <span><strong id="current-courses-count">0</strong> Courses</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-users mr-2 text-green-500"></i>
+                                <span><strong id="current-sections-count">0</strong> Sections</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-chalkboard-teacher mr-2 text-purple-500"></i>
+                                <span><strong id="current-faculty-count">0</strong> Faculty</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-door-open mr-2 text-orange-500"></i>
+                                <span><strong id="current-rooms-count">0</strong> Rooms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-4">
+                    <button type="button" onclick="closeRegenerateModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i class="fas fa-times mr-2"></i>
+                        Cancel
+                    </button>
+                    <button type="button" onclick="confirmRegenerate()"
+                        class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg transition-colors font-semibold">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Yes, Regenerate Schedules
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <script>
             // Global data
