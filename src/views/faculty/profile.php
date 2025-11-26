@@ -964,7 +964,7 @@ ob_start();
                 document.getElementById('toast-container').appendChild(toast);
                 setTimeout(() => {
                     toast.style.opacity = '0';
-                    setTimeout(() => toast.remove(), 300);
+                    setTimeout(() => toast.remove(), 300); 
                 }, 5000);
             }
 
