@@ -271,7 +271,7 @@ ob_start();
         </div>
 
         <!-- Alert Cards Row -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <!-- Conflict Alert -->
             <div class="glass-card rounded-2xl p-6 border-l-4 border-red-500 hover-scale fade-in" style="animation-delay: 0.4s">
                 <div class="flex items-center justify-between mb-3">
@@ -301,7 +301,7 @@ ob_start();
                 <p class="text-xs text-gray-500">Awaiting approval</p>
             </div>
 
-            <!-- Unassigned -->
+            <!-- Unassigned
             <div class="glass-card rounded-2xl p-6 border-l-4 border-blue-500 hover-scale fade-in" style="animation-delay: 0.6s">
                 <div class="flex items-center justify-between mb-3">
                     <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -317,6 +317,7 @@ ob_start();
                     </a>
                 <?php endif; ?>
             </div>
+             -->
 
             <!-- Workload -->
             <div class="glass-card rounded-2xl p-6 border-l-4 border-green-500 hover-scale fade-in" style="animation-delay: 0.7s">

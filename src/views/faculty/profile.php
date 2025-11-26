@@ -234,6 +234,113 @@ ob_start();
                 grid-template-columns: 1fr 280px;
             }
         }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem 2.5rem 0.75rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+
+        .search-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+            outline: none;
+        }
+
+        .search-input.loading {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 11-6.219-8.56'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            pointer-events: none;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 50;
+            display: none;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            margin-top: 0.25rem;
+        }
+
+        .search-results.active {
+            display: block;
+            animation: fadeInUp 0.2s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .search-result-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            transition: all 0.2s ease;
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-item:hover {
+            background-color: #f8fafc;
+        }
+
+        .search-result-item.active {
+            background-color: #dbeafe;
+        }
+
+        /* Custom scrollbar for search results */
+        .search-results::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .search-results::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 0 0.375rem 0.375rem 0;
+        }
+
+        .search-results::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .search-results::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
     </style>
 </head>
 
@@ -443,7 +550,7 @@ ob_start();
                             </div>
                             <div class="p-6">
                                 <p class="text-gray-700">Are you sure you want to remove this subject specialization? This action cannot be undone.</p>
-                                <form method="POST" action="/dean/profile/" class="mt-4">
+                                <form method="POST" action="/faculty/profile/" class="mt-4">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                                     <input type="hidden" name="action" value="remove_specialization">
                                     <input type="hidden" name="course_id" id="remove_course_id" value="">
@@ -816,7 +923,7 @@ ob_start();
                     </button>
                 </div>
 
-                <form method="POST" action="/dean/profile/" class="p-6">
+                <form method="POST" action="/faculty/profile/" class="p-6">
                     <input type="hidden" name="email" value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="first_name" value="<?php echo htmlspecialchars($user['first_name'], ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="last_name" value="<?php echo htmlspecialchars($user['last_name'], ENT_QUOTES, 'UTF-8'); ?>">
@@ -1065,60 +1172,367 @@ ob_start();
                 });
             }
 
-            // Search Functionality
+            // Improved Search Functionality
             const courseSearch = document.getElementById('course_search');
             const searchResults = document.getElementById('search-results');
-            if (courseSearch && searchResults) {
-                courseSearch.addEventListener('input', async (e) => {
-                    const query = e.target.value.trim();
-                    if (query.length < 2) {
-                        searchResults.classList.remove('active');
-                        searchResults.innerHTML = '';
-                        return;
-                    }
+            let allCourses = []; // Cache for all courses
+            let debounceTimer;
 
-                    try {
-                        const response = await fetch(`/dean/profile/search_courses?query=${encodeURIComponent(query)}`, {
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
-                            }
-                        });
-                        const courses = await response.json();
-                        searchResults.innerHTML = '';
-                        if (courses.length > 0) {
-                            courses.forEach(course => {
-                                const div = document.createElement('div');
-                                div.className = 'search-result-item';
-                                div.textContent = `${course.course_code} - ${course.course_name} (${course.department_name}, ${course.college_name})`;
-                                div.dataset.courseId = course.course_id;
-                                div.addEventListener('click', () => {
-                                    courseSearch.value = `${course.course_code} - ${course.course_name} (${course.department_name}, ${course.college_name})`;
-                                    document.getElementById('selected_course_id').value = course.course_id;
-                                    searchResults.classList.remove('active');
-                                });
-                                searchResults.appendChild(div);
-                            });
-                            searchResults.classList.add('active');
-                        } else {
-                            const div = document.createElement('div');
-                            div.className = 'search-result-item text-gray-500';
-                            div.textContent = 'No courses found';
-                            searchResults.appendChild(div);
-                            searchResults.classList.add('active');
-                        }
-                    } catch (error) {
-                        console.error('Error fetching courses:', error);
-                        searchResults.innerHTML = '<div class="search-result-item text-red-500">Error loading courses</div>';
-                        searchResults.classList.add('active');
+            if (courseSearch && searchResults) {
+                // Load all courses when modal opens or input is focused
+                courseSearch.addEventListener('focus', async () => {
+                    if (allCourses.length === 0) {
+                        await loadAllCourses();
+                    }
+                    // Show all courses initially when focused (empty search)
+                    if (courseSearch.value.trim() === '') {
+                        showAllCourses();
                     }
                 });
 
+                courseSearch.addEventListener('input', (e) => {
+                    const query = e.target.value.trim();
+
+                    // Clear previous debounce timer
+                    clearTimeout(debounceTimer);
+
+                    // Set new debounce timer (300ms delay)
+                    debounceTimer = setTimeout(async () => {
+                        if (query.length === 0) {
+                            // Show all courses when input is empty
+                            if (allCourses.length > 0) {
+                                showAllCourses();
+                            } else {
+                                // If we don't have courses loaded, fetch them
+                                await loadAllCourses();
+                                if (allCourses.length > 0) {
+                                    showAllCourses();
+                                }
+                            }
+                            return;
+                        }
+
+                        // If we don't have all courses loaded yet, fetch them with the query
+                        if (allCourses.length === 0) {
+                            await performSearch(query);
+                        } else {
+                            // Filter from cached courses
+                            const filteredCourses = filterCourses(query);
+                            displaySearchResults(filteredCourses);
+                        }
+                    }, 300);
+                });
+
+                // Close search results when clicking outside
                 document.addEventListener('click', (e) => {
                     if (!courseSearch.contains(e.target) && !searchResults.contains(e.target)) {
                         searchResults.classList.remove('active');
                     }
                 });
+
+                // Keyboard navigation
+                courseSearch.addEventListener('keydown', (e) => {
+                    const items = searchResults.querySelectorAll('.search-result-item');
+                    const activeItem = searchResults.querySelector('.search-result-item.active');
+                    let currentIndex = -1;
+
+                    if (activeItem) {
+                        currentIndex = Array.from(items).indexOf(activeItem);
+                    }
+
+                    switch (e.key) {
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            if (items.length > 0) {
+                                const nextIndex = (currentIndex + 1) % items.length;
+                                setActiveItem(items, nextIndex);
+                            }
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            if (items.length > 0) {
+                                const prevIndex = (currentIndex - 1 + items.length) % items.length;
+                                setActiveItem(items, prevIndex);
+                            }
+                            break;
+                        case 'Enter':
+                            e.preventDefault();
+                            if (activeItem) {
+                                activeItem.click();
+                            }
+                            break;
+                        case 'Escape':
+                            searchResults.classList.remove('active');
+                            break;
+                    }
+                });
+            }
+
+            // Function to perform a fresh search (for when cache is empty)
+            async function performSearch(query) {
+                try {
+                    courseSearch.classList.add('loading');
+
+                    const response = await fetch(`/faculty/profile/search_courses?query=${encodeURIComponent(query)}`, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                        }
+                    });
+
+                    courseSearch.classList.remove('loading');
+
+                    if (!response.ok) {
+                        throw new Error(`Search failed: ${response.status}`);
+                    }
+
+                    const courses = await response.json();
+
+                    if (courses.error) {
+                        throw new Error(courses.error);
+                    }
+
+                    displaySearchResults(courses);
+
+                } catch (error) {
+                    console.error('Search error:', error);
+                    searchResults.innerHTML = '<div class="search-result-item text-red-500 text-center py-3">Search failed: ' + error.message + '</div>';
+                    searchResults.classList.add('active');
+                }
+            }
+
+
+            // Function to load all courses
+            async function loadAllCourses() {
+                try {
+                    // Show loading state
+                    courseSearch.classList.add('loading');
+
+                    const response = await fetch('/faculty/profile/search_courses?query=', {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                        }
+                    });
+
+                    // Remove loading state
+                    courseSearch.classList.remove('loading');
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch courses: ${response.status} ${response.statusText}`);
+                    }
+
+                    const courses = await response.json();
+
+                    // Check if the response contains an error
+                    if (courses.error) {
+                        throw new Error(courses.error);
+                    }
+
+                    allCourses = courses;
+
+                    // Sort courses by course_code for consistent ordering
+                    allCourses.sort((a, b) => {
+                        // Extract the numeric part for proper numeric sorting
+                        const getNumericPart = (code) => {
+                            const match = code.match(/\d+/);
+                            return match ? parseInt(match[0]) : 0;
+                        };
+
+                        const numA = getNumericPart(a.course_code);
+                        const numB = getNumericPart(b.course_code);
+
+                        if (numA !== numB) {
+                            return numA - numB;
+                        }
+
+                        // If numeric parts are equal, sort alphabetically
+                        return a.course_code.localeCompare(b.course_code);
+                    });
+
+                    console.log(`Loaded ${allCourses.length} courses successfully`);
+
+                } catch (error) {
+                    console.error('Error loading courses:', error);
+                    showToast('Error loading courses: ' + error.message, 'bg-red-500');
+
+                    // Fallback: Try to load with a minimal query
+                    try {
+                        console.log('Attempting fallback course loading...');
+                        const fallbackResponse = await fetch('/faculty/profile/search_courses?query=a', {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-Token': '<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>'
+                            }
+                        });
+
+                        if (fallbackResponse.ok) {
+                            const fallbackCourses = await fallbackResponse.json();
+                            if (!fallbackCourses.error) {
+                                allCourses = fallbackCourses;
+                                console.log(`Fallback loaded ${allCourses.length} courses`);
+                                showToast('Courses loaded successfully', 'bg-green-500');
+                            }
+                        }
+                    } catch (fallbackError) {
+                        console.error('Fallback also failed:', fallbackError);
+                    }
+                }
+            }
+
+            // Function to show all courses (when search is empty)
+            function showAllCourses() {
+                if (allCourses.length > 0) {
+                    displaySearchResults(allCourses.slice(0, 50)); // Limit to 50 courses initially
+                } else {
+                    searchResults.classList.remove('active');
+                }
+            }
+
+            // Function to filter courses based on query
+            function filterCourses(query) {
+                const lowercaseQuery = query.toLowerCase();
+
+                return allCourses.filter(course => {
+                    // Search in multiple fields with different weights
+                    const searchFields = [
+                        course.course_code.toLowerCase(),
+                        course.course_name.toLowerCase(),
+                        course.department_name.toLowerCase(),
+                        course.college_name.toLowerCase()
+                    ];
+
+                    // Check if any field contains the query
+                    return searchFields.some(field => field.includes(lowercaseQuery));
+                }).sort((a, b) => {
+                    // Prioritize matches in course_code first, then course_name
+                    const aCodeMatch = a.course_code.toLowerCase().includes(lowercaseQuery);
+                    const bCodeMatch = b.course_code.toLowerCase().includes(lowercaseQuery);
+
+                    if (aCodeMatch && !bCodeMatch) return -1;
+                    if (!aCodeMatch && bCodeMatch) return 1;
+
+                    // If both have code matches or neither, check course name matches
+                    const aNameMatch = a.course_name.toLowerCase().includes(lowercaseQuery);
+                    const bNameMatch = b.course_name.toLowerCase().includes(lowercaseQuery);
+
+                    if (aNameMatch && !bNameMatch) return -1;
+                    if (!aNameMatch && bNameMatch) return 1;
+
+                    // If still equal, sort by course code
+                    return a.course_code.localeCompare(b.course_code);
+                });
+            }
+
+            // Function to display search results
+            function displaySearchResults(courses) {
+                searchResults.innerHTML = '';
+
+                if (courses.length === 0) {
+                    const noResults = document.createElement('div');
+                    noResults.className = 'search-result-item text-gray-500 text-center py-3';
+                    noResults.textContent = 'No courses found matching your search';
+                    searchResults.appendChild(noResults);
+                } else {
+                    courses.forEach(course => {
+                        const resultItem = document.createElement('div');
+                        resultItem.className = 'search-result-item cursor-pointer hover:bg-blue-50 transition-colors duration-200';
+                        resultItem.dataset.courseId = course.course_id;
+
+                        // Highlight matching text
+                        const displayText = highlightMatch(
+                            `${course.course_code} - ${course.course_name} (${course.department_name}, ${course.college_name})`,
+                            courseSearch.value.trim()
+                        );
+
+                        resultItem.innerHTML = `
+                <div class="font-semibold text-gray-800 text-sm">${displayText.highlightedCode}</div>
+                <div class="text-xs text-gray-600 mt-1">${displayText.highlightedName}</div>
+                <div class="text-xs text-gray-500 mt-1">${course.department_name} • ${course.college_name}</div>
+            `;
+
+                        resultItem.addEventListener('click', () => {
+                            selectCourse(course);
+                        });
+
+                        resultItem.addEventListener('mouseenter', () => {
+                            // Remove active class from all items
+                            searchResults.querySelectorAll('.search-result-item').forEach(item => {
+                                item.classList.remove('active', 'bg-blue-100');
+                            });
+                            // Add active class to hovered item
+                            resultItem.classList.add('active', 'bg-blue-100');
+                        });
+
+                        searchResults.appendChild(resultItem);
+                    });
+
+                    // Add a footer showing result count
+                    const footer = document.createElement('div');
+                    footer.className = 'search-result-item text-xs text-gray-500 text-center border-t border-gray-200 bg-gray-50';
+                    footer.textContent = `Showing ${courses.length} course${courses.length !== 1 ? 's' : ''}`;
+                    searchResults.appendChild(footer);
+                }
+
+                searchResults.classList.add('active');
+            }
+
+            // Function to highlight matching text
+            function highlightMatch(fullText, query) {
+                if (!query) {
+                    return {
+                        highlightedCode: fullText.split(' - ')[0],
+                        highlightedName: fullText.split(' - ')[1] || fullText
+                    };
+                }
+
+                const lowercaseQuery = query.toLowerCase();
+                const parts = fullText.split(' - ');
+                const courseCode = parts[0];
+                const rest = parts.slice(1).join(' - ');
+
+                const highlightCode = courseCode.replace(
+                    new RegExp(`(${escapeRegex(query)})`, 'gi'),
+                    '<span class="bg-yellow-200 text-yellow-800 px-1 rounded">$1</span>'
+                );
+
+                const highlightName = rest.replace(
+                    new RegExp(`(${escapeRegex(query)})`, 'gi'),
+                    '<span class="bg-yellow-200 text-yellow-800 px-1 rounded">$1</span>'
+                );
+
+                return {
+                    highlightedCode: highlightCode,
+                    highlightedName: highlightName
+                };
+            }
+
+            // Helper function to escape regex characters
+            function escapeRegex(string) {
+                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            // Function to set active item for keyboard navigation
+            function setActiveItem(items, index) {
+                items.forEach(item => item.classList.remove('active', 'bg-blue-100'));
+                items[index].classList.add('active', 'bg-blue-100');
+                items[index].scrollIntoView({
+                    block: 'nearest'
+                });
+            }
+
+            // Function to handle course selection
+            function selectCourse(course) {
+                courseSearch.value = `${course.course_code} - ${course.course_name}`;
+                document.getElementById('selected_course_id').value = course.course_id;
+                searchResults.classList.remove('active');
+
+                // Show success feedback
+                courseSearch.classList.remove('border-red-500');
+                courseSearch.classList.add('border-green-500');
+                setTimeout(() => {
+                    courseSearch.classList.remove('border-green-500');
+                }, 2000);
             }
         });
     </script>

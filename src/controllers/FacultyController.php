@@ -633,28 +633,76 @@ class FacultyController
             }
 
             $query = trim($_GET['query'] ?? '');
-            if (strlen($query) < 2) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Query must be at least 2 characters']);
-                exit;
+
+            // Allow empty queries to return all courses
+            if (empty($query)) {
+                // Return all courses (you might want to limit this for performance)
+                $stmt = $this->db->prepare("
+                SELECT c.course_id, c.course_code, c.course_name, d.department_name, co.college_name
+                FROM courses c
+                JOIN departments d ON c.department_id = d.department_id
+                JOIN colleges co ON d.college_id = co.college_id
+                ORDER BY c.course_code
+                LIMIT 200
+            ");
+                error_log("searchCourses: Fetching all courses (empty query)");
+                $stmt->execute();
+            } else if (strlen($query) < 2) {
+                // For short queries (1 character), do a broader search
+                $stmt = $this->db->prepare("
+                SELECT c.course_id, c.course_code, c.course_name, d.department_name, co.college_name
+                FROM courses c
+                JOIN departments d ON c.department_id = d.department_id
+                JOIN colleges co ON d.college_id = co.college_id
+                WHERE UPPER(c.course_code) LIKE UPPER(?) OR UPPER(c.course_name) LIKE UPPER(?)
+                ORDER BY 
+                    CASE 
+                        WHEN UPPER(c.course_code) LIKE UPPER(?) THEN 1
+                        WHEN UPPER(c.course_name) LIKE UPPER(?) THEN 2
+                        ELSE 3
+                    END,
+                    c.course_code
+                LIMIT 100
+            ");
+                $searchTerm = strtoupper($query) . "%";
+                error_log("searchCourses: Short query search - '$query'");
+                $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+            } else {
+                // For longer queries (2+ characters), do a more specific search
+                $stmt = $this->db->prepare("
+                SELECT c.course_id, c.course_code, c.course_name, d.department_name, co.college_name
+                FROM courses c
+                JOIN departments d ON c.department_id = d.department_id
+                JOIN colleges co ON d.college_id = co.college_id
+                WHERE UPPER(c.course_code) LIKE UPPER(?) 
+                   OR UPPER(c.course_name) LIKE UPPER(?)
+                   OR UPPER(d.department_name) LIKE UPPER(?)
+                   OR UPPER(co.college_name) LIKE UPPER(?)
+                ORDER BY 
+                    CASE 
+                        WHEN UPPER(c.course_code) LIKE UPPER(?) THEN 1
+                        WHEN UPPER(c.course_name) LIKE UPPER(?) THEN 2
+                        WHEN UPPER(d.department_name) LIKE UPPER(?) THEN 3
+                        WHEN UPPER(co.college_name) LIKE UPPER(?) THEN 4
+                        ELSE 5
+                    END,
+                    c.course_code
+                LIMIT 100
+            ");
+                $searchTerm = "%" . strtoupper($query) . "%";
+                error_log("searchCourses: Full query search - '$query'");
+                $stmt->execute([
+                    $searchTerm,
+                    $searchTerm,
+                    $searchTerm,
+                    $searchTerm,
+                    $searchTerm,
+                    $searchTerm,
+                    $searchTerm,
+                    $searchTerm
+                ]);
             }
 
-            // Use positional parameters (?) instead
-            $stmt = $this->db->prepare("
-            SELECT c.course_id, c.course_code, c.course_name, d.department_name, co.college_name
-            FROM courses c
-            JOIN departments d ON c.department_id = d.department_id
-            JOIN colleges co ON d.college_id = co.college_id
-            WHERE UPPER(c.course_code) LIKE UPPER(?) OR UPPER(c.course_name) LIKE UPPER(?)
-            LIMIT 10
-        ");
-
-            $searchTerm = "%" . strtoupper($query) . "%";
-            error_log("searchCourses: Preparing query with positional parameters");
-            error_log("searchCourses: Search term = $searchTerm");
-
-            // Execute with array of parameters
-            $stmt->execute([$searchTerm, $searchTerm]);
             $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             error_log("searchCourses: Query executed successfully, found " . count($courses) . " results");
@@ -664,7 +712,6 @@ class FacultyController
             http_response_code(500);
             error_log("searchCourses: PDO Error - SQLSTATE[" . $e->getCode() . "]: " . $e->getMessage());
             error_log("searchCourses: Query: " . (isset($stmt) ? $stmt->queryString : 'Query not prepared'));
-            error_log("searchCourses: Search term: " . (isset($searchTerm) ? $searchTerm : 'Not set'));
             echo json_encode(['error' => 'An error occurred while fetching courses: ' . $e->getMessage()]);
         } catch (Exception $e) {
             http_response_code(500);
