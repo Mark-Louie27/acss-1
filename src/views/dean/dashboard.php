@@ -364,7 +364,7 @@ ob_start();
                                                         <?php echo htmlspecialchars($faculty['department_name']); ?>
                                                       
                                                     </p>
-                                                    <p class="text-xs text-gray-700">                                       
+                                                    <p class="text-xs text-gray-700">                                          
                                                         <?php echo htmlspecialchars($faculty['department_code']); ?>
                                                     </p>
                                                 </div>

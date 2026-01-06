@@ -6182,9 +6182,6 @@ class ChairController extends BaseController
 
             $departmentId = $department['department_id'];
 
-            error_log("departmentTeachingLoad: Department ID: $departmentId, Name: $departmentName");
-
-        
             // Get all faculty in the department with their schedules
             $facultyStmt = $this->db->prepare("
             SELECT 
