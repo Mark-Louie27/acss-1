@@ -294,9 +294,10 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
             z-index: 40;
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: 100%;
+            height: 100dvh;
+            min-height: 100vh;
             overflow: hidden;
-            /* Prevent entire sidebar scroll */
         }
 
         /* Sidebar Header - Fixed at top */
@@ -311,13 +312,11 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
 
         /* Navigation Container - Scrollable */
         .sidebar nav {
-            flex: 1;
+            flex: 1 1 0;
             overflow-y: auto;
             overflow-x: hidden;
-            padding-bottom: 1rem;
-            /* Custom scrollbar for sidebar nav */
-            scrollbar-width: thin;
-            scrollbar-color: #4B5563 #1F2937;
+            min-height: 0;
+            padding-bottom: 0.5rem;
         }
 
         .sidebar nav::-webkit-scrollbar {
@@ -518,18 +517,22 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
         /* Responsive Main Content */
         .main-content {
             transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            min-height: 100dvh;
         }
 
         @media (min-width: 768px) {
             .main-content {
                 margin-left: 16rem;
-                /* 256px - sidebar width */
+                /* 256px sidebar */
             }
         }
 
         @media (max-width: 767px) {
             .main-content {
                 margin-left: 0;
+                padding: 1rem;
+                padding-top: 72px;
             }
         }
 
@@ -786,7 +789,7 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
     <div id="sidebar-overlay" class="sidebar-overlay md:hidden"></div>
 
     <!-- Header -->
-    <header class="fixed top-0 header-desktop right-0 bg-white header-shadow z-30">
+    <header class="fixed top-0 right-0 left-0 md:left-64 bg-white header-shadow z-30">
         <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <!-- Left: Mobile Hamburger and Desktop Logo -->
             <div class="flex items-center">
@@ -1330,7 +1333,7 @@ $currentRole = $_SESSION['current_role'] ?? ($_SESSION['roles'][0] ?? null);
     </aside>
 
 
-    <main class="main-content pt-20 p-4 md:pt-16 md:p-6 lg:p-8 min-h-screen transition-all duration-300 bg-gray-50 relative">
+    <main class="main-content pt-[72px] md:pt-[72px] px-4 md:px-6 lg:px-8 pb-8 min-h-screen transition-all duration-300 bg-gray-50 relative">
         <div class="max-w-7xl mx-auto">
             <!-- Breadcrumb -->
             <?php

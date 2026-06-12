@@ -488,11 +488,11 @@ class FacultyController
         ];
 
         // Generate download based on format
-        if ($format === 'pdf') {
-            $this->schedulingService->generateOfficialPDFFaculty($schedules, $semesterName, $collegeName, $facultyData, $facultyName);
-        } elseif ($format === 'excel') {
-            $this->schedulingService->generateOfficialExcelFaculty($schedules, $semesterName, $collegeName, $facultyData, $facultyName);
-        }
+        // if ($format === 'pdf') {
+        //     $this->schedulingService->generateOfficialPDFFaculty($schedules, $semesterName, $collegeName, $facultyData, $facultyName);
+        // } elseif ($format === 'excel') {
+        //     $this->schedulingService->generateOfficialExcelFaculty($schedules, $semesterName, $collegeName, $facultyData, $facultyName);
+        // }
     }
     /**
      * Submit a schedule request
