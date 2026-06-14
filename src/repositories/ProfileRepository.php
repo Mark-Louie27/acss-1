@@ -14,7 +14,7 @@ class ProfileRepository
     // =========================================================================
 
     /**
-     * Basic user row: joins departments, colleges, roles, faculty.
+     * Basic user row with department, college, role, and faculty joins.
      * Used for the initial lightweight fetch before stats are needed.
      */
     public function getUserWithDetails(int $userId): array|false
@@ -50,32 +50,32 @@ class ProfileRepository
                    (SELECT COUNT(*)
                       FROM faculty f2
                       JOIN users fu ON f2.user_id = fu.user_id
-                     WHERE fu.department_id = u.department_id)                  AS facultyCount,
+                     WHERE fu.department_id = u.department_id)           AS facultyCount,
 
                    (SELECT COUNT(DISTINCT sch.course_id)
                       FROM schedules sch
-                     WHERE sch.faculty_id = f.faculty_id)                       AS coursesCount,
+                     WHERE sch.faculty_id = f.faculty_id)                AS coursesCount,
 
                    (SELECT COUNT(*)
                       FROM specializations s2
-                     WHERE s2.faculty_id = f.faculty_id)                        AS specializationsCount,
+                     WHERE s2.faculty_id = f.faculty_id)                 AS specializationsCount,
 
                    (SELECT COUNT(*)
                       FROM faculty_requests fr
                      WHERE fr.department_id = u.department_id
-                       AND fr.status = 'pending')                               AS pendingApplicantsCount,
+                       AND fr.status = 'pending')                        AS pendingApplicantsCount,
 
                    (SELECT semester_name
                       FROM semesters
                      WHERE is_current = 1
-                     LIMIT 1)                                                   AS currentSemester,
+                     LIMIT 1)                                            AS currentSemester,
 
                    (SELECT created_at
                       FROM auth_logs
                      WHERE user_id = u.user_id
                        AND action  = 'login_success'
                      ORDER BY created_at DESC
-                     LIMIT 1)                                                   AS lastLogin
+                     LIMIT 1)                                            AS lastLogin
 
             FROM users u
             LEFT JOIN departments d ON u.department_id = d.department_id
@@ -90,9 +90,7 @@ class ProfileRepository
 
     /**
      * Dynamically UPDATE the users table.
-     *
-     * Only columns in $allowed are ever written.
-     * Empty-string values are skipped — pass only what actually changed.
+     * Only whitelisted columns are ever written; empty strings are skipped.
      */
     public function updateUser(int $userId, array $fields): void
     {
@@ -113,13 +111,13 @@ class ProfileRepository
 
         foreach ($allowed as $col) {
             if (isset($fields[$col]) && $fields[$col] !== '') {
-                $setClause[]    = "`$col` = :$col";
+                $setClause[]     = "`$col` = :$col";
                 $params[":$col"] = $fields[$col];
             }
         }
 
         if (empty($setClause)) {
-            return; // nothing to update
+            return;
         }
 
         $stmt = $this->db->prepare(
@@ -135,9 +133,7 @@ class ProfileRepository
     // FACULTY
     // =========================================================================
 
-    /**
-     * Returns the faculty_id for a user, or false if not found.
-     */
+    /** Returns the faculty_id for a user, or false if not found. */
     public function getFacultyId(int $userId): int|false
     {
         $stmt = $this->db->prepare('SELECT faculty_id FROM faculty WHERE user_id = :user_id');
@@ -148,6 +144,7 @@ class ProfileRepository
 
     /**
      * Dynamically UPDATE the faculty table.
+     * Only whitelisted columns are ever written; empty strings are skipped.
      */
     public function updateFaculty(int $facultyId, array $fields): void
     {
@@ -168,7 +165,7 @@ class ProfileRepository
 
         foreach ($allowed as $col) {
             if (isset($fields[$col]) && $fields[$col] !== '') {
-                $setClause[]    = "$col = :$col";
+                $setClause[]     = "$col = :$col";
                 $params[":$col"] = $fields[$col];
             }
         }
@@ -190,9 +187,7 @@ class ProfileRepository
     // SPECIALIZATIONS
     // =========================================================================
 
-    /**
-     * All specializations for a user (resolved via faculty subquery).
-     */
+    /** All specializations for a user, resolved via faculty subquery. */
     public function getSpecializations(int $userId): array
     {
         $stmt = $this->db->prepare("

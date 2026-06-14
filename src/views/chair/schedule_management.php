@@ -21,6 +21,10 @@ if ($userDepartmentId) {
         error_log("layout: Error fetching college logo - " . $e->getMessage());
     }
 }
+
+if (!isset($schedules) || !is_array($schedules)) {
+    $schedules = [];
+}
 ?>
 
 <link rel="stylesheet" href="/css/schedule_management.css">
@@ -797,65 +801,88 @@ if ($userDepartmentId) {
 
                         <!-- Time slots -->
                         <div id="timetableGrid" class="divide-y divide-gray-200">
-                            <?php foreach ($timeSlots as $time): ?>
-                                <?php
-                                $duration = strtotime($time[1]) - strtotime($time[0]);
-                                $rowSpan = $duration / 7200;
-                                ?>
-                                <div class="grid grid-cols-8 min-h-[<?php echo $rowSpan * 80; ?>px] hover:bg-gray-50 transition-colors duration-200" style="grid-row: span <?php echo $rowSpan; ?>;">
-                                    <div class="px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10" rowspan="<?php echo $rowSpan; ?>">
-                                        <span class="text-sm hidden sm:block"><?php echo date('g:i A', strtotime($time[0])) . ' - ' . date('g:i A', strtotime($time[1])); ?></span>
-                                        <span class="text-xs sm:hidden"><?php echo date('g:i', strtotime($time[0])) . '-' . date('g:i', strtotime($time[1])); ?></span>
-                                    </div>
-                                    <?php foreach ($days as $day): ?>
-                                        <div class="px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[<?php echo $rowSpan * 80; ?>px] relative schedule-cell"
-                                            data-day="<?php echo $day; ?>"
-                                            data-start-time="<?php echo $time[0]; ?>"
-                                            data-end-time="<?php echo $time[1]; ?>"
-                                            data-year-level=""
-                                            data-section-name=""
-                                            data-room-name="">
-                                            <?php
-                                            $schedulesForSlot = isset($scheduleGrid[$day][$time[0]]) ? $scheduleGrid[$day][$time[0]] : [];
-                                            foreach ($schedulesForSlot as $schedule) {
-                                                $scheduleStart = substr($schedule['start_time'], 0, 5);
-                                                $scheduleEnd = substr($schedule['end_time'], 0, 5);
-                                                if ($scheduleStart === $time[0]) {
-                                                    $colors = [
-                                                        'bg-blue-100 border-blue-300 text-blue-800',
-                                                        'bg-green-100 border-green-300 text-green-800',
-                                                        'bg-purple-100 border-purple-300 text-purple-800',
-                                                        'bg-orange-100 border-orange-300 text-orange-800',
-                                                        'bg-pink-100 border-pink-300 text-pink-800'
-                                                    ];
-                                                    $colorClass = $colors[array_rand($colors)];
-                                            ?>
-                                                    <div class="schedule-card <?php echo $colorClass; ?> p-2 rounded-lg border-l-4 mb-1 schedule-item"
-                                                        data-year-level="<?php echo htmlspecialchars($schedule['year_level']); ?>"
-                                                        data-section-name="<?php echo htmlspecialchars($schedule['section_name']); ?>"
-                                                        data-room-name="<?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>">
-                                                        <div class="font-semibold text-xs truncate mb-1">
-                                                            <?php echo htmlspecialchars($schedule['course_code']); ?>
-                                                        </div>
-                                                        <div class="text-xs opacity-90 truncate mb-1">
-                                                            <?php echo htmlspecialchars($schedule['section_name']); ?>
-                                                        </div>
-                                                        <div class="text-xs opacity-75 truncate">
-                                                            <?php echo htmlspecialchars($schedule['faculty_name']); ?>
-                                                        </div>
-                                                        <div class="text-xs opacity-75 truncate">
-                                                            <?php echo htmlspecialchars($schedule['room_name'] ?? 'Online'); ?>
-                                                        </div>
-                                                        <div class="text-xs font-medium mt-1 hidden sm:block">
-                                                            <?php echo date('g:i A', strtotime($schedule['start_time'])) . ' - ' . date('g:i A', strtotime($schedule['end_time'])); ?>
-                                                        </div>
-                                                    </div>
-                                            <?php
-                                                }
-                                            }
-                                            ?>
+                            <?php
+                            // Generate time slots from 7:00 AM to 9:00 PM in 30-minute intervals$scheduleGrid = [];
+                            foreach ($schedules as $schedule) {
+                                $day   = $schedule['day_of_week'];
+                                $start = substr($schedule['start_time'], 0, 5);
+                                if (!isset($scheduleGrid[$day]))         $scheduleGrid[$day]         = [];
+                                if (!isset($scheduleGrid[$day][$start])) $scheduleGrid[$day][$start] = [];
+                                $scheduleGrid[$day][$start][] = $schedule;
+                            }
+                            ?>
+                            <?php foreach ($schedulesInSlot as $scheduleData):
+                                $schedule    = $scheduleData['schedule'];
+                                $isStartCell = $scheduleData['isStartCell'];
+
+                                $colors = [
+                                    'bg-blue-100 border-blue-300 text-blue-800',
+                                    'bg-green-100 border-green-300 text-green-800',
+                                    'bg-purple-100 border-purple-300 text-purple-800',
+                                    'bg-orange-100 border-orange-300 text-orange-800',
+                                    'bg-pink-100 border-pink-300 text-pink-800',
+                                    'bg-teal-100 border-teal-300 text-teal-800',
+                                    'bg-amber-100 border-amber-300 text-amber-800',
+                                ];
+                                $colorIndex = $schedule['schedule_id']
+                                    ? ($schedule['schedule_id'] % count($colors))
+                                    : array_rand($colors);
+                                $colorClass = $colors[$colorIndex];
+
+                                // Inline opacity style goes INSIDE the opening tag (Fix 3)
+                                $cardStyle = !$isStartCell ? 'opacity:0.6;' : '';
+                            ?>
+                                <div class="schedule-card <?= $colorClass ?> p-2 rounded-lg border-l-4 draggable cursor-move text-xs"
+                                    draggable="true"
+                                    style="<?= $cardStyle ?>"
+                                    data-schedule-id="<?= htmlspecialchars($schedule['schedule_id']) ?>"
+                                    data-year-level="<?= htmlspecialchars($schedule['year_level']) ?>"
+                                    data-section-name="<?= htmlspecialchars($schedule['section_name']) ?>"
+                                    data-room-name="<?= htmlspecialchars($schedule['room_name'] ?? 'Online') ?>"
+                                    data-faculty-name="<?= htmlspecialchars($schedule['faculty_name']) ?>"
+                                    data-course-code="<?= htmlspecialchars($schedule['course_code']) ?>"
+                                    data-original-day="<?= htmlspecialchars($schedule['day_of_week']) ?>"
+                                    data-original-start="<?= substr($schedule['start_time'], 0, 5) ?>"
+                                    data-original-end="<?= substr($schedule['end_time'], 0, 5) ?>">
+
+                                    <?php if ($isStartCell): ?>
+                                        <div class="flex justify-between items-start mb-1">
+                                            <div class="font-semibold truncate flex-1">
+                                                <?= htmlspecialchars($schedule['course_code']) ?>
+                                            </div>
+                                            <!-- FIX 2: edit and delete are SIBLING buttons, not nested -->
+                                            <div class="flex space-x-1 flex-shrink-0 ml-1">
+                                                <button onclick="editSchedule('<?= $schedule['schedule_id'] ?>')"
+                                                    class="text-yellow-600 hover:text-yellow-700 no-print"
+                                                    title="Edit">
+                                                    <i class="fas fa-edit text-xs"></i>
+                                                </button>
+                                                <button onclick="openDeleteSingleModal(
+                                        <?= (int)$schedule['schedule_id'] ?>,
+                                        '<?= htmlspecialchars(addslashes($schedule['course_code'])) ?>',
+                                        '<?= htmlspecialchars(addslashes($schedule['section_name'])) ?>',
+                                        '<?= htmlspecialchars(addslashes($schedule['day_of_week'])) ?>',
+                                        '<?= isset($schedule['start_time']) ? date('g:i A', strtotime($schedule['start_time'])) : '' ?>',
+                                        '<?= isset($schedule['end_time'])   ? date('g:i A', strtotime($schedule['end_time']))   : '' ?>'
+                                    )"
+                                                    class="text-red-600 hover:text-red-700 no-print"
+                                                    title="Delete">
+                                                    <i class="fas fa-trash text-xs"></i>
+                                                </button>
+                                            </div>
                                         </div>
-                                    <?php endforeach; ?>
+                                        <div class="opacity-90 truncate"><?= htmlspecialchars($schedule['section_name']) ?></div>
+                                        <div class="opacity-75 truncate"><?= htmlspecialchars($schedule['faculty_name']) ?></div>
+                                        <div class="opacity-75 truncate"><?= htmlspecialchars($schedule['room_name'] ?? 'Online') ?></div>
+                                        <div class="font-medium mt-1 hidden sm:block text-xs">
+                                            <?= date('g:i A', strtotime($schedule['start_time'])) ?>
+                                            - <?= date('g:i A', strtotime($schedule['end_time'])) ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="font-semibold truncate mb-1 text-center opacity-75">
+                                            <i class="fas fa-ellipsis-h text-xs"></i>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -1208,307 +1235,101 @@ if ($userDepartmentId) {
         </div>
 
         <script>
-            // Global data
-            window.scheduleData = <?php echo json_encode($schedules); ?> || [];
-            window.jsData = <?php echo json_encode($jsData); ?>;
-            window.departmentId = window.jsData.departmentId;
-            window.currentSemester = window.jsData.currentSemester;
+            // ── Global data injected from PHP ──────────────────────────────────────────
+            window.scheduleData = <?= json_encode($schedules,         JSON_UNESCAPED_UNICODE) ?> || [];
+            window.jsData = <?= json_encode($jsData ?? [],      JSON_UNESCAPED_UNICODE) ?>;
+            window.departmentId = window.jsData.departmentId || null;
+            window.currentSemester = window.jsData.currentSemester || {};
             window.rawSectionsData = window.jsData.sectionsData || [];
             window.currentAcademicYear = window.jsData.currentAcademicYear || "";
             window.faculty = window.jsData.faculty || [];
             window.classrooms = window.jsData.classrooms || [];
             window.curricula = window.jsData.curricula || [];
-            // Get curriculum courses from jsData
             window.curriculumCourses = window.jsData.curriculumCourses || [];
 
-            // Transform sections data
-            window.sectionsData = Array.isArray(window.rawSectionsData) ? window.rawSectionsData.map((s, index) => ({
-                section_id: s.section_id ?? (index + 1),
-                section_name: s.section_name ?? '',
-                year_level: s.year_level ?? 'Unknown',
-                academic_year: s.academic_year ?? '',
-                current_students: s.current_students ?? 0,
-                max_students: s.max_students ?? 30,
-                semester: s.semester ?? '',
-                is_active: s.is_active ?? 1
-            })) : [];
-
-            // Clear filters for manual tab
-            function clearFiltersManual() {
-                document.getElementById('filter-year-manual').value = '';
-                document.getElementById('filter-section-manual').value = '';
-                document.getElementById('filter-room-manual').value = '';
-                filterSchedulesManual();
-            }
-
-            // Refresh manual view
-            function refreshManualView() {
-                // You can add refresh logic here
-                location.reload(); // Simple refresh for now
-            }
-
-            // Enhanced full screen function
-            function toggleFullScreen(tab) {
-                const sidebar = document.getElementById('sidebar');
-                const mainContent = document.querySelector('.main-content');
-                const header = document.querySelector('header');
-                const fullscreenBtn = document.getElementById(`fullscreen-${tab}-btn`);
-                const exitFullscreenBtn = document.getElementById(`exit-fullscreen-${tab}-btn`);
-
-                if (sidebar.style.display !== 'none') {
-                    // Enter full screen mode
-                    sidebar.style.display = 'none';
-                    header.style.display = 'none';
-                    mainContent.style.marginLeft = '0';
-                    mainContent.style.padding = '0';
-                    mainContent.classList.add('fullscreen-mode');
-
-                    // Update buttons
-                    fullscreenBtn.classList.add('hidden');
-                    exitFullscreenBtn.classList.remove('hidden');
-
-                    // Add fullscreen styles with higher z-index for modals
-                    document.body.style.overflow = 'hidden';
-                    mainContent.style.width = '100vw';
-                    mainContent.style.height = '100vh';
-                    mainContent.style.position = 'fixed';
-                    mainContent.style.top = '0';
-                    mainContent.style.left = '0';
-                    mainContent.style.zIndex = '1000';
-                    mainContent.style.backgroundColor = 'white';
-
-                    // Ensure modals have higher z-index in full screen
-                    const modals = document.querySelectorAll('.modal-overlay');
-                    modals.forEach(modal => {
-                        modal.style.zIndex = '1001';
-                    });
-
-                } else {
-                    // Exit full screen mode
-                    sidebar.style.display = '';
-                    header.style.display = '';
-                    mainContent.style.marginLeft = '';
-                    mainContent.style.padding = '';
-                    mainContent.classList.remove('fullscreen-mode');
-
-                    // Update buttons
-                    fullscreenBtn.classList.remove('hidden');
-                    exitFullscreenBtn.classList.add('hidden');
-
-                    // Remove fullscreen styles
-                    document.body.style.overflow = '';
-                    mainContent.style.width = '';
-                    mainContent.style.height = '';
-                    mainContent.style.position = '';
-                    mainContent.style.top = '';
-                    mainContent.style.left = '';
-                    mainContent.style.zIndex = '';
-                    mainContent.style.backgroundColor = '';
-
-                    // Reset modal z-index
-                    const modals = document.querySelectorAll('.modal-overlay');
-                    modals.forEach(modal => {
-                        modal.style.zIndex = '';
-                    });
-                }
-            }
-
-            // Enhanced modal functions for full screen compatibility
-            function showModal() {
-                const modal = document.getElementById("schedule-modal");
-                if (modal) {
-                    modal.classList.remove("hidden");
-                    modal.classList.add("flex");
-
-                    // Ensure modal is on top in full screen mode
-                    const mainContent = document.querySelector('.main-content');
-                    if (mainContent.classList.contains('fullscreen-mode')) {
-                        modal.style.zIndex = '1001';
-                    }
-
-                    console.log("Modal shown");
-                } else {
-                    console.error("Modal element not found!");
-                }
-            }
-
-            function closeModal() {
-                const modal = document.getElementById("schedule-modal");
-                if (modal) {
-                    modal.classList.add("hidden");
-                    modal.classList.remove("flex");
-                    modal.style.zIndex = ''; // Reset z-index
-                }
-
-                const form = document.getElementById("schedule-form");
-                if (form) form.reset();
-
-                // Reset conflict styles when closing modal
-                resetConflictStyles();
-
-                currentEditingId = null;
-            }
-
-            // Handle ESC key to exit full screen
-            document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape') {
-                    const sidebar = document.getElementById('sidebar');
-                    if (sidebar.style.display === 'none') {
-                        // Exit full screen for both tabs
-                        const manualFullscreenBtn = document.getElementById('fullscreen-manual-btn');
-                        const viewFullscreenBtn = document.getElementById('fullscreen-view-btn');
-
-                        if (!manualFullscreenBtn.classList.contains('hidden')) {
-                            toggleFullScreen('manual');
-                        } else if (!viewFullscreenBtn.classList.contains('hidden')) {
-                            toggleFullScreen('view');
-                        }
-                    }
-                }
-            });
-
-            // Handle browser fullscreen API (optional enhancement)
-            function toggleNativeFullScreen() {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.log(`Error attempting to enable full-screen mode: ${err.message}`);
-                    });
-                } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    }
-                }
-            }
-
-            // Store the original switchTab function BEFORE redefining it
-            const originalSwitchTab = window.switchTab;
-
-            // Enhanced switchTab function with full screen handling
+            // ── Authoritative switchTab (only defined ONCE here) ───────────────────────
             window.switchTab = function(tabName) {
-                // If we're in full screen mode, exit it first
+                // Exit full screen if active
                 const sidebar = document.getElementById('sidebar');
-                if (sidebar.style.display === 'none') {
-                    // Exit full screen for current tab
-                    const currentTab = document.querySelector('.tab-content:not(.hidden)').id.replace('content-', '');
-                    toggleFullScreen(currentTab);
-
-                    // Small delay to ensure DOM updates before switching tabs
-                    setTimeout(() => {
-                        performTabSwitch(tabName);
-                    }, 50);
-                } else {
-                    performTabSwitch(tabName);
+                if (sidebar && sidebar.style.display === 'none') {
+                    // determine which tab was fullscreened and exit
+                    ['manual', 'view'].forEach(t => {
+                        const btn = document.getElementById(`fullscreen-${t}-btn`);
+                        if (btn && !btn.classList.contains('hidden')) toggleFullScreen(t);
+                    });
+                    setTimeout(() => _performTabSwitch(tabName), 60);
+                    return;
                 }
+                _performTabSwitch(tabName);
             };
 
-            // Separate function to handle the actual tab switching
-            function performTabSwitch(tabName) {
-                // Remove active classes from all tabs
+            function _performTabSwitch(tabName) {
                 document.querySelectorAll('.tab-button').forEach(btn => {
                     btn.classList.remove('bg-yellow-500', 'text-white');
                     btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
                 });
 
-                // Add active class to selected tab
-                const targetTab = document.getElementById(`tab-${tabName}`);
-                if (targetTab) {
-                    targetTab.classList.add('bg-yellow-500', 'text-white');
-                    targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                const activeBtn = document.getElementById(`tab-${tabName}`);
+                if (activeBtn) {
+                    activeBtn.classList.add('bg-yellow-500', 'text-white');
+                    activeBtn.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
                 }
 
-                // Hide all tab contents
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.add('hidden');
-                });
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
 
-                // Show selected tab content
-                const targetContent = document.getElementById(`content-${tabName}`);
-                if (targetContent) {
-                    targetContent.classList.remove('hidden');
-                }
+                const activeContent = document.getElementById(`content-${tabName}`);
+                if (activeContent) activeContent.classList.remove('hidden');
 
-                // Update URL
                 const url = new URL(window.location);
                 url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
                 window.history.pushState({}, '', url);
-            }
 
-            // Make sure the original switchTab function exists
-            if (typeof window.switchTab === 'undefined') {
-                window.switchTab = function(tabName) {
-                    performTabSwitch(tabName);
-                };
-            }
-
-            function formatTime(time) {
-                const [hours, minutes] = time.split(':');
-                const date = new Date(2000, 0, 1, hours, minutes);
-                return date.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                });
-            }
-
-            function escapeHtml(unsafe) {
-                if (unsafe === null || unsafe === undefined) {
-                    return '';
+                // Refresh grids when switching to manual or view tab
+                if ((tabName === 'manual' || tabName === 'schedule') && window.scheduleData?.length) {
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            if (typeof window.safeUpdateScheduleDisplay === 'function') {
+                                window.safeUpdateScheduleDisplay(window.scheduleData);
+                            }
+                            if (tabName === 'manual' && typeof initializeDragAndDrop === 'function') {
+                                setTimeout(initializeDragAndDrop, 100);
+                            }
+                        }, 60);
+                    });
                 }
-
-                // Convert to string first
-                const safeString = String(unsafe);
-
-                // If it's empty after conversion, return empty string
-                if (!safeString) {
-                    return '';
-                }
-
-                return safeString
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
             }
 
-            function showNotification(message, type = 'success') {
-                const notification = document.getElementById('notification');
-                if (!notification) {
-                    const notificationDiv = document.createElement('div');
-                    notificationDiv.id = 'notification';
-                    notificationDiv.className = 'mb-6';
-                    notificationDiv.innerHTML = `
-                        <div class="flex items-center p-4 rounded-lg ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}">
-                            <div class="flex-shrink-0">
-                                <i class="fas ${type === 'success' ? 'fa-check-circle text-green-500' : 'fa-exclamation-circle text-red-500'} text-xl"></i>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm font-medium ${type === 'success' ? 'text-green-800' : 'text-red-800'}" id="notificationText">${message}</p>
-                            </div>
-                            <div class="ml-auto pl-3">
-                                <button class="${type === 'success' ? 'text-green-400 hover:text-green-600' : 'text-red-400 hover:text-red-600'}" onclick="hideNotification()">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    document.querySelector('.max-w-7xl').insertBefore(notificationDiv, document.querySelector('.max-w-7xl').firstElementChild.nextElementSibling);
+            // ── Full screen toggle ─────────────────────────────────────────────────────
+            function toggleFullScreen(tab) {
+                const sidebar = document.getElementById('sidebar');
+                const mainContent = document.querySelector('.main-content');
+                const header = document.querySelector('header');
+                const fullBtn = document.getElementById(`fullscreen-${tab}-btn`);
+                const exitBtn = document.getElementById(`exit-fullscreen-${tab}-btn`);
+                const isFullScreen = sidebar.style.display === 'none';
+
+                if (!isFullScreen) {
+                    sidebar.style.display = 'none';
+                    header.style.display = 'none';
+                    mainContent.style.marginLeft = '0';
+                    mainContent.style.padding = '0';
+                    mainContent.style.cssText += ';position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1000;background:white;overflow:auto;';
+                    document.body.style.overflow = 'hidden';
+                    fullBtn?.classList.add('hidden');
+                    exitBtn?.classList.remove('hidden');
                 } else {
-                    document.getElementById('notificationText').textContent = message;
-                    notification.classList.remove('hidden');
+                    ['display', 'marginLeft', 'padding', 'position', 'top', 'left', 'width', 'height', 'zIndex', 'background', 'overflow'].forEach(p => mainContent.style[p] = '');
+                    sidebar.style.display = '';
+                    header.style.display = '';
+                    document.body.style.overflow = '';
+                    fullBtn?.classList.remove('hidden');
+                    exitBtn?.classList.add('hidden');
                 }
-
-                setTimeout(() => hideNotification(), 5000);
             }
 
-            function hideNotification() {
-                const notification = document.getElementById('notification');
-                if (notification) notification.classList.add('hidden');
-            }
-
+            // ── Print / Export ──────────────────────────────────────────────────────────
             function togglePrintDropdown() {
-                const dropdown = document.getElementById('printDropdown');
-                dropdown.classList.toggle('hidden');
+                document.getElementById('printDropdown').classList.toggle('hidden');
             }
 
             function exportSchedule(type) {
@@ -2347,830 +2168,133 @@ if ($userDepartmentId) {
                 });
             }
 
+            // ── View-tab filter functions ───────────────────────────────────────────────
             function filterSchedules() {
-                const yearLevel = document.getElementById('filter-year').value;
-                const section = document.getElementById('filter-section').value;
-                const room = document.getElementById('filter-room').value;
-                const scheduleCells = document.querySelectorAll('#timetableGrid .schedule-cell');
+                const year = document.getElementById('filter-year')?.value || '';
+                const section = document.getElementById('filter-section')?.value || '';
+                const room = document.getElementById('filter-room')?.value || '';
 
-                scheduleCells.forEach(cell => {
-                    const items = cell.querySelectorAll('.schedule-item');
-                    let shouldShow = false;
-
-                    items.forEach(item => {
-                        const itemYearLevel = item.getAttribute('data-year-level');
-                        const itemSectionName = item.getAttribute('data-section-name');
-                        const itemRoomName = item.getAttribute('data-room-name');
-                        const matchesYear = !yearLevel || itemYearLevel === yearLevel;
-                        const matchesSection = !section || itemSectionName === section;
-                        const matchesRoom = !room || itemRoomName === room;
-
-                        if (matchesYear && matchesSection && matchesRoom) {
-                            item.style.display = 'block';
-                            shouldShow = true;
-                        } else {
-                            item.style.display = 'none';
-                        }
-                    });
-
-                    cell.style.display = shouldShow ? 'block' : 'block';
+                document.querySelectorAll('#timetableGrid .schedule-item').forEach(item => {
+                    const matches =
+                        (!year || item.dataset.yearLevel === year) &&
+                        (!section || item.dataset.sectionName === section) &&
+                        (!room || item.dataset.roomName === room);
+                    item.style.display = matches ? '' : 'none';
                 });
             }
 
             function clearFilters() {
-                document.getElementById('filter-year').value = '';
-                document.getElementById('filter-section').value = '';
-                document.getElementById('filter-room').value = '';
+                ['filter-year', 'filter-section', 'filter-room'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
                 filterSchedules();
             }
 
-            function safeUpdateScheduleDisplay(schedules) {
-                window.scheduleData = schedules;
-
-                // Update manual grid
-                const manualGrid = document.getElementById("schedule-grid");
-                if (manualGrid) {
-                    manualGrid.innerHTML = "";
-
-                    // Build dynamic time slots from schedules so any start/end (e.g. 08:00-09:00, 08:00-09:30) will appear as its own row.
-                    // Fallback range used when no schedules present.
-                    const defaultStart = '07:30';
-                    const defaultEnd = '21:00';
-
-                    // Collect all relevant time points (start and end times) from schedules, plus defaults
-                    const timePointsSet = new Set([defaultStart, defaultEnd]);
-                    schedules.forEach(s => {
-                        if (s.start_time) timePointsSet.add(s.start_time.substring(0, 5));
-                        if (s.end_time) timePointsSet.add(s.end_time.substring(0, 5));
-                    });
-
-                    // Convert to array and sort by minutes-of-day
-                    const timePoints = Array.from(timePointsSet).filter(Boolean).map(tp => {
-                        const parts = tp.split(':').map(x => parseInt(x, 10));
-                        return {
-                            raw: tp,
-                            minutes: parts[0] * 60 + (parts[1] || 0)
-                        };
-                    }).sort((a, b) => a.minutes - b.minutes).map(x => x.raw);
-
-                    // If we somehow only have one point, build a sensible step-based list (30-min steps)
-                    let times = [];
-                    if (timePoints.length < 2) {
-                        const toMinutes = t => {
-                            const [h, m] = t.split(':');
-                            return parseInt(h) * 60 + parseInt(m);
-                        };
-                        const fromMinutes = m => {
-                            const hh = Math.floor(m / 60).toString().padStart(2, '0');
-                            const mm = (m % 60).toString().padStart(2, '0');
-                            return `${hh}:${mm}`;
-                        };
-                        const startMin = toMinutes(defaultStart);
-                        const endMin = toMinutes(defaultEnd);
-                        for (let m = startMin; m < endMin; m += 30) {
-                            times.push([fromMinutes(m), fromMinutes(Math.min(m + 30, endMin))]);
-                        }
-                    } else {
-                        // Build intervals from consecutive unique time points
-                        for (let i = 0; i < timePoints.length - 1; i++) {
-                            const a = timePoints[i];
-                            const b = timePoints[i + 1];
-                            // Skip zero-length intervals
-                            if (a !== b) times.push([a, b]);
-                        }
-                    }
-
-                    times.forEach(time => {
-                        // Calculate row span like PHP does
-                        const duration = (new Date(`2000-01-01 ${time[1]}`) - new Date(`2000-01-01 ${time[0]}`)) / 1000;
-                        const rowSpan = duration / 7200; // 2 hours in seconds
-                        const minHeight = rowSpan * 80;
-
-                        const row = document.createElement('div');
-                        row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`; // Changed to grid-cols-8
-                        row.style.gridRow = `span ${rowSpan}`
-
-                        // Time cell - match PHP structure
-                        const timeCell = document.createElement('div');
-                        timeCell.className = 'px-3 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center sticky left-0 z-10';
-                        timeCell.setAttribute('rowspan', rowSpan);
-
-                        // Time content like PHP
-                        timeCell.innerHTML = `
-                        <span class="text-sm hidden sm:block">${formatTime(time[0])} - ${formatTime(time[1])}</span>
-                        <span class="text-xs sm:hidden">${time[0].substring(0, 5)}-${time[1].substring(0, 5)}</span>
-                    `;
-                        row.appendChild(timeCell);
-
-                        // Day cells
-                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach(day => {
-                            const cell = document.createElement('div');
-                            cell.className = `px-1 py-1 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative drop-zone`;
-                            cell.dataset.day = day;
-                            cell.dataset.startTime = time[0];
-                            cell.dataset.endTime = time[1];
-
-                            // Find ALL schedules for this time slot (not just one)
-                            const schedulesForSlot = schedules.filter(s =>
-                                s.day_of_week === day &&
-                                s.start_time && s.start_time.substring(0, 5) === time[0] &&
-                                s.end_time && s.end_time.substring(0, 5) === time[1]
-                            );
-
-                            if (schedulesForSlot.length > 0) {
-                                // Create a container for multiple schedules
-                                const schedulesContainer = document.createElement('div');
-                                schedulesContainer.className = 'schedules-container space-y-1';
-
-                                schedulesForSlot.forEach(schedule => {
-                                    const scheduleCard = createSafeScheduleCard(schedule);
-                                    schedulesContainer.appendChild(scheduleCard);
-                                });
-
-                                cell.appendChild(schedulesContainer);
-                            } else {
-                                // Add button for empty slot
-                                const addButton = document.createElement('button');
-                                addButton.innerHTML = '<i class="fas fa-plus text-sm"></i>';
-                                addButton.className = 'w-full h-full text-gray-400 hover:text-gray-600 hover:bg-yellow-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-yellow-400 transition-all duration-200 no-print flex items-center justify-center p-2';
-                                addButton.onclick = () => openAddModalForSlot(day, time[0], time[1]);
-                                cell.appendChild(addButton);
-                            }
-
-                            row.appendChild(cell);
-                        });
-
-                        manualGrid.appendChild(row);
-                    });
-
-                    initializeDragAndDrop();
-                }
-
-                // Update view grid with similar fixes
-                const viewGrid = document.getElementById('timetableGrid');
-                if (viewGrid) {
-                    viewGrid.innerHTML = '';
-
-                    const times = [
-                        ['07:30', '08:30'],
-                        ['08:30', '10:00'],
-                        ['10:00', '11:00'],
-                        ['11:00', '12:30'],
-                        ['12:30', '13:30'],
-                        ['13:00', '14:30'],
-                        ['14:30', '15:30'],
-                        ['15:30', '17:00'],
-                        ['17:00', '18:00']
-                    ];
-
-                    times.forEach(time => {
-                        // Calculate row span
-                        const duration = (new Date(`${new Date().toISOString().split('T')[0]} ${time[1]}`) - new Date(`${new Date().toISOString().split('T')[0]} ${time[0]}`)) / 1000;
-                        const rowSpan = duration / 7200;
-                        const minHeight = rowSpan * 80;
-
-                        const row = document.createElement('div');
-                        row.className = `grid grid-cols-8 min-h-[${minHeight}px] hover:bg-gray-50 transition-colors duration-200`;
-                        row.style.gridRow = `span ${rowSpan}`;
-
-                        // Time cell
-                        const timeCell = document.createElement('div');
-                        timeCell.className = 'px-4 py-3 text-sm font-medium text-gray-600 border-r border-gray-200 bg-gray-50 flex items-center';
-                        timeCell.setAttribute('rowspan', rowSpan);
-                        timeCell.textContent = `${formatTime(time[0])} - ${formatTime(time[1])}`;
-                        row.appendChild(timeCell);
-
-                        // Day cells
-                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach(day => {
-                            const cell = document.createElement('div');
-                            cell.className = `px-2 py-2 border-r border-gray-200 last:border-r-0 min-h-[${minHeight}px] relative schedule-cell`;
-
-                            // Find ALL schedules for this time slot
-                            const daySchedules = schedules.filter(s =>
-                                s.day_of_week === day &&
-                                s.start_time && s.start_time.substring(0, 5) === time[0] &&
-                                s.end_time && s.end_time.substring(0, 5) === time[1]
-                            );
-
-                            if (daySchedules.length > 0) {
-                                // Create container for multiple schedule items
-                                const schedulesContainer = document.createElement('div');
-                                schedulesContainer.className = 'schedules-container space-y-1';
-
-                                daySchedules.forEach(schedule => {
-                                    const scheduleItem = createSafeScheduleItem(schedule);
-                                    schedulesContainer.appendChild(scheduleItem);
-                                });
-
-                                cell.appendChild(schedulesContainer);
-                            }
-
-                            row.appendChild(cell);
-                        });
-
-                        viewGrid.appendChild(row);
-                    });
-                }
-            }
-
-            // Safe function to create schedule card for manual tab
-            function createSafeScheduleCard(schedule) {
-                const card = document.createElement('div');
-
-                // Use the same color system as PHP
-                const colors = [
-                    'bg-blue-100 border-blue-300 text-blue-800',
-                    'bg-green-100 border-green-300 text-green-800',
-                    'bg-purple-100 border-purple-300 text-purple-800',
-                    'bg-orange-100 border-orange-300 text-orange-800',
-                    'bg-pink-100 border-pink-300 text-pink-800'
-                ];
-
-                // Generate consistent color based on schedule_id or random
-                const colorIndex = schedule.schedule_id ?
-                    (parseInt(schedule.schedule_id) % colors.length) :
-                    Math.floor(Math.random() * colors.length);
-                const colorClass = colors[colorIndex];
-
-                card.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 draggable cursor-move w-full`;
-                card.draggable = true;
-                card.dataset.scheduleId = schedule.schedule_id || '';
-                card.dataset.yearLevel = schedule.year_level || '';
-                card.dataset.sectionName = schedule.section_name || '';
-                card.dataset.roomName = schedule.room_name || 'Online';
-
-                card.ondragstart = handleDragStart;
-                card.ondragend = handleDragEnd;
-
-                // Safe content creation - match PHP structure exactly
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-1">
-                        <div class="font-semibold text-xs truncate flex-1">
-                            ${schedule.course_code || ''}
-                        </div>
-                        <div class="flex space-x-1 ml-2">
-                            <button onclick="editSchedule('${schedule.schedule_id || ''}')" class="text-yellow-600 hover:text-yellow-700 text-xs no-print flex-shrink-0">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="openDeleteSingleModal(
-                                '${schedule.schedule_id || ''}', 
-                                '${schedule.course_code || ''}', 
-                                '${schedule.section_name || ''}', 
-                                '${schedule.day_of_week || ''}', 
-                                '${schedule.start_time ? formatTime(schedule.start_time.substring(0, 5)) : ''}', 
-                                '${schedule.end_time ? formatTime(schedule.end_time.substring(0, 5)) : ''}'
-                            )" class="text-red-600 hover:text-red-700 text-xs no-print flex-shrink-0">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="text-xs opacity-90 truncate mb-1">
-                        ${schedule.section_name || ''}
-                    </div>
-                    <div class="text-xs opacity-75 truncate">
-                        ${schedule.faculty_name || ''}
-                    </div>
-                    <div class="text-xs opacity-75 truncate">
-                        ${schedule.room_name || 'Online'}
-                    </div>
-                    <div class="text-xs font-medium mt-1 hidden sm:block">
-                        ${schedule.start_time && schedule.end_time ? 
-                            `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}` : 
-                            ''}
-                    </div>
-                `;
-
-                return card;
-            }
-
-            // Safe function to create schedule item for view tab
-            function createSafeScheduleItem(schedule) {
-                const item = document.createElement('div');
-
-                // Use the same color system as PHP for consistency
-                const colors = [
-                    'bg-blue-100 border-blue-300 text-blue-800',
-                    'bg-green-100 border-green-300 text-green-800',
-                    'bg-purple-100 border-purple-300 text-purple-800',
-                    'bg-orange-100 border-orange-300 text-orange-800',
-                    'bg-pink-100 border-pink-300 text-pink-800'
-                ];
-
-                // Generate consistent color based on schedule_id
-                const colorIndex = schedule.schedule_id ?
-                    (parseInt(schedule.schedule_id) % colors.length) :
-                    Math.floor(Math.random() * colors.length);
-                const colorClass = colors[colorIndex];
-
-                item.className = `schedule-card ${colorClass} p-2 rounded-lg border-l-4 mb-1 schedule-item`;
-                item.dataset.yearLevel = schedule.year_level || '';
-                item.dataset.sectionName = schedule.section_name || '';
-                item.dataset.roomName = schedule.room_name || 'Online';
-
-                item.innerHTML = `
-                    <div class="font-semibold text-xs truncate mb-1">
-                        ${schedule.course_code || ''}
-                    </div>
-                    <div class="text-xs opacity-90 truncate mb-1">
-                        ${schedule.section_name || ''}
-                    </div>
-                    <div class="text-xs opacity-75 truncate">
-                        ${schedule.faculty_name || ''}
-                    </div>
-                    <div class="text-xs opacity-75 truncate">
-                        ${schedule.room_name || 'Online'}
-                    </div>
-                    <div class="text-xs font-medium mt-1">
-                        ${schedule.start_time && schedule.end_time ? 
-                            `${formatTime(schedule.start_time.substring(0, 5))} - ${formatTime(schedule.end_time.substring(0, 5))}` : 
-                            ''}
-                    </div>
-                `;
-
-                return item;
-            }
-
-            // Toggle unassigned courses list
-            function toggleUnassignedCourses() {
-                const list = document.getElementById('unassigned-courses-list');
-                const button = event.target.closest('button');
-                const icon = button.querySelector('i');
-
-                if (list.classList.contains('hidden')) {
-                    list.classList.remove('hidden');
-                    icon.classList.remove('fa-chevron-down');
-                    icon.classList.add('fa-chevron-up');
-                } else {
-                    list.classList.add('hidden');
-                    icon.classList.remove('fa-chevron-up');
-                    icon.classList.add('fa-chevron-down');
-                }
-            }
-
-            // Hide the incomplete schedule warning
-            function hideIncompleteWarning() {
-                const banner = document.getElementById('incomplete-schedule-banner');
-                if (banner) {
-                    banner.style.display = 'none';
-                }
-            }
-
-            // Try to regenerate incomplete schedules
-            function tryRegenerateIncomplete() {
-                const form = document.getElementById('generate-form');
-                const curriculumId = form.querySelector('#curriculum_id').value;
-
-                if (!curriculumId) {
-                    showNotification('Please select a curriculum first.', 'error');
-                    return;
-                }
-
-                // Show loading
-                const loadingOverlay = document.getElementById('loading-overlay');
-                loadingOverlay.classList.remove('hidden');
-
-                // Add force_regenerate flag
-                const formData = new URLSearchParams({
-                    action: 'generate_schedule',
-                    curriculum_id: curriculumId,
-                    semester_id: form.querySelector('[name="semester_id"]').value,
-                    force_regenerate: 'true' // Add this flag for backend
+            // ── Misc UI helpers ─────────────────────────────────────────────────────────
+            function formatTime(time) {
+                const [h, m] = time.split(':');
+                return new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
                 });
-
-                fetch('/chair/generate-schedules', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        loadingOverlay.classList.add('hidden');
-
-                        if (data.success) {
-                            window.scheduleData = data.schedules || [];
-                            safeUpdateScheduleDisplay(window.scheduleData);
-
-                            // Check if still incomplete
-                            if (data.unassignedCourses && data.unassignedCourses.length > 0) {
-                                showNotification(
-                                    `Regeneration completed but ${data.unassignedCourses.length} courses still need manual scheduling.`,
-                                    'warning'
-                                );
-                            } else {
-                                showNotification('All courses scheduled successfully!', 'success');
-                                hideIncompleteWarning();
-                            }
-                        } else {
-                            showNotification(data.message || 'Regeneration failed', 'error');
-                        }
-                    })
-                    .catch(error => {
-                        loadingOverlay.classList.add('hidden');
-                        console.error('Regenerate error:', error);
-                        showNotification('Error during regeneration: ' + error.message, 'error');
-                    });
             }
 
-            // Enhanced report modal to show incomplete schedules
-            function showReportModal(data) {
-                const reportModal = document.getElementById('report-modal');
-                const reportContent = document.getElementById('report-content');
-                const reportTitle = document.getElementById('report-title');
-
-                let statusText, statusClass, titleText;
-
-                // Determine status based on results
-                if (!data.schedules || data.schedules.length === 0) {
-                    statusText = 'No schedules were created. Please check if there are available sections, courses, faculty, and rooms.';
-                    statusClass = 'text-red-600 bg-red-50 border-red-200';
-                    titleText = 'Schedule Generation Failed';
-                } else if (data.unassignedCourses && data.unassignedCourses.length > 0) {
-                    statusText = `Partial success. ${data.unassignedCourses.length} courses could not be scheduled and need manual attention.`;
-                    statusClass = 'text-yellow-600 bg-yellow-50 border-yellow-200';
-                    titleText = 'Schedule Generation Partially Complete';
-
-                    // Show persistent warning on manual tab
-                    showPersistentIncompleteWarning(data.unassignedCourses);
-                } else {
-                    statusText = 'All schedules generated successfully!';
-                    statusClass = 'text-green-600 bg-green-50 border-green-200';
-                    titleText = 'Schedule Generation Complete';
-                }
-
-                // Build report content
-                reportContent.innerHTML = `
-                    <div class="p-4 ${statusClass} border rounded-lg mb-4">
-                        <p class="font-semibold">${statusText}</p>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
-                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalCourses || 0}</div>
-                            <div class="text-gray-600 mt-1">Total Courses</div>
-                        </div>
-                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
-                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.totalSections || 0}</div>
-                            <div class="text-gray-600 mt-1">Sections</div>
-                        </div>
-                        <div class="bg-white p-3 rounded-lg text-center border border-gray-200">
-                            <div class="text-2xl font-bold ${statusClass.split(' ')[0]}">${data.successRate || '0%'}</div>
-                            <div class="text-gray-600 mt-1">Success Rate</div>
-                        </div>
-                    </div>
-                    ${data.unassignedCourses && data.unassignedCourses.length > 0 ? `
-                        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p class="text-sm font-medium text-yellow-800 mb-2">Unscheduled Courses (${data.unassignedCourses.length}):</p>
-                            <div class="max-h-40 overflow-y-auto">
-                                <ul class="text-sm text-yellow-700 list-disc list-inside">
-                                    ${data.unassignedCourses.map(c => `<li class="py-1">${c.course_code} - ${c.course_name || 'Unknown'}</li>`).join('')}
-                                </ul>
-                            </div>
-                            <p class="text-xs text-yellow-600 mt-2">
-                                <i class="fas fa-lightbulb mr-1"></i>
-                                These courses need manual scheduling. Switch to the Manual Edit tab to schedule them.
-                            </p>
-                        </div>
-                    ` : ''}
-                `;
-
-                reportTitle.textContent = titleText;
-                reportTitle.className = `text-lg font-semibold ${statusClass.split(' ')[0]}`;
-
-                // Show the modal
-                reportModal.classList.remove('hidden');
-                reportModal.classList.add('flex');
+            function escapeHtml(unsafe) {
+                if (!unsafe) return '';
+                return String(unsafe)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
             }
 
-            // Show persistent warning on manual tab
-            function showPersistentIncompleteWarning(unassignedCourses) {
-                // This will be displayed when user switches to manual tab
-                sessionStorage.setItem('incompleteSchedules', JSON.stringify(unassignedCourses));
+            function showNotification(message, type = 'success') {
+                const container = document.getElementById('toast-container') || (() => {
+                    const c = document.createElement('div');
+                    c.id = 'toast-container';
+                    c.className = 'fixed top-4 right-4 z-50 space-y-2';
+                    document.body.appendChild(c);
+                    return c;
+                })();
+                const colors = {
+                    success: 'green',
+                    error: 'red',
+                    warning: 'yellow'
+                };
+                const color = colors[type] || 'blue';
+                const icons = {
+                    success: 'fa-check-circle',
+                    error: 'fa-exclamation-circle',
+                    warning: 'fa-exclamation-triangle'
+                };
+                const toast = document.createElement('div');
+                toast.className = `bg-${color}-50 border border-${color}-200 rounded-lg p-4 shadow-lg max-w-sm w-full transition-opacity duration-300`;
+                toast.innerHTML = `
+      <div class="flex items-start">
+        <i class="fas ${icons[type] || 'fa-info-circle'} text-${color}-500 text-lg flex-shrink-0"></i>
+        <p class="ml-3 text-sm text-${color}-800 flex-1 whitespace-pre-line">${escapeHtml(message)}</p>
+        <button onclick="this.closest('.transition-opacity').remove()" class="ml-3 text-${color}-400 hover:text-${color}-600 flex-shrink-0">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>`;
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.add('opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
             }
 
-            // Check for incomplete schedules when switching to manual tab
-            function checkForIncompleteSchedules() {
-                const incomplete = sessionStorage.getItem('incompleteSchedules');
-                if (incomplete) {
-                    const unassignedCourses = JSON.parse(incomplete);
-                    // You can show a notification or update the UI
-                    console.log('Incomplete schedules detected:', unassignedCourses);
-                }
-            }
-
-            // Helper function to get consistent color for a schedule
-            function getScheduleColor(schedule) {
-                const colors = [
-                    'bg-blue-100 border-blue-300 text-blue-800',
-                    'bg-green-100 border-green-300 text-green-800',
-                    'bg-purple-100 border-purple-300 text-purple-800',
-                    'bg-orange-100 border-orange-300 text-orange-800',
-                    'bg-pink-100 border-pink-300 text-pink-800'
-                ];
-
-                if (schedule.schedule_id) {
-                    // Use schedule_id for consistent coloring
-                    return colors[parseInt(schedule.schedule_id) % colors.length];
-                } else if (schedule.course_code) {
-                    // Use course_code hash for new schedules
-                    let hash = 0;
-                    for (let i = 0; i < schedule.course_code.length; i++) {
-                        hash = ((hash << 5) - hash) + schedule.course_code.charCodeAt(i);
-                        hash = hash & hash;
-                    }
-                    return colors[Math.abs(hash) % colors.length];
-                } else {
-                    // Fallback to random
-                    return colors[Math.floor(Math.random() * colors.length)];
-                }
-            }
-
-            // Initialize page
-            document.addEventListener('DOMContentLoaded', function() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const tab = urlParams.get('tab');
-                const reportModal = document.getElementById('report-modal');
-
-                if (tab === 'schedule-list') switchTab('schedule');
-                else if (tab === 'manual') switchTab('manual');
-                else switchTab('generate');
-
-                if (reportModal) {
-                    reportModal.addEventListener('click', function(e) {
-                        if (e.target === reportModal) {
-                            closeReportModal();
-                        }
-                    });
-                }
-            });
-
-
-            // Enhanced navigation state management
-            let navigationState = {
-                hasGeneratedSchedules: false,
-                currentTab: 'generate',
-                schedulesExist: <?php echo !empty($schedules) ? 'true' : 'false'; ?>
-            };
-
-            let isSwitchingTabs = false;
-
-            // IMPROVED: Switch tab function with schedule refresh
-            function switchTab(tabName) {
-                console.log('🔀 switchTab called:', tabName);
-
-                // Perform UI updates
-                document.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.classList.remove('bg-yellow-500', 'text-white');
-                    btn.classList.add('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-                });
-
-                const targetTab = document.getElementById(`tab-${tabName}`);
-                if (targetTab) {
-                    targetTab.classList.add('bg-yellow-500', 'text-white');
-                    targetTab.classList.remove('text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-                }
-
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.add('hidden');
-                });
-
-                const targetContent = document.getElementById(`content-${tabName}`);
-                if (targetContent) {
-                    targetContent.classList.remove('hidden');
-                }
-
-                // Update URL
-                const url = new URL(window.location);
-                url.searchParams.set('tab', tabName === 'schedule' ? 'schedule-list' : tabName);
-                window.history.pushState({}, '', url);
-
-                // CRITICAL: Refresh schedules when switching to manual or view tabs
-                if ((tabName === 'manual' || tabName === 'schedule') && window.scheduleData && window.scheduleData.length > 0) {
-
-                    // Use requestAnimationFrame for smooth rendering
-                    requestAnimationFrame(() => {
-                        setTimeout(() => {
-                            safeUpdateScheduleDisplay(window.scheduleData);
-
-                            // Reinitialize drag and drop for manual tab
-                            if (tabName === 'manual' && typeof initializeDragAndDrop === 'function') {
-                                setTimeout(() => {
-                                    initializeDragAndDrop();
-                                }, 100);
-                            }
-
-                        }, 50);
-                    });
-                }
-            }
-
-            // Function to update which tabs are accessible
-            function updateTabAccessibility() {
-                const generateTab = document.getElementById('tab-generate');
-                const manualTab = document.getElementById('tab-manual');
-                const scheduleTab = document.getElementById('tab-schedule');
-
-                // Check current schedule data to determine if schedules exist
-                const currentSchedulesExist = window.scheduleData && window.scheduleData.length > 0;
-                navigationState.schedulesExist = currentSchedulesExist;
-
-                if (currentSchedulesExist) {
-                    // Disable generate tab when schedules exist
-                    generateTab.style.opacity = '0.5';
-                    generateTab.style.cursor = 'not-allowed';
-                    generateTab.onclick = null;
-
-                    // Enable other tabs
-                    manualTab.style.opacity = '1';
-                    manualTab.style.cursor = 'pointer';
-                    manualTab.onclick = () => switchTab('manual');
-
-                    scheduleTab.style.opacity = '1';
-                    scheduleTab.style.cursor = 'pointer';
-                    scheduleTab.onclick = () => switchTab('schedule');
-
-                    // Store in session storage
-                    sessionStorage.setItem('schedulesExist', 'true');
-                } else {
-                    // Enable all tabs when no schedules exist
-                    [generateTab, manualTab, scheduleTab].forEach(tab => {
-                        if (tab) {
-                            tab.style.opacity = '1';
-                            tab.style.cursor = 'pointer';
-                            tab.onclick = () => switchTab(tab.id.replace('tab-', ''));
-                        }
-                    });
-
-                    // Clear session storage
-                    sessionStorage.removeItem('schedulesExist');
-
-                    // Remove proceed button if it exists
-                    const proceedButton = document.getElementById('proceed-to-manual-btn');
-                    if (proceedButton) proceedButton.remove();
-                }
-            }
-
-            // Function called after successful schedule generation
+            // ── Tab state management (event-driven, no setInterval) ────────────────────
             function onSchedulesGenerated() {
-                navigationState.schedulesExist = true;
-                navigationState.hasGeneratedSchedules = true;
-
-                updateTabAccessibility();
-
-                // Store in session storage to persist across page refreshes
                 sessionStorage.setItem('schedulesExist', 'true');
             }
 
-            // Function called when all schedules are deleted
             function onAllSchedulesDeleted() {
-                navigationState.schedulesExist = false;
-                navigationState.hasGeneratedSchedules = false;
-
-                // Update UI to enable generate tab
-                updateTabAccessibility();
-
-                // Clear session storage
                 sessionStorage.removeItem('schedulesExist');
-
-                // Show notification
                 showNotification('All schedules deleted. You can now generate new schedules.', 'success');
-
-                // Switch to generate tab automatically
-                setTimeout(() => switchTab('generate'), 1000);
+                setTimeout(() => window.switchTab('generate'), 1000);
             }
 
-            // Check for existing schedules on page load
-            function checkExistingSchedules() {
-                const sessionSchedulesExist = sessionStorage.getItem('schedulesExist') === 'true';
-                const currentSchedulesExist = window.scheduleData && window.scheduleData.length > 0;
-
-                navigationState.schedulesExist = sessionSchedulesExist || currentSchedulesExist;
-
-                updateTabAccessibility();
-
-                // If we're on generate tab but schedules exist, redirect to manual
-                const currentTab = new URLSearchParams(window.location.search).get('tab');
-                if ((!currentTab || currentTab === 'generate') && navigationState.schedulesExist) {
-                    switchTab('manual');
-                }
+            // ── Incomplete schedule warning ─────────────────────────────────────────────
+            function toggleUnassignedCourses() {
+                const list = document.getElementById('unassigned-courses-list');
+                const icon = event.target.closest('button')?.querySelector('i');
+                if (!list) return;
+                list.classList.toggle('hidden');
+                icon?.classList.toggle('fa-chevron-down');
+                icon?.classList.toggle('fa-chevron-up');
             }
 
-            // Monitor schedule data changes
-            function monitorScheduleChanges() {
-                let scheduleCount = window.scheduleData ? window.scheduleData.length : 0;
-
-                // Check every second for changes in schedule count
-                setInterval(() => {
-                    const currentCount = window.scheduleData ? window.scheduleData.length : 0;
-                    if (currentCount !== scheduleCount) {
-                        scheduleCount = currentCount;
-                        updateTabAccessibility();
-
-                        // If all schedules are deleted, call onAllSchedulesDeleted
-                        if (currentCount === 0 && navigationState.schedulesExist) {
-                            onAllSchedulesDeleted();
-                        }
-                    }
-                }, 1000);
+            function hideIncompleteWarning() {
+                const b = document.getElementById('incomplete-schedule-banner');
+                if (b) b.style.display = 'none';
             }
 
-            // Initialize on page load
+            // ── Init on page load ───────────────────────────────────────────────────────
             document.addEventListener('DOMContentLoaded', function() {
-                checkExistingSchedules();
-                updateTabAccessibility();
-                monitorScheduleChanges();
-
                 const urlParams = new URLSearchParams(window.location.search);
                 const tab = urlParams.get('tab');
+                const tabName = tab === 'schedule-list' ? 'schedule' : (tab || 'generate');
+                _performTabSwitch(tabName); // use private fn so external JS overrides aren't called yet
 
-                // Set initial tab
-                if (tab === 'schedule-list') {
-                    currentTab = 'schedule';
-
-                } else if (tab === 'manual') {
-                    currentTab = 'manual';
-                } else {
-                    currentTab = 'generate';
-
-                }
-
-                // Add click handlers with reload
-                document.getElementById('tab-generate')?.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (currentTab !== 'generate') {
-                        switchTab('generate');
+                document.addEventListener('click', e => {
+                    const dd = document.getElementById('printDropdown');
+                    if (dd && !e.target.closest('#printDropdownBtn') && !dd.classList.contains('hidden')) {
+                        dd.classList.add('hidden');
                     }
                 });
 
-                document.getElementById('tab-manual')?.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (currentTab !== 'manual') {
-                        switchTab('manual');
-                    }
-                });
-
-                document.getElementById('tab-schedule')?.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (currentTab !== 'schedule') {
-                        switchTab('schedule');
-                    }
-                });
-
-                // Handle browser back/forward buttons
-                window.addEventListener('popstate', function() {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const tab = urlParams.get('tab');
-                    if (tab) {
-                        const tabName = tab === 'schedule-list' ? 'schedule' : tab;
-                        if (tabName !== currentTab) {
-                            location.reload();
+                document.addEventListener('keydown', e => {
+                    if (e.key === 'Escape') {
+                        const sidebar = document.getElementById('sidebar');
+                        if (sidebar?.style.display === 'none') {
+                            ['manual', 'view'].forEach(t => {
+                                const exitBtn = document.getElementById(`exit-fullscreen-${t}-btn`);
+                                if (exitBtn && !exitBtn.classList.contains('hidden')) toggleFullScreen(t);
+                            });
                         }
                     }
                 });
-
-                // Override the generateSchedules function to call our state update
-                const originalGenerateSchedules = window.generateSchedules;
-                if (originalGenerateSchedules) {
-                    window.generateSchedules = function() {
-                        // Call original function
-                        const result = originalGenerateSchedules.apply(this, arguments);
-
-                        // Set up a way to detect when generation is complete
-                        setTimeout(() => {
-                            if (window.scheduleData && window.scheduleData.length > 0) {
-                                onSchedulesGenerated();
-                            }
-                        }, 1000);
-
-                        return result;
-                    };
-                }
-
-                // Override delete functions to update state
-                const originalConfirmDeleteAllSchedules = window.confirmDeleteAllSchedules;
-                if (originalConfirmDeleteAllSchedules) {
-                    window.confirmDeleteAllSchedules = function() {
-                        const result = originalConfirmDeleteAllSchedules.apply(this, arguments);
-                        setTimeout(() => onAllSchedulesDeleted(), 500);
-                        return result;
-                    };
-                }
-
-                const originalConfirmDeleteSingleSchedule = window.confirmDeleteSingleSchedule;
-                if (originalConfirmDeleteSingleSchedule) {
-                    window.confirmDeleteSingleSchedule = function() {
-                        const result = originalConfirmDeleteSingleSchedule.apply(this, arguments);
-                        // Check if this was the last schedule
-                        setTimeout(() => {
-                            if (window.scheduleData && window.scheduleData.length === 0) {
-                                onAllSchedulesDeleted();
-                            } else {
-                                updateTabAccessibility();
-                            }
-                        }, 500);
-                        return result;
-                    };
-                }
             });
         </script>
 

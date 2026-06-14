@@ -6,14 +6,15 @@ use PDO;
 use Exception;
 
 /**
- * Handles profile picture uploads for any role.
+ * ProfilePictureService
  *
- * Sits alongside AuthService, EmailService, SchedulingService in src/services/.
- * Upload directory: src/public/uploads/profiles/
+ * Handles profile picture uploads for any role controller.
+ * Drop this into src/services/ alongside AuthService, EmailService, etc.
+ *
+ * Upload path matches the existing src/public/uploads/profiles/ folder.
  */
 class ProfilePictureService
 {
-    // Mirrors the existing uploads/profiles/ folder in src/public/
     private const UPLOAD_WEB_PATH = '/uploads/profiles/';
     private const ALLOWED_TYPES   = ['image/jpeg', 'image/png', 'image/gif'];
     private const MAX_SIZE        = 2 * 1024 * 1024; // 2 MB
@@ -21,12 +22,11 @@ class ProfilePictureService
     public function __construct(private PDO $db) {}
 
     /**
-     * Process a profile picture upload.
+     * Process a profile picture upload for $userId.
      *
      * Returns:
-     *   null           — no file was submitted (UPLOAD_ERR_NO_FILE)
-     *   string         — web-relative path to the saved file,
-     *                    e.g. "/uploads/profiles/profile_5_1718000000.jpg"
+     *   null   — no file was submitted (UPLOAD_ERR_NO_FILE)
+     *   string — web-relative path, e.g. "/uploads/profiles/profile_5_1718000000.jpg"
      *
      * Throws \Exception on any validation or I/O failure.
      */
@@ -66,38 +66,32 @@ class ProfilePictureService
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private function assertNoUploadError(int $errorCode): void
+    private function assertNoUploadError(int $code): void
     {
-        if ($errorCode === UPLOAD_ERR_OK) {
-            return;
-        }
+        if ($code === UPLOAD_ERR_OK) return;
 
         $messages = [
-            UPLOAD_ERR_INI_SIZE   => 'The file exceeds the server\'s maximum upload size.',
-            UPLOAD_ERR_FORM_SIZE  => 'The file exceeds the form\'s maximum upload size.',
+            UPLOAD_ERR_INI_SIZE   => "The file exceeds the server's maximum upload size.",
+            UPLOAD_ERR_FORM_SIZE  => "The file exceeds the form's maximum upload size.",
             UPLOAD_ERR_PARTIAL    => 'The file was only partially uploaded.',
             UPLOAD_ERR_NO_TMP_DIR => 'The server is missing a temporary folder.',
             UPLOAD_ERR_CANT_WRITE => 'The server failed to write the file to disk.',
             UPLOAD_ERR_EXTENSION  => 'A server extension stopped the upload.',
         ];
 
-        throw new Exception($messages[$errorCode] ?? "Upload failed with error code $errorCode.");
+        throw new Exception($messages[$code] ?? "Upload failed with error code $code.");
     }
 
-    private function assertAllowedType(string $mimeType, int $userId): void
+    private function assertAllowedType(string $mime, int $userId): void
     {
-        if (in_array($mimeType, self::ALLOWED_TYPES, true)) {
-            return;
-        }
-        error_log("ProfilePictureService: invalid MIME type '$mimeType' for user $userId");
+        if (in_array($mime, self::ALLOWED_TYPES, true)) return;
+        error_log("ProfilePictureService: invalid MIME '$mime' for user $userId");
         throw new Exception('Only JPEG, PNG, and GIF images are allowed.');
     }
 
     private function assertSize(int $bytes, int $userId): void
     {
-        if ($bytes <= self::MAX_SIZE) {
-            return;
-        }
+        if ($bytes <= self::MAX_SIZE) return;
         error_log("ProfilePictureService: file size $bytes exceeds limit for user $userId");
         throw new Exception('The file exceeds the 2 MB size limit.');
     }
@@ -105,28 +99,24 @@ class ProfilePictureService
     private function ensureDirectory(string $dir): void
     {
         if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
-            error_log("ProfilePictureService: could not create directory $dir");
+            error_log("ProfilePictureService: could not create $dir");
             throw new Exception('Could not create the upload directory on the server.');
         }
     }
 
-    /**
-     * Delete the user's current profile picture from disk (non-fatal if missing).
-     */
+    /** Delete the user's current profile picture from disk (non-fatal if missing). */
     private function deleteExistingPicture(int $userId): void
     {
         $stmt = $this->db->prepare('SELECT profile_picture FROM users WHERE user_id = :uid');
         $stmt->execute([':uid' => $userId]);
         $webPath = $stmt->fetchColumn();
 
-        if (!$webPath) {
-            return;
-        }
+        if (!$webPath) return;
 
-        $fullPath = $_SERVER['DOCUMENT_ROOT'] . $webPath;
-        if (file_exists($fullPath) && !unlink($fullPath)) {
-            // Non-fatal: log and continue so the new upload still proceeds
-            error_log("ProfilePictureService: could not delete existing picture $fullPath for user $userId");
+        $full = $_SERVER['DOCUMENT_ROOT'] . $webPath;
+        if (file_exists($full) && !unlink($full)) {
+            // Non-fatal — log and continue so the new upload still proceeds
+            error_log("ProfilePictureService: could not delete $full for user $userId");
         }
     }
 }

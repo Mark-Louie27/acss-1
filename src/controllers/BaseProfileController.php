@@ -1,54 +1,84 @@
 <?php
 
-namespace Src\Controllers;
+require_once __DIR__ . '/BaseController.php';
+require_once __DIR__ . '/../repositories/ProfileRepository.php';
+require_once __DIR__ . '/../repositories/SpecializationRepository.php';
+require_once __DIR__ . '/../repositories/CourseRepository.php';
+require_once __DIR__ . '/../services/ProfilePictureService.php';
 
 use Src\Repositories\ProfileRepository;
 use Src\Repositories\SpecializationRepository;
 use Src\Repositories\CourseRepository;
 use Src\Services\ProfilePictureService;
-use PDO;
-use Exception;
 
 /**
  * BaseProfileController
+ * ─────────────────────
+ * Extends BaseController, which already owns:
+ *   • $this->db          (PDO connection)
+ *   • $this->userRoles   (from $_SESSION['roles'])
+ *   • requireRole()
+ *   • requireAnyRole()
+ *   • getCurrentUserId()
  *
- * Shared profile() and searchCourses() logic for all four role controllers.
+ * This class adds shared profile() and searchCourses() logic used by all
+ * four role controllers. It does NOT declare its own __construct(); each child
+ * continues to call parent::__construct() normally, then adds one extra line:
  *
- * Child classes set five properties to wire up their role-specific behaviour:
+ *     $this->initProfileDependencies();
  *
- *   $redirectPath      — where to redirect after POST  e.g. '/chair/profile'
- *   $viewPath          — which view file to render     e.g. __DIR__.'/../views/chair/profile.php'
- *   $fallbackRoleName  — role label shown on error     e.g. 'Program Chair'
- *   $withExpertiseLevel — true only for DirectorController
+ * That one call wires up the four repository/service objects using the $db
+ * and $authService that the child has already set up.
  *
- * Child classes that need a role guard override profile() and call parent::profile().
+ * Child classes must set these four properties:
+ *
+ *   protected string $redirectPath      — e.g. '/chair/profile'
+ *   protected string $viewPath          — e.g. __DIR__.'/../views/chair/profile.php'
+ *   protected string $fallbackRoleName  — e.g. 'Program Chair'
+ *   protected bool   $withExpertiseLevel — true only for DirectorController
+ *
+ * Child classes that need a role guard override profile() and call
+ * parent::profile() inside:
+ *
+ *   public function profile(): void {
+ *       $this->requireAnyRole('chair', 'dean');
+ *       parent::profile();
+ *   }
  */
-abstract class BaseProfileController
+abstract class BaseProfileController extends BaseController
 {
-    // Child classes configure these -------------------------------------------
+    // ── Child classes configure these four properties ─────────────────────────
     protected string $redirectPath      = '';
     protected string $viewPath          = '';
     protected string $fallbackRoleName  = '';
     protected bool   $withExpertiseLevel = false;
-    // -------------------------------------------------------------------------
 
+    // ── $authService is declared `private` in each child controller. ─────────
+    // ── Do NOT redeclare it here — a protected base declaration would         ──
+    // ── conflict with the child's private one (PHP visibility rules).         ──
+    // ── $this->authService resolves correctly at runtime through the child.   ──
+
+    // ── Wired up by initProfileDependencies() ────────────────────────────────
     protected ProfileRepository        $profileRepo;
     protected SpecializationRepository $specializationRepo;
     protected CourseRepository         $courseRepo;
     protected ProfilePictureService    $pictureService;
 
-    public function __construct(
-        protected PDO    $db,
-        protected object $authService   // Src\Services\AuthService
-    ) {
-        $this->profileRepo        = new ProfileRepository($db);
-        $this->specializationRepo = new SpecializationRepository($db);
-        $this->courseRepo         = new CourseRepository($db);
-        $this->pictureService     = new ProfilePictureService($db);
+    // =========================================================================
+    // Call this at the END of each child's __construct(),
+    // AFTER $this->authService has been assigned.
+    // BaseController::__construct() has already set $this->db.
+    // =========================================================================
+    protected function initProfileDependencies(): void
+    {
+        $this->profileRepo        = new ProfileRepository($this->db);
+        $this->specializationRepo = new SpecializationRepository($this->db);
+        $this->courseRepo         = new CourseRepository($this->db);
+        $this->pictureService     = new ProfilePictureService($this->db);
     }
 
     // =========================================================================
-    // searchCourses — identical entry point for all four controllers
+    // searchCourses — shared across all four controllers
     // =========================================================================
 
     public function searchCourses(): void
@@ -65,20 +95,20 @@ abstract class BaseProfileController
 
             header('Content-Type: application/json');
             echo json_encode($courses);
-        } catch (\PDOException $e) {
+        } catch (PDOException $e) {
             http_response_code(500);
-            error_log('searchCourses PDO: ' . $e->getMessage());
+            error_log('searchCourses PDO [' . static::class . ']: ' . $e->getMessage());
             echo json_encode(['error' => 'Database error while fetching courses.']);
         } catch (Exception $e) {
             http_response_code(500);
-            error_log('searchCourses: ' . $e->getMessage());
+            error_log('searchCourses [' . static::class . ']: ' . $e->getMessage());
             echo json_encode(['error' => 'An error occurred while fetching courses.']);
         }
         exit;
     }
 
     // =========================================================================
-    // profile — shared GET/POST handler
+    // profile — shared GET / POST handler
     // =========================================================================
 
     public function profile(): void
@@ -91,21 +121,16 @@ abstract class BaseProfileController
             }
 
             $userId    = (int) $_SESSION['user_id'];
-            // $csrfToken is referenced directly in the view
-            $csrfToken = $this->authService->generateCsrfToken();
+            $csrfToken = $this->authService->generateCsrfToken(); // available to view via $csrfToken
 
-            // -----------------------------------------------------------------
-            // POST
-            // -----------------------------------------------------------------
+            // ── POST ─────────────────────────────────────────────────────────
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $this->handlePost($userId);
                 header('Location: ' . $this->redirectPath);
                 exit;
             }
 
-            // -----------------------------------------------------------------
-            // GET — build all variables the view expects
-            // -----------------------------------------------------------------
+            // ── GET — build all variables the view expects ────────────────────
             $user            = $this->profileRepo->getUserWithStats($userId);
             $specializations = $this->profileRepo->getSpecializations($userId);
 
@@ -113,12 +138,12 @@ abstract class BaseProfileController
                 throw new Exception('User not found.');
             }
 
-            $facultyCount           = (int) ($user['facultyCount']           ?? 0);
-            $coursesCount           = (int) ($user['coursesCount']            ?? 0);
-            $specializationsCount   = (int) ($user['specializationsCount']    ?? 0);
-            $pendingApplicantsCount = (int) ($user['pendingApplicantsCount']  ?? 0);
-            $currentSemester        = $user['currentSemester'] ?? '2nd';
-            $lastLogin              = $user['lastLogin']        ?? 'N/A';
+            $facultyCount           = (int) ($user['facultyCount']          ?? 0);
+            $coursesCount           = (int) ($user['coursesCount']           ?? 0);
+            $specializationsCount   = (int) ($user['specializationsCount']   ?? 0);
+            $pendingApplicantsCount = (int) ($user['pendingApplicantsCount'] ?? 0);
+            $currentSemester        =       $user['currentSemester']         ?? '2nd';
+            $lastLogin              =       $user['lastLogin']               ?? 'N/A';
 
             require_once $this->viewPath;
         } catch (Exception $e) {
@@ -129,20 +154,20 @@ abstract class BaseProfileController
             error_log('profile error [' . static::class . ']: ' . $e->getMessage());
             $_SESSION['flash'] = ['type' => 'error', 'message' => 'Failed to load profile. Please try again.'];
 
-            // Safe fallback so the view never crashes on missing variables
+            // Safe blank state — view will never crash on missing variables
             $user            = $this->blankUser($userId ?? 0);
             $specializations = [];
-            $facultyCount = $coursesCount = $specializationsCount = $pendingApplicantsCount = 0;
+            $csrfToken       = '';
+            $facultyCount    = $coursesCount = $specializationsCount = $pendingApplicantsCount = 0;
             $currentSemester = '2nd';
             $lastLogin       = 'N/A';
-            $csrfToken       = '';
 
             require_once $this->viewPath;
         }
     }
 
     // =========================================================================
-    // Private — POST pipeline
+    // POST pipeline — private, called only from profile()
     // =========================================================================
 
     private function handlePost(int $userId): void
@@ -158,7 +183,7 @@ abstract class BaseProfileController
         try {
             $this->db->beginTransaction();
 
-            // ---- profile picture ----------------------------------------
+            // ── Profile picture ───────────────────────────────────────────────
             $picturePath = null;
             try {
                 $picturePath = $this->pictureService->upload($userId);
@@ -166,7 +191,7 @@ abstract class BaseProfileController
                 $errors[] = $e->getMessage();
             }
 
-            // ---- users table --------------------------------------------
+            // ── users table ───────────────────────────────────────────────────
             $this->validateUserFields($data, $errors);
 
             if (empty($errors)) {
@@ -186,7 +211,7 @@ abstract class BaseProfileController
                 $this->profileRepo->updateUser($userId, $userFields);
             }
 
-            // ---- faculty table ------------------------------------------
+            // ── faculty table ─────────────────────────────────────────────────
             $facultyId = $this->profileRepo->getFacultyId($userId);
             if (!$facultyId) {
                 throw new Exception('Faculty record not found for this user.');
@@ -207,12 +232,12 @@ abstract class BaseProfileController
                 $this->profileRepo->updateFaculty($facultyId, $facultyFields);
             }
 
-            // ---- specialization action ----------------------------------
+            // ── Specialization action ─────────────────────────────────────────
             if (empty($errors) && !empty($data['action'])) {
                 $this->handleSpecializationAction($data, $facultyId, $errors);
             }
 
-            // ---- commit or rollback ------------------------------------
+            // ── Commit or rollback ────────────────────────────────────────────
             if (!empty($errors)) {
                 $this->db->rollBack();
             } else {
@@ -220,7 +245,7 @@ abstract class BaseProfileController
                 $this->syncSession($data, $picturePath);
                 $_SESSION['flash'] = ['type' => 'success', 'message' => 'Profile updated successfully.'];
             }
-        } catch (\PDOException $e) {
+        } catch (PDOException $e) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             error_log('profile POST PDO [' . static::class . ']: ' . $e->getMessage());
             $errors[] = 'Database error: ' . $e->getMessage();
@@ -235,35 +260,39 @@ abstract class BaseProfileController
         }
     }
 
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
     private function collectPostData(): array
     {
         $p = fn(string $key): string => trim($_POST[$key] ?? '');
 
         return [
             // user fields
-            'email'                => $p('email'),
-            'phone'                => $p('phone'),
-            'username'             => $p('username'),
-            'first_name'           => $p('first_name'),
-            'middle_name'          => $p('middle_name'),
-            'last_name'            => $p('last_name'),
-            'suffix'               => $p('suffix'),
-            'title'                => $p('title'),
+            'email'                 => $p('email'),
+            'phone'                 => $p('phone'),
+            'username'              => $p('username'),
+            'first_name'            => $p('first_name'),
+            'middle_name'           => $p('middle_name'),
+            'last_name'             => $p('last_name'),
+            'suffix'                => $p('suffix'),
+            'title'                 => $p('title'),
             // faculty fields
-            'classification'       => $p('classification'),
-            'academic_rank'        => $p('academic_rank'),
-            'employment_type'      => $p('employment_type'),
-            'bachelor_degree'      => $p('bachelor_degree'),
-            'master_degree'        => $p('master_degree'),
-            'doctorate_degree'     => $p('doctorate_degree'),
-            'post_doctorate_degree' => $p('post_doctorate_degree'),
-            'advisory_class'       => $p('advisory_class'),
-            'designation'          => $p('designation'),
+            'classification'        => $p('classification'),
+            'academic_rank'         => $p('academic_rank'),
+            'employment_type'       => $p('employment_type'),
+            'bachelor_degree'       => $p('bachelor_degree'),
+            'master_degree'         => $p('master_degree'),
+            'doctorate_degree'      => $p('doctorate_degree'),      // fixed: was 'dpost_doctorate_degree' in DirectorController
+            'post_doctorate_degree' => $p('post_doctorate_degree'), // fixed: was mapped to bachelor_degree in DirectorController
+            'advisory_class'        => $p('advisory_class'),
+            'designation'           => $p('designation'),
             // specialization fields
-            'expertise_level'      => $p('expertise_level'),
-            'course_id'            => $p('course_id'),
-            'specialization_index' => $p('specialization_index'),
-            'action'               => $p('action'),
+            'expertise_level'       => $p('expertise_level'),
+            'course_id'             => $p('course_id'),
+            'specialization_index'  => $p('specialization_index'),
+            'action'                => $p('action'),
         ];
     }
 
@@ -318,7 +347,7 @@ abstract class BaseProfileController
                     break;
 
                 case 'edit_specialization':
-                    // Client-side only — just triggers a modal, no DB write
+                    // Client-side modal trigger only — no DB write needed
                     break;
 
                 default:
@@ -332,16 +361,7 @@ abstract class BaseProfileController
 
     private function syncSession(array $data, ?string $picturePath): void
     {
-        $sessionFields = [
-            'username',
-            'last_name',
-            'middle_name',
-            'suffix',
-            'title',
-            'first_name',
-            'email',
-        ];
-        foreach ($sessionFields as $key) {
+        foreach (['username', 'last_name', 'middle_name', 'suffix', 'title', 'first_name', 'email'] as $key) {
             if (!empty($data[$key])) {
                 $_SESSION[$key] = $data[$key];
             }
@@ -350,10 +370,6 @@ abstract class BaseProfileController
             $_SESSION['profile_picture'] = $picturePath;
         }
     }
-
-    // =========================================================================
-    // Safe blank user array — view will never crash even on DB failure
-    // =========================================================================
 
     private function blankUser(int $userId): array
     {

@@ -12,20 +12,15 @@ class CourseRepository
     /**
      * Search courses by code, name, department, or college.
      *
-     * Behaviour by query length:
-     *   ''       → all courses, ordered by code            (LIMIT 200)
-     *   1 char   → prefix match on code / name             (LIMIT 100)
-     *   2+ chars → LIKE match on code, name, dept, college (LIMIT 100), relevance-ranked
-     *
-     * @return array<int, array<string, mixed>>
+     * ''       → all courses ordered by code            (LIMIT 200)
+     * 1 char   → prefix match on code / name            (LIMIT 100)
+     * 2+ chars → LIKE on code, name, dept, college      (LIMIT 100), relevance-ranked
      */
     public function search(string $query): array
     {
         $query = trim($query);
 
-        // -------------------------------------------------------------------
-        // Empty → return full list (e.g. for populating a dropdown on focus)
-        // -------------------------------------------------------------------
+        // ── Empty → return everything (populate dropdowns on focus) ──────────
         if ($query === '') {
             $stmt = $this->db->prepare("
                 SELECT c.course_id, c.course_code, c.course_name,
@@ -42,9 +37,7 @@ class CourseRepository
 
         $upper = strtoupper($query);
 
-        // -------------------------------------------------------------------
-        // Single character → prefix search only (no dept/college)
-        // -------------------------------------------------------------------
+        // ── Single character → prefix search (no dept/college) ───────────────
         if (strlen($query) === 1) {
             $prefix = $upper . '%';
             $stmt   = $this->db->prepare("
@@ -56,11 +49,9 @@ class CourseRepository
                 WHERE UPPER(c.course_code) LIKE ?
                    OR UPPER(c.course_name) LIKE ?
                 ORDER BY
-                    CASE
-                        WHEN UPPER(c.course_code) LIKE ? THEN 1
-                        WHEN UPPER(c.course_name) LIKE ? THEN 2
-                        ELSE 3
-                    END,
+                    CASE WHEN UPPER(c.course_code) LIKE ? THEN 1
+                         WHEN UPPER(c.course_name) LIKE ? THEN 2
+                         ELSE 3 END,
                     c.course_code
                 LIMIT 100
             ");
@@ -68,9 +59,7 @@ class CourseRepository
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        // -------------------------------------------------------------------
-        // 2+ characters → full search: code, name, department, college
-        // -------------------------------------------------------------------
+        // ── 2+ characters → full LIKE across code, name, dept, college ───────
         $like = '%' . $upper . '%';
         $stmt = $this->db->prepare("
             SELECT c.course_id, c.course_code, c.course_name,
@@ -83,13 +72,11 @@ class CourseRepository
                OR UPPER(d.department_name) LIKE ?
                OR UPPER(co.college_name)   LIKE ?
             ORDER BY
-                CASE
-                    WHEN UPPER(c.course_code)     LIKE ? THEN 1
-                    WHEN UPPER(c.course_name)     LIKE ? THEN 2
-                    WHEN UPPER(d.department_name) LIKE ? THEN 3
-                    WHEN UPPER(co.college_name)   LIKE ? THEN 4
-                    ELSE 5
-                END,
+                CASE WHEN UPPER(c.course_code)     LIKE ? THEN 1
+                     WHEN UPPER(c.course_name)     LIKE ? THEN 2
+                     WHEN UPPER(d.department_name) LIKE ? THEN 3
+                     WHEN UPPER(co.college_name)   LIKE ? THEN 4
+                     ELSE 5 END,
                 c.course_code
             LIMIT 100
         ");
